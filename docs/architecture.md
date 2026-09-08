@@ -155,7 +155,40 @@ graph produced.
 The GUI's own record of the wake half: five missing wakes shipped past a green suite, because a test
 that draws its own frames cannot notice a wake that never came.
 
-### 5. Scopes are application / window / frame
+### 5. Chrome placement is the framework's; chrome appearance is the application's
+
+This direction is easy to get backwards, and `vexelray-gui/docs/automation.md` §7 already argues it:
+
+> A title bar is window chrome, and chrome belongs to whoever owns the window. An application
+> contributes **identity** — its title, an icon as identity — and never controls... The moment one app
+> puts its own button in the caption, the strip is app-addressable, and no framework instrument can
+> rely on the space existing or on its meaning being the same from one window to the next.
+> "Screenshot this window" is only free if the framework owns the place it lives.
+
+So the framework builds the `TitleBar`, supplies identity from `@VexelApp`, and hands it real
+`WindowControls` at `ATTACH` — the seam that exists because *"a native window cannot photograph
+itself... only `GuiApp` owns a window's render bundle, so only `GuiApp` can make working controls."*
+
+**The look stays entirely the application's.** `Appearance.theme()` is whatever the application says,
+including a `Theme` of its own construction with its own nine-anchor `Palette`, `Shading` and
+`Relief`; the chrome reads that same theme rather than one of its own. An application that wants to
+draw things differently is not fighting a default — it is supplying the only value there is.
+
+Instruments follow §7's rule: the framework supplies `WindowInstrument.standard()` and a window may
+take fewer or none. Free to *enable*, not present unconditionally.
+
+Two knobs an application will want are **not yet expressible**, and neither gap is the framework's to
+close:
+
+- **Corner radius** is a per-node prop (`Node.corner(Length)`) with no theme-level default. Making it
+  convenient means `Theme` gaining a radius anchor beside `Relief`, in `vexelray-gui`. Backwards
+  compatible if added as a `default` member.
+- **Light direction** is *hardcoded in the generated shader* — `CanvasShader.java`, `unit top-left
+  light dir`, baked into the SPIR-V. Making it app-controllable means a uniform threaded through the
+  SDF uber-shader in `vexelray`. That is the one change here that touches the path every pixel in the
+  stack goes through.
+
+### 6. Scopes are application / window / frame
 
 Not singleton / request / session. Window scope is already real and already hand-maintained — the
 text editor binds the clipboard to *every* window in a loop, and remembers each window under its own
@@ -199,7 +232,9 @@ ecosystem. But it makes the move a coordinated sweep across four repos, so it is
 vexelray-framework                    parent (pom)
 ├─ vexelray-framework-api        the vocabulary: annotations only, JDK-only          [built]
 ├─ vexelray-framework-core       phases, launch, frame stages, pacing, disposal      [built]
-├─ vexelray-framework-shell      the absorbed edge: input, clipboard, memory, loop   [built]
+├─ vexelray-framework-shell      the absorbed edge: input, clipboard, memory, loop,
+│                                and the window chrome                              [built]
+├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
 ├─ vexelray-framework-demo       calculator's wiring, hand-written                   [next]
 ├─ vexelray-framework-processor  annotation processor -> generated wiring             [after]
 └─ vexelray-framework-diagnostics  the Actuator analogue: frame budget, bean graph   [planned]

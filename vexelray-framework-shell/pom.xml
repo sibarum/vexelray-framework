@@ -36,6 +36,12 @@
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-krono</artifactId>
         </dependency>
+        <!-- TitleBar. The framework builds the bar so its instrument strip means the same thing in
+             every window (automation.md 7); the application still supplies every colour in it. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-widget</artifactId>
+        </dependency>
 
         <!-- Input, and the bridge that puts it on the bus. -->
         <dependency>

@@ -1,20 +1,18 @@
 package dev.vexelray.framework.shell;
 
-import dev.vexelray.canvas.Color;
 import dev.vexelray.framework.api.FrameStage;
 import dev.vexelray.framework.api.RunMode;
 import dev.vexelray.framework.core.Disposer;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.gui.core.Gui;
+import dev.vexelray.gui.core.WindowControls;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
-import dev.vexelray.os.Decorations;
+import dev.vexelray.gui.widget.TitleBar;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 
 /**
  * Runs an application: the phases in order, the loop, and the shutdown.
@@ -98,16 +96,18 @@ public final class VexelApplication {
         // Registered after the Gui so it closes before it: the clock outlives the window but not the process.
         KronoGui krono = disposer.register(KronoGui.attach(gui));
         shell.krono(krono);
+        // The chrome, built by the framework so that the strip its instruments live in means the same thing in
+        // every window (automation.md 7). Against WindowControls.NONE for now -- a native window cannot
+        // photograph itself, so only GuiApp can mint working controls, and they are handed down at ATTACH.
+        // Everything about how it draws comes from the application's own theme, applied two lines above.
+        if (appearance.drawsOwnFrame()) {
+            shell.titleBar(new TitleBar(gui, WindowControls.NONE, info.title()));
+        }
         wiring.gui(shell);
 
-        // ---- TREE: the widgets. Buildable with no window, which is what makes a capture possible. --------
+        // ---- TREE: the widgets, the framework's title bar among them. No window needed. -------------------
         shell.phase(Phase.TREE);
         wiring.tree(shell);
-
-        if (launch.mode() == RunMode.CAPTURE) {
-            capture(shell, info, launch);
-            return;
-        }
 
         // ---- WINDOW: the device and the window exist. Main-thread from here on. -------------------------
         shell.phase(Phase.WINDOW);
@@ -118,7 +118,7 @@ public final class VexelApplication {
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
         GuiApp app = disposer.register(new GuiApp(
                 memory.config(MAIN, info.title(), info.width(), info.height())
-                        .decorations(Decorations.CLIENT)));
+                        .decorations(appearance.decorations())));
         shell.app(app);
         wiring.window(shell);
 
@@ -128,6 +128,13 @@ public final class VexelApplication {
         input.bridge(gui);
         app.input(InputBackend.perWindow());
         disposer.register(ClipboardBackend.open()).installOn(gui);
+        // The window exists at last, so the bar can be given controls that actually work and the instruments
+        // that use them. Both in one place, because an instrument without real controls is the exact failure
+        // automation.md 7 records: "every other window had a screenshot button that neither worked nor
+        // complained".
+        if (appearance.drawsOwnFrame()) {
+            shell.titleBar().controls(app.controls()).instruments(appearance.instruments());
+        }
         if (memory.maximized(MAIN)) {
             app.window().maximize();
         }
@@ -174,23 +181,5 @@ public final class VexelApplication {
             // session is written here or not at all.
             memory.save();
         }
-    }
-
-    /**
-     * One frame to a PNG, with no window shown and no input backend opened.
-     *
-     * <p>Reached before {@link Phase#WINDOW}, which is the whole reason it works on a machine with no input
-     * backend: the components that only serve a session were never constructed rather than constructed and
-     * found wanting.
-     */
-    private static void capture(Shell shell, AppInfo info, Launch launch) {
-        Color page = shell.appearance().page();
-        String out = launch.captureOut().toString();
-        try {
-            GuiApp.capture(shell.gui(), info.width(), info.height(), page.r(), page.g(), page.b(), out);
-        } catch (IOException e) {
-            throw new UncheckedIOException("capture to " + out + " failed", e);
-        }
-        System.out.println("captured " + out);
     }
 }

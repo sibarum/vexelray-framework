@@ -12,6 +12,7 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
+import dev.vexelray.gui.widget.TitleBar;
 
 /**
  * What the framework has built so far, and where the wiring hands things back.
@@ -41,6 +42,7 @@ public final class Shell {
     private KronoGui krono;
     private WindowMemory memory;
     private GuiApp app;
+    private TitleBar titleBar;
     private Phase phase = Phase.CONFIG;
 
     Shell(Launch launch, AppInfo info) {
@@ -134,6 +136,31 @@ public final class Shell {
         return require(Phase.GUI, "the clock", krono);
     }
 
+    /**
+     * The window's title bar, built by the framework — place its {@link TitleBar#node()} in the tree.
+     *
+     * <p>Exists from {@link Phase#GUI}, so the application can put it in its layout at {@code TREE} like any
+     * other node. Until {@code ATTACH} it is a working bar against {@code WindowControls.NONE}; the framework
+     * hands it the real controls and its instruments once the window exists, which is the seam
+     * {@code automation.md} §7 insists on — <i>"a native window cannot photograph itself... only GuiApp owns a
+     * window's render bundle, so only GuiApp can make working controls, and nothing else is allowed to
+     * try."</i>
+     *
+     * <p><b>The framework builds it; the application says how it looks and where it goes.</b> Chrome placement
+     * is the framework's so that a screenshot instrument means the same thing in every window. Everything about
+     * its appearance comes from the application's own {@link Appearance#theme()}.
+     *
+     * <p>Absent when the application asked for {@link dev.vexelray.os.Decorations#SYSTEM} — there is no
+     * application-drawn bar to own — and asking then is an error rather than a null.
+     */
+    public TitleBar titleBar() {
+        if (titleBar == null && !appearance.drawsOwnFrame()) {
+            throw new IllegalStateException(
+                    "no framework title bar: this application asked for SYSTEM decorations");
+        }
+        return require(Phase.GUI, "the title bar", titleBar);
+    }
+
     /** Window placement memory. Exists from {@link Phase#WINDOW}. */
     public WindowMemory memory() {
         return require(Phase.WINDOW, "window memory", memory);
@@ -167,6 +194,10 @@ public final class Shell {
 
     void memory(WindowMemory memory) {
         this.memory = memory;
+    }
+
+    void titleBar(TitleBar titleBar) {
+        this.titleBar = titleBar;
     }
 
     void app(GuiApp app) {

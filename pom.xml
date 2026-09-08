@@ -33,6 +33,9 @@
              client of vexelray-gui has to write for itself", taken as defaults. Everything Vulkan-aware lives
              here and nowhere above it. -->
         <module>vexelray-framework-shell</module>
+        <!-- The driving socket, off unless asked for. Its own module so that a binary that never wants to be
+             driven does not link a listening socket. -->
+        <module>vexelray-framework-automation</module>
     </modules>
 
     <properties>
@@ -67,6 +70,11 @@
             <dependency>
                 <groupId>dev.vexelray.framework</groupId>
                 <artifactId>vexelray-framework-shell</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray.framework</groupId>
+                <artifactId>vexelray-framework-automation</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

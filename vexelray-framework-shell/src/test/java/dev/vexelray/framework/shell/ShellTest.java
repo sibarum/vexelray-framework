@@ -115,6 +115,51 @@ final class ShellTest {
         assertEquals(dev.vexelray.framework.api.RunMode.WINDOWED, shell.launch().mode());
     }
 
+    /**
+     * The framework builds the bar; the application supplies the look. So an appearance says nothing about how
+     * the chrome draws — it says the theme, and the chrome reads the same one.
+     */
+    @Test
+    void anApplicationDrawingItsOwnFrameGetsTheStandardInstruments() {
+        Appearance appearance = Appearance.of(Theme.LIGHT);
+        assertTrue(appearance.drawsOwnFrame());
+        assertEquals(dev.vexelray.gui.core.WindowInstrument.standard().size(),
+                appearance.instruments().size());
+    }
+
+    /** A shipped application must be able to say "no buttons in my caption". */
+    @Test
+    void instrumentsAreReducibleToNone() {
+        assertTrue(Appearance.of(Theme.DARK).instruments(java.util.List.of()).instruments().isEmpty());
+    }
+
+    @Test
+    void askingForSystemDecorationsMeansThereIsNoFrameworkBar() {
+        Appearance os = Appearance.of(Theme.DARK).decorations(dev.vexelray.os.Decorations.SYSTEM);
+        assertFalse(os.drawsOwnFrame());
+
+        Shell shell = shell();
+        shell.appearance(os);
+        shell.phase(dev.vexelray.framework.core.Phase.GUI);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, shell::titleBar);
+        assertTrue(e.getMessage().contains("SYSTEM decorations"), e.getMessage());
+    }
+
+    @Test
+    void theBarDoesNotExistBeforeTheGuiPhase() {
+        assertThrows(IllegalStateException.class, shell()::titleBar);
+    }
+
+    /** The application's theme is the only theme. Nothing here substitutes a framework one. */
+    @Test
+    void theThemeIsWhateverTheApplicationSaid() {
+        Theme mine = Theme.of(Theme.LIGHT.palette(), Theme.LIGHT.shading(), Theme.LIGHT.relief(), true, false);
+        Shell shell = shell();
+        shell.appearance(Appearance.of(mine));
+        assertSame(mine, shell.appearance().theme());
+    }
+
     @Test
     void anAppearanceWithNoFloorReportsNone() {
         assertFalse(Appearance.of(Theme.DARK).hasMinSize());
@@ -123,12 +168,4 @@ final class ShellTest {
                 dev.vexelray.gui.core.layout.Length.em(30)).hasMinSize());
     }
 
-    /** The clear colour comes off the theme, so a capture cannot disagree with the page it photographs. */
-    @Test
-    void thePageColourIsDerivedFromTheTheme() {
-        assertEquals(Theme.LIGHT.color(dev.vexelray.gui.core.style.Role.PAGE),
-                Appearance.of(Theme.LIGHT).page());
-        assertEquals(Theme.DARK.color(dev.vexelray.gui.core.style.Role.PAGE),
-                Appearance.of(Theme.DARK).page());
-    }
 }

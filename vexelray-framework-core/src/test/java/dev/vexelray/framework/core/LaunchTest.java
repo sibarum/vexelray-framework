@@ -3,12 +3,10 @@ package dev.vexelray.framework.core;
 import dev.vexelray.framework.api.RunMode;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Path;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,7 +24,6 @@ final class LaunchTest {
         Launch launch = parse();
         assertEquals(RunMode.WINDOWED, launch.mode());
         assertEquals(0, launch.frames());
-        assertNull(launch.captureOut());
     }
 
     @Test
@@ -43,28 +40,16 @@ final class LaunchTest {
         assertEquals(0, launch.frames());
     }
 
-    @Test
-    void captureDefaultsItsOutputToTheApplicationName() {
-        Launch launch = parse("--capture");
-        assertEquals(RunMode.CAPTURE, launch.mode());
-        assertEquals(Path.of("demo.png"), launch.captureOut());
-    }
-
-    @Test
-    void captureTakesAFollowingPath() {
-        assertEquals(Path.of("out.png"), parse("--capture", "out.png").captureOut());
-    }
-
     /**
-     * A frame count after {@code --capture} is not a filename. Capture renders exactly one frame, so the count
-     * is already meaningless here; reading it as a path would create the file {@code 30}.
+     * The framework's one-frame capture mode is gone — it photographed the chrome correctly and the content
+     * silently wrongly. So {@code --capture} is now just an unknown flag, and an application with its own
+     * richer capture tooling is expected to intercept it before handing the rest here. Getting a clear
+     * "unknown option" is the right outcome for one that forgets.
      */
     @Test
-    void captureDoesNotTakeANumberAsItsPath() {
-        Launch launch = parse("--capture", "30");
-        assertEquals(RunMode.CAPTURE, launch.mode());
-        assertEquals(Path.of("demo.png"), launch.captureOut());
-        assertEquals(0, launch.frames());
+    void captureIsNoLongerAFrameworkFlag() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> parse("--capture"));
+        assertTrue(e.getMessage().contains("--capture"), e.getMessage());
     }
 
     @Test
@@ -119,6 +104,7 @@ final class LaunchTest {
         String usage = Launch.usage("demo", KEYS);
         assertTrue(usage.contains("demo"), usage);
         assertTrue(usage.contains("theme"), usage);
+        assertFalse(usage.contains("--capture"), usage);
         assertTrue(usage.contains("automation"), usage);
     }
 }
