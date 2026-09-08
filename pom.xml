@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>dev.vexelray.framework</groupId>
+    <artifactId>vexelray-framework</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>vexelray-framework</name>
+    <description>
+        An application framework for GraalVM native-image desktop applications with realtime graphics:
+        compile-time dependency injection, typed configuration, and a frame-aware lifecycle for the
+        VexelRay stack. Everything Spring Boot does with runtime scanning, reflection and generated
+        proxies, this does with an annotation processor — so an application compiles to a native binary
+        with no reachability metadata of the framework's own. See docs/architecture.md.
+    </description>
+
+    <modules>
+        <!-- The vocabulary an application compiles against: @VexelApp, @Component, @Provides, @MainThread,
+             @BeforeFrame, @OnMode, @ConditionalOnType. Annotations and nothing else — no runtime, no
+             graphics, JDK-only, so the processor can read it without dragging a Vulkan device onto the
+             annotation-processor path. -->
+        <module>vexelray-framework-api</module>
+        <!-- The container runtime the generated wiring calls into: the phase model, argv, the frame-stage
+             order, the pacing and wake seams, ordered shutdown. JDK-only for the same reason -api is:
+             a topological sort and a phase enum do not need a GPU, so all of this is testable headlessly.
+             Nothing here knows the word "Vulkan"; that lives in -shell. -->
+        <module>vexelray-framework-core</module>
+        <!-- The absorbed application edge: the ~350 lines that mainframe-template's App.java calls "the part a
+             client of vexelray-gui has to write for itself", taken as defaults. Everything Vulkan-aware lives
+             here and nowhere above it. -->
+        <module>vexelray-framework-shell</module>
+    </modules>
+
+    <properties>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- The stack this framework wires. Installed to the local .m2 from the sibling checkouts, in the
+             order vexelray-gui/CLAUDE.md gives: supirvast, vexelray, tactroller (+atchung), vexelray-gui.
+             Consumed by -shell and the demo, never by -api or -core. -->
+        <vexelray.gui.version>0.1.0-SNAPSHOT</vexelray.gui.version>
+        <vexelray.version>0.1.0-SNAPSHOT</vexelray.version>
+        <atchung.version>1.0-SNAPSHOT</atchung.version>
+        <tactroller.version>1.0-SNAPSHOT</tactroller.version>
+        <kronometer.version>1.0-SNAPSHOT</kronometer.version>
+
+        <junit.version>5.11.4</junit.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Reactor-internal modules: children reference these without a version. -->
+            <dependency>
+                <groupId>dev.vexelray.framework</groupId>
+                <artifactId>vexelray-framework-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray.framework</groupId>
+                <artifactId>vexelray-framework-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray.framework</groupId>
+                <artifactId>vexelray-framework-shell</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Engine types the shell names directly: Color for the capture clear colour, WindowConfig and
+                 Decorations for the window request. Transitive through gui-core, declared because they are
+                 imported here. -->
+            <dependency>
+                <groupId>dev.vexelray</groupId>
+                <artifactId>vexelray-canvas</artifactId>
+                <version>${vexelray.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray</groupId>
+                <artifactId>vexelray-os-api</artifactId>
+                <version>${vexelray.version}</version>
+            </dependency>
+
+            <!-- The GUI framework whose application edge this one absorbs: Gui, GuiApp, Settings, AppHome,
+                 WindowMemory. -->
+            <dependency>
+                <groupId>dev.vexelray.gui</groupId>
+                <artifactId>vexelray-gui-core</artifactId>
+                <version>${vexelray.gui.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray.gui</groupId>
+                <artifactId>vexelray-gui-krono</artifactId>
+                <version>${vexelray.gui.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray.gui</groupId>
+                <artifactId>vexelray-gui-widget</artifactId>
+                <version>${vexelray.gui.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray.gui</groupId>
+                <artifactId>vexelray-gui-automation</artifactId>
+                <version>${vexelray.gui.version}</version>
+            </dependency>
+
+            <!-- Input, and the bridge that puts it on the bus. Every device event flows through tactroller;
+                 there is no side channel (vexelray-gui/CLAUDE.md). -->
+            <dependency>
+                <groupId>sibarum.tactroller</groupId>
+                <artifactId>tactroller-api</artifactId>
+                <version>${tactroller.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>sibarum.tactroller</groupId>
+                <artifactId>tactroller-atchung</artifactId>
+                <version>${tactroller.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>sibarum.tactroller</groupId>
+                <artifactId>tactroller-clipboard</artifactId>
+                <version>${tactroller.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>sibarum.atchung</groupId>
+                <artifactId>atchung-core</artifactId>
+                <version>${atchung.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>sibarum.kronometer</groupId>
+                <artifactId>kronometer</artifactId>
+                <version>${kronometer.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                    <!-- Explicit release on the plugin as well as the property, so IDEs pick up the Java 25
+                         language level reliably. Same as the sibling repos. -->
+                    <configuration>
+                        <target>${maven.compiler.release}</target>
+                        <release>${maven.compiler.release}</release>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.2</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

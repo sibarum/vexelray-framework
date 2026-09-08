@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.vexelray.framework</groupId>
+        <artifactId>vexelray-framework</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>vexelray-framework-shell</artifactId>
+
+    <description>
+        The absorbed application edge. Opening an input backend and settling its coordinate space,
+        installing a clipboard, remembering where the window was, attaching a clock, wiring the frame loop
+        and its wakes, and deciding what closing the window means — taken as defaults rather than retyped
+        per application. This is the only module that is Vulkan-aware; -api and -core stay JDK-only.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-core</artifactId>
+        </dependency>
+
+        <!-- What is being wired: Gui, GuiApp, Settings, WindowMemory, and the frame loop. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-core</artifactId>
+        </dependency>
+        <!-- The frame clock. Attached before the tree, because a widget that animates is handed its timing
+             at construction — see Phase.GUI. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-krono</artifactId>
+        </dependency>
+
+        <!-- Input, and the bridge that puts it on the bus. -->
+        <dependency>
+            <groupId>sibarum.tactroller</groupId>
+            <artifactId>tactroller-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>sibarum.tactroller</groupId>
+            <artifactId>tactroller-atchung</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>sibarum.tactroller</groupId>
+            <artifactId>tactroller-clipboard</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>dev.vexelray</groupId>
+            <artifactId>vexelray-canvas</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.vexelray</groupId>
+            <artifactId>vexelray-os-api</artifactId>
+        </dependency>
+    </dependencies>
+</project>
