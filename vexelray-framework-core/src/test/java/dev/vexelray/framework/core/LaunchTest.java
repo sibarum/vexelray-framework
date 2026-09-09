@@ -107,4 +107,28 @@ final class LaunchTest {
         assertFalse(usage.contains("--capture"), usage);
         assertTrue(usage.contains("automation"), usage);
     }
+
+    /**
+     * The application's keys and the framework's reserved ones are different promises — one is read by this
+     * application's own code, the other by whichever module happens to be linked in — so the usage text does
+     * not present them as one list. See {@code Launch.FRAMEWORK_KEYS} for why that gap is open at all.
+     */
+    @Test
+    void usageKeepsTheFrameworksReservedKeysOnTheirOwnLine() {
+        String[] lines = Launch.usage("demo", KEYS).split("\\R");
+
+        assertEquals(3, lines.length, Launch.usage("demo", KEYS));
+        assertEquals("settings: theme, zoom", lines[1]);
+        assertEquals("framework: automation, profile", lines[2]);
+    }
+
+    /** An application with no settings of its own still gets told about the reserved keys, and gets no blank
+     *  "settings:" line inviting it to look for some. */
+    @Test
+    void anApplicationWithNoSettingsGetsNoEmptySettingsLine() {
+        String[] lines = Launch.usage("demo", Set.of()).split("\\R");
+
+        assertEquals(2, lines.length, Launch.usage("demo", Set.of()));
+        assertEquals("framework: automation, profile", lines[1]);
+    }
 }

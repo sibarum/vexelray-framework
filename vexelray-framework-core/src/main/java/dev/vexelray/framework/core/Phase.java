@@ -18,11 +18,23 @@ package dev.vexelray.framework.core;
  * depends on, which makes the phase a consequence of the code rather than a second thing to keep in agreement
  * with it. What the processor rejects is a dependency pointing <em>backwards</em>: something in {@link #MODEL}
  * asking for a value that only exists from {@link #WINDOW} on.
+ *
+ * <p><b>Each member below lists what its phase contains, and nothing checks the list.</b> That is this file's
+ * one known hazard, and it has already cost something: porting the text editor found four capabilities the
+ * framework documented and did not have, three of them named in a phase's own list of contents — including
+ * {@link #TREE}'s complete and correct argument for a headless tree that no entry point produced. A member's
+ * list is prose about {@code VexelApplication}, so it can drift from {@code VexelApplication} silently and the
+ * processor will never catch it. Change one and read the other.
  */
 public enum Phase {
 
     /**
-     * Configuration: the settings store, and the values bound out of it.
+     * Configuration: the settings store, the look as values, and the {@code @Setting} values bound out of the
+     * store.
+     *
+     * <p>The framework opens the store and takes the {@code Appearance}; the binding is generated code, so in a
+     * hand-written wiring it is whatever that wiring's {@code config} does. That division is worth stating
+     * because it is the one item in this enum whose contents are only partly the framework's.
      *
      * <p>First because everything can want configuration and configuration can want nothing. This is also
      * where the store's single instance is established, which is the whole of one bug the demos carry a comment
@@ -53,6 +65,11 @@ public enum Phase {
      *
      * <p>Both failures are silent and cosmetic — a half-themed window, an animation that never runs — which is
      * exactly the class of bug that survives a test suite and is found by eye months later.
+     *
+     * <p>The minimum size and the zoom range are here for a weaker reason, and the difference is worth being
+     * honest about: neither is read at construction, so either could be set later without breaking anything.
+     * They are applied here because they are part of the {@code Appearance} the application declared in
+     * {@link #CONFIG}, and one place that applies all of it is worth more than a distinction nobody can see.
      */
     GUI,
 
@@ -79,12 +96,27 @@ public enum Phase {
 
     /**
      * Everything that needs the window handle: the input backend attached and its coordinate space settled, the
-     * clipboard installed, the title bar pointed at real window controls, window memory watching, dialogs
-     * installed, the close gate armed, the automation socket bound.
+     * clipboard installed, the title bar pointed at real window controls, window memory watching and the
+     * remembered zoom restored, the dialogs installed, and the frame loop's stages, deadlines and wakes
+     * connected.
      *
      * <p>This phase is the largest and the most mechanical, and it is the bulk of what a hand-written
      * application edge spends its length on. Every item in it is a fixed recipe with one correct answer, which
      * is why it can be a phase rather than a chapter of documentation.
+     *
+     * <p><b>Two things this phase is the place for and the framework deliberately does not do.</b> The list
+     * above is what the framework builds; these are seams it opens and leaves empty, and the distinction is
+     * the one the text-editor port found the framework's own documentation getting wrong.
+     *
+     * <ul>
+     *   <li><b>The close gate.</b> {@code Shell.onClose} is registerable from here, and the framework installs
+     *       no gate of its own — the default has to be that closing closes. A framework that interposed here
+     *       would be deciding, for every application, that quitting is a question.</li>
+     *   <li><b>The automation socket.</b> Bound by {@code vexelray-framework-automation}'s {@code Driver},
+     *       called from an application's own {@code attach}, because a listening socket linked into every
+     *       native binary is the wrong trade for a framework whose selling point is what it does not
+     *       include.</li>
+     * </ul>
      */
     ATTACH,
 

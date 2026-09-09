@@ -47,11 +47,33 @@ import java.util.TreeSet;
 public record Launch(RunMode mode, int frames, Map<String, String> overrides, List<String> rest) {
 
     /**
-     * Keys the framework itself understands, and so accepts without the application declaring them.
+     * Keys the framework <em>reserves</em>, and so accepts without the application declaring them.
      *
-     * <p>{@code profile} turns on the frame probe; {@code automation} binds the driving socket. Both are off
+     * <p>{@code automation} asks for the driving socket; {@code profile} asks for the frame probe. Both are off
      * unless asked for, and both are deliberately settings rather than modes — profiling a windowed session and
      * profiling a fixed-frame run are both meaningful, so they are not alternatives to anything.
+     *
+     * <p><b>Reserved is not the same as honoured, and this is the one place in the framework where that gap is
+     * accepted rather than closed.</b> Neither key is consumed by {@code -core} or {@code -shell}. The socket
+     * is bound by {@code vexelray-framework-automation}'s {@code Driver} — a module of its own, because a
+     * listening socket linked into every native binary is the wrong trade — and the probe is still the
+     * application's own until there is a {@code -diagnostics} to move it into
+     * ({@code text-editor-vexel-demo}'s {@code FpsProbe} reads {@code flag("profile")} to turn it on). So an
+     * application that depends on neither can be given {@code --automation=7654}, have it parse, and have
+     * nothing happen.
+     *
+     * <p>That is the failure this class exists to prevent, kept here on purpose, because the two alternatives
+     * are worse. Refusing the key unless something consumes it would mean asking at runtime whether
+     * {@code Driver} is on the classpath, which is a {@code Class.forName} on the startup path and this
+     * framework does not reflect. Making each application declare the key returns the stack to what it had
+     * before — the scaffold read {@code System.getProperty("automation", "off")} in the middle of a factory
+     * method — and gives up the one thing reserving a name buys, which is that the same instrument is asked
+     * for the same way in every application on the desk.
+     *
+     * <p>So the gap is real, it is narrow, and its fix is a compile-time one that does not exist yet:
+     * {@code @ConditionalOnType} makes the dependency decide, and then a key with no consumer is a build
+     * question rather than a quiet launch. {@link #usage} lists these separately from the application's own
+     * keys in the meantime, so that at least the two categories are not presented as one.
      */
     public static final Set<String> FRAMEWORK_KEYS = Set.of("profile", "automation");
 
@@ -126,15 +148,23 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
         return Boolean.parseBoolean(overrides.getOrDefault(key, "false"));
     }
 
-    /** Usage text, for a caller that has just caught {@link IllegalArgumentException} from {@link #parse}. */
+    /**
+     * Usage text, for a caller that has just caught {@link IllegalArgumentException} from {@link #parse}.
+     *
+     * <p>The application's own keys and the framework's reserved ones are on separate lines, because they are
+     * not the same promise: a declared key is read by this application's own code, and a reserved one is read
+     * by whatever module happens to be linked in. See {@link #FRAMEWORK_KEYS} for why that gap is open.
+     */
     public static String usage(String appName, Set<String> knownKeys) {
         StringBuilder b = new StringBuilder();
         b.append("usage: ").append(appName).append(" [--key=value] [frames]");
-        Set<String> all = new TreeSet<>(knownKeys);
-        all.addAll(FRAMEWORK_KEYS);
-        if (!all.isEmpty()) {
-            b.append(System.lineSeparator()).append("settings: ").append(String.join(", ", all));
+        Set<String> own = new TreeSet<>(knownKeys);
+        own.removeAll(FRAMEWORK_KEYS);
+        if (!own.isEmpty()) {
+            b.append(System.lineSeparator()).append("settings: ").append(String.join(", ", own));
         }
+        b.append(System.lineSeparator()).append("framework: ")
+                .append(String.join(", ", new TreeSet<>(FRAMEWORK_KEYS)));
         return b.toString();
     }
 

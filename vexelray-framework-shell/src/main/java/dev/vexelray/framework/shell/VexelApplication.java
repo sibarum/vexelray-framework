@@ -11,7 +11,11 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
+import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
+import dev.vexelray.os.Icon;
+import dev.vexelray.os.NativePlatform;
+import dev.vexelray.os.WindowConfig;
 
 
 /**
@@ -57,16 +61,7 @@ public final class VexelApplication {
      */
     public static void run(Wiring wiring, String[] args) {
         AppInfo info = wiring.info();
-
-        Launch launch;
-        try {
-            launch = Launch.parse(args, info.name(), info.settingKeys());
-        } catch (IllegalArgumentException e) {
-            System.err.println(e.getMessage());
-            System.err.println(Launch.usage(info.name(), info.settingKeys()));
-            System.exit(EXIT_USAGE);
-            return;
-        }
+        Launch launch = parseOrExit(args, info);
 
         Shell shell = new Shell(launch, info);
         try (Disposer disposer = shell.disposer()) {
@@ -74,7 +69,78 @@ public final class VexelApplication {
         }
     }
 
-    private static void build(Wiring wiring, Shell shell, Disposer disposer, AppInfo info, Launch launch) {
+    /**
+     * Build {@code wiring} as far as {@link Phase#TREE} and hand back the {@link Shell} — no window, no input
+     * backend, no window memory and no loop.
+     *
+     * <p><b>What this is for.</b> {@code Phase.TREE} carries the claim that the widget tree is buildable before
+     * a window exists, and states the reason: <i>"A tree that cannot be built without a window could not be
+     * captured headlessly."</i> Everything needed to act on that claim was already true — the theme is applied,
+     * the clock is attached, the title bar is a working bar against {@code WindowControls.NONE} — and there was
+     * no way to ask for it. So the one thing the phase exists to make possible was the one thing the framework
+     * could not do.
+     *
+     * <p>Deliberately not a run mode. {@link RunMode} records why the framework's own {@code CAPTURE} mode was
+     * removed: {@code GuiApp.capture} is static, builds its own device, and so photographs a marched viewport
+     * as the framework's placeholder texture — <i>"correct about the chrome and silently wrong about the
+     * content"</i>. That has not stopped being true, which is why what comes back from here is a {@code Shell}
+     * and not a PNG. An application that knows its own tree holds nothing device-backed can capture it and know
+     * what it is getting; one that does not should reach for {@code WindowInstrument.screenshot()} instead.
+     *
+     * <p>The caller owns the shutdown, because the caller decides when it has finished with the tree:
+     *
+     * {@snippet :
+     * Shell shell = VexelApplication.tree(new MyWiring(), args);
+     * try {
+     *     Color page = shell.gui().theme().color(Role.PAGE);
+     *     GuiApp.capture(shell.gui(), W, H, page.r(), page.g(), page.b(), out);
+     * } finally {
+     *     shell.disposer().close();
+     * }
+     * }
+     *
+     * <p>No {@code WindowMemory} is built, so nothing reached from here can write a placement — which is what
+     * the hand-written capture entry points each had to say for themselves in a comment.
+     */
+    public static Shell tree(Wiring wiring, String[] args) {
+        AppInfo info = wiring.info();
+        Shell shell = new Shell(parseOrExit(args, info), info);
+        try {
+            toTree(wiring, shell, shell.disposer(), info);
+        } catch (RuntimeException | Error e) {
+            // The Gui and the clock are registered by the time most failures here can happen, and a caller
+            // that never received the Shell has no way to close them.
+            try {
+                shell.disposer().close();
+            } catch (RuntimeException | Error nested) {
+                e.addSuppressed(nested);
+            }
+            throw e;
+        }
+        return shell;
+    }
+
+    private static Launch parseOrExit(String[] args, AppInfo info) {
+        try {
+            return Launch.parse(args, info.name(), info.settingKeys());
+        } catch (IllegalArgumentException e) {
+            System.err.println(e.getMessage());
+            System.err.println(Launch.usage(info.name(), info.settingKeys()));
+            System.exit(EXIT_USAGE);
+            throw new IllegalStateException("unreachable: System.exit does not return", e);
+        }
+    }
+
+    /**
+     * {@link Phase#CONFIG} through {@link Phase#TREE} — everything that does not need a window.
+     *
+     * <p>Split out so that {@link #tree} and {@link #run} cannot disagree about it. A capture that built its
+     * tree by a second route would be a capture of a different application, and that is not hypothetical: the
+     * text editor's hand-written {@code --capture} cleared to a literal {@code 0.06f, 0.07f, 0.09f} while the
+     * entry point twenty lines below it read {@code Role.PAGE} off the theme, and only one of those two could
+     * still have been right.
+     */
+    private static void toTree(Wiring wiring, Shell shell, Disposer disposer, AppInfo info) {
         // ---- CONFIG: the settings store, and the look. Both are values; neither needs a Gui. -------------
         shell.phase(Phase.CONFIG);
         shell.settings(Settings.open(info.name()));
@@ -88,7 +154,13 @@ public final class VexelApplication {
         shell.phase(Phase.GUI);
         Gui gui = disposer.register(new Gui());
         Appearance appearance = shell.appearance();
-        gui.theme(appearance.theme());
+        // The theme and the zoom range, through the same call an application uses on the windows the framework
+        // did not build -- so there is one definition of what an appearance means on a Gui rather than two that
+        // have to be kept in agreement. Before the first widget, because a role resolves when a widget writes a
+        // prop. The chords that move within the zoom range stay the application's: see Appearance.ZoomRange.
+        appearance.applyTo(gui);
+        // Not part of that call, because Gui.minSize is a floor for one tree's layout and not for the
+        // application: the main window's answer is the wrong one for a tool window beside it.
         if (appearance.hasMinSize()) {
             gui.minSize(appearance.minWidth(), appearance.minHeight());
         }
@@ -108,17 +180,26 @@ public final class VexelApplication {
         // ---- TREE: the widgets, the framework's title bar among them. No window needed. -------------------
         shell.phase(Phase.TREE);
         wiring.tree(shell);
+    }
+
+    private static void build(Wiring wiring, Shell shell, Disposer disposer, AppInfo info, Launch launch) {
+        toTree(wiring, shell, disposer, info);
+        Gui gui = shell.gui();
+        KronoGui krono = shell.krono();
+        Appearance appearance = shell.appearance();
 
         // ---- WINDOW: the device and the window exist. Main-thread from here on. -------------------------
         shell.phase(Phase.WINDOW);
         WindowMemory memory = new WindowMemory(shell.settings());
         shell.memory(memory);
         InputBackend input = disposer.register(InputBackend.open());
+        // The mark goes on the process before the first window exists, so every window this application opens
+        // is shown wearing it rather than corrected into it a frame later. See AppInfo.icon for why the same
+        // mark is then named on the window's own config as well.
+        installMark(info.icon());
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
-        GuiApp app = disposer.register(new GuiApp(
-                memory.config(MAIN, info.title(), info.width(), info.height())
-                        .decorations(appearance.decorations())));
+        GuiApp app = disposer.register(new GuiApp(mainWindow(memory, info, appearance)));
         shell.app(app);
         wiring.window(shell);
 
@@ -127,7 +208,15 @@ public final class VexelApplication {
         input.attach(app.windowHandle());
         input.bridge(gui);
         app.input(InputBackend.perWindow());
-        disposer.register(ClipboardBackend.open()).installOn(gui);
+        // Held rather than discarded once installed: a clipboard belongs to a Gui, so an application with more
+        // than one window has to bind the rest itself. See Shell.clipboard.
+        ClipboardBackend clipboard = disposer.register(ClipboardBackend.open());
+        clipboard.installOn(gui);
+        shell.clipboard(clipboard);
+        // The dialogs. Installed here rather than on request, because Modals is reached statically from
+        // wherever a question arises -- so "the application forgot to install them" surfaces as an exception
+        // thrown at the moment somebody needed an answer, which is the worst time to find out.
+        shell.dialogs(disposer.register(Modals.install(app)));
         // The window exists at last, so the bar can be given controls that actually work and the instruments
         // that use them. Both in one place, because an instrument without real controls is the exact failure
         // automation.md 7 records: "every other window had a screenshot button that neither worked nor
@@ -180,6 +269,33 @@ public final class VexelApplication {
             // The debounce has no next frame to fire on once the loop is over, so the last move of the
             // session is written here or not at all.
             memory.save();
+        }
+    }
+
+    /** The main window's config: where it was left, how it is decorated, and the mark it wears. */
+    private static WindowConfig mainWindow(WindowMemory memory, AppInfo info, Appearance appearance) {
+        WindowConfig config = memory.config(MAIN, info.title(), info.width(), info.height())
+                .decorations(appearance.decorations());
+        // Named on the window as well as on the process. Redundant for exactly as long as this application is
+        // the process; see AppInfo.icon for the arrangement where it stops being.
+        return info.icon() == null ? config : config.icon(info.icon());
+    }
+
+    /**
+     * Put the application's mark on the process, for every window it opens.
+     *
+     * <p>Not fatal. A mark that cannot be set costs the application its icon and nothing else, and a window
+     * under the OS default is still a window — so this reports and carries on rather than taking the process
+     * down on the way up.
+     */
+    private static void installMark(Icon icon) {
+        if (icon == null) {
+            return;
+        }
+        try {
+            NativePlatform.current().setApplicationIcon(icon);
+        } catch (RuntimeException e) {
+            System.err.println("icon not set: " + e);
         }
     }
 }

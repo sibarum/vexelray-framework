@@ -219,12 +219,182 @@ contributing window-scoped console components, which is precisely how Spring Boo
 ecosystem. But it makes the move a coordinated sweep across four repos, so it is sequenced last:
 
 1. Absorb what no library depends on — CLI parsing, capture dispatch, app icon, the wiring recipe.
-   (`Launch` is done.)
-2. Port one demo. Prove the claim against real code.
+   (Done.)
+2. Port one demo. Prove the claim against real code. (Done twice: `calculator-vexel-demo`
+   and `text-editor-vexel-demo` — see *What porting the text editor found*, below.)
 3. Move `WindowMemory`, `Settings`, `AppHome` in one atomic sweep, in dependency order with an
    `mvn install` between each repo. Java has no type aliases, so there is no deprecation window
    available — this is a single coordinated change or it is a broken build.
 4. `mainframe-vexel-gui` becomes `vexelray-framework-starter-mainframe`.
+
+## What porting the text editor found
+
+The calculator was the first port and it went through the seams as designed, which is a weak test: a
+one-window application with no files to lose exercises the parts of an application edge that are
+easiest to get right. The text editor was chosen second for the opposite reason — **three windows, an
+OS clipboard on all of them, unsaved documents, an application mark, and its own headless capture** —
+and it is the first thing on this stack the framework could not run.
+
+The gaps were all one shape. In each case the decision had already been taken, written down in prose,
+and copied by hand into every application; the framework had absorbed the *statement* and not the
+*seam*. Four of them:
+
+| What was missing | What it cost | Where the decision already was |
+| --- | --- | --- |
+| **The application's mark** | `VexelApplication` built the main window's `WindowConfig` and never named an icon, so no framework application could wear one | `AppIcon`'s own Javadoc, and `automation.md` §7: an application contributes *"identity — its title, an icon as identity"*. The README listed the app icon among the defaults, and it did not exist |
+| **The clipboard, past the main window** | `ClipboardBackend` was opened, installed on the one `Gui`, and dropped. An application's second window had no way to reach it | `ClipboardBackend`'s own Javadoc quotes the editor's loop — *"copy out of the terminal's prompt has to reach the same place copy out of a tab does"* — and then made it unreachable |
+| **The close gate, and the dialogs** | `GuiApp.onCloseRequest` had no seam at all, so an application with unsaved work could not be asked before it quit | `Phase.ATTACH` lists *"dialogs installed, the close gate armed"* among the things that happen in it. Neither did |
+| **A build that stops at `TREE`** | `Phase.TREE` exists to make a headless tree possible, and no entry point produced one | `Phase.TREE`: *"A tree that cannot be built without a window could not be captured headlessly."* |
+
+The pattern is worth naming, because the processor will not catch it: **a phase can document a
+capability the runtime does not offer.** `Phase.TREE`'s Javadoc is a complete and correct argument for
+something no method returned. Nothing type-checks the claim that a phase's list of contents is the
+list the phase actually builds.
+
+So every member's list was then read against `VexelApplication` line by line, and the enum now
+carries that warning on the type itself. The audit found three more, of two different kinds:
+
+| Claim | Kind | Resolution |
+| --- | --- | --- |
+| `Phase.GUI`: *"theme, minimum size, zoom range, and the frame clock attached"* | A capability that should exist | Taken — `Appearance.ZoomRange`, applied beside `minSize`. See [below](#what-the-port-left-as-the-applications) for why the range moves and the chords do not |
+| `Phase.ATTACH`: *"the close gate armed"* | A seam deliberately left empty | Text corrected. `Shell.onClose` is registerable there and the framework installs no gate: the default has to be that closing closes |
+| `Phase.ATTACH`: *"the automation socket bound"* | Bound by an optional module | Text corrected. `-automation`'s `Driver`, called from the application's own `attach` — see [the two reserved keys](#the-two-reserved-keys) |
+
+The second kind is the one worth having a name for, because it is not a defect and reads like one: a
+phase is the right *place* for something the framework will never do itself, and a list of contents
+that does not distinguish the two invites somebody to close a gap that is a decision.
+
+What the port did *not* need is the more interesting half. Pacing, wakes, the frame stages, ordered
+shutdown, the one `Settings`, the window memory and the framework's title bar all took the editor's
+real requirements without modification — including the two the editor had hand-written most
+carefully, the `min` over two deadlines and the pair of `onWork` calls. A 541-line `main` became a
+67-line wiring class, and the `--verbse` case works as advertised:
+
+```
+$ text-editor --verbse
+unknown option: --verbse (known: automation, profile, terminal)
+usage: text-editor [--key=value] [frames]
+settings: terminal
+framework: automation, profile
+```
+
+That list is the point — `terminal` is on it because the application declared one setting key. The
+second line is the application's own keys and the third is the names the framework reserves, kept
+apart because they are not the same promise: see [the two reserved keys](#the-two-reserved-keys)
+below. `terminal` is also hand-typed for now, and `AppInfo.settingKeys` says so — the claim that the
+list "cannot fall out of date, because it is not written by anybody" is the argument for the
+processor, not a description of today.
+
+### What the port left as the application's
+
+Three things looked like framework candidates and are not, recorded here so they are not re-proposed:
+
+- **The zoom chords** — but *not* the zoom range, and the split is the point. `CalculatorWiring` has
+  ruled on the chords: *"which chord zooms, or whether zooming exists at all, is not something a
+  framework should be choosing."* The drift there is real and visible (the calculator binds the numpad
+  chords, the editor does not) but it is drift between two applications' decisions rather than between
+  two copies of one. How far the zoom *goes* is a different question, and it was answered identically
+  in all five places — `gui.zoomRange(0.5f, 3f, 1.25f)`, with no reason given at any of them, which is
+  what a default looks like before anybody has taken it. That half is now
+  `Appearance.ZoomRange`, applied where `minSize` already is, defaulting to the numbers everybody
+  chose; the framework had already owned the other half, that the zoom is *remembered*. Owning both is
+  what makes them agree, because the remembered factor is restored through `Gui.zoom`, which clamps to
+  the range.
+
+  Taking it turned up the clipboard's problem in a second guise. The framework dresses the one `Gui`
+  it built, and the editor calls `zoomShortcuts` on three — so a range set only on the main window
+  would leave the folder and terminal windows on different bounds. Hence `Appearance.applyTo(Gui)`:
+  the theme and the zoom range, in one call, for a window the framework never saw. Not the minimum
+  size, because `Gui.minSize` is *"not an OS window minimum"* but the smallest canvas one tree can be
+  laid out on, and the main window's floor is the wrong answer for a tool window beside it. The same
+  call is what `VexelApplication` uses on its own `Gui`, so there is one definition of what applying
+  an appearance means rather than two to keep in agreement — and it is the seam that stops the
+  `Modals` defect below from being every multi-window application's as well.
+- **`--capture` and its two siblings.** The editor has three headless entry points and two of them
+  photograph a window that is not the main one. `Launch` already says an application with its own
+  capture tooling intercepts its own flag first; what was missing was only a tree to point it at.
+- **`FpsProbe`.** Generic enough to move and specific enough not to: it deliberately pokes the loop —
+  a timeline post, a node mutated from a worker, a handler that changes nothing — to prove each wake
+  path is still alive. That belongs in `-diagnostics` when there is one, and until then
+  `Launch.FRAMEWORK_KEYS` advertising `profile` is a reserved name rather than a promise: the flag
+  parses, and the application still owns the probe it is supposed to turn on.
+
+### The two reserved keys
+
+`Launch.FRAMEWORK_KEYS` accepts `--profile` and `--automation` without the application declaring
+them, and **neither is consumed by `-core` or `-shell`.** The socket is bound by `-automation`'s
+`Driver`, from the application's own `attach`; the probe is the application's until `-diagnostics`
+exists. So an application depending on neither can be given `--automation=7654`, have it parse, and
+have nothing happen — which is the failure `Launch` exists to prevent, sitting inside `Launch`.
+
+It is kept, because both alternatives are worse:
+
+| Alternative | Why not |
+| --- | --- |
+| Refuse the key unless something consumes it | Requires asking at runtime whether `Driver` is linked — a `Class.forName` on the startup path, and **nothing here reflects** |
+| Make each application declare the key | Returns the stack to what it had: the scaffold read `System.getProperty("automation", "off")` inside a factory method, and every application spelled the switch for itself |
+
+Reserving the name is what buys the one property worth having — the same instrument is asked for the
+same way in every application on the desk — and the honest fix is a compile-time one that does not
+exist yet. `@ConditionalOnType` makes the dependency decide, and a key with no consumer becomes a
+build question rather than a quiet launch. Until then the gap is documented on `FRAMEWORK_KEYS`
+itself, and `Launch.usage` prints the reserved keys on their own line so the two categories are not
+presented as one list.
+
+## What porting the designer found
+
+The third port, and the first with **two windows on one device and one frame loop** — a tree window
+and a ray-marched viewport, each with its own `Gui`. It was chosen for that: the calculator was one
+window, the editor was three windows that were three separate applications' worth of `Gui` with one
+device between them, and neither exercised a second window whose *content is rendered by the
+application into a target the host mints*.
+
+It went through the seams. `DesignerApp` was 558 lines; **about 130 of them were edge** — `run`, two
+input backends, the flag parsing behind two automation sockets, the shutdown ordering, and a `main`
+that decided what `--capture` meant — and that is now roughly 40 lines of `DesignerWiring`, most of
+it the one thing the framework could not take. The file total went *up*, to 611 across two files,
+because the rest of `DesignerApp` was always the toolbar, the properties panel and the tree source,
+and the phase methods now carry as Javadoc the reasoning that used to be comments inside `run()`.
+Counting lines is the wrong measure here; what changed is that none of the remaining lines are about
+starting an application.
+
+Three things it confirmed rather than found:
+
+- **`InputBackend.perWindow()` was already exactly right.** The designer's `attachWindowInput` — open
+  a backend, attach it to the new window's handle, settle `CLIENT`, bridge it to that window's bus,
+  close it with the window — is the framework's method line for line, including the comment about the
+  two unrelated `NativeWindow` types. A second window's input needed nothing.
+- **The `CLIENT` census.** `Appearance.decorations` defaults to `CLIENT` on the grounds that *"three
+  of the four applications on this stack draw their own frame"*. This is the fourth. It says
+  `Decorations.SYSTEM`, gets no framework title bar and therefore no instrument strip — which is
+  right, because the screenshot that matters in this application is the viewport's and it comes off
+  the driver.
+- **`Appearance.applyTo`**, found in the editor's three `Gui`s, has its second witness here: the
+  viewport's window is the application's, so its `Gui` is too, and without dressing it that window
+  disagrees with the one beside it about the theme.
+
+And two that were new. Neither is a defect in something the framework does; both are the framework
+declining to do something, which is the second kind of gap the phase audit above had to name:
+
+| What | Why it stayed the application's |
+| --- | --- |
+| **A second automation socket** | `-automation`'s `Driver` binds one, for the `Gui` the framework built. Two window trees need two — `tree` on the first does not list the viewport and `shot` on it photographs the wrong window. The application binds the second at `Driver.port() + 1`, so it still never parses the flag; what it cannot do is ask the framework for it. One application needs this, which is not yet enough to grow the API — see `docs/TODO.md` |
+| **A named window's controls** | `WindowSpec.onControls` hands them down when the window opens, and the driver starts before the frame loop creates it, so they have to be resolved per command. That is a fact about a window that can be closed and reopened, not about starting an application |
+
+### A phase is decided by a component's listeners, not only by its data
+
+The one genuinely new thing the port taught about `Phase`, and it is a trap worth naming. The
+designer seeds a starting design so the first frame is not an empty sky, and a seed is model data, so
+it reads as `MODEL`. It is not: `Design.silently` coalesces the four edits into a single `onChange`,
+and that one announcement is what refreshes the tree view and compiles the first `Surface`. Both
+listeners have to exist before it fires, so the seed belongs in `TREE` — **after the things it wakes
+up, not beside the model it edits.**
+
+`Phase`'s own rule already covers this correctly and says so in a way that is easy to read past: a
+component's phase is *"the latest phase of anything the component depends on"*, and an announcement
+depends on its listeners. The processor will infer that from constructor parameters and get it right
+without anybody thinking about it. A hand-written wiring has to think about it, and putting the seed
+one phase too early is a first frame that draws nothing with no error anywhere.
 
 ## Modules
 
@@ -235,16 +405,20 @@ vexelray-framework                    parent (pom)
 ├─ vexelray-framework-shell      the absorbed edge: input, clipboard, memory, loop,
 │                                and the window chrome                              [built]
 ├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
-├─ vexelray-framework-demo       calculator's wiring, hand-written                   [next]
-├─ vexelray-framework-processor  annotation processor -> generated wiring             [after]
+├─ vexelray-framework-processor  annotation processor -> generated wiring             [next]
 └─ vexelray-framework-diagnostics  the Actuator analogue: frame budget, bean graph   [planned]
 ```
 
 The processor is deliberately **last**. A code generator whose output has never been written by hand
-is a generator whose output nobody has checked the shape of — so the calculator's wiring gets written
-by hand first, against the real `-shell`, and the processor's job becomes "reproduce this file". That
-also settles the incremental-compilation question with evidence rather than a guess, because the
-generated shape will be known before the generator is designed around it.
+is a generator whose output nobody has checked the shape of — so three applications' wiring got
+written by hand first, against the real `-shell`, and the processor's job becomes "reproduce these
+files". `CalculatorWiring`, `TextEditorWiring` and `DesignerWiring` live in their own repos rather
+than in a `-demo` module here, and that is the right place for them: they are what an application
+author writes, so they should be read where an application author would look. Three is the number
+that matters — one window, three windows, and two windows on one device — because each found
+something the other two could not have. That also settles the incremental-compilation
+question with evidence rather than a guess, because the generated shape is known before the
+generator is designed around it.
 
 `-api` and `-core` are **JDK-only**, and not as an agnosticism goal — it is simply where the
 dependency edges fall. A phase enum and a topological sort do not need a Vulkan device. The payoff is

@@ -8,10 +8,12 @@ import dev.vexelray.framework.core.Pacing;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.framework.core.WakeSource;
 import dev.vexelray.gui.core.Gui;
+import dev.vexelray.gui.core.app.CloseRequest;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
+import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
 
 /**
@@ -43,6 +45,9 @@ public final class Shell {
     private WindowMemory memory;
     private GuiApp app;
     private TitleBar titleBar;
+    private ClipboardBackend clipboard;
+    private Modals dialogs;
+    private boolean closeGateSet;
     private Phase phase = Phase.CONFIG;
 
     Shell(Launch launch, AppInfo info) {
@@ -93,6 +98,35 @@ public final class Shell {
     public Shell wake(WakeSource source) {
         require(Phase.ATTACH, "wake sources");
         source.onWake(app::postWake);
+        return this;
+    }
+
+    /**
+     * Be asked before the main window closes — the seam an application with unsaved work needs.
+     *
+     * <p>Closing the main window is quitting, so this is also how an application refuses to exit. The handler
+     * runs on the handler executor and may answer the {@link CloseRequest} at its leisure, from any thread;
+     * until it does, the window stays open and fully live, which is what lets the answer come from a dialog.
+     *
+     * <p><b>The framework installs no gate of its own</b>, and that is the decision rather than an omission:
+     * the default has to be that closing closes. A framework that interposed anything here would be deciding,
+     * for every application, that quitting is a question — and most applications have nothing to lose. What
+     * the framework owns is the <em>place</em> the answer is given, and the dialog it is given in
+     * ({@link #dialogs()}).
+     *
+     * <p>{@link Phase#ATTACH} onwards, because there is no window to be asked about before that. Once only:
+     * {@code GuiApp} holds a single handler, so a second registration would silently replace the first — and
+     * in an application with two things worth guarding, the one replaced is as likely as not the one that knew
+     * about the unsaved documents.
+     */
+    public Shell onClose(java.util.function.Consumer<CloseRequest> gate) {
+        require(Phase.ATTACH, "a close gate");
+        if (closeGateSet) {
+            throw new IllegalStateException(
+                    "a close gate is already registered; GuiApp holds one, so a second would replace it");
+        }
+        closeGateSet = true;
+        app.onCloseRequest(gate);
         return this;
     }
 
@@ -174,6 +208,51 @@ public final class Shell {
         return require(Phase.WINDOW, "the window", app);
     }
 
+    /**
+     * The OS clipboard, already installed on the main {@code Gui} — here so that an application's
+     * <em>other</em> windows can be bound to the same one.
+     *
+     * <p><b>This accessor exists because of one specific silent bug.</b> A clipboard belongs to a {@code Gui},
+     * not to an application, and the text editor binds three of them — the editor, the file tree and the
+     * terminal — with the reason written on the loop: <i>"copy out of the terminal's prompt has to reach the
+     * same place copy out of a tab does."</i> A window that is forgotten is a window where Ctrl+C does nothing
+     * and reports nothing.
+     *
+     * <p>The framework cannot close that on its own. Both of the editor's other windows own a {@code Gui} from
+     * construction, long before any native window exists, and {@code GuiApp.input} — the only per-window seam
+     * there is — fires at window creation. So the framework binds the one {@code Gui} it built and hands the
+     * backend over for the rest:
+     *
+     * {@snippet :
+     * for (Gui window : files.windows()) {
+     *     shell.clipboard().installOn(window);
+     * }
+     * }
+     *
+     * <p>Never null, and every method on it is a no-op where there is no backend — see
+     * {@link ClipboardBackend}. So an application binds its windows without asking whether there is anything
+     * to bind them to.
+     */
+    public ClipboardBackend clipboard() {
+        return require(Phase.ATTACH, "the clipboard", clipboard);
+    }
+
+    /**
+     * The application's dialogs, installed by the framework so that {@code Modals.show(...)} answers from
+     * anywhere without an application having to remember to install them first.
+     *
+     * <p>Exists from {@link Phase#ATTACH}: a dialog is a real OS window owned by the main window, so there is
+     * nothing to own one before then. Registered for shutdown, because <i>"an application that is closing
+     * should not be held up by a question nobody is left to answer."</i>
+     *
+     * <p>Most applications never name this — they call the static {@code Modals.show}, {@code info} and
+     * {@code confirm} from wherever the question arises, which is the whole shape of that class. It is here for
+     * the one that wants to ask whether a dialog is up.
+     */
+    public Modals dialogs() {
+        return require(Phase.ATTACH, "the dialogs", dialogs);
+    }
+
     // ---- set by VexelApplication as each phase opens ----------------------------------------------------
 
     void phase(Phase phase) {
@@ -202,6 +281,14 @@ public final class Shell {
 
     void app(GuiApp app) {
         this.app = app;
+    }
+
+    void clipboard(ClipboardBackend clipboard) {
+        this.clipboard = clipboard;
+    }
+
+    void dialogs(Modals dialogs) {
+        this.dialogs = dialogs;
     }
 
     Pacing pacing() {

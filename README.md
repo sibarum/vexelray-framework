@@ -14,6 +14,7 @@ which on this stack is the whole reason for being on native-image at all.
   [vexelray-gui](../vexelray-gui) (retained-mode GUI), [tactroller](../tactroller) (input),
   [atchung](../atchung) (bus), [kronometer](../kronometer) (time)
 - [docs/architecture.md](docs/architecture.md) is the deep version of this document
+- [docs/TODO.md](docs/TODO.md) is what is known about and not done
 
 ## The problem
 
@@ -41,14 +42,18 @@ argument for a container.
 public final class TextEditorApp {
 
     public static void main(String[] args) {
-        VexelApplication.run(TextEditorAppWiring::new, args);
+        VexelApplication.run(new TextEditorWiring(), args);
     }
 }
 ```
 
-Input, clipboard, window memory, the app icon, dialogs, the close gate, pacing, wakes, capture mode
+Input, clipboard, window memory, the app icon, dialogs, the theme and the zoom range, pacing, wakes
 and argument parsing are defaults. Overriding one is a `@Provides` method returning that type; the
 framework's stops being generated, and there is no precedence documentation to read.
+
+The close gate is the exception that proves the direction: the framework owns the *place* it is
+registered (`Shell.onClose`, from phase `ATTACH`) and installs none of its own, because the default
+has to be that closing closes.
 
 ```java
 @Configuration
@@ -87,11 +92,20 @@ final class Editor {
 | Module | State |
 | --- | --- |
 | `vexelray-framework-api` | **built** — the annotation vocabulary |
-| `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (35 tests) |
-| `vexelray-framework-shell` | **built** — the absorbed edge, and the window chrome (17 tests) |
+| `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (37 tests) |
+| `vexelray-framework-shell` | **built** — the absorbed edge, and the window chrome (33 tests) |
 | `vexelray-framework-automation` | **built** — the driving socket, in its own module |
-| `vexelray-framework-demo` | next — calculator's wiring, hand-written, as the processor's target |
-| `vexelray-framework-processor` | after that — generate what step 2 wrote by hand |
+| `vexelray-framework-processor` | next — generate the wiring the three ports below wrote by hand |
+
+Three applications run on it, each with its wiring hand-written in its own repo. That is what the
+processor's output has to reproduce, and they were chosen so that each could find what the others
+could not:
+
+| Application | What it proved |
+| --- | --- |
+| [`calculator-vexel-demo`](../calculator-vexel-demo) | `CalculatorWiring` — one window, a marched viewport, a device-backed component in `WINDOW` |
+| [`text-editor-vexel-demo`](../text-editor-vexel-demo) | `TextEditorWiring` — three windows, an OS clipboard on all of them, unsaved documents behind a close gate, an application mark, and its own headless capture. It is what found the four gaps in [docs/architecture.md](docs/architecture.md#what-porting-the-text-editor-found) |
+| [`vexelray-designer`](../vexelray-designer) | `DesignerWiring` — two windows on one device and one frame loop, the second one ray-marched by the application into a target the host mints, and the only one of the three that lets the OS draw its frame. See [what it found](docs/architecture.md#what-porting-the-designer-found) |
 
 `-api` and `-core` are JDK-only, so the container's decisions are testable on a machine with no GPU.
 `-shell` is the only Vulkan-aware module.

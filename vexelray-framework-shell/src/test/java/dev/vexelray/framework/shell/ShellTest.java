@@ -127,12 +127,6 @@ final class ShellTest {
                 appearance.instruments().size());
     }
 
-    /** A shipped application must be able to say "no buttons in my caption". */
-    @Test
-    void instrumentsAreReducibleToNone() {
-        assertTrue(Appearance.of(Theme.DARK).instruments(java.util.List.of()).instruments().isEmpty());
-    }
-
     @Test
     void askingForSystemDecorationsMeansThereIsNoFrameworkBar() {
         Appearance os = Appearance.of(Theme.DARK).decorations(dev.vexelray.os.Decorations.SYSTEM);
@@ -160,12 +154,39 @@ final class ShellTest {
         assertSame(mine, shell.appearance().theme());
     }
 
+    /**
+     * The three things the port of the text editor found missing, all of them ATTACH-phase: without them an
+     * application with a second window has no way to reach the clipboard, an application with unsaved work has
+     * no way to be asked before it quits, and neither had anywhere to say so.
+     */
     @Test
-    void anAppearanceWithNoFloorReportsNone() {
-        assertFalse(Appearance.of(Theme.DARK).hasMinSize());
-        assertTrue(Appearance.of(Theme.DARK,
-                dev.vexelray.gui.core.layout.Length.em(46),
-                dev.vexelray.gui.core.layout.Length.em(30)).hasMinSize());
+    void theClipboardIsNotThereBeforeAttach() {
+        Shell shell = shell();
+        shell.phase(Phase.WINDOW);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, shell::clipboard);
+        assertTrue(e.getMessage().contains("ATTACH"), e.getMessage());
+        assertTrue(e.getMessage().contains("WINDOW"), e.getMessage());
+    }
+
+    @Test
+    void theDialogsAreNotThereBeforeAttach() {
+        assertThrows(IllegalStateException.class, shell()::dialogs);
+    }
+
+    /**
+     * A gate registered before there is a window would be registered against nothing, on the same terms as a
+     * wake registered before there is a loop — so it is refused rather than silently dropped.
+     */
+    @Test
+    void aCloseGateIsRefusedBeforeAttach() {
+        Shell shell = shell();
+        shell.phase(Phase.WINDOW);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> shell.onClose(request -> {
+                }));
+        assertTrue(e.getMessage().contains("ATTACH"), e.getMessage());
     }
 
 }

@@ -3,7 +3,8 @@
 `vexelray-framework` is a Spring-Boot-shaped application framework for the VexelRay stack: compile-time
 DI, typed configuration, and a frame-aware lifecycle for GraalVM native-image desktop applications.
 [README.md](README.md) is the tour; [docs/architecture.md](docs/architecture.md) is the deep version and
-the decision record.
+the decision record. [docs/TODO.md](docs/TODO.md) is what is known about and not done, which is
+where anything you notice and do not fix belongs.
 
 It sits at the **top** of a stack of sibling checkouts under `C:\Users\User\Documents\GitHub\`. As in
 `vexelray-gui`, most of what is confusing is not in this repo.
@@ -22,7 +23,7 @@ before this repo sees it.
 | **atchung** | The typed bus. Also `elektroq` — **the house precedent for this repo's mechanism**: annotate a record, a processor emits code, native-image needs no `reflect-config.json` |
 | **kronometer** | Timing and animation, wrapped as `vexelray-gui-krono` |
 | **mainframe** | A terminal/shell, and `mainframe-template` — whose `vexel-desktop/files/App.java` is this framework's specification written out longhand. **Read it.** It is also a library that imports `WindowMemory` and `Settings`, so it is inside the absorption blast radius |
-| **calculator-vexel-demo**, **text-editor-vexel-demo**, **vexelray-designer** | The four hand-written application edges this framework replaces. The drift between them is the evidence |
+| **calculator-vexel-demo**, **text-editor-vexel-demo**, **vexelray-designer** | The application edges this framework replaces, and the drift between them is the evidence. All three are now ported and each is a `Wiring` — so they are also the reference for what the processor must generate. `mainframe-template`'s scaffold is the fourth and is still longhand |
 
 ## Where the design comes from
 
