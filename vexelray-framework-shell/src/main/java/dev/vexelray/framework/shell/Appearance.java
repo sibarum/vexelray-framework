@@ -110,6 +110,26 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
                         "zoom step is a factor, not an increment, so it must be greater than 1: " + step);
             }
         }
+
+        /**
+         * Apply this range to {@code gui}, and nothing else.
+         *
+         * <p><b>The narrow half of {@link Appearance#applyTo}, and it exists because the wide one is wrong for
+         * some windows.</b> A second window may legitimately have a look of its own — the text editor's file
+         * drawer is deliberately a different hue from its editor, on the grounds that <i>"they are different
+         * machines... hue is the cheapest thing a glance resolves"</i>, and the console it opens brings its
+         * own palette because <i>"a window that had to be themed by whoever embedded it would look different
+         * in every application that used it."</i> A second window that disagreed about <em>how far the zoom
+         * goes</em> is not making a point; it is just inconsistent.
+         *
+         * <p>So this is what every window on a desk should share whatever else it does not, and it is also
+         * what a library window reaches for: a class built to run under a host that is not this framework has
+         * no {@code Shell} to ask, and {@link #DEFAULT} is still the one place the three numbers are written
+         * down.
+         */
+        public void applyTo(Gui gui) {
+            gui.zoomRange(min, max, step);
+        }
     }
 
     public Appearance {
@@ -191,12 +211,19 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
      * <p><b>The theme and the zoom range; not the minimum size.</b> That line is where it is because
      * {@code Gui.minSize} is <i>"not an OS window minimum"</i> — it is the smallest canvas <em>this tree</em>
      * can be laid out on, so it is a fact about one layout and the main window's floor is the wrong answer for
-     * a tool window beside it. The look and how far the zoom goes are facts about the application, and a
-     * second window that disagreed with the first about either would just look broken.
+     * a tool window beside it.
+     *
+     * <p><b>Only for a window that is meant to look the same</b>, which is the correction the text editor
+     * forced on this method after it was written. Its file drawer is deliberately a different hue from its
+     * editor — <i>"they are different machines... hue is the cheapest thing a glance resolves"</i> — and the
+     * console it opens brings its own palette on purpose. Calling this on either would overwrite a decision
+     * with a default. So the two facts are not the same kind after all: how far the zoom goes should be the
+     * same in every window on the desk, and the theme is the application's answer for windows that have not
+     * got one of their own. A window with its own look calls {@link ZoomRange#applyTo} and keeps its theme.
      */
     public void applyTo(Gui gui) {
         gui.theme(theme);
-        gui.zoomRange(zoom.min(), zoom.max(), zoom.step());
+        zoom.applyTo(gui);
     }
 
     /** True when a size floor was given, and so when {@code Gui.minSize} should be called at all. */

@@ -93,7 +93,7 @@ final class Editor {
 | --- | --- |
 | `vexelray-framework-api` | **built** — the annotation vocabulary |
 | `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (37 tests) |
-| `vexelray-framework-shell` | **built** — the absorbed edge, and the window chrome (33 tests) |
+| `vexelray-framework-shell` | **built** — the absorbed edge, and the window chrome (34 tests) |
 | `vexelray-framework-automation` | **built** — the driving socket, in its own module |
 | `vexelray-framework-processor` | next — generate the wiring the three ports below wrote by hand |
 

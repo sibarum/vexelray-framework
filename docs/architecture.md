@@ -303,13 +303,31 @@ Three things looked like framework candidates and are not, recorded here so they
 
   Taking it turned up the clipboard's problem in a second guise. The framework dresses the one `Gui`
   it built, and the editor calls `zoomShortcuts` on three — so a range set only on the main window
-  would leave the folder and terminal windows on different bounds. Hence `Appearance.applyTo(Gui)`:
-  the theme and the zoom range, in one call, for a window the framework never saw. Not the minimum
-  size, because `Gui.minSize` is *"not an OS window minimum"* but the smallest canvas one tree can be
-  laid out on, and the main window's floor is the wrong answer for a tool window beside it. The same
-  call is what `VexelApplication` uses on its own `Gui`, so there is one definition of what applying
-  an appearance means rather than two to keep in agreement — and it is the seam that stops the
-  `Modals` defect below from being every multi-window application's as well.
+  would leave the others on different bounds. Hence `Appearance.applyTo(Gui)`: the theme and the zoom
+  range, in one call, for a window the framework never saw. Not the minimum size, because
+  `Gui.minSize` is *"not an OS window minimum"* but the smallest canvas one tree can be laid out on,
+  and the main window's floor is the wrong answer for a tool window beside it. The same call is what
+  `VexelApplication` uses on its own `Gui`, so there is one definition of what applying an appearance
+  means rather than two to keep in agreement — and it is the seam that stops the `Modals` defect
+  below from being every multi-window application's as well.
+
+  **And then the editor corrected it.** Applying that method to the editor's other two windows is
+  wrong: its file drawer is deliberately a different hue — *"they are different machines... hue is
+  the cheapest thing a glance resolves"* — and the MainFrame console it opens brings its own palette,
+  because *"a window that had to be themed by whoever embedded it would look different in every
+  application that used it."* So the two facts are not the same kind after all, and the split is
+  worth stating exactly:
+
+  | Fact | Whose | Why |
+  | --- | --- | --- |
+  | How far the zoom goes | Every window on the desk | A second window that disagreed is not making a point; it is inconsistent. `ZoomRange.applyTo` |
+  | The theme | The application, *unless a window has its own* | A departure can be a decision, and overwriting one with a default is the defect, not the fix. `Appearance.applyTo` |
+  | The minimum size | One tree | It is a floor for a layout, not for an application |
+
+  `ZoomRange.applyTo` is also what a **library** window reaches for. `EditorWindow` and
+  `FolderWindow` both run under MainFrame as well as under this framework, and under that host there
+  is no `Shell` to ask — so they state their own look and take the range off `ZoomRange.DEFAULT`,
+  which keeps the three numbers in one place on the stack even where the container is not running.
 - **`--capture` and its two siblings.** The editor has three headless entry points and two of them
   photograph a window that is not the main one. `Launch` already says an application with its own
   capture tooling intercepts its own flag first; what was missing was only a tree to point it at.

@@ -11,18 +11,6 @@ cannot be fixed from here at all.
 
 ## Next
 
-- [ ] **Dress the text editor's other two windows** (in `../text-editor-vexel-demo`).
-      `TextEditorApp.zoomShortcuts` still opens with `gui.zoomRange(0.5f, 3f, 1.25f)`, which the
-      framework now applies — but that method is called on the folder and terminal windows' own
-      `Gui`s as well, so deleting the line would leave those two on `Gui`'s wider bounds and make the
-      three windows disagree about how far the zoom goes. `Appearance.applyTo` is the seam;
-      `Appearance` has to reach the windows, and it cannot be the clipboard's loop in `attach`,
-      because a theme must be set before the first widget writes a prop and `files.restore()` opens
-      windows later. So it is a constructor parameter into `FileActions`, and each window dresses its
-      own `Gui` as it builds it. `CalculatorWiring` is already done — it had one window and one line.
-      `Console` and `Desktop` in `../mainframe` are the same line but are not framework applications
-      yet, so they belong with the scaffold entry below.
-
 - [ ] **`calculator-vexel-demo`'s `Capture` still builds its tree by a second route** (in
       `../calculator-vexel-demo`). `Capture.build()` does `new Gui()`, `gui.theme(Look.THEME)`,
       `gui.minSize(46em, 30em)` and a `TitleBar` against `WindowControls.NONE` by hand — a second copy
@@ -40,6 +28,13 @@ cannot be fixed from here at all.
       which is now `Shell.onClose`.
 
 ## Later
+
+- [ ] **An application that configures a non-default zoom range will disagree with the text editor's
+      other two windows.** `FolderWindow` and `EditorWindow` apply `Appearance.ZoomRange.DEFAULT`
+      rather than the running application's, because both also run under MainFrame where there is no
+      `Shell` to ask. Correct today, since nothing configures a range; wrong the moment something
+      does. The fix is a constructor parameter defaulting to `DEFAULT`, and it is not worth the churn
+      on two library classes until a host wants one.
 
 - [ ] **`-diagnostics`, and move `FpsProbe` into it.** It is `text-editor-vexel-demo`'s, about 250
       lines, and generic apart from the one thing that makes it worth having: it deliberately pokes

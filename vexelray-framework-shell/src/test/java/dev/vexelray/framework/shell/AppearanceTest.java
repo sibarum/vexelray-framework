@@ -140,6 +140,28 @@ final class AppearanceTest {
     }
 
     /**
+     * The narrow half, for a window that has a look of its own.
+     *
+     * <p>The text editor's file drawer is deliberately a different hue from its editor, so dressing it with
+     * the whole appearance would overwrite a decision with a default. What it should still share is how far
+     * the zoom goes — a second window that disagreed about that is not making a point.
+     */
+    @Test
+    void aWindowWithItsOwnLookTakesTheRangeAndKeepsItsTheme() {
+        try (Gui drawer = gui()) {
+            Theme own = Theme.LIGHT;
+            drawer.theme(own);
+            Appearance.of(Theme.DARK).zoom(0.5f, 1.5f, 1.25f).zoom().applyTo(drawer);
+
+            assertSame(own, drawer.theme(), "the window's own theme survives");
+            for (int i = 0; i < 20; i++) {
+                drawer.zoomIn();
+            }
+            assertEquals(1.5f, drawer.zoom().value(), 0.001f, "and it still agrees about the bounds");
+        }
+    }
+
+    /**
      * The minimum size is deliberately not part of it. {@code Gui.minSize} is <i>"not an OS window
      * minimum"</i> — it is the smallest canvas one tree can be laid out on — so the main window's floor is the
      * wrong answer for a tool window beside it, and applying it would be a silent layout crop.
