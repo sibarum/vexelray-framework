@@ -42,13 +42,6 @@ cannot be fixed from here at all.
       `setApplicationIcon` to throw. Each would need a seam taking the backend rather than opening it,
       which is more API than the assertion is worth today — recorded so the gap is a decision.
 
-- [ ] **Regenerate `mainframe-template`'s `vexel-desktop` scaffold to emit a `Wiring`** (in
-      `../mainframe`). Its `App.java` is ~350 lines and is this framework's specification written
-      longhand — so every new application on this stack still starts from the file the framework
-      exists to replace. Its `docs/TODO.md` even ships an entry telling the author to *"decide what
-      closing the window means... an application with unsaved state wants `GuiApp.onCloseRequest`"*,
-      which is now `Shell.onClose`.
-
 ## Later
 
 - [ ] **An application that configures a non-default zoom range will disagree with the text editor's
