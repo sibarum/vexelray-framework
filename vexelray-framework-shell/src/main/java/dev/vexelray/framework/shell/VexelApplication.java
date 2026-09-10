@@ -245,7 +245,12 @@ public final class VexelApplication {
         // The dialogs. Installed here rather than on request, because Modals is reached statically from
         // wherever a question arises -- so "the application forgot to install them" surfaces as an exception
         // thrown at the moment somebody needed an answer, which is the worst time to find out.
-        shell.dialogs(disposer.register(Modals.install(app)));
+        //
+        // Handed this application's appearance, and not for tidiness: Modals builds a Gui of its own, and a
+        // fresh Gui is Theme.DARK, so a dialog installed without it draws dark inside a light application. It
+        // is the same seam every other window we open goes through -- see Appearance.applyTo, which names this
+        // as the case it was written for.
+        shell.dialogs(disposer.register(Modals.install(app, appearance::applyTo)));
         // The window exists at last, so the bar can be given controls that actually work and the instruments
         // that use them. Both in one place, because an instrument without real controls is the exact failure
         // automation.md 7 records: "every other window had a screenshot button that neither worked nor

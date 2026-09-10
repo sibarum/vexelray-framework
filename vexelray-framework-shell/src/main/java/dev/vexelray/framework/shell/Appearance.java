@@ -204,9 +204,10 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
      * }
      *
      * <p>Without it the second window is a window the application's own look never reached, which is not a
-     * hypothetical: it is exactly the defect {@code Modals} has upstream — a dialog that builds its own
-     * {@code Gui}, gets {@code Theme.DARK} by default, and draws dark whatever the application said. Invisible
-     * in an application whose theme is dark, and glaring in one whose theme is not.
+     * hypothetical: it is exactly the defect {@code Modals} had — a dialog that builds its own {@code Gui},
+     * gets {@code Theme.DARK} by default, and drew dark whatever the application said. Invisible in an
+     * application whose theme is dark, and glaring in one whose theme is not. That one is fixed, and this is
+     * the method it was fixed with: {@code Modals.install(app, appearance::applyTo)}.
      *
      * <p><b>The theme and the zoom range; not the minimum size.</b> That line is where it is because
      * {@code Gui.minSize} is <i>"not an OS window minimum"</i> — it is the smallest canvas <em>this tree</em>

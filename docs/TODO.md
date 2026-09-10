@@ -142,15 +142,26 @@ cannot be fixed from here at all.
 
 Cannot be fixed from this repo.
 
-- [ ] **`Modals` never receives the application's theme** (`vexelray-gui-widget`). It builds its own
-      `new Gui()`, which defaults to `Theme.DARK`, so every dialog the framework installs draws dark
-      whatever `Appearance.theme()` says — against a class whose own Javadoc promises a dialog *"drawn
-      with the same chrome as the rest of the application"*. Invisible in `text-editor-vexel-demo`,
-      whose theme *is* `Theme.DARK`; visible in `calculator-vexel-demo`. Predates the framework
-      installing them — the editor had the same dialogs and the same problem — but the framework has
-      now made it every application's. `Modals.install` needs to take a `Theme`.
+- [x] **`Modals` never receives the application's theme** (`vexelray-gui-widget`) — **fixed upstream and
+      taken here.** It built its own `new Gui()`, which defaults to `Theme.DARK`, so every dialog the
+      framework installed drew dark whatever `Appearance.theme()` said — against a class whose own Javadoc
+      promises a dialog *"drawn with the same chrome as the rest of the application"*. Invisible in
+      `text-editor-vexel-demo`, whose theme *is* `Theme.DARK`; visible in `calculator-vexel-demo`.
 
-      The signature is now obvious, which it was not when this was written: `Modals.install(app,
-      Consumer<Gui>)`, called with `shell.appearance()::applyTo`. That is the same seam the designer's
-      viewport window and the editor's other two use, and a dialog's `Gui` is exactly the case it
-      describes — a window the framework installs and the application's look never reaches.
+      The signature this note predicted is the signature it got: `Modals.install(app, Consumer<Gui>)`,
+      applied to the dialogs' tree *before* it is built, because a role resolves at the moment a widget
+      writes a colour. `VexelApplication` now calls it with `appearance::applyTo` — the same seam the
+      designer's viewport window and the editor's other two use, and the case `Appearance.applyTo`'s own
+      Javadoc was written about.
+
+      Two things worth knowing, both decided upstream. The one-argument `install` stayed, documented as the
+      library default look for an application with no decision to pass on, so the wrong call is now a choice
+      rather than an accident. And the dialogs re-derive their page and message colour per dialog, so an
+      application that changes its look at runtime gets a correct *next* dialog — the buttons were already
+      being rebuilt, and those two were the only parts that would have stayed stale.
+
+      Guarded by `DialogsWearTheApplicationsLookTest` in `vexelray-gui-harness`, which asserts the seam was
+      handed the tree the dialogs are actually built on rather than merely a `Gui`. Writing it needed a fix
+      of its own (`vexelray-gui` §6.11): the harness made its first window on the calling thread and the
+      rest on the loop thread, and a dialog is modal, which was enough to leave no thread able to tear them
+      all down.
