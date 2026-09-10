@@ -123,10 +123,19 @@ cannot be fixed from here at all.
 - [ ] **The container has no way to give a component a thread and a mailbox, which is the design.**
       The model is now written down — [the concurrency model](architecture.md#the-concurrency-model),
       including the three mismatches it leaves for the processor, the `WakeSource` a component mailbox
-      owes, and why `Disposer` needs *drain then stop*. What is missing is entirely on this side: no
-      `Executor`, no `Thread` and no async seam anywhere in the four modules' main sources, so today
-      the only expression of the model is `InputBackend`'s two bridge lines. The substrate upstream is
-      finished, so this is the framework's half and nobody else's.
+      owes, and why `Disposer` needs *drain then stop*. What is missing is entirely on this side, and
+      [what is actually wired today](architecture.md#what-is-actually-wired-today) is the inventory:
+      no `Executor`, no `Thread`, no `sibarum.atchung` and no `sibarum.kronometer` anywhere in the four
+      modules' main sources.
+
+      **The first move is two constructor arguments, and both already exist.** `VexelApplication` calls
+      `new Gui()`, which is `this(Atchung.create())` — a private bus and a private cached thread pool
+      per window, so a calculator runs two of each (the main window and `Modals`' dialogs) and nothing
+      on this stack shares one. `Gui(Atchung)` and `Gui(Atchung, Executor)` are the seams, and the
+      second one's Javadoc already names the case: *"hand in the same bus the application uses so input
+      publishers, widgets, and workers all meet the framework on one fabric."* Owning the bus and the
+      handler executor is what makes placement expressible at all; until then there is nowhere to put a
+      component.
 
       **Also add the `FrameHooks` note while it is cheap.** The doc records that a flat `Runnable[]`
       walked on one thread is the barrier's N=1 case; the file itself does not say so, and its

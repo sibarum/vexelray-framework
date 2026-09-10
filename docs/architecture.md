@@ -327,6 +327,69 @@ against Kronometer at the N a real application reaches says where the tail start
 jitter is `max()` over participants rather than the mean. That chooses a sensible **default grouping**.
 It does not decide the architecture, because the reasoning above already did.
 
+### What is actually wired today
+
+The model above is the design. This is an inventory of the code as it stands, taken so that the gap
+between the two is a readable distance rather than an impression. Everything here is a grep over the
+four modules' main sources.
+
+**The framework contains no concurrency primitives at all.** Zero occurrences of `Thread`, `Executor`,
+`java.util.concurrent`, `volatile`, `synchronized` or `Atomic`. The only matches for those searches are
+the string `@MainThread` inside Javadoc. Its whole thread-aware API surface is one `Runnable`:
+
+| Seam | What it says about threads |
+| --- | --- |
+| `WakeSource.onWake(Runnable)` | the runnable is *"safe to call from any thread — that is its purpose"* |
+| `DeadlineSource.nanosUntilNextFrame()` | *"Called on the main thread… must be cheap and must not block"* |
+| `FrameHooks` | *"Not thread-safe and not meant to be"*, and sealed before the first frame |
+| `Disposer` | reverse construction order; no timeout, no drain, no start order distinct from it |
+| `@MainThread` | inert — there is no processor, so the two-colour rule is enforced by nobody |
+
+**The stack is already multithreaded, and none of the threading is the framework's.** `Gui` owns an
+`Executors.newCachedThreadPool` per instance and runs every input handler on it. The applications make
+almost no threads of their own: one daemon reporter in the editor's `FpsProbe`, and none at all in the
+calculator or the designer. So the concurrency an application has today is a property of how many
+`Gui`s it happens to hold.
+
+**Atchung is never named.** No `sibarum.atchung.*` import appears anywhere in the four modules; no
+`Topic`, `Pump`, `State`, `Backpressure` or `Fold`. The bus reaches this repo only transitively through
+`tactroller-atchung`, of which exactly one type is used — `TactrollerInputBridge` — and there is no
+`Shell.bus()`. An application reaches a bus only as `shell.gui().bus()`, which is that `Gui`'s own.
+**elektro-Q is absent entirely**, from the framework and from all three ported applications.
+
+**Kronometer is never named either.** No `sibarum.kronometer.*` import — only
+`dev.vexelray.gui.krono.KronoGui`. The framework owns the clock's *lifecycle* and none of its
+*vocabulary*: it constructs it in `GUI`, ticks it at `FrameStage.CLOCK`, parks on
+`kron().sleepTimeout()`, wakes on `kron()::onWork`, and hands it over through the single accessor
+`Shell.krono()`. `Rate`, `Settlement`, `Overrun` and `Moment` appear in no framework signature.
+Applications reach them directly instead — the calculator's `Motion` imports `Kron`, `Rate`, `Cell`,
+`Curve` and `Animator`, and its `Model` is built on Atchung's `State<T>` and `Committer`.
+
+#### Every window is an island, and that is the whole of the gap
+
+`new Gui()` is `this(Atchung.create())` — **a private bus per `Gui`**, and a private worker pool with
+it. Nothing on this stack shares one. A calculator, which looks like a one-window application, runs two:
+the framework's main `Gui`, and the one `Modals` builds for the dialogs. The editor has that plus its
+file drawer and its editor windows; the designer has that plus its viewport.
+
+The seams for fixing this already exist, upstream, and the framework declines both:
+
+```java
+public Gui(Atchung bus)                                            // one shared fabric
+public Gui(Atchung bus, java.util.concurrent.Executor handlers)    // and who runs the handlers
+```
+
+`Gui(Atchung)`'s own Javadoc states the purpose — *"hand in the same bus the application uses so input
+publishers, widgets, and workers all meet the framework on one fabric"* — and `VexelApplication` calls
+`new Gui()`.
+
+So the distance between this section and the model above is not missing substrate. `Pump`, `State`,
+`Fold`, `Backpressure`, `Rate` and `KronBridge` are all built and none of them is reached from here.
+What is missing is that the container does not yet own the two arguments that would let it place a
+component anywhere: **the bus a component publishes on, and the thread its handlers run on.** That is
+where the model starts, and it is why the entry in `docs/TODO.md` says the missing half is entirely on
+this side.
+
 ### Three mismatches this leaves for the processor
 
 None of these is a defect today. Each is a place where a vocabulary written for one thread has to grow
