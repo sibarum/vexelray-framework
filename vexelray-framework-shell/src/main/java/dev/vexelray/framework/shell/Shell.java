@@ -19,16 +19,23 @@ import dev.vexelray.gui.widget.TitleBar;
 /**
  * What the framework has built so far, and where the wiring hands things back.
  *
- * <p>Passed to {@link Wiring#build} once per {@link Phase}. Deliberately not a bean registry: every accessor
+ * <p>Passed to one {@link Wiring} method per {@link Phase}. Deliberately not a bean registry: every accessor
  * here is a typed method returning one known type, so generated code reads {@code shell.app()} and is checked
  * by javac. There is no {@code get(Class)}, no name lookup, and nothing to configure — a service locator with a
  * map would reintroduce at runtime exactly the failure the processor exists to move to compile time.
  *
  * <p><b>Accessors throw before their phase.</b> {@link #app()} does not exist until {@link Phase#WINDOW}, and
  * asking early gets a message naming the phase rather than a {@code NullPointerException} thirty frames later.
- * Generated wiring cannot reach that state — the processor rejects a backwards dependency — so these checks
- * exist for hand-written wiring and for the framework's own mistakes, which is the honest description of a
- * backstop.
+ * Generated wiring will not be able to reach that state, because the processor rejects a backwards dependency —
+ * so these checks are there for hand-written wiring and for the framework's own mistakes, which is the honest
+ * description of a backstop.
+ *
+ * <p><b>Today they are not a backstop, they are the only check there is.</b> Every wiring on this stack is
+ * hand-written and the processor is unwritten, so the phase rule is enforced here, at startup, by an
+ * {@code IllegalStateException} — one step to the right of where this repo's own rule puts it, that <i>a
+ * compile error beats a startup error beats a runtime error</i>. That is worth knowing in both directions: it
+ * is why these messages name the phase and the thing asked for rather than simply failing, and it is why the
+ * class of mistake they catch is an argument for the processor rather than evidence that one is unnecessary.
  */
 public final class Shell {
 

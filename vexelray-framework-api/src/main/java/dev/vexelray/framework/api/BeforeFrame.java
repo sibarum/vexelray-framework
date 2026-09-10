@@ -19,6 +19,10 @@ import java.lang.annotation.Target;
  * per-frame hook is the last place a stack trace does anyone any good, because it will arrive sixty times
  * before it is read.
  *
+ * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built. {@code FrameHooks} is the part
+ * that does exist — the array this would generate a call into, filled today by {@code Shell.hooks().add}.
+ *
  * @see FrameStage for why the stage is a named position rather than an integer priority
  */
 @Target(ElementType.METHOD)

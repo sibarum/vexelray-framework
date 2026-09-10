@@ -20,7 +20,10 @@ import java.lang.annotation.Target;
  * printing its own apology.
  *
  * <p>A provider for a type the framework also supplies wins over it silently, provided the framework's is
- * marked {@link Default}. Two non-default providers for one type are a compile error.
+ * marked {@link Default}. Two non-default providers for one type will be a compile error.
+ *
+ * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.CLASS)

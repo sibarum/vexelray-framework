@@ -16,8 +16,10 @@ package dev.vexelray.framework.core;
  *
  * <p><b>A component never declares its phase.</b> It is inferred as the latest phase of anything the component
  * depends on, which makes the phase a consequence of the code rather than a second thing to keep in agreement
- * with it. What the processor rejects is a dependency pointing <em>backwards</em>: something in {@link #MODEL}
- * asking for a value that only exists from {@link #WINDOW} on.
+ * with it. What the processor will reject is a dependency pointing <em>backwards</em>: something in
+ * {@link #MODEL} asking for a value that only exists from {@link #WINDOW} on. Until it is written, a
+ * hand-written wiring works its own phases out and {@code Shell}'s accessors catch the mistake at startup
+ * instead — a backstop standing in for a compile error, which is the trade recorded on {@code Shell}.
  *
  * <p><b>Each member below lists what its phase contains, and nothing checks the list.</b> That is this file's
  * one known hazard, and it has already cost something: porting the text editor found four capabilities the

@@ -15,13 +15,16 @@ import java.lang.annotation.Target;
  * <p><b>No proxying, and so no {@code proxyBeanMethods} to reason about.</b> Spring has to intercept calls
  * between {@code @Bean} methods because a second call would build a second instance; here the generated wiring
  * calls each method exactly once and passes the result on by reference, which is what a reader naively expects
- * and what a hand-written {@code main} already did. A {@code @Provides} method calling another one directly is
- * a compile error rather than a silent second instance — ask for it as a parameter instead.
+ * and what a hand-written {@code main} already did. A {@code @Provides} method calling another one directly
+ * will be a compile error rather than a silent second instance — ask for it as a parameter instead.
  *
  * <p>This is also the unit of auto-configuration. A starter is a configuration class, guarded by
  * {@link ConditionalOnType} where it touches something optional, that an application names in
  * {@link VexelApp#starters()}. <b>Named, not found</b> — see that method for why a framework that discovers its
  * starters has to walk the classpath to do it, and what the class literal buys instead.
+ *
+ * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)

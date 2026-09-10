@@ -8,21 +8,28 @@ import java.lang.annotation.Target;
 /**
  * Marks the application's entry class, and carries the handful of facts the shell cannot infer.
  *
- * <p>One per application. The processor generates a wiring class beside it, and the annotated class's
- * {@code main} becomes a single call into the runtime:
+ * <p>One per application. The processor will generate a wiring class beside it, and the annotated class's
+ * {@code main} is a single call into the runtime:
  *
  * <pre>{@code
  * @VexelApp(name = "text-editor", title = "Text Editor", width = 800, height = 592)
  * public final class TextEditorApp {
  *     public static void main(String[] args) {
- *         VexelApplication.run(TextEditorAppWiring::new, args);
+ *         VexelApplication.run(new TextEditorAppWiring(), args);
  *     }
  * }
  * }</pre>
  *
+ * <p>{@code run} takes a {@code Wiring} instance, so that is a constructor call and not a constructor
+ * reference — which is what all three ported applications write. Today the class it names is hand-written; the
+ * annotation changes nothing about the call, only about who types the class.
+ *
  * <p><b>{@link #name()} is not cosmetic.</b> It is the settings directory — {@code $HOME/.{name}/} — so it is
  * the one value here that, changed after a release, loses a user's window placement and open files. The other
  * three are first-run defaults, which window memory overwrites the moment there is anything remembered.
+ *
+ * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)
@@ -54,10 +61,11 @@ public @interface VexelApp {
      * what the application uses, and still leaving nobody able to say which jar contributed what.
      *
      * <p>A class literal costs one line and buys three things. javac resolves it, so a starter that has been
-     * renamed or is not on the path is a <b>compile error</b> rather than a component missing at startup. The
-     * processor obtains the type by resolution rather than search, so build time is proportional to what is
-     * used. And the set of things configuring this application is written at the one place somebody reads when
-     * they want to know.
+     * renamed or is not on the path is a <b>compile error</b> rather than a component missing at startup —
+     * and that one is true today, because javac resolves the literal whether or not anything reads the
+     * annotation. The processor obtains the type by resolution rather than search, so build time is
+     * proportional to what is used. And the set of things configuring this application is written at the one
+     * place somebody reads when they want to know.
      *
      * <p>What this gives up is "add a jar, get behaviour" — which for a framework whose output is a native
      * binary was never real, since the jar reaches the binary only by recompiling anyway. What it keeps is the

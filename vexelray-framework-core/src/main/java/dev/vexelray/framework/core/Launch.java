@@ -19,9 +19,10 @@ import java.util.TreeSet;
  * <p><b>The typo is the interesting one, because fixing it properly needs the compiler.</b> A hand-written
  * {@code main} cannot reject {@code --verbse} without keeping a list of every flag it accepts, in agreement
  * with the code that reads them; miss one and a real flag is rejected, forget to add one and a typo is
- * silently ignored. The processor already knows every {@code @Setting} key in the application, so it passes
+ * silently ignored. A processor knows every {@code @Setting} key in the application already, so it can pass
  * them in as {@code knownKeys} and an unrecognised flag is refused by name, with the alternatives listed. That
- * list cannot fall out of date, because it is not written by anybody.
+ * list cannot fall out of date, because it is not written by anybody — which is the argument for generating it
+ * rather than a description of today: see {@code AppInfo.settingKeys}, where somebody still types it.
  *
  * <p>The grammar is small and uniform:
  *
@@ -89,7 +90,8 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
      *                  or an IDE run configuration that expands an empty variable produces one and it has never
      *                  meant anything
      * @param appName   the application's name, for the usage line
-     * @param knownKeys every {@code @Setting} key the application declares, from the processor
+     * @param knownKeys every {@code @Setting} key the application declares — from the processor eventually,
+     *                  from {@code AppInfo.settingKeys} by hand today
      * @throws IllegalArgumentException on anything unrecognised, with a message meant to be printed as-is and
      *                                 without a stack trace — the caller is expected to print it and exit
      */

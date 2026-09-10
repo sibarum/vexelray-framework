@@ -15,8 +15,8 @@ import java.lang.annotation.Target;
  * native binary, and because the query costs startup time on every launch to answer a question that was already
  * settled when the application was built.
  *
- * <p>Here the processor answers it with {@code Elements.getTypeElement(name) != null} while compiling, and then
- * emits the branch or does not. The consequences are worth stating plainly:
+ * <p>Here the processor will answer it with {@code Elements.getTypeElement(name) != null} while compiling, and
+ * then emit the branch or not. The consequences are worth stating plainly:
  *
  * <ul>
  *   <li><b>Nothing is evaluated at runtime.</b> A guard that failed produces no code at all — not a
@@ -30,6 +30,9 @@ import java.lang.annotation.Target;
  * <p>The cost is the honest one: the decision is frozen at the application's build, so adding a jar to the
  * runtime classpath contributes nothing until the application is recompiled. For a framework whose output is a
  * single native binary, that is not a cost at all.
+ *
+ * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.CLASS)

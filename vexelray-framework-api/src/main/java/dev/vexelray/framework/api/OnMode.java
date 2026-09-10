@@ -8,14 +8,18 @@ import java.lang.annotation.Target;
 /**
  * Build this component, or call this {@link Provides} method, only in the listed {@link RunMode}s.
  *
- * <p>Unlike {@link ConditionalOnType}, which the processor settles and compiles away, this is a runtime branch:
- * the mode comes from {@code args}, so the generated wiring contains an {@code if}. That is a branch taken once
- * at startup, not reflection, and it keeps the useful property — a value guarded to {@link RunMode#WINDOWED} is
- * never constructed during a capture, so a headless machine never opens the backend it does not have.
+ * <p>Unlike {@link ConditionalOnType}, which is settled while compiling and compiled away, this is a runtime
+ * branch: the mode comes from {@code args}, so the generated wiring contains an {@code if}. That is a branch
+ * taken once at startup, not reflection, and it keeps the useful property — a value guarded to
+ * {@link RunMode#WINDOWED} is never constructed during a capture, so a headless machine never opens the backend
+ * it does not have.
  *
  * <p>A component whose dependency is absent in the current mode is itself absent in that mode; the processor
- * works that out and says so at the one place it can be read — the build — rather than leaving a null to be
+ * will work that out and say so at the one place it can be read — the build — rather than leaving a null to be
  * discovered a phase later.
+ *
+ * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.CLASS)

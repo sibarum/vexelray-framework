@@ -42,31 +42,12 @@ cannot be fixed from here at all.
       `setApplicationIcon` to throw. Each would need a seam taking the backend rather than opening it,
       which is more API than the assertion is worth today — recorded so the gap is a decision.
 
-- [ ] **The javadoc describes the processor in the present tense, and the processor does not exist.**
-      Every annotation in `-api` is inert, all ten of them — `@VexelApp`, `@Component`, `@Provides`,
-      `@Configuration`, `@Default`, `@ConditionalOnType`, `@OnMode`, `@Setting`, `@MainThread` and
-      `@BeforeFrame`; the only live types in that module are the two enums. Nothing in the repo
-      implements `AbstractProcessor`, and the sole mention of `RoundEnvironment` is inside a javadoc.
-      Those same files read *"the processor rejects a component with more than one non-private
-      constructor"* and *"two non-default providers for one type are a compile error"* as statements of
-      fact, so a reader cannot tell which sentences describe code and which describe intent. The same
-      gap shows in `Shell`, whose phase guards throw `IllegalStateException` where this repo's rule is
-      that *a compile error beats a startup error beats a runtime error* — and which says so itself,
-      calling them *"the honest description of a backstop."* The fix is a future tense, or one line at
-      the top of `package-info` saying which half is built. It is the single thing that most makes this
-      framework read as rougher than it is.
-
 - [ ] **`Wiring` is an accidental functional interface**, so the framework's central contract can be
       satisfied by a lambda. `info()` is its only abstract method and all six phase methods are
       `default`, which makes `VexelApplication.run(() -> myAppInfo, args)` compile and yield an
       application whose every build phase silently does nothing. A second abstract method, or an
       abstract class, closes it. The phase defaults are worth keeping either way, since *"most
       applications have nothing in most phases."*
-
-- [ ] **`@VexelApp`'s javadoc example does not compile.** It shows
-      `VexelApplication.run(TextEditorAppWiring::new, args)` — a constructor reference — against a
-      signature that takes a `Wiring` instance, and all three ported applications correctly write
-      `run(new XWiring(), args)`. Wrong in the one place a reader looks first.
 
 - [ ] **`calculator-vexel-demo`'s `Capture` still builds its tree by a second route** (in
       `../calculator-vexel-demo`). `Capture.build()` does `new Gui()`, `gui.theme(Look.THEME)`,

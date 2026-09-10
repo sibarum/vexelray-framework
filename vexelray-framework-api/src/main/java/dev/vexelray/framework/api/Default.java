@@ -11,14 +11,17 @@ import java.lang.annotation.Target;
  * <p>This is the whole of auto-configuration's back-off rule, and it is stated from the framework's side rather
  * than the application's. Spring Boot writes the same rule as {@code @ConditionalOnMissingBean} on the
  * auto-configuration — a condition evaluated against a bean registry as it is being populated, which is why
- * ordering between auto-configurations is something Spring Boot users end up having to know about. Here the
- * processor has every provider for a type in front of it at once: exactly one non-default wins, and if there is
- * none, exactly one default does. There is no order for anything to depend on.
+ * ordering between auto-configurations is something Spring Boot users end up having to know about. A processor
+ * has every provider for a type in front of it at once: exactly one non-default wins, and if there is none,
+ * exactly one default does. There is no order for anything to depend on.
  *
  * <p>An application overriding a default writes no annotation and reads no documentation about precedence — it
  * writes a {@code @Provides} method returning that type, and the framework's stops being generated. Two
- * non-default providers for the same type are a compile error naming both, because at that point the
+ * non-default providers for the same type will be a compile error naming both, because at that point the
  * application is disagreeing with itself and the framework has no business picking a winner.
+ *
+ * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.CLASS)

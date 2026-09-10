@@ -33,7 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p><b>What could not be tested before this.</b> {@code VexelApplication} registers two wakes and two
  * deadlines on the application's behalf — {@code gui::onWork}, {@code krono.kron()::onWork},
  * {@code kron().sleepTimeout()} and {@code memory::nanosUntilSettle} — and they are the lines
- * {@link WakeSource} describes as <i>"unremarkable to write and catastrophic to omit"</i>. {@code -core}'s
+ * {@link dev.vexelray.framework.core.WakeSource} describes as <i>"unremarkable to write and catastrophic to
+ * omit"</i>. {@code -core}'s
  * {@code PacingTest} proves the arithmetic that combines them and cannot prove that they are connected to
  * anything. Nothing else could: a test that draws its own frames passes whether or not a wake arrives, which
  * is how the GUI's five missing wakes shipped past a green suite.

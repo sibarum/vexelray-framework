@@ -1,6 +1,30 @@
 /**
  * The vocabulary an application is written in.
  *
+ * <h2>Which half of this is built</h2>
+ *
+ * <p><b>The ten annotations in this package are inert, and the processor that would read them does not exist
+ * yet.</b> Nothing in this repository implements {@code AbstractProcessor}. The only types here that anything
+ * executes are the two enums — {@link FrameStage}, walked by {@code FrameHooks}, and {@link RunMode}, read off
+ * {@code Launch} — and both are used by hand-written code rather than by generated code.
+ *
+ * <p>Everything else on these pages is written in the present tense and is a <b>specification</b>: what the
+ * processor will do, stated as the brief it will be written against. That is deliberate rather than careless,
+ * and it follows from the sequencing recorded in {@code docs/architecture.md} — the wiring is written by hand
+ * first, against the real {@code -shell}, so that <i>"the processor's job becomes reproduce these files"</i>.
+ * Documentation written after the fact would describe whatever got built. This section exists because a
+ * specification and a description read identically, and a reader is owed the difference.
+ *
+ * <p><b>So a claim on these pages that something "is a compile error" means it will be, and today is not.</b>
+ * A hand-written {@code Wiring} that declares two providers for one type, takes a {@code @MainThread} value on
+ * a worker component, or depends backwards across a {@code Phase} compiles cleanly and is wrong at run time.
+ * The framework's answer in the meantime is one step to the right of where it belongs: {@code Shell}'s
+ * accessors throw at startup, naming the phase, which is a backstop and not the mechanism. The house rule is
+ * that <i>a compile error beats a startup error beats a runtime error</i>, and moving these leftward is the
+ * whole reason the mechanism is a processor.
+ *
+ * <h2>The design</h2>
+ *
  * <p>Every annotation here is read at <b>compile time</b> by the framework's annotation processor, which emits
  * plain Java: constructor calls in dependency order, a frame-stage array, and a reverse-order close. None of it
  * is read at runtime, so none of it needs reachability metadata, and an application's wiring costs a native

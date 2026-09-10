@@ -189,6 +189,14 @@
                     <configuration>
                         <target>${maven.compiler.release}</target>
                         <release>${maven.compiler.release}</release>
+                        <compilerArgs>
+                            <!-- Javadoc is this repo's main asset, and a {@link} to something that no longer
+                                 exists is the one defect in it a machine can find. Shell's class note pointed
+                                 at Wiring#build for as long as Wiring had six phase methods and no build, and
+                                 nothing said so. reference and syntax only: `missing` would demand @return on
+                                 every annotation member, which is noise this style does not want. -->
+                            <arg>-Xdoclint:reference,syntax</arg>
+                        </compilerArgs>
                     </configuration>
                 </plugin>
                 <plugin>

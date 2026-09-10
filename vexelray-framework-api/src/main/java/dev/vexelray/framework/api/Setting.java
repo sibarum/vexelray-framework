@@ -11,8 +11,10 @@ import java.lang.annotation.Target;
  * <p>Resolved by generated code against the typed accessors of {@code Settings} — {@code getInt},
  * {@code getBoolean}, {@code getString} and the rest — chosen by the parameter's declared type at compile time.
  * There is no reflective binder, no type coercion at runtime, and no metadata: a parameter declared {@code int}
- * compiles to a {@code getInt} call, and a parameter declared as a type nothing can supply is a build error
- * rather than a startup one.
+ * compiles to a {@code getInt} call, and a parameter declared as a type nothing can supply becomes a build
+ * error rather than a startup one. Until the processor exists, a wiring reads {@code Settings} itself and
+ * {@code AppInfo.settingKeys} is typed out by hand — which that method calls the sharpest single argument for
+ * generating this.
  *
  * <p><b>Four sources, one precedence, stated once.</b> Today each application resolves its own configuration
  * inline and each picks its own order; the scaffold reads {@code System.getProperty("automation", "off")} in
@@ -31,6 +33,9 @@ import java.lang.annotation.Target;
  * next source rather than failing — which is {@code Settings}' own documented policy, kept rather than
  * reinvented: <i>"a malformed value falls back to the caller's default, same policy as a missing one"</i>.
  * Settings are a convenience, and an application must not refuse to launch over a preferences file.
+ *
+ * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.CLASS)
