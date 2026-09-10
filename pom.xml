@@ -91,6 +91,13 @@
                 <artifactId>vexelray-os-api</artifactId>
                 <version>${vexelray.version}</version>
             </dependency>
+            <!-- The channel a seam uses to say it dropped a capability rather than failing. Depends on nothing
+                 at all, so it reaches -shell and -automation without dragging anything with it. -->
+            <dependency>
+                <groupId>dev.vexelray</groupId>
+                <artifactId>vexelray-diagnostics</artifactId>
+                <version>${vexelray.version}</version>
+            </dependency>
 
             <!-- The GUI framework whose application edge this one absorbs: Gui, GuiApp, Settings, AppHome,
                  WindowMemory. -->

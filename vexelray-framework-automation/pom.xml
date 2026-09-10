@@ -29,5 +29,11 @@
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-automation</artifactId>
         </dependency>
+        <!-- Reached through -shell already; named here because this module calls it directly, and a
+             dependency used and not declared is one a later reshuffle of -shell can take away. -->
+        <dependency>
+            <groupId>dev.vexelray</groupId>
+            <artifactId>vexelray-diagnostics</artifactId>
+        </dependency>
     </dependencies>
 </project>

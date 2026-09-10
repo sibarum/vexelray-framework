@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.WindowInput;
 import sibarum.tactroller.api.BackendException;
@@ -34,7 +35,8 @@ public final class InputBackend implements AutoCloseable {
             System.out.println("input: " + t.backendName());
             return new InputBackend(t);
         } catch (BackendException e) {
-            System.out.println("input unavailable (" + e.getMessage() + "); running without pointer input");
+            Diagnostics.dropped("InputBackend.open", "pointer and keyboard input for this application",
+                    e.getMessage() + "; the window renders and nothing in it can be clicked");
             return new InputBackend(null);
         }
     }
@@ -62,7 +64,8 @@ public final class InputBackend implements AutoCloseable {
             input.attach(sibarum.tactroller.api.NativeWindow.ofHwnd(windowHandle));
             input.setCoordinateSpace(CoordinateSpace.CLIENT);
         } catch (BackendException e) {
-            System.out.println("input attach failed (" + e.getMessage() + "); pointer input disabled");
+            Diagnostics.dropped("InputBackend.attach", "pointer input for the main window",
+                    e.getMessage() + "; the backend opened but could not be bound to the window handle");
         }
     }
 
@@ -107,6 +110,12 @@ public final class InputBackend implements AutoCloseable {
                 backend.attach(sibarum.tactroller.api.NativeWindow.ofHwnd(window.osHandle()));
                 backend.setCoordinateSpace(CoordinateSpace.CLIENT);
             } catch (BackendException e) {
+                // The one of these that used to say nothing at all, and the one that most needed to. A second
+                // window that renders and hears no device is indistinguishable, by eye, from a window whose
+                // application forgot to wire a handler — which is Diagnostics' own fault "a capability that is
+                // silently dropped", arriving as something that reads like a taste decision.
+                Diagnostics.dropped("InputBackend.perWindow", "pointer and keyboard input for a window the "
+                        + "framework opened", e.getMessage() + "; that window renders and takes no input");
                 return WindowInput.NONE;
             }
             TactrollerInputBridge windowBridge = new TactrollerInputBridge(backend, windowGui.bus());

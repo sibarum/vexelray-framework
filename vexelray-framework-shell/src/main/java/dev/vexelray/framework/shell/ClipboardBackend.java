@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.TextClipboard;
 import sibarum.tactroller.clipboard.Clipboard;
@@ -30,7 +31,8 @@ public final class ClipboardBackend implements AutoCloseable {
         try {
             return new ClipboardBackend(Clipboard.open());
         } catch (ClipboardException e) {
-            System.out.println("clipboard unavailable (" + e.getMessage() + "); paste uses a buffer");
+            Diagnostics.dropped("ClipboardBackend.open", "the OS clipboard",
+                    e.getMessage() + "; copy and paste work inside this application and reach nothing outside it");
             return new ClipboardBackend(null);
         }
     }

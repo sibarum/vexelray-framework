@@ -1,5 +1,6 @@
 package dev.vexelray.framework.automation;
 
+import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.automation.Automation;
 import dev.vexelray.gui.automation.AutomationServer;
@@ -67,7 +68,8 @@ public final class Driver implements AutoCloseable {
         } catch (java.io.IOException | NumberFormatException e) {
             // An application that will not start because a debugging port was busy is a worse outcome than one
             // nobody can drive.
-            System.out.println("automation unavailable (" + e.getMessage() + "); running undriven");
+            Diagnostics.dropped("Driver.open", "the automation socket this launch asked for",
+                    e.getMessage() + "; the application runs undriven and '" + want + "' bound nothing");
             return new Driver(null);
         }
     }

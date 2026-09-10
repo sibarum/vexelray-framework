@@ -66,6 +66,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Where this module says it dropped something a consumer asked for: input, the clipboard, the app
+             icon. Warn-once, on by default, and recorded so a test can prove the warning fires. -->
+        <dependency>
+            <groupId>dev.vexelray</groupId>
+            <artifactId>vexelray-diagnostics</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>dev.vexelray</groupId>
             <artifactId>vexelray-canvas</artifactId>

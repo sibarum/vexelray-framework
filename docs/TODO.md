@@ -32,15 +32,15 @@ cannot be fixed from here at all.
       wake/budget/frame chain. Parked until `--profile` is a real thing, since that is the same
       machinery.
 
-- [ ] **Six dropped-capability reports should go through `dev.vexelray.diag.Diagnostics`** (new in
-      `../vexelray`). `InputBackend.open`, `InputBackend.attach`, `ClipboardBackend.open` and
-      `Driver.open` each print to `System.out`; `installMark` prints to `System.err`; and
-      `InputBackend.perWindow` returns `WindowInput.NONE` saying nothing at all — a second window that
-      takes no input and reports it nowhere, which is this repo's own instance of the fault that module
-      was built for: *"nothing threw, nothing warned, and each produced a plausible picture."*
-      `Diagnostics.dropped(key, what, why)` is warn-once per call site, on by default, and `recorded()`
-      is what makes one assertable — which none of the six is today. The module depends on nothing at
-      all, so it reaches `-shell` without dragging anything with it.
+- [ ] **Three of the six dropped-capability reports are routed and not asserted.** `InputBackend.open`,
+      `InputBackend.perWindow` and `Driver.open` are covered — the first two by
+      `DroppedCapabilitiesTest`, which gets its absence free because no tactroller platform module is on
+      `-shell`'s test classpath, and the third by `DriverTest`'s malformed port, which is the one way a
+      socket fails to bind before `shell.app()` is reached. The other three need a fault that cannot be
+      arranged from a test: `InputBackend.attach` wants a backend that opens and will not bind,
+      `ClipboardBackend.open` wants a machine with no clipboard, and `installMark` wants
+      `setApplicationIcon` to throw. Each would need a seam taking the backend rather than opening it,
+      which is more API than the assertion is worth today — recorded so the gap is a decision.
 
 - [ ] **The javadoc describes the processor in the present tense, and the processor does not exist.**
       Every annotation in `-api` is inert, all ten of them — `@VexelApp`, `@Component`, `@Provides`,

@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.FrameStage;
 import dev.vexelray.framework.api.RunMode;
 import dev.vexelray.framework.core.Disposer;
@@ -323,7 +324,8 @@ public final class VexelApplication {
         try {
             NativePlatform.current().setApplicationIcon(icon);
         } catch (RuntimeException e) {
-            System.err.println("icon not set: " + e);
+            Diagnostics.dropped("VexelApplication.installMark", "the application's icon",
+                    e + "; its windows wear the OS default instead");
         }
     }
 }
