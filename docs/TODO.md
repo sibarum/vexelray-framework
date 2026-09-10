@@ -42,15 +42,6 @@ cannot be fixed from here at all.
       `setApplicationIcon` to throw. Each would need a seam taking the backend rather than opening it,
       which is more API than the assertion is worth today — recorded so the gap is a decision.
 
-- [ ] **`calculator-vexel-demo`'s `Capture` still builds its tree by a second route** (in
-      `../calculator-vexel-demo`). `Capture.build()` does `new Gui()`, `gui.theme(Look.THEME)`,
-      `gui.minSize(46em, 30em)` and a `TitleBar` against `WindowControls.NONE` by hand — a second copy
-      of what `CalculatorWiring.config` says, and exactly the hazard `VexelApplication.toTree`'s
-      Javadoc records from the text editor: *"a capture that built its tree by a second route would be
-      a capture of a different application."* The editor's capture already goes through
-      `VexelApplication.tree`. This one has a zoom ladder and a shot per rail panel, so it needs the
-      `Shell` that comes back rather than a straight swap — which is why `tree` returns one.
-
 - [ ] **Regenerate `mainframe-template`'s `vexel-desktop` scaffold to emit a `Wiring`** (in
       `../mainframe`). Its `App.java` is ~350 lines and is this framework's specification written
       longhand — so every new application on this stack still starts from the file the framework
