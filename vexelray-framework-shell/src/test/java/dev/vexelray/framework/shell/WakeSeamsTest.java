@@ -34,9 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * deadlines on the application's behalf — {@code gui::onWork}, {@code krono.kron()::onWork},
  * {@code kron().sleepTimeout()} and {@code memory::nanosUntilSettle} — and they are the lines
  * {@link dev.vexelray.framework.core.WakeSource} describes as <i>"unremarkable to write and catastrophic to
- * omit"</i>. {@code -core}'s
- * {@code PacingTest} proves the arithmetic that combines them and cannot prove that they are connected to
- * anything. Nothing else could: a test that draws its own frames passes whether or not a wake arrives, which
+ * omit"</i>. {@code -core}'s {@code PacingTest} proves the arithmetic that combines them and cannot prove that
+ * they are connected to anything. Nothing else could: a test that draws its own frames passes whether or not a
+ * wake arrives, which
  * is how the GUI's five missing wakes shipped past a green suite.
  *
  * <p>So the loop here is real and parked, the windows are genuinely created and never shown, and the only
@@ -170,7 +170,7 @@ final class WakeSeamsTest {
      * <p>The counter goes in {@link FrameStage#APP} because that is the stage an application writes hooks in,
      * so what is counted is a frame the framework's own loop decided to run.
      */
-    private static final class ProbeWiring implements Wiring {
+    private static final class ProbeWiring extends Wiring {
 
         final CountDownLatch attached = new CountDownLatch(1);
         final AtomicLong frames = new AtomicLong();

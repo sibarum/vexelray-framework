@@ -88,7 +88,7 @@ final class DriverTest {
     }
 
     /** Nothing in any phase. All this test needs from an application is that it has a {@code Launch}. */
-    private static final class BareWiring implements Wiring {
+    private static final class BareWiring extends Wiring {
 
         @Override
         public AppInfo info() {

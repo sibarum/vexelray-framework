@@ -42,13 +42,6 @@ cannot be fixed from here at all.
       `setApplicationIcon` to throw. Each would need a seam taking the backend rather than opening it,
       which is more API than the assertion is worth today — recorded so the gap is a decision.
 
-- [ ] **`Wiring` is an accidental functional interface**, so the framework's central contract can be
-      satisfied by a lambda. `info()` is its only abstract method and all six phase methods are
-      `default`, which makes `VexelApplication.run(() -> myAppInfo, args)` compile and yield an
-      application whose every build phase silently does nothing. A second abstract method, or an
-      abstract class, closes it. The phase defaults are worth keeping either way, since *"most
-      applications have nothing in most phases."*
-
 - [ ] **`calculator-vexel-demo`'s `Capture` still builds its tree by a second route** (in
       `../calculator-vexel-demo`). `Capture.build()` does `new Gui()`, `gui.theme(Look.THEME)`,
       `gui.minSize(46em, 30em)` and a `TitleBar` against `WindowControls.NONE` by hand — a second copy
