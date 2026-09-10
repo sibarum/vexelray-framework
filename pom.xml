@@ -114,6 +114,14 @@
                 <artifactId>vexelray-gui-automation</artifactId>
                 <version>${vexelray.gui.version}</version>
             </dependency>
+            <!-- Test scope only. A real frame loop against windows that are created and never shown, which is
+                 the only way to ask whether a frame arrives on its own after an interaction. -->
+            <dependency>
+                <groupId>dev.vexelray.gui</groupId>
+                <artifactId>vexelray-gui-harness</artifactId>
+                <version>${vexelray.gui.version}</version>
+                <scope>test</scope>
+            </dependency>
 
             <!-- Input, and the bridge that puts it on the bus. Every device event flows through tactroller;
                  there is no side channel (vexelray-gui/CLAUDE.md). -->

@@ -120,6 +120,12 @@ compile error naming both types, instead of a Vulkan call from a worker that hap
 testing on one driver. The inverse is allowed — handing the render thread an immutable model violates
 nothing, and requiring an annotation for it would put `@MainThread` on most of an application.
 
+**Two colours is the whole of it, and that is deliberate for now.** `@MainThread` says main-thread or
+not-main-thread, which is exactly enough to protect Vulkan and not enough to describe where the rest
+of an application runs. The model it is a first instalment of — one component, one thread, one mailbox
+— is [The concurrency model](#the-concurrency-model) below, along with what a third colour would have
+to be before the processor can check it.
+
 ### 3. The frame loop is the lifecycle
 
 A request-scoped container can afford a reflective dispatch; a frame loop cannot afford an
@@ -134,6 +140,11 @@ nearly unattributable after the fact. The order and its reason are already docum
 > Input first, then the clock: the tick returns with its batch complete, so anything an animation
 > posts this frame is on the bus before `Gui.frame` reconciles it — the frame that presents a value
 > is the frame that computed it.
+
+That closed enum is **the main thread's frame and nothing else's**, which is a scope worth stating
+before somebody reads it as the stack's general answer to "when does my work run". A component says
+that with a Kronometer `Rate`, and the two do not compete: see [the frame is the main thread's, and a
+`Rate` is everyone else's](#the-frame-is-the-main-threads-and-a-rate-is-everyone-elses).
 
 ### 4. Deadlines and wakes are contributed, not enumerated
 
@@ -193,6 +204,210 @@ close:
 Not singleton / request / session. Window scope is already real and already hand-maintained — the
 text editor binds the clipboard to *every* window in a loop, and remembers each window under its own
 `WindowMemory` key.
+
+## The concurrency model
+
+The intended shape of a VexelRay application is **one component, one thread, one mailbox**, and it is
+the most load-bearing constraint in this design that has never been written down. It is why
+`atchung-core` exists — its own README routes *"one process, many components (input, graphics, GUI,
+workers meeting on a bus)"* to the bus — and it is why tactroller does not expose a poll but publishes
+every device frame onto a topic. Until now this document's only statement about threads was
+[§2](#2-thread-affinity-is-a-type-level-concern), which is `@MainThread` and the two-colour rule.
+
+That is precisely the failure `@MainThread` was created to fix. `vexelray-gui/CLAUDE.md` files the
+main-thread rule under constraints *not visible in the code*, and the annotation's own Javadoc says
+why that was worth fixing: it was *"true, load-bearing, and enforced by nothing but the reader's
+memory."* The concurrency model has been in the same condition, one level up.
+
+**Sequence matters.** The processor generates the wiring, so whatever `@Component` means when the
+processor is written is what gets baked into every generated application. Its contract today is a DI
+one — *"a container-managed singleton, constructed once, by its one constructor, with its parameters
+supplied"* — and constructor injection hands component A a direct reference to component B, which is
+the thing a mailbox exists to prevent. Writing the processor first would freeze a vocabulary the
+concurrency model then has to fight. So this is settled first, and the mismatches it names are part of
+the processor's brief.
+
+### The mapping is static, and that is the load-bearing simplification
+
+A component lives on a thread that is not the main thread. Whether each component gets its own thread
+or several share one is **decided in the wiring and never at runtime**: there is no work stealing, no
+placement decision, and nothing to tune while running. This is not a pool and not a scheduler.
+
+That one restriction is what makes everything below fall out.
+
+**The processor can emit the whole thing.** Static assignment means thread construction, the
+component-to-thread mapping and barrier participation are all generated code, with no scheduler in the
+binary. It is the same trade the container already makes everywhere else — a compile-time replacement
+for a runtime mechanism — so it fits the thesis rather than straining it.
+
+**Platform threads, not virtual ones**, and the argument is measured rather than stylistic. Virtual
+threads exist to multiplex many blocking tasks onto few carriers dynamically, which is exactly the
+thing being declined. More sharply: Kronometer's kernel already owns the virtual-thread scheduler in a
+desktop application that follows its advice. `kronometer/docs/architecture.md` §3.1 recommends
+`-Djdk.virtualThreadScheduler.parallelism=1 -Djdk.virtualThreadScheduler.maxPoolSize=1` — worth 3× on
+the baton handoff — and then states the sharp edge of that decision:
+
+> **The precompute pool and `offload()` must run on their own executors, never the kernel's carrier.**
+> One carrier means one runnable virtual thread. Pure evaluation scheduled onto that carrier would not
+> merely be slow, it would deadlock against the serialization that makes the baton fast.
+
+Component work is in the same category as that precompute pool. Placing components on virtual threads
+would put every component in the application onto the one carrier the baton needs in order to be
+answered — so the choice is not "platform threads are a little simpler" but "virtual threads are the
+documented deadlock". A platform thread is outside that scheduler entirely. Pinning inside a Vulkan
+call would be a hazard for no benefit on top of that.
+
+**Placement is semantically neutral, and Kronometer is the reason.** Order over effectful work is *"a
+total order, one baton, strictly at `now`"* with *"no two shreds can race"*, and a `Rate` is *"an
+independent sampling grid over the timeline"* carrying its own `priority` — the tie-break *"for shreds
+of different domains waking at the same moment"*. So a component keeps its schedule and its ordering
+wherever it is placed. **Regrouping costs capacity, not meaning.** And capacity is a reading rather
+than a guess: slip is a debt, `wall(m) = m + slip`, and `Overrun` says which kind of trouble it is —
+*"a slip that drains is a hiccup, a slip that plateaus is a capacity problem, and a slip that climbs is
+a system heading for a `RESYNC`."*
+
+### The component thread does not touch the timeline
+
+This is the part the phrase "in sync with Kronometer" hides, and getting it wrong would make the model
+unbuildable. `KronBridge` — the module that exists to join the bus to the timeline — states the
+constraint plainly:
+
+> Two systems with incompatible threading models, which is the whole problem. The bus publishes on
+> whatever thread published — that is what makes it fast — while the timeline is single-threaded by
+> construction, because that is what makes it ordered.
+
+and rules out the shortcut: delivering on the publisher's thread *"would mean mutating the graph from
+off the timeline, which is the one thing the design does not permit."*
+
+So a component thread never holds the baton, and never reads or writes a `Signal`, `Cell` or `Effect`.
+What "in sync with Kronometer" means is a round trip through the seam the stack has already built:
+
+| Step | Where it runs |
+| --- | --- |
+| The component declares a `Rate` — its grid, its `maxCatchUp`, its `priority` | The wiring, at compile time |
+| The rate steps, and the step publishes to the component's mailbox | The timeline, on the baton |
+| The mailbox drains and the component does its work | The component's own platform thread |
+| The result is published on a `Topic` | The component's thread |
+| The bridge folds that topic into a `Cell`, and the graph sees it | The timeline, on the baton |
+
+That last step is `KronBridge`'s stated purpose — a topic driving a cell is *"the natural way live
+input enters the graph (with `horizon == now`, as it should be)"* — so a component's output enters the
+predictable world by the same door tactroller's input does.
+
+The cost is one drain period of latency, and it is already priced rather than waiting to be
+discovered: *"input latency is bounded by the draining domain's period... The frame of latency is the
+price of the ordering guarantee, and it is the same price every retained-mode GUI pays."* Naming it
+here is what stops it being re-litigated later as a defect of the component model.
+
+### What the framework owes the model, and what it already has
+
+Two of the three obligations are seams that already exist, written for a single-threaded edge without
+anyone noticing they were the multi-threaded answer as well:
+
+- **The deadline is already covered.** `Kron.sleepTimeout()` is *"how long a host may block before it
+  should tick again — the whole render-on-demand condition, as one number"*, composed over the
+  timeline with its rate domains in it. The framework already registers that as a `DeadlineSource`, so
+  a component whose rate is due in 20 ms is a loop that parks for 20 ms, with no new API. That matters
+  more than it sounds: the timeline is driven from the main thread's frame, so a parked window would
+  otherwise stop a 50 Hz component dead. `DeadlineSource`'s own Javadoc already lists *"a component
+  waiting out a cue"* among its implementors.
+- **The wake is not, and this is a real gap.** A component that finishes early and publishes a result
+  has produced work the loop cannot predict — which is `WakeSource`'s definition — and no wake exists
+  for it. `gui::onWork` covers a node mutated off the frame thread and `krono.kron()::onWork` covers
+  the timeline; a component's own publish is a third path, and the symptom of omitting it is the exact
+  one the GUI already paid for — a window that is responsive except for the interactions that happened
+  to arrive that way. **Each component mailbox owes a `WakeSource`**, and the processor should emit it
+  rather than leave it to be remembered.
+- **`Overrun` wants surfacing per thread.** Slip is a property of the one timeline and cannot be made
+  per-domain, but *which grouping is late* is a question a static mapping makes answerable — so an
+  overloaded grouping should name itself rather than show up as a global plateau.
+
+Measurement is still worth doing, and its purpose is narrower than it looks: a synthetic barrier
+against Kronometer at the N a real application reaches says where the tail starts to hurt, since frame
+jitter is `max()` over participants rather than the mean. That chooses a sensible **default grouping**.
+It does not decide the architecture, because the reasoning above already did.
+
+### Three mismatches this leaves for the processor
+
+None of these is a defect today. Each is a place where a vocabulary written for one thread has to grow
+one more axis, and writing them down is what stops the processor freezing the current shape.
+
+| What | Why it does not fit yet |
+| --- | --- |
+| **`@Component` is a DI contract, not an actor one** | Constructor injection hands A a direct reference to B. Under this model most parameters should resolve to a `Topic` or an address, not to the object |
+| **`@MainThread` is two-coloured; the model needs one colour per thread** | Main-thread versus worker-safe cannot express "confined to *this* component", so a graph that passes today's check can still be two worker components racing. Because placement is static, the colour of a value **is** the thread it was placed on — known while compiling — so the processor can allow a direct reference between two components sharing a thread and reject one that crosses, alongside a shareable set (immutable, `Versioned`, `State<T>`). Dynamic placement would have made that check undecidable; this does not |
+| **`FrameHooks` is the barrier's degenerate case** | A flat `Runnable[]` walked on one thread, *"not thread-safe and not meant to be"*, is the N=1 answer. The model wants release-at-tick, drain, await quiescence, reconcile — and saying so in the file is what stops its no-allocation rigour being defended into a shape that cannot grow |
+
+`Disposer` needs the matching answer too. An actor's shutdown is *drain then stop*, with a timeout, and
+a start order distinct from construction order — a mailbox must not pump before its publishers exist.
+Not cosmetic: `Backpressure.FAIL` is the default and resolves through `Fatal`, so getting shutdown
+ordering wrong kills the process rather than dropping a message.
+
+### The frame is the main thread's, and a `Rate` is everyone else's
+
+`FrameStage` and `Rate.priority` read as two answers to "when does my work run", and settling the
+concurrency model means saying which is which before somebody makes one match the other.
+
+They are not rivals once you look at what actually registers in a `FrameStage`: `input::pump`,
+`krono::tick` and `memory::poll` are all framework-owned, and `APP` is an empty slot held for the
+application. Four stages is not a scale anybody could need a fifth point on — it is the list of things
+**one thread** does between waking and presenting. So the enum is the main thread's frame recipe, and
+its internal order is **causal** rather than ranked: `CLOCK` follows `INPUT` because the tick reads
+what the pump delivered, not because it outranks it.
+
+A `Rate` is the other thing entirely — independent grids over one timeline, with `priority` breaking a
+tie when two come due at the same moment. That is where a component says when its work runs, and
+[no component enters the frame pipeline](#the-component-thread-does-not-touch-the-timeline).
+
+| | `FrameStage` | `Rate` |
+| --- | --- | --- |
+| Scope | The main thread, which is special because Vulkan makes it special | Every component |
+| What the order means | Causal — each stage reads what the last produced | A tie-break between grids due at the same moment |
+| Who declares one | The framework, four times; the application, in `APP` | The component, in the wiring |
+| Open to more positions | No. It is a recipe, not a scale | Yes. That is what a grid is for |
+
+**`FrameStage`'s argument against integer priorities wants a scope, not an answer.** *"An integer
+priority makes every hook's position a negotiation with every other hook's"* holds for an open hook
+list, where unrelated parties pick numbers with no shared meaning. It does not hold for
+`Rate.priority`, where one author declares a few grids whose relationship is real — physics before
+render, because render displays what physics computed. Recording that distinction is what stops the
+next reader collapsing one into the other, and there are two collapses to refuse:
+
+- **The four stages as four `Rate`s at priorities 0–3** loses the causality and makes "equal priority"
+  both expressible and meaningless.
+- **Everything as a `FrameStage`** cannot express independent rates at all, which is `Rate`'s whole
+  reason to exist — *"an animation framework with one frame rate is a toy."*
+
+#### The meeting point is `APP`, and it is narrower than it was
+
+The two scopes meet where `FrameStage.APP` narrows from "the application's own per-frame work" to
+**the main thread draining what a worker left for it**. Its own Javadoc was already uneasy about the
+wider reading — *"the right place for reading a queue drained by a worker, and the wrong place for the
+work the worker was doing"* — and `vexelray-gui` names the same hook from the other side of the seam,
+describing what an input handler does when its effect is neither a tree mutation nor a clock
+operation:
+
+> it drops a request on one of the application's own queues — a history to restore, a file to open, a
+> preview to render — each drained once per frame from the host's beforeFrame hook.
+
+The designer is the worked example on this stack today. Its viewport marches on the GPU, and *"a
+`VkQueue` is not thread-safe, so a drag handler running on a worker must only move the camera and
+raise a flag — `pump()` is called from the frame loop and is the only place the GPU is touched"*, with
+that `pump()` given exactly one home, one hook in `APP`.
+
+**And the framework registers nothing there, which is a correction to how this was first planned.**
+The obvious move — have the framework own a `Pump` on the Gui's bus and drain it in `APP` — is wrong
+for a reason the GUI already documents: `Gui` owns a pump on that bus and drains it *inside*
+`Gui.frame`, folded by cell and lossless, with navigation arriving on the same mailbox so that
+everything enters the tree *"at the same point in the frame the tree's own edits do — before the
+drain, never in the middle of one."* A framework hook draining that bus would be a second drain point
+landing at a different moment than the edits it has to agree with. What gets drained in `APP` is the
+*application's* queues, and only the application knows what they are — so `APP` stays an empty slot,
+and what changed is the sentence saying what the slot is for.
+
+Notably, the designer's witness is a flag and a GPU submission rather than an Atchung mailbox. The
+shape is the same and the plumbing is not, which is the evidence that the mailbox half belongs with
+the component model rather than ahead of it.
 
 ## The absorption boundary
 

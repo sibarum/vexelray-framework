@@ -57,6 +57,15 @@
             <artifactId>tactroller-clipboard</artifactId>
         </dependency>
 
+        <!-- The frame loop, run for real against windows that are never shown. Test scope: this is what makes
+             the wake and deadline seams assertable end to end rather than as arithmetic. Needs a Vulkan
+             device — see WakeSeamsTest. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-harness</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>dev.vexelray</groupId>
             <artifactId>vexelray-canvas</artifactId>

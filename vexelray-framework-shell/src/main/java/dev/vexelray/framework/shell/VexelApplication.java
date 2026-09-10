@@ -15,8 +15,10 @@ import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
 import dev.vexelray.os.NativePlatform;
+import dev.vexelray.os.NativeWindow;
 import dev.vexelray.os.WindowConfig;
 
+import java.util.function.Function;
 
 /**
  * Runs an application: the phases in order, the loop, and the shutdown.
@@ -60,12 +62,36 @@ public final class VexelApplication {
      * which is what one of these applications currently produces for a misspelled flag.
      */
     public static void run(Wiring wiring, String[] args) {
+        run(wiring, args, null);
+    }
+
+    /**
+     * As {@link #run(Wiring, String[])}, with <b>every</b> window this application opens made by
+     * {@code windows} — the main window, and every popup, named window and dialog after it. {@code null} is
+     * the platform's own, which is what {@link #run(Wiring, String[])} passes.
+     *
+     * <p><b>This exists for one test that cannot otherwise be written.</b> {@code vexelray-gui-harness} runs a
+     * real frame loop against windows that are genuinely created and never shown, in order to ask the one
+     * question a hand-driven frame cannot — <i>"after this click, does a frame arrive on its own?"</i> — and it
+     * takes over window creation to do it, because a window is on screen from the instant the platform makes
+     * it. Without a seam here, the framework's own wake wiring was the part of it no such test could reach:
+     * {@link Shell#wake} against {@code gui::onWork} and {@code krono.kron()::onWork}, and the two
+     * {@link Shell#deadline} calls, are unremarkable to write and catastrophic to omit, and {@code -core}'s
+     * {@code PacingTest} can only prove them as arithmetic. The GUI's own record is that five missing wakes
+     * shipped past a green suite.
+     *
+     * <p>The factory is handed straight to {@code GuiApp}, so its contract is that constructor's: called on the
+     * main thread, in creation order, with the fully resolved config, and returning {@code null} is a bug. A
+     * factory that adds nothing is an ordinary application, which is why the default is this method with
+     * {@code null} rather than a second code path.
+     */
+    public static void run(Wiring wiring, String[] args, Function<WindowConfig, NativeWindow> windows) {
         AppInfo info = wiring.info();
         Launch launch = parseOrExit(args, info);
 
         Shell shell = new Shell(launch, info);
         try (Disposer disposer = shell.disposer()) {
-            build(wiring, shell, disposer, info, launch);
+            build(wiring, shell, disposer, info, launch, windows);
         }
     }
 
@@ -182,7 +208,8 @@ public final class VexelApplication {
         wiring.tree(shell);
     }
 
-    private static void build(Wiring wiring, Shell shell, Disposer disposer, AppInfo info, Launch launch) {
+    private static void build(Wiring wiring, Shell shell, Disposer disposer, AppInfo info, Launch launch,
+                              Function<WindowConfig, NativeWindow> windows) {
         toTree(wiring, shell, disposer, info);
         Gui gui = shell.gui();
         KronoGui krono = shell.krono();
@@ -199,7 +226,8 @@ public final class VexelApplication {
         installMark(info.icon());
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
-        GuiApp app = disposer.register(new GuiApp(mainWindow(memory, info, appearance)));
+        WindowConfig main = mainWindow(memory, info, appearance);
+        GuiApp app = disposer.register(windows == null ? new GuiApp(main) : new GuiApp(main, windows));
         shell.app(app);
         wiring.window(shell);
 
