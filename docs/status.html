@@ -1,0 +1,1043 @@
+<title>VexelRay Framework Readiness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* ---- Dark-first palette, taken from the VexelRay logo: near-black navy ground,
+         violet -> cyan identity. Light theme swaps the roles through the same tokens. ---- */
+  :root {
+    --ground:      #07060f;
+    --surface:     #0f0d1c;
+    --surface-2:   #17142c;
+    --line:        #272248;
+    --line-soft:   #1c1836;
+    --ink:         #edeaf7;
+    --ink-2:       #a9a2c6;
+    --ink-3:       #6d6690;
+    --violet:      #8b5cf6;
+    --cyan:        #2fd8ee;
+    --green:       #46c98a;
+    --amber:       #e0ab43;
+    --coral:       #f0705f;
+    --track:       #201c3c;
+    --shadow:      0 1px 0 rgba(255,255,255,.03) inset;
+    --stage-0: var(--ink-3);
+    --stage-1: var(--violet);
+    --stage-2: var(--cyan);
+    --stage-3: var(--green);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ground:    #f6f5fa;
+      --surface:   #ffffff;
+      --surface-2: #f1eff8;
+      --line:      #ded9ef;
+      --line-soft: #e9e5f4;
+      --ink:       #17142a;
+      --ink-2:     #56507a;
+      --ink-3:     #86809f;
+      --violet:    #6437d6;
+      --cyan:      #0f7f97;
+      --green:     #1f8d5d;
+      --amber:     #9a6a06;
+      --coral:     #c2402f;
+      --track:     #e7e3f3;
+      --shadow:    0 1px 2px rgba(23,20,42,.05);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground:    #f6f5fa;
+    --surface:   #ffffff;
+    --surface-2: #f1eff8;
+    --line:      #ded9ef;
+    --line-soft: #e9e5f4;
+    --ink:       #17142a;
+    --ink-2:     #56507a;
+    --ink-3:     #86809f;
+    --violet:    #6437d6;
+    --cyan:      #0f7f97;
+    --green:     #1f8d5d;
+    --amber:     #9a6a06;
+    --coral:     #c2402f;
+    --track:     #e7e3f3;
+    --shadow:    0 1px 2px rgba(23,20,42,.05);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1020px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 40px 72px;
+  }
+
+  h1, h2, h3 {
+    font-family: Archivo, "IBM Plex Sans", sans-serif;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace; }
+
+  code {
+    font-size: .88em;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    padding: .5px 4px;
+    word-break: break-word;
+  }
+
+  /* ---------------- masthead ---------------- */
+
+  .masthead { display: flex; flex-direction: column; gap: 20px; }
+
+  .mark {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  .mark h1 {
+    font-size: clamp(30px, 6vw, 46px);
+    font-weight: 800;
+    letter-spacing: -.022em;
+    line-height: 1.04;
+  }
+  .mark .ray {
+    background: linear-gradient(96deg, var(--violet), var(--cyan));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .mark .kicker {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .thesis {
+    font-size: clamp(17px, 2.4vw, 20px);
+    line-height: 1.5;
+    color: var(--ink);
+    max-width: 62ch;
+    margin: 0;
+    font-weight: 400;
+  }
+  .thesis strong { font-weight: 600; color: var(--ink); }
+
+  .facts {
+    display: flex; flex-wrap: wrap; gap: 8px 10px;
+    padding-top: 4px;
+  }
+  .fact {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 11px;
+    background: var(--surface);
+    white-space: nowrap;
+  }
+  .fact b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .fact.pass b { color: var(--green); }
+
+  /* ---------------- legend ---------------- */
+
+  .legend {
+    margin-top: 40px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding-block: 18px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+  }
+  .legend-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+  .legend-head p { margin: 0; font-size: 13.5px; color: var(--ink-2); max-width: 68ch; }
+  .lg { display: flex; flex-direction: column; gap: 5px; }
+  .lg .dot { width: 26px; height: 5px; border-radius: 2px; }
+  .lg .name { font-size: 12.5px; font-weight: 600; letter-spacing: .01em; }
+  .lg .sub { font-size: 12px; color: var(--ink-3); line-height: 1.4; }
+  .lg-0 .dot { background: var(--track); box-shadow: inset 0 0 0 1px var(--ink-3); }
+  .lg-1 .dot { background: var(--violet); }
+  .lg-2 .dot { background: var(--cyan); }
+  .lg-3 .dot { background: var(--green); }
+
+  /* ---------------- dimension blocks ---------------- */
+
+  .dim { padding-block: 34px; border-bottom: 1px solid var(--line-soft); }
+  .dim:last-of-type { border-bottom: 0; }
+
+  .dim-head { display: flex; flex-direction: column; gap: 9px; }
+  .dim-title { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+  .dim-title h2 { font-size: clamp(21px, 3.2vw, 26px); font-weight: 700; letter-spacing: -.015em; }
+
+  .verdict {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .v-stack  { color: var(--cyan);  background: color-mix(in srgb, var(--cyan) 13%, transparent);  border: 1px solid color-mix(in srgb, var(--cyan) 34%, transparent); }
+  .v-spec   { color: var(--violet); background: color-mix(in srgb, var(--violet) 15%, transparent); border: 1px solid color-mix(in srgb, var(--violet) 36%, transparent); }
+  .v-part   { color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); border: 1px solid color-mix(in srgb, var(--amber) 34%, transparent); }
+
+  .dim-read { margin: 0; color: var(--ink-2); max-width: 68ch; font-size: 14.5px; }
+  .dim-read b { color: var(--ink); font-weight: 600; }
+
+  /* the meter matrix */
+  .matrix { margin-top: 22px; display: flex; flex-direction: column; }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 148px 128px;
+    align-items: center;
+    gap: 6px 18px;
+    padding-block: 9px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .row:first-child { border-top: 0; }
+  .row .what { font-size: 14px; min-width: 0; }
+  .row .what span { color: var(--ink-3); font-size: 13px; }
+  .meter { display: flex; gap: 3px; }
+  .seg { height: 6px; flex: 1; border-radius: 2px; background: var(--track); }
+  .seg.on { background: var(--fill); }
+  .seg.tip { box-shadow: 0 0 0 1px var(--ground), 0 0 0 2.5px var(--fill); }
+  .row.s0 { --fill: var(--ink-3); }
+  .row.s1 { --fill: var(--violet); }
+  .row.s2 { --fill: var(--cyan); }
+  .row.s3 { --fill: var(--green); }
+  .stage {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: .05em;
+    color: var(--fill);
+    text-align: right;
+    font-weight: 500;
+  }
+
+  /* evidence + gap columns */
+  .cols {
+    margin-top: 26px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .col {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .col.gap { background: var(--surface-2); border-color: var(--line-soft); }
+  .col h3 {
+    font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
+    font-family: "IBM Plex Mono", monospace; font-weight: 600;
+    color: var(--ink-3); margin-bottom: 11px;
+  }
+  .col.built h3 { color: var(--green); }
+  .col.gap h3 { color: var(--coral); }
+  .col ul { margin: 0; padding-left: 17px; display: flex; flex-direction: column; gap: 8px; }
+  .col li { font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+  .col li b { color: var(--ink); font-weight: 600; }
+  .col li::marker { color: var(--ink-3); }
+
+  /* ---------------- ledger ---------------- */
+
+  .section { padding-top: 46px; }
+  .section > h2 {
+    font-size: clamp(20px, 3vw, 24px); font-weight: 700; letter-spacing: -.015em;
+    margin-bottom: 6px;
+  }
+  .section > .lede { margin: 0 0 20px; color: var(--ink-2); font-size: 14.5px; max-width: 68ch; }
+
+  .scroller { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; vertical-align: top; }
+  thead th {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--ink-3); font-weight: 600;
+    background: var(--surface-2);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.repo { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink); white-space: nowrap; }
+  td.note { color: var(--ink-2); }
+  .pill {
+    display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+    border: 1px solid currentColor;
+  }
+  .p-full { color: var(--green); }
+  .p-part { color: var(--amber); }
+  .p-none { color: var(--ink-3); }
+
+  /* ---------------- critical path ---------------- */
+
+  .path { display: flex; flex-direction: column; gap: 0; counter-reset: step; }
+  .step {
+    display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 18px;
+    padding-block: 18px; border-top: 1px solid var(--line-soft);
+  }
+  .step:first-child { border-top: 0; }
+  .step .num {
+    font-family: Archivo, sans-serif; font-weight: 800; font-size: 26px;
+    line-height: 1; color: var(--ink-3); font-variant-numeric: tabular-nums;
+    padding-top: 2px;
+  }
+  .step.now .num { color: var(--cyan); }
+  .step h3 { font-size: 16.5px; font-weight: 700; letter-spacing: -.008em; margin-bottom: 5px; }
+  .step p { margin: 0; color: var(--ink-2); font-size: 13.5px; max-width: 66ch; }
+  .step .why { display: block; margin-top: 6px; color: var(--ink-3); font-size: 12.5px; }
+
+  /* ---------------- method ---------------- */
+
+  .method {
+    margin-top: 46px; padding: 20px 22px; border: 1px solid var(--line);
+    border-left: 3px solid var(--violet); border-radius: 6px; background: var(--surface);
+  }
+  .method h2 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .method p { margin: 0 0 12px; color: var(--ink-2); font-size: 13.5px; max-width: 70ch; }
+  .method pre {
+    margin: 0; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--line-soft);
+    border-radius: 5px; overflow-x: auto; font-size: 12.5px; color: var(--ink-2); line-height: 1.7;
+  }
+  .method pre .c { color: var(--ink-3); }
+
+  footer {
+    margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line);
+    display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+    letter-spacing: .04em;
+  }
+
+  @media (max-width: 760px) {
+    .legend { grid-template-columns: 1fr 1fr; }
+    .cols { grid-template-columns: 1fr; }
+    .row { grid-template-columns: minmax(0, 1fr) 96px; }
+    .row .stage { display: none; }
+  }
+  @media (max-width: 440px) {
+    .legend { grid-template-columns: 1fr; gap: 12px; }
+    .step { grid-template-columns: 28px minmax(0, 1fr); gap: 12px; }
+    .step .num { font-size: 20px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="mark">
+      <h1>Vexel<span class="ray">Ray</span> Framework</h1>
+      <span class="kicker">Readiness&nbsp;·&nbsp;14 Sep 2026</span>
+    </div>
+
+    <p class="thesis">
+      Five capabilities, checked against the tree. The recurring finding is not that things are
+      unbuilt — most of them are built well. It is that they are built
+      <strong>somewhere else</strong>, and the framework has not yet taken them into a vocabulary
+      an application can reach without going hunting.
+    </p>
+
+    <div class="facts">
+      <span class="fact pass"><b>80</b> tests green</span>
+      <span class="fact">core <b>37</b> · shell <b>41</b> · automation <b>2</b></span>
+      <span class="fact"><b>4</b> modules built · <b>2</b> planned</span>
+      <span class="fact"><b>3</b> applications ported</span>
+      <span class="fact"><b>16</b> automation verbs on the wire</span>
+      <span class="fact">@ <b>6169151</b></span>
+    </div>
+  </header>
+
+  <section class="legend" aria-label="How each line is graded">
+    <div class="legend-head">
+      <span class="eyebrow">The scale</span>
+      <p>
+        Every line below is graded by <em>where the capability lives</em>, because that is the
+        question this framework exists to answer. The end state for almost everything is the
+        rightmost stop.
+      </p>
+    </div>
+    <div class="lg lg-0">
+      <span class="dot"></span>
+      <span class="name">Absent</span>
+      <span class="sub">Nothing anywhere — not designed, not built.</span>
+    </div>
+    <div class="lg lg-1">
+      <span class="dot"></span>
+      <span class="name">Specified</span>
+      <span class="sub">Written down and reasoned through; no code.</span>
+    </div>
+    <div class="lg lg-2">
+      <span class="dot"></span>
+      <span class="name">In the stack</span>
+      <span class="sub">Real code in a sibling repo. The app reaches it directly.</span>
+    </div>
+    <div class="lg lg-3">
+      <span class="dot"></span>
+      <span class="name">In the framework</span>
+      <span class="sub">A default, a phase, or a <code>Shell</code> accessor. No hunting.</span>
+    </div>
+  </section>
+
+  <!-- ================= 1. SDF ================= -->
+  <section class="dim">
+    <div class="dim-head">
+      <span class="eyebrow">Dimension 01 · Rendering</span>
+      <div class="dim-title">
+        <h2>General-purpose SDF pipeline</h2>
+        <span class="verdict v-stack">Mature in the engine · absent here</span>
+      </div>
+      <p class="dim-read">
+        The pixels path is real end to end and has been pressure-tested by a design tool:
+        <b>Surface → SurfaceCompiler → SdfScene → SdfComposer → SPIR-V → SampledColorTarget →
+        Node.image</b>. What is missing is a compositing <i>vocabulary</i> and any framework-level
+        presence at all — three mentions of SDF across the four modules, all of them Javadoc prose.
+      </p>
+    </div>
+
+    <div class="matrix">
+      <div class="row s2">
+        <span class="what">Surface tree → SPIR-V, with symbolic AD and a structural shader cache</span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">Runtime parameters without a recompile <span>— push constants, then the buffer road</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">N techniques in one pass, interleaved per pixel by shared depth</span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">GUI viewport compositing <span>— marched target sampled as a laid-out node</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s1">
+        <span class="what">One composition root <span>— today the engine and <code>GuiApp</code> are two</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
+      <div class="row s0">
+        <span class="what">Layer &amp; blend vocabulary <span>— order and depth are the only composition</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+      <div class="row s0">
+        <span class="what">A rasterising technique <span>— <code>ClipDepth</code> still has one author, one consumer</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+      <div class="row s0">
+        <span class="what">Framework SDF vocabulary <span>— no viewport component, no scene provider</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col built">
+        <h3>Standing on its own</h3>
+        <ul>
+          <li>Complete modelling vocabulary — primitives, domain ops, all three smooth booleans,
+            <code>Implicit</code> with forward-mode symbolic AD.</li>
+          <li><b><code>ShaderCache</code> keyed on structural equality</b> of the whole
+            <code>SdfScene</code>: records all the way down, so caching needed no bespoke fingerprinting.</li>
+          <li><b><code>ConeField</code></b> reads geometry from a storage buffer — one pipeline for every
+            scene, after a few hundred segments were measured at <b>5 s of pipeline build on the frame
+            loop</b>.</li>
+          <li>The designer's three B0 stages — parameters, function-abstracted lowering, node identity —
+            are all <b>done</b>.</li>
+        </ul>
+      </div>
+      <div class="col gap">
+        <h3>What an app still retypes</h3>
+        <ul>
+          <li>The <b>two kinds of dirty</b>: a scene change is new SPIR-V and a new pipeline; a frame
+            change is six floats of push constant.</li>
+          <li>The <b>queue discipline</b>: <code>VkQueue</code> is not thread-safe, so a drag handler
+            raises a flag and all GPU work happens in one <code>pump()</code> in <code>FrameStage.APP</code>.</li>
+          <li>Every SDF app writes both by hand. That is the same drift the framework was created to
+            absorb, one layer down.</li>
+          <li>Designer stages P3–P8 open: cost walk, off-thread compile, resolution swap, edit
+            vocabulary, serialisation, pick pass.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 2. CONCURRENCY ================= -->
+  <section class="dim">
+    <div class="dim-head">
+      <span class="eyebrow">Dimension 02 · Concurrency</span>
+      <div class="dim-title">
+        <h2>Multithreaded by default</h2>
+        <span class="verdict v-spec">Designed in full · zero code</span>
+      </div>
+      <p class="dim-read">
+        The detailed plan does exist — <b>one component, one thread, one mailbox</b>, with the mapping
+        decided in the wiring and never at runtime. What does not exist is a single line of it. A grep
+        of all four modules' main sources returns <b>zero</b> occurrences of <code>Thread</code>,
+        <code>Executor</code>, <code>java.util.concurrent</code>, <code>volatile</code>,
+        <code>synchronized</code> or <code>Atomic</code>. The entire thread-aware API surface is one
+        <code>Runnable</code>: <code>WakeSource.onWake</code>.
+      </p>
+    </div>
+
+    <div class="matrix">
+      <div class="row s1">
+        <span class="what">The model itself <span>— static placement, platform threads, the Rate round trip</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
+      <div class="row s2">
+        <span class="what">Mailbox substrate <span>— <code>Pump</code>, <code>State</code>, <code>Fold</code>, <code>Backpressure</code></span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">Cross-process actors <span>— elektro-Q: <code>Actor</code>, <code>Conduit</code>, four transports</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">Timeline bridge <span>— <code>KronBridge</code> folds a topic into a cell on the baton</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s3">
+        <span class="what">The deadline half <span>— <code>Kron.sleepTimeout()</code> already registered</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s0">
+        <span class="what">The container owns a bus and a handler executor</span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+      <div class="row s0">
+        <span class="what">A <code>WakeSource</code> per component mailbox</span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+      <div class="row s0">
+        <span class="what"><code>@MainThread</code> actually enforced <span>— inert until the processor</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+      <div class="row s0">
+        <span class="what">Survivable component failure <span>— supervision, per-grouping <code>Overrun</code></span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col built">
+        <h3>Settled, with reasons</h3>
+        <ul>
+          <li><b>Platform threads, not virtual</b> — Kronometer's kernel recommends a single-carrier
+            scheduler, so components on virtual threads would be the <i>documented deadlock</i>, not
+            merely slower.</li>
+          <li><b>A component thread never touches the timeline.</b> Work arrives
+            <code>Rate → mailbox → component thread → Topic → Cell</code>, and the one drain period of
+            latency is priced in advance rather than discovered.</li>
+          <li><b><code>FrameStage</code> vs <code>Rate</code> settled</b>: the frame is the main thread's
+            recipe and its order is causal; a <code>Rate</code> is everyone else's grid.</li>
+        </ul>
+      </div>
+      <div class="col gap">
+        <h3>Open before the processor</h3>
+        <ul>
+          <li><b>Every window is an island.</b> <code>VexelApplication</code> calls
+            <code>new Gui()</code>, which is <code>this(Atchung.create())</code> — a private bus
+            <i>and</i> a private cached pool per window. A calculator runs two of each.</li>
+          <li>The dream case — <b>responsive through a component's infinite loop</b> — is not designed
+            yet. <code>Backpressure.FAIL</code> is the default and resolves through <code>Fatal</code>,
+            so a full mailbox kills the process rather than degrading.</li>
+          <li>Three vocabulary mismatches are recorded for the processor's brief:
+            <code>@Component</code> is a DI contract not an actor one, <code>@MainThread</code> is
+            two-coloured, <code>FrameHooks</code> is the barrier's N=1 case.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3. API SURFACE ================= -->
+  <section class="dim">
+    <div class="dim-head">
+      <span class="eyebrow">Dimension 03 · Ergonomics</span>
+      <div class="dim-title">
+        <h2>One language, not five</h2>
+        <span class="verdict v-part">Solved at the shell · open at the fabric</span>
+      </div>
+      <p class="dim-read">
+        The app <i>edge</i> now has one language and the measurement is real: three ported wirings run
+        <b>186 / 296 / 556</b> lines against a ~350-line scaffold that each application used to carry
+        for itself, and two of the three import four or fewer sibling types. The app <i>fabric</i>
+        still has four — <code>Shell.krono()</code> hands over a clock and then you are in Kronometer's
+        language, and there is no <code>Shell.bus()</code> at all.
+      </p>
+    </div>
+
+    <div class="matrix">
+      <div class="row s3">
+        <span class="what">Input, clipboard, window memory, icon, dialogs <span>— defaults nobody types</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s3">
+        <span class="what">Phases, and a <code>Wiring</code> a lambda can no longer satisfy</span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s3">
+        <span class="what">Appearance: the theme, the zoom range, the chrome <span>— one <code>applyTo</code></span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s2">
+        <span class="what">Kronometer vocabulary <span>— <code>Rate</code>, <code>Settlement</code>, <code>Overrun</code>, <code>Moment</code> in no signature</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">Graphics vocabulary <span>— vexelray and SupirVast reach the app directly</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s0">
+        <span class="what">A bus seam <span>— an app reaches one as <code>shell.gui().bus()</code>, which is that window's</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+      <div class="row s0">
+        <span class="what">elektro-Q <span>— named nowhere, in the framework or in any ported app</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col built">
+        <h3>Gotchas already closed</h3>
+        <ul>
+          <li>The central contract <b>stops being satisfiable by a lambda</b> — as an interface,
+            <code>run(() -&gt; myAppInfo, args)</code> compiled and produced a blank window that
+            refused nothing.</li>
+          <li><code>Shell</code>'s accessors <b>refuse to hand over what does not exist yet</b>, so
+            work in the wrong phase is a throw rather than a null.</li>
+          <li><b>One <code>Settings</code> per application</b>, which was the singleton invariant two
+            repos maintained by a comment.</li>
+          <li><code>Launch.FRAMEWORK_KEYS</code> means <code>--automation</code> is asked for the same
+            way on every application on the desk.</li>
+        </ul>
+      </div>
+      <div class="col gap">
+        <h3>Gotchas still open</h3>
+        <ul>
+          <li><b>Two reserved keys nothing consumes.</b> <code>--profile</code> parses and no module
+            honours it; the honest fix is <code>@ConditionalOnType</code>, which needs the processor.</li>
+          <li><code>shell.wake(gui::onWork)</code> is <b>redundant</b> — <code>GuiApp</code> already
+            wires every tree it presents — and reads like the line that makes the wake happen.</li>
+          <li>A non-default zoom range would <b>disagree across the editor's three windows</b>, because
+            two of them also run under a host with no <code>Shell</code> to ask.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 4. BOOT ANALOGUE ================= -->
+  <section class="dim">
+    <div class="dim-head">
+      <span class="eyebrow">Dimension 04 · The thesis</span>
+      <div class="dim-title">
+        <h2>The Boot analogue</h2>
+        <span class="verdict v-part">Container real · the three multipliers unbuilt</span>
+      </div>
+      <p class="dim-read">
+        The no-reflection thesis holds and three applications run on it. What is missing is precisely
+        what makes Boot <i>Boot</i>: the generator that turns vocabulary into enforcement, the starter
+        that makes one dependency enough, and the instrument that answers
+        <b>"why did we miss a frame"</b>.
+      </p>
+    </div>
+
+    <div class="matrix">
+      <div class="row s3">
+        <span class="what">Compile-time container, hand-wired <span>— phases, launch, pacing, disposal</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s3">
+        <span class="what">The driving socket <span>— automation, off unless asked for</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s1">
+        <span class="what">The annotation processor <span>— nine annotations wait on it for enforcement</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
+      <div class="row s1">
+        <span class="what"><code>-diagnostics</code>, the Actuator analogue <span>— blocked on a name</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
+      <div class="row s1">
+        <span class="what"><code>@Subscribe</code> <span>— actor substrate, extension API and reactive automation, at once</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
+      <div class="row s0">
+        <span class="what">Starters and a BOM <span>— four modules today, none of them a starter</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+      <div class="row s0">
+        <span class="what">Aggregated reachability metadata <span>— "probably the highest-leverage feature not yet listed"</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+      <div class="row s0">
+        <span class="what">Simulation vocabulary <span>— fixed step, scene, assets; the game-engine half</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col built">
+        <h3>Holding</h3>
+        <ul>
+          <li><b>Nothing reflects.</b> Retention is <code>CLASS</code> deliberately; no
+            <code>Class.forName</code> on the startup path.</li>
+          <li><code>-api</code> and <code>-core</code> stay JDK-only, so <b>every decision the
+            container makes is testable with no GPU</b> — which is why 80 tests run anywhere.</li>
+          <li>The spreadsheet half is demonstrated three times over: one window, three windows, and two
+            windows on one device.</li>
+        </ul>
+      </div>
+      <div class="col gap">
+        <h3>Not yet true</h3>
+        <ul>
+          <li><b>"A compile error beats a startup error"</b> is the house rule and it is not in force —
+            with no processor, <code>@Component</code>, <code>@MainThread</code> and
+            <code>@Setting</code> are vocabulary without enforcement.</li>
+          <li>The game-engine half exists <i>in the engine</i> — render == sim, one IR to SPIR-V and to
+            a CPU AST — and <b>nowhere in the framework</b>. <code>FrameStage.APP</code> is an empty
+            slot, by design.</li>
+          <li><code>-diagnostics</code> may be mostly free: <code>atchung-probe</code> already has
+            spans, counters and stall-hunting, and <code>Automation</code> already imports it.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 5. AUTOMATION ================= -->
+  <section class="dim">
+    <div class="dim-head">
+      <span class="eyebrow">Dimension 05 · Verification</span>
+      <div class="dim-title">
+        <h2>Driving the real application</h2>
+        <span class="verdict v-stack">Mature · three verbs from complete</span>
+      </div>
+      <p class="dim-read">
+        The strongest area on this page, and the only capability where the framework's share is already
+        finished. A running desktop application — real window, real Vulkan device, real frame loop —
+        is driven over a loopback line protocol: <b>one command in, one reply out, terminated by a lone
+        <code>.</code></b>, replies beginning <code>ok</code> or <code>err</code> so a script branches on
+        two characters. Sixteen verbs, a real cursor behind them, and a CLI whose exit status is the
+        verdict.
+      </p>
+    </div>
+
+    <div class="matrix">
+      <div class="row s3">
+        <span class="what">The socket, wired once <span>— <code>--automation=7654</code> parses in every application</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s2">
+        <span class="what">The verb set <span>— <code>find</code>, <code>click</code>, <code>drag</code>, <code>type</code>, <code>go</code>, <code>settle</code>, <code>await</code>, <code>shot</code></span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">Pointer fidelity <span>— a stateful cursor stepped at 125 Hz and paced in real time</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">Semantic read-model <span>— roles, names and structure, joined to layout by id and frame</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s2">
+        <span class="what">A client that is not a test fixture <span>— <code>ottermate</code>, empty dependency block</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
+      <div class="row s1">
+        <span class="what">A <code>settle</code> that consults the clock <span>— today it photographs mid-fade and says <code>ok</code></span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
+      <div class="row s1">
+        <span class="what"><code>zoom</code> and <code>resize</code> <span>— the last two things per-app <code>--capture</code> can do and this cannot</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
+      <div class="row s1">
+        <span class="what">A second socket per application <span>— the designer places its own at <code>port() + 1</code></span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
+      <div class="row s0">
+        <span class="what">The reactive half <span>— a macro can drive the application but cannot react to it</span></span>
+        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Absent</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col built">
+        <h3>Why it is trustworthy</h3>
+        <ul>
+          <li><b>One input path, not a second one.</b> The driver moves the same cursor a hand does, so a
+            gesture that works here is a gesture that works — no synthesised event delivered to a
+            coordinate.</li>
+          <li><b>Reveal or refuse.</b> A click on a row a hundred-thousand-row table has scrolled past
+            used to hit the header drawn over it, sort the table, and answer <code>ok</code>. Now the
+            layout model publishes what is actually on screen and the target is revealed or the command
+            is refused.</li>
+          <li><b>A busy port never stops a launch.</b> <code>Driver.open</code> reports the drop by name
+            and the application runs undriven — one of the six dropped-capability reports.</li>
+          <li>Proven against a planted defect: a hover-path bug diagnosed <b>from the CSV alone</b>,
+            and recorded as necessary rather than sufficient.</li>
+        </ul>
+      </div>
+      <div class="col gap">
+        <h3>What is left</h3>
+        <ul>
+          <li><b>A live defect, and the one thing to fix first.</b> <code>settle</code> gates on
+            <code>gui.frameOwed()</code> and never asks the Kron clock, so an application mid-fade
+            returns <code>ok</code> immediately — <code>click</code> → <code>settle</code> →
+            <code>shot</code> has photographed a panel three seconds before its transition finished.
+            <code>Automation</code> holds a <code>Gui</code> and not a <code>KronoGui</code>, so the fix
+            is new API rather than a change inside the verb.</li>
+          <li>Until <code>zoom</code>, <code>resize</code> and that <code>settle</code> land,
+            <b>per-application <code>--capture</code> cannot be retired</b> and every app keeps its own
+            headless entry point.</li>
+          <li>Automation is <b>command-in, response-out</b>. The <code>@Subscribe</code> seam is what
+            would let a macro wait on something the application says.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= LEDGER ================= -->
+  <section class="section">
+    <h2>Where each tool meets an application</h2>
+    <p class="lede">
+      The framework's promise is that a developer never goes hunting. This is the current honest answer,
+      tool by tool.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Tool</th>
+            <th scope="col">What it holds</th>
+            <th scope="col">Presence here</th>
+            <th scope="col">How an application reaches it today</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="repo">vexelray-gui</td>
+            <td class="note">Frame loop, widgets, windows</td>
+            <td><span class="pill p-full">Absorbed</span></td>
+            <td class="note">The framework is its edge. <code>Shell</code> is the whole surface.</td>
+          </tr>
+          <tr>
+            <td class="repo">tactroller</td>
+            <td class="note">Every device event on the desk</td>
+            <td><span class="pill p-full">Absorbed</span></td>
+            <td class="note"><code>InputBackend</code> — a default, and a named report when a platform module is missing.</td>
+          </tr>
+          <tr>
+            <td class="repo">…-gui-automation</td>
+            <td class="note">Driving a live application end to end</td>
+            <td><span class="pill p-full">Absorbed</span></td>
+            <td class="note">A module of its own, so the socket is linked only into an application that wants to be driven. <code>--automation=7654</code>, then <code>ottermate</code> from outside.</td>
+          </tr>
+          <tr>
+            <td class="repo">kronometer</td>
+            <td class="note">Timing, animation, latency compensation</td>
+            <td><span class="pill p-part">Lifecycle only</span></td>
+            <td class="note">Constructed, ticked, parked on and woken by the framework — then <code>Shell.krono()</code> hands over the vocabulary whole.</td>
+          </tr>
+          <tr>
+            <td class="repo">vexelray</td>
+            <td class="note">Vulkan runtime, canvas, MSDF, SDF</td>
+            <td><span class="pill p-none">None</span></td>
+            <td class="note">Through <code>GuiApp</code>'s device, or directly. Viewports and scenes are the application's.</td>
+          </tr>
+          <tr>
+            <td class="repo">supirvast</td>
+            <td class="note">SPIR-V generation</td>
+            <td><span class="pill p-none">None</span></td>
+            <td class="note">Transitively, behind <code>vexelray-shader</code>'s <code>byte[]</code> boundary.</td>
+          </tr>
+          <tr>
+            <td class="repo">atchung</td>
+            <td class="note">The typed bus</td>
+            <td><span class="pill p-none">None</span></td>
+            <td class="note"><code>shell.gui().bus()</code> — which is <i>that window's</i> private bus, not the application's.</td>
+          </tr>
+          <tr>
+            <td class="repo">elektroq</td>
+            <td class="note">Transport-agnostic messaging, actors</td>
+            <td><span class="pill p-none">None</span></td>
+            <td class="note">Not at all. Named nowhere in the framework or in any ported application.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= PATH ================= -->
+  <section class="section">
+    <h2>The critical path</h2>
+    <p class="lede">
+      Ordered because the order is load-bearing, not for presentation: each step decides a vocabulary
+      the next one bakes in.
+    </p>
+    <div class="path">
+      <div class="step now">
+        <span class="num">01</span>
+        <div>
+          <h3>Hand the container a bus and a handler executor</h3>
+          <p>
+            Two constructor arguments that already exist upstream — <code>Gui(Atchung)</code> and
+            <code>Gui(Atchung, Executor)</code> — replacing the <code>new Gui()</code> that gives every
+            window its own fabric.
+            <span class="why">Unblocks dimensions 2, 3 and 4 at once: it is what makes placement
+            expressible, what gives <code>Shell</code> a <code>bus()</code> worth having, and what the
+            processor needs settled.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">02</span>
+        <div>
+          <h3>Decide what a wedged component does</h3>
+          <p>
+            Supervision, mailbox overflow policy, and per-grouping <code>Overrun</code>. Today
+            <code>Backpressure.FAIL</code> resolves through <code>Fatal</code>, so the default answer to
+            a slow component is killing the process.
+            <span class="why">This is the one part of the stated goal — responsive through an infinite
+            loop — that the written model does not yet cover.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">03</span>
+        <div>
+          <h3>Write the processor</h3>
+          <p>
+            Reproduce the three hand-written wirings, then make <code>@MainThread</code> and the
+            component colouring real. Deliberately last, and correctly so.
+            <span class="why">It freezes what <code>@Component</code> means, which is why the
+            concurrency model had to be settled first.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">04</span>
+        <div>
+          <h3>Starters, a BOM, and the stack's reachability metadata</h3>
+          <p>
+            One dependency that brings the whole stack, including hints an application inherits rather
+            than assembles.
+            <span class="why">The single highest-leverage item on the open-questions list, and the thing
+            that makes the Boot comparison land for someone who has not read the docs.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">05</span>
+        <div>
+          <h3>Name and build the diagnostics module</h3>
+          <p>
+            Blocked on a name — <code>vexelray-diagnostics</code> is taken upstream for a different
+            concept. Most of the substance may already be <code>atchung-probe</code>.
+            <span class="why">Under the concurrency model "why did we miss a frame" becomes "which
+            component's mailbox", and a probe already threaded through the bus is what answers it.</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= METHOD ================= -->
+  <section class="method">
+    <h2>How to re-check this page</h2>
+    <p>
+      Every grade above was read off the tree on 14 September 2026 at <code>6169151</code>, not
+      inferred from the docs. The two claims worth re-running are the test count and the concurrency
+      inventory — if the second one ever returns a hit, dimension 2 has started.
+    </p>
+    <pre><span class="c"># 80 green, no siblings needed for -api and -core</span>
+mvn -o test
+
+<span class="c"># dimension 2 is "absent" for exactly as long as this prints nothing</span>
+grep -rn "Thread\|Executor\|java.util.concurrent\|volatile\|synchronized\|Atomic" \
+     --include=*.java vexelray-framework-*/src/main | grep -v MainThread
+
+<span class="c"># and for as long as only tactroller appears here</span>
+grep -rn "import sibarum" --include=*.java vexelray-framework-*/src/main
+
+<span class="c"># dimension 5, against a real window: exit status is the verdict</span>
+printf 'find Save\nclick save\nsettle\nshot after.png\n' | ottermate --script -</pre>
+  </section>
+
+  <footer>
+    <span>vexelray-framework · 0.1.0-SNAPSHOT · main @ 6169151</span>
+    <span>Graded by where the capability lives</span>
+  </footer>
+
+</div>

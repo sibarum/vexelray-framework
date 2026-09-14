@@ -15,6 +15,9 @@ which on this stack is the whole reason for being on native-image at all.
   [atchung](../atchung) (bus), [kronometer](../kronometer) (time)
 - [docs/architecture.md](docs/architecture.md) is the deep version of this document
 - [docs/TODO.md](docs/TODO.md) is what is known about and not done
+- [docs/status.html](docs/status.html) grades five capabilities by **where each one lives** — absent,
+  specified, in a sibling repo, or in the framework. Open it in a browser; it is a page rather than a
+  document because the answer is a matrix rather than prose
 
 ## The problem
 
@@ -93,8 +96,8 @@ final class Editor {
 | --- | --- |
 | `vexelray-framework-api` | **built** — the annotation vocabulary |
 | `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (37 tests) |
-| `vexelray-framework-shell` | **built** — the absorbed edge, and the window chrome (34 tests) |
-| `vexelray-framework-automation` | **built** — the driving socket, in its own module |
+| `vexelray-framework-shell` | **built** — the absorbed edge, and the window chrome (41 tests) |
+| `vexelray-framework-automation` | **built** — the driving socket, in its own module (2 tests) |
 | `vexelray-framework-processor` | next — generate the wiring the three ports below wrote by hand |
 
 Three applications run on it, each with its wiring hand-written in its own repo. That is what the
