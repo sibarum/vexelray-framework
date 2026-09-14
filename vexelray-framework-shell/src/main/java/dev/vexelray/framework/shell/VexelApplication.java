@@ -257,10 +257,11 @@ public final class VexelApplication {
         // is the same seam every other window we open goes through -- see Appearance.applyTo, which names this
         // as the case it was written for.
         //
-        // And this application's bus, for the same shape of reason one phase up: the dialogs' Gui would
-        // otherwise make a second one, and the dialogs would be a peer nothing else in the application can
-        // hear. Two facts the dialogs cannot discover for themselves, passed at the one place that knows both.
-        shell.dialogs(disposer.register(Modals.install(app, shell.bus(), appearance::applyTo)));
+        // The look and not the bus, and the asymmetry is load-bearing. The dialogs keep a Gui of their own on
+        // a bus of its own, because Gui's topics are static: a second tree on this application's bus would
+        // receive this one's mutations into a mailbox that nothing drains while no dialog is up, and that
+        // mailbox is bounded and BLOCKs. See Gui(Atchung). Shell.bus() is for everything that is not a Gui.
+        shell.dialogs(disposer.register(Modals.install(app, appearance::applyTo)));
         // The window exists at last, so the bar can be given controls that actually work and the instruments
         // that use them. Both in one place, because an instrument without real controls is the exact failure
         // automation.md 7 records: "every other window had a screenshot button that neither worked nor

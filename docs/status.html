@@ -567,8 +567,13 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
         <span class="stage">In the stack</span>
       </div>
+      <div class="row s2">
+        <span class="what">A mailbox the bus owns <span>— <code>Pump.drain(timeout)</code>, parked without holding a lock</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
       <div class="row s0">
-        <span class="what">A mailbox the bus can drain <span>— <code>Pump</code> cannot block or signal arrival</span></span>
+        <span class="what">One fabric per application <span>— two trees cannot share a bus, so two windows are two</span></span>
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
@@ -1025,14 +1030,14 @@
       <div class="step now">
         <span class="num">04</span>
         <div>
-          <h3>The second component, and then extract</h3>
+          <h3>The component seam: the thread, not the mailbox</h3>
           <p>
-            It is the one that answers the open question: atchung's <code>Pump</code> cannot be a
-            component's inbound mailbox, because <code>drain()</code> is non-blocking and nothing
-            signals arrival — a pump is drained by an owner that already has a wake.
-            <span class="why">Either <code>Pump</code> grows an await or the framework owns the
-            parking. Deciding that on one witness is how a shared library acquires a shape nobody
-            asked for.</span>
+            The mailbox question is answered — <code>Pump.drain(timeout)</code> and
+            <code>Pump.wake()</code> landed in atchung, so a component's inbox is an ordinary
+            subscription and the designer's hand-written one is deleted. What is still the
+            application's is the platform thread, its loop, and <i>drain then stop</i> around it.
+            <span class="why">A second witness first: one component tells you what a component needs,
+            two tell you which half of it was about this component.</span>
           </p>
         </div>
       </div>

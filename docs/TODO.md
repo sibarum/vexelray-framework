@@ -142,13 +142,12 @@ cannot be fixed from here at all.
       is supervision, and it wants `Overrun` per grouping before it is built on anything but a timeout.
 
       **The first component exists, in `vexelray-designer`**, and what writing it by hand found is in
-      [architecture.md](architecture.md#the-first-component-written-by-hand). The one that needs an
-      answer from this side: **`Pump` cannot be a component's inbound mailbox**, because `drain()` is
-      non-blocking and nothing signals arrival — a `Pump` is drained by an owner that already has a
-      wake. The designer's mailbox is therefore a field and a park, and the bus carries results
-      outward. The second component decides whether atchung grows an await or the framework owns the
-      parking; **do not extract the designer's `Mailbox` before there is a second one**, on the same
-      grounds the second automation socket is waiting for a second witness.
+      [architecture.md](architecture.md#the-first-component-written-by-hand). Atchung grew the piece it
+      was missing — `Pump.drain(long)` and `Pump.wake()` — so the mailbox is the bus's and the
+      designer's hand-written one is gone. **What is left on this side is the thread**: the bus owns the
+      queue, the policy, the waiting and the wake, and something still has to own the platform thread
+      that does the waiting and the `drain-then-stop` around it. That is the component seam, and it
+      wants a second witness before it is written.
 
       **Also add the `FrameHooks` note while it is cheap.** The doc records that a flat `Runnable[]`
       walked on one thread is the barrier's N=1 case; the file itself does not say so, and its
@@ -163,6 +162,19 @@ cannot be fixed from here at all.
 ## Upstream
 
 Cannot be fixed from this repo.
+
+- [ ] **`Gui`'s topics are `static`, so one bus can carry one tree** (`vexelray-gui-core`). Every
+      instance subscribes to the same `vexelray.gui.mutations`, so two trees on one bus each receive the
+      other's mutations — into a mailbox bounded at 65,536 with `Backpressure.BLOCK`, drained only while
+      that tree is being presented. The second `Gui` fills and then blocks the first one's node setters
+      for good: a freeze after tens of thousands of edits, with nothing thrown and nothing logged. This
+      framework shipped it for three commits by putting `Modals` on `Shell.bus()`, and the designer found
+      it by putting a second window there and watching the viewport stop marching.
+
+      Constrained rather than fixed: `Gui(Atchung)`'s javadoc now says which things may share a bus.
+      **It is also the ceiling on one inspectable fabric per application**, which is the point of having
+      a bus at all — a second window cannot join it. The fix is topics named per instance rather than
+      per class, and it is a real change in `vexelray-gui` rather than a line here.
 
 - [x] **`Modals` never receives the application's theme** (`vexelray-gui-widget`) — **fixed upstream and
       taken here.** It built its own `new Gui()`, which defaults to `Theme.DARK`, so every dialog the

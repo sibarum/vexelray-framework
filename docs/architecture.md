@@ -388,13 +388,35 @@ public Gui(Atchung bus)                                            // one shared
 public Gui(Atchung bus, java.util.concurrent.Executor handlers)    // and who runs the handlers
 ```
 
-**The first is now taken.** `Shell` owns an `Atchung`, `VexelApplication` builds its `Gui` on it, and
-`Modals.install(app, bus, appearance)` — a third overload upstream, shaped exactly like the appearance
-one and for the same reason — puts the dialogs on it too. `Gui(Atchung)`'s own Javadoc had stated the
-purpose all along: *"hand in the same bus the application uses so input publishers, widgets, and
-workers all meet the framework on one fabric."* Asserted headlessly by `OneBusPerApplicationTest`
-through `VexelApplication.tree`, and for the dialogs by `DialogsWearTheApplicationsLookTest` upstream,
-which can reach a real `GuiApp`.
+**The first is now taken**, and it reaches less far than it first appeared to. `Shell` owns an
+`Atchung` and `VexelApplication` builds its `Gui` on it, asserted headlessly by
+`OneBusPerApplicationTest`. The dialogs do **not** join it, and neither does a second window's tree —
+see the constraint below, which was found by putting them there and watching an application stop.
+
+#### One `Gui` per bus, and everything else on it
+
+`Gui`'s topics are `static`: `vexelray.gui.mutations` is one name for every instance. So two trees on
+one bus each receive the other's mutations, into a mailbox bounded at 65,536 with
+`Backpressure.BLOCK` — and a tree that is not being presented never drains it. The second `Gui` fills
+up and then blocks the first one's node setters permanently. An application that freezes after some
+tens of thousands of edits, with no exception and nothing in a log.
+
+It was found the hard way: putting the designer's viewport window on the application's bus stopped the
+viewport marching at all, and moving that one line back brought it straight back. The framework had the
+same defect for three commits, because `Modals` builds a tree of its own and the dialogs' mailbox is
+drained only while a dialog is on screen.
+
+So the rule the bus is actually offering today:
+
+| May share a bus | May not |
+| --- | --- |
+| Input publishers, workers, **components and their mailboxes**, anything that is not a tree | A second `Gui` |
+
+`Gui(Atchung)`'s Javadoc now carries the constraint, where it previously carried an invitation. **And
+this is the ceiling on the wider ambition** — one inspectable fabric carrying every application
+semantic — because it is exactly what a second window is barred from joining. Lifting it means `Gui`
+naming its topics per instance rather than per class, which is a real change in `vexelray-gui` and not
+a line in this repo.
 
 **The second is not, and one thing about it is worth knowing before it is.** `Gui`'s worker pool is a
 field initializer, so a `Gui` builds a `newCachedThreadPool` whatever it is handed, and `Gui.work()`
@@ -434,13 +456,15 @@ milliseconds and a compose takes tens, so that is the ordinary case of dragging 
 
 Four things the hand-written version turned up that the model above does not say:
 
-- **Atchung cannot be the inbound mailbox today, and the reason is structural rather than missing
-  API.** `COALESCE_LATEST` is exactly the right policy and its capacity *is* one. But `Pump.drain()` is
-  non-blocking and nothing signals arrival, because a `Pump` is drained by an owner that already has a
-  wake — a frame loop. A component whose only reason to wake is its own mailbox has nothing to park on.
-  So the inbound half is a field and a park, and the bus carries the *result* outward where it has many
-  readers. Whether `Pump` should grow an await is a question for atchung, and **the second component is
-  the one that should answer it** — the same standard applied to the second automation socket.
+- **The mailbox is the bus's, after atchung grew the one thing it was missing.** `COALESCE_LATEST` was
+  always the right policy and its capacity *is* one; what `Pump` had no answer for was *waiting*, since
+  a pump is drained by an owner that already has a wake — a frame loop. `Pump.drain(long)` is that
+  answer: it parks on a pump-level monitor, holds no mailbox lock while parked, and costs a publisher
+  one field read when nobody is waiting. `Pump.wake()` ends a park for shutdown. There is deliberately
+  no untimed form, because a drain that waits forever on a thread that also publishes is a hung
+  application rather than a slow one. The designer's hand-written `Mailbox` was **deleted** rather than
+  moved: an edit is now an ordinary message on `designer.viewport.edit`, which a debug port can watch
+  and a script can send — which a private queue could never have been.
 - **The wake obligation is real, and was being met by accident.** A compose landing woke the loop
   because announcing the phase writes to a `Node` and a node mutation wakes the loop. A real wake
   hanging on an unrelated line of reporting: stop announcing and the window parks. It is now
