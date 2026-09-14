@@ -15,6 +15,7 @@ import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
+import sibarum.atchung.Atchung;
 
 /**
  * What the framework has built so far, and where the wiring hands things back.
@@ -44,6 +45,7 @@ public final class Shell {
     private final FrameHooks hooks = new FrameHooks();
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
+    private final Atchung bus = Atchung.create();
 
     private Appearance appearance = Appearance.DEFAULT;
     private Settings settings;
@@ -77,6 +79,36 @@ public final class Shell {
     /** The phase currently being built. */
     public Phase phase() {
         return phase;
+    }
+
+    /**
+     * <b>The application's bus</b> — one for the whole application, rather than one per {@code Gui}.
+     *
+     * <p>This is the first thing the concurrency model needs, and the thing that was not true before it
+     * existed. {@code new Gui()} is {@code this(Atchung.create())}, so every tree used to arrive carrying a
+     * fabric of its own: a calculator, which looks like a one-window application, ran two — the framework's
+     * and the dialogs' — and nothing published on one could be heard on the other. {@code Gui(Atchung)}'s own
+     * javadoc names the intent: <i>"hand in the same bus the application uses so input publishers, widgets,
+     * and workers all meet the framework on one fabric."</i>
+     *
+     * <p><b>Available in every phase</b>, unlike almost everything else here, and not as a convenience: a
+     * fabric is what the phases are built <em>on</em> rather than something one of them builds. A component
+     * constructed in {@link Phase#MODEL} — before there is a {@code Gui} at all — is exactly the case the
+     * component model is heading for, and it cannot be made to depend on a bus that appears two phases later.
+     *
+     * <p><b>Owned rather than accepted.</b> The framework creates it instead of taking one from the
+     * application. An application with a bus already bridged to a peer is a real case and would want the
+     * other arrangement, but taking one today means a parameter on every entry point for a case nobody has
+     * yet; the seam to add when somebody does is an overload of {@code run}, not a change here.
+     *
+     * <p><b>What this is not, yet.</b> One bus is not one thread. {@code Gui} still makes a cached worker pool
+     * of its own whatever it is handed, and nothing here places a component on a thread or gives it a mailbox
+     * — see <i>the concurrency model</i> in {@code docs/architecture.md}. What is true today is that there is
+     * one fabric to place them on, which is the part that could not be added later without moving everything
+     * already built on top of it.
+     */
+    public Atchung bus() {
+        return bus;
     }
 
     /** Register a per-frame hook. See {@code FrameStage} for why the position is a name and not a number. */

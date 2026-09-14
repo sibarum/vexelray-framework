@@ -314,6 +314,14 @@
     padding-top: 2px;
   }
   .step.now .num { color: var(--cyan); }
+  .step.done .num { color: var(--green); }
+  .step.done h3, .step.done p { color: var(--ink-3); }
+  .landed {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--green);
+    border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
+    border-radius: 3px; padding: 1px 6px; margin-left: 8px; vertical-align: 2px;
+  }
   .step h3 { font-size: 16.5px; font-weight: 700; letter-spacing: -.008em; margin-bottom: 5px; }
   .step p { margin: 0; color: var(--ink-2); font-size: 13.5px; max-width: 66ch; }
   .step .why { display: block; margin-top: 6px; color: var(--ink-3); font-size: 12.5px; }
@@ -368,12 +376,12 @@
     </p>
 
     <div class="facts">
-      <span class="fact pass"><b>80</b> tests green</span>
-      <span class="fact">core <b>37</b> · shell <b>41</b> · automation <b>2</b></span>
+      <span class="fact pass"><b>83</b> tests green</span>
+      <span class="fact">core <b>37</b> · shell <b>44</b> · automation <b>2</b></span>
       <span class="fact"><b>4</b> modules built · <b>2</b> planned</span>
       <span class="fact"><b>3</b> applications ported</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
-      <span class="fact">@ <b>6169151</b></span>
+      <span class="fact">main @ <b>8a9dc09</b></span>
     </div>
   </header>
 
@@ -507,9 +515,11 @@
         <span class="verdict v-spec">Designed in full · zero code</span>
       </div>
       <p class="dim-read">
-        The detailed plan does exist — <b>one component, one thread, one mailbox</b>, with the mapping
-        decided in the wiring and never at runtime. What does not exist is a single line of it. A grep
-        of all four modules' main sources returns <b>zero</b> occurrences of <code>Thread</code>,
+        The detailed plan exists — <b>one component, one thread, one mailbox</b>, with the mapping
+        decided in the wiring and never at runtime. One line of it is now built: the container owns the
+        application's bus, so there is one fabric to place a component <i>on</i>. Everything about
+        placing one is still unwritten. A grep of all four modules' main sources returns <b>zero</b>
+        occurrences of <code>Thread</code>,
         <code>Executor</code>, <code>java.util.concurrent</code>, <code>volatile</code>,
         <code>synchronized</code> or <code>Atomic</code>. The entire thread-aware API surface is one
         <code>Runnable</code>: <code>WakeSource.onWake</code>.
@@ -542,8 +552,13 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
+      <div class="row s3">
+        <span class="what">The container owns the application's bus <span>— one fabric, dialogs included</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
       <div class="row s0">
-        <span class="what">The container owns a bus and a handler executor</span>
+        <span class="what">…and the thread its handlers run on <span>— every <code>Gui</code> still makes a pool</span></span>
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
@@ -581,9 +596,10 @@
       <div class="col gap">
         <h3>Open before the processor</h3>
         <ul>
-          <li><b>Every window is an island.</b> <code>VexelApplication</code> calls
-            <code>new Gui()</code>, which is <code>this(Atchung.create())</code> — a private bus
-            <i>and</i> a private cached pool per window. A calculator runs two of each.</li>
+          <li><b>One bus is not one thread.</b> The fabric is now the application's — the framework's
+            tree and the dialogs share it — but <code>Gui</code> builds a cached pool in a field
+            initializer and <code>work()</code> submits to <i>that</i>, so handing it an executor
+            redirects handlers and leaves the pool. Closing that is an upstream change.</li>
           <li>The dream case — <b>responsive through a component's infinite loop</b> — is not designed
             yet. <code>Backpressure.FAIL</code> is the default and resolves through <code>Fatal</code>,
             so a full mailbox kills the process rather than degrading.</li>
@@ -947,22 +963,35 @@
       the next one bakes in.
     </p>
     <div class="path">
-      <div class="step now">
+      <div class="step done">
         <span class="num">01</span>
         <div>
-          <h3>Hand the container a bus and a handler executor</h3>
+          <h3>Hand the container a bus <span class="landed">landed</span></h3>
           <p>
-            Two constructor arguments that already exist upstream — <code>Gui(Atchung)</code> and
-            <code>Gui(Atchung, Executor)</code> — replacing the <code>new Gui()</code> that gives every
-            window its own fabric.
-            <span class="why">Unblocks dimensions 2, 3 and 4 at once: it is what makes placement
-            expressible, what gives <code>Shell</code> a <code>bus()</code> worth having, and what the
-            processor needs settled.</span>
+            <code>Shell.bus()</code>, built in the constructor and available in every phase; the
+            framework's <code>Gui</code> and the dialogs are both on it, so an application is one
+            fabric rather than one per tree.
+            <span class="why">The half that could not be added later without moving everything built
+            on top of it. What is left of this step is the handler executor, which needs
+            <code>Gui</code>'s worker pool to stop being a field initializer — an upstream change, not
+            another argument.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step now">
+        <span class="num">02</span>
+        <div>
+          <h3>Make one application mean one set of threads</h3>
+          <p>
+            <code>Gui(Atchung, Executor)</code> exists but redirects only input handlers;
+            <code>Gui.work()</code> still submits to a pool each <code>Gui</code> makes for itself.
+            <span class="why">Owning the executor is what makes placement a decision in the wiring
+            rather than a consequence of how many trees an application happens to hold.</span>
           </p>
         </div>
       </div>
       <div class="step">
-        <span class="num">02</span>
+        <span class="num">03</span>
         <div>
           <h3>Decide what a wedged component does</h3>
           <p>
@@ -975,7 +1004,7 @@
         </div>
       </div>
       <div class="step">
-        <span class="num">03</span>
+        <span class="num">04</span>
         <div>
           <h3>Write the processor</h3>
           <p>
@@ -987,7 +1016,7 @@
         </div>
       </div>
       <div class="step">
-        <span class="num">04</span>
+        <span class="num">05</span>
         <div>
           <h3>Starters, a BOM, and the stack's reachability metadata</h3>
           <p>
@@ -999,7 +1028,7 @@
         </div>
       </div>
       <div class="step">
-        <span class="num">05</span>
+        <span class="num">06</span>
         <div>
           <h3>Name and build the diagnostics module</h3>
           <p>
@@ -1017,18 +1046,18 @@
   <section class="method">
     <h2>How to re-check this page</h2>
     <p>
-      Every grade above was read off the tree on 14 September 2026 at <code>6169151</code>, not
-      inferred from the docs. The two claims worth re-running are the test count and the concurrency
+      Every grade above was read off the tree on 14 September 2026 at <code>8a9dc09</code>, not
+      inferred from the docs — except the bus row, which changed in the commit this page ships in. The two claims worth re-running are the test count and the concurrency
       inventory — if the second one ever returns a hit, dimension 2 has started.
     </p>
-    <pre><span class="c"># 80 green, no siblings needed for -api and -core</span>
+    <pre><span class="c"># 83 green, no siblings needed for -api and -core</span>
 mvn -o test
 
 <span class="c"># dimension 2 is "absent" for exactly as long as this prints nothing</span>
 grep -rn "Thread\|Executor\|java.util.concurrent\|volatile\|synchronized\|Atomic" \
      --include=*.java vexelray-framework-*/src/main | grep -v MainThread
 
-<span class="c"># and for as long as only tactroller appears here</span>
+<span class="c"># five hits today: four tactroller, and the Atchung that Shell owns. A sixth name is a new seam</span>
 grep -rn "import sibarum" --include=*.java vexelray-framework-*/src/main
 
 <span class="c"># dimension 5, against a real window: exit status is the verdict</span>
@@ -1036,7 +1065,7 @@ printf 'find Save\nclick save\nsettle\nshot after.png\n' | ottermate --script -<
   </section>
 
   <footer>
-    <span>vexelray-framework · 0.1.0-SNAPSHOT · main @ 6169151</span>
+    <span>vexelray-framework · 0.1.0-SNAPSHOT · main @ 8a9dc09</span>
     <span>Graded by where the capability lives</span>
   </footer>
 

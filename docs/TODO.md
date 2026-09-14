@@ -121,14 +121,18 @@ cannot be fixed from here at all.
       no `Executor`, no `Thread`, no `sibarum.atchung` and no `sibarum.kronometer` anywhere in the four
       modules' main sources.
 
-      **The first move is two constructor arguments, and both already exist.** `VexelApplication` calls
-      `new Gui()`, which is `this(Atchung.create())` — a private bus and a private cached thread pool
-      per window, so a calculator runs two of each (the main window and `Modals`' dialogs) and nothing
-      on this stack shares one. `Gui(Atchung)` and `Gui(Atchung, Executor)` are the seams, and the
-      second one's Javadoc already names the case: *"hand in the same bus the application uses so input
-      publishers, widgets, and workers all meet the framework on one fabric."* Owning the bus and the
-      handler executor is what makes placement expressible at all; until then there is nowhere to put a
-      component.
+      **The first of the two constructor arguments is taken.** `Shell` owns an `Atchung` and hands it
+      out as `Shell.bus()`; the framework's `Gui` is built on it and so are the dialogs, through a new
+      `Modals.install(app, bus, appearance)` upstream. So there is one fabric per application rather
+      than one per `Gui`, and the calculator no longer runs two.
+
+      **The second is the handler executor, and it is not one line.** `Gui(Atchung, Executor)` exists,
+      but `Gui`'s worker pool is a field initializer and `Gui.work()` submits to *that* pool, so a
+      `Gui` builds a `newCachedThreadPool` whatever it is handed. Passing an executor redirects input
+      handlers and leaves the pool. Making one application mean one set of threads is therefore an
+      upstream change in `vexelray-gui` — worth doing before components are placed, because the point
+      of owning the executor is that placement is decided in the wiring rather than by how many trees
+      an application happens to hold.
 
       **Also add the `FrameHooks` note while it is cheap.** The doc records that a flat `Runnable[]`
       walked on one thread is the barrier's N=1 case; the file itself does not say so, and its

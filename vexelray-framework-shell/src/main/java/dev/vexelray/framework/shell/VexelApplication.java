@@ -179,7 +179,9 @@ public final class VexelApplication {
 
         // ---- GUI: the look applied before the first widget, and the clock attached before it too. --------
         shell.phase(Phase.GUI);
-        Gui gui = disposer.register(new Gui());
+        // On the application's bus, not a private one. A Gui made with no bus makes itself one, so every tree
+        // built this way is its own fabric and nothing published on one is heard on another. See Shell.bus.
+        Gui gui = disposer.register(new Gui(shell.bus()));
         Appearance appearance = shell.appearance();
         // The theme and the zoom range, through the same call an application uses on the windows the framework
         // did not build -- so there is one definition of what an appearance means on a Gui rather than two that
@@ -250,7 +252,11 @@ public final class VexelApplication {
         // fresh Gui is Theme.DARK, so a dialog installed without it draws dark inside a light application. It
         // is the same seam every other window we open goes through -- see Appearance.applyTo, which names this
         // as the case it was written for.
-        shell.dialogs(disposer.register(Modals.install(app, appearance::applyTo)));
+        //
+        // And this application's bus, for the same shape of reason one phase up: the dialogs' Gui would
+        // otherwise make a second one, and the dialogs would be a peer nothing else in the application can
+        // hear. Two facts the dialogs cannot discover for themselves, passed at the one place that knows both.
+        shell.dialogs(disposer.register(Modals.install(app, shell.bus(), appearance::applyTo)));
         // The window exists at last, so the bar can be given controls that actually work and the instruments
         // that use them. Both in one place, because an instrument without real controls is the exact failure
         // automation.md 7 records: "every other window had a screenshot button that neither worked nor

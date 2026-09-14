@@ -333,6 +333,12 @@ The model above is the design. This is an inventory of the code as it stands, ta
 between the two is a readable distance rather than an impression. Everything here is a grep over the
 four modules' main sources.
 
+> **One line of it has since been built**, and the paragraphs below are marked where it changed them.
+> The container now owns the application's bus — `Shell.bus()`, handed to the framework's `Gui` and to
+> `Modals` — which was the first of the two constructor arguments named at the end of this section. The
+> second, the handler executor, is not taken, and nothing here places a component on a thread. The
+> distance is one argument shorter, and no other claim below has moved.
+
 **The framework contains no concurrency primitives at all.** Zero occurrences of `Thread`, `Executor`,
 `java.util.concurrent`, `volatile`, `synchronized` or `Atomic`. The only matches for those searches are
 the string `@MainThread` inside Javadoc. Its whole thread-aware API surface is one `Runnable`:
@@ -351,11 +357,14 @@ almost no threads of their own: one daemon reporter in the editor's `FpsProbe`, 
 calculator or the designer. So the concurrency an application has today is a property of how many
 `Gui`s it happens to hold.
 
-**Atchung is never named.** No `sibarum.atchung.*` import appears anywhere in the four modules; no
-`Topic`, `Pump`, `State`, `Backpressure` or `Fold`. The bus reaches this repo only transitively through
-`tactroller-atchung`, of which exactly one type is used — `TactrollerInputBridge` — and there is no
-`Shell.bus()`. An application reaches a bus only as `shell.gui().bus()`, which is that `Gui`'s own.
-**elektro-Q is absent entirely**, from the framework and from all three ported applications.
+**Atchung is named once, and only as a fabric.** ~~No `sibarum.atchung.*` import appears anywhere in
+the four modules~~ — `Shell` now imports `Atchung`, creates one in its constructor and hands it out as
+`Shell.bus()`; an application no longer reaches a bus as `shell.gui().bus()`, which was *that `Gui`'s*
+own. That is the whole of the change. No `Topic`, `Pump`, `State`, `Backpressure` or `Fold` appears in
+any framework signature, so what the container owns is the fabric and not one thing published on it.
+Beyond that the bus still reaches this repo only transitively through `tactroller-atchung`, of which
+exactly one type is used — `TactrollerInputBridge`. **elektro-Q is absent entirely**, from the
+framework and from all three ported applications.
 
 **Kronometer is never named either.** No `sibarum.kronometer.*` import — only
 `dev.vexelray.gui.krono.KronoGui`. The framework owns the clock's *lifecycle* and none of its
@@ -365,30 +374,40 @@ calculator or the designer. So the concurrency an application has today is a pro
 Applications reach them directly instead — the calculator's `Motion` imports `Kron`, `Rate`, `Cell`,
 `Curve` and `Animator`, and its `Model` is built on Atchung's `State<T>` and `Committer`.
 
-#### Every window is an island, and that is the whole of the gap
+#### Every window was an island, and half of that is now closed
 
 `new Gui()` is `this(Atchung.create())` — **a private bus per `Gui`**, and a private worker pool with
-it. Nothing on this stack shares one. A calculator, which looks like a one-window application, runs two:
+it. Nothing on this stack shared one. A calculator, which looks like a one-window application, ran two:
 the framework's main `Gui`, and the one `Modals` builds for the dialogs. The editor has that plus its
 file drawer and its editor windows; the designer has that plus its viewport.
 
-The seams for fixing this already exist, upstream, and the framework declines both:
+The seams for fixing it already existed, upstream:
 
 ```java
 public Gui(Atchung bus)                                            // one shared fabric
 public Gui(Atchung bus, java.util.concurrent.Executor handlers)    // and who runs the handlers
 ```
 
-`Gui(Atchung)`'s own Javadoc states the purpose — *"hand in the same bus the application uses so input
-publishers, widgets, and workers all meet the framework on one fabric"* — and `VexelApplication` calls
-`new Gui()`.
+**The first is now taken.** `Shell` owns an `Atchung`, `VexelApplication` builds its `Gui` on it, and
+`Modals.install(app, bus, appearance)` — a third overload upstream, shaped exactly like the appearance
+one and for the same reason — puts the dialogs on it too. `Gui(Atchung)`'s own Javadoc had stated the
+purpose all along: *"hand in the same bus the application uses so input publishers, widgets, and
+workers all meet the framework on one fabric."* Asserted headlessly by `OneBusPerApplicationTest`
+through `VexelApplication.tree`, and for the dialogs by `DialogsWearTheApplicationsLookTest` upstream,
+which can reach a real `GuiApp`.
+
+**The second is not, and one thing about it is worth knowing before it is.** `Gui`'s worker pool is a
+field initializer, so a `Gui` builds a `newCachedThreadPool` whatever it is handed, and `Gui.work()`
+submits to that pool rather than to the executor. Passing a handler executor therefore redirects
+handlers and does not remove the per-`Gui` pool — so *one bus is not one thread*, and making it one is
+an upstream change rather than another argument at this call site.
 
 So the distance between this section and the model above is not missing substrate. `Pump`, `State`,
 `Fold`, `Backpressure`, `Rate` and `KronBridge` are all built and none of them is reached from here.
-What is missing is that the container does not yet own the two arguments that would let it place a
-component anywhere: **the bus a component publishes on, and the thread its handlers run on.** That is
-where the model starts, and it is why the entry in `docs/TODO.md` says the missing half is entirely on
-this side.
+What is missing is the second of the two arguments that would let the container place a component
+anywhere — it owns **the bus a component publishes on**, and not yet **the thread its handlers run
+on**. That is where the model starts, and it is why the entry in `docs/TODO.md` says the missing half
+is entirely on this side.
 
 ### Three mismatches this leaves for the processor
 
