@@ -376,8 +376,8 @@
     </p>
 
     <div class="facts">
-      <span class="fact pass"><b>83</b> tests green</span>
-      <span class="fact">core <b>37</b> · shell <b>44</b> · automation <b>2</b></span>
+      <span class="fact pass"><b>86</b> tests green</span>
+      <span class="fact">core <b>37</b> · shell <b>47</b> · automation <b>2</b></span>
       <span class="fact"><b>4</b> modules built · <b>2</b> planned</span>
       <span class="fact"><b>3</b> applications ported</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
@@ -572,8 +572,18 @@
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
+      <div class="row s3">
+        <span class="what">The process fault policy is the framework's <span>— not inherited</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s1">
+        <span class="what">What a full mailbox does <span>— per channel, by the loss class it carries</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
+        <span class="stage">Specified</span>
+      </div>
       <div class="row s0">
-        <span class="what">Survivable component failure <span>— supervision, per-grouping <code>Overrun</code></span></span>
+        <span class="what">Supervision <span>— nothing notices that a component stopped draining, or names it</span></span>
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
@@ -600,9 +610,10 @@
             tree and the dialogs share it — but <code>Gui</code> builds a cached pool in a field
             initializer and <code>work()</code> submits to <i>that</i>, so handing it an executor
             redirects handlers and leaves the pool. Closing that is an upstream change.</li>
-          <li>The dream case — <b>responsive through a component's infinite loop</b> — is not designed
-            yet. <code>Backpressure.FAIL</code> is the default and resolves through <code>Fatal</code>,
-            so a full mailbox kills the process rather than degrading.</li>
+          <li>The dream case — <b>responsive through a component's infinite loop</b> — is now half
+            designed. Coalescing keeps a wedged component's publishers running and the loop alive;
+            what is missing is anything that <b>notices</b>, names the component, and decides what the
+            rest of the application does about it.</li>
           <li>Three vocabulary mismatches are recorded for the processor's brief:
             <code>@Component</code> is a DI contract not an actor one, <code>@MainThread</code> is
             two-coloured, <code>FrameHooks</code> is the barrier's N=1 case.</li>
@@ -978,28 +989,31 @@
           </p>
         </div>
       </div>
-      <div class="step now">
+      <div class="step done">
         <span class="num">02</span>
         <div>
-          <h3>Make one application mean one set of threads</h3>
+          <h3>Decide what a full mailbox does <span class="landed">decided</span></h3>
           <p>
-            <code>Gui(Atchung, Executor)</code> exists but redirects only input handlers;
-            <code>Gui.work()</code> still submits to a pool each <code>Gui</code> makes for itself.
-            <span class="why">Owning the executor is what makes placement a decision in the wiring
-            rather than a consequence of how many trees an application happens to hold.</span>
+            A bus fault is the framework's to answer and still halts — saving first is what turns a
+            crash into a hang. A wedged component is a different event, answered by the
+            <code>Backpressure</code> of its channel: a sample coalesces, an edge must not be lost, and
+            a channel carrying both gets split.
+            <span class="why">What it leaves open is supervision — nothing yet notices that a component
+            has stopped draining, or names which one.</span>
           </p>
         </div>
       </div>
-      <div class="step">
+      <div class="step now">
         <span class="num">03</span>
         <div>
-          <h3>Decide what a wedged component does</h3>
+          <h3>Write the first component by hand</h3>
           <p>
-            Supervision, mailbox overflow policy, and per-grouping <code>Overrun</code>. Today
-            <code>Backpressure.FAIL</code> resolves through <code>Fatal</code>, so the default answer to
-            a slow component is killing the process.
-            <span class="why">This is the one part of the stated goal — responsive through an infinite
-            loop — that the written model does not yet cover.</span>
+            One real component on its own platform thread, with a mailbox and a
+            <code>WakeSource</code> of its own — the designer's off-thread shader composition, which is
+            its open <b>P4/R4</b> and wanted regardless.
+            <span class="why">The fourth witness. Three hand-written wirings are the processor's
+            specification and all three are single-threaded, so generating from them is how the
+            vocabulary gets frozen despite the model being written.</span>
           </p>
         </div>
       </div>
@@ -1050,7 +1064,7 @@
       inferred from the docs — except the bus row, which changed in the commit this page ships in. The two claims worth re-running are the test count and the concurrency
       inventory — if the second one ever returns a hit, dimension 2 has started.
     </p>
-    <pre><span class="c"># 83 green, no siblings needed for -api and -core</span>
+    <pre><span class="c"># 86 green, no siblings needed for -api and -core</span>
 mvn -o test
 
 <span class="c"># dimension 2 is "absent" for exactly as long as this prints nothing</span>

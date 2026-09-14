@@ -88,6 +88,9 @@ public final class VexelApplication {
      */
     public static void run(Wiring wiring, String[] args, Function<WindowConfig, NativeWindow> windows) {
         AppInfo info = wiring.info();
+        // Before the bus exists, let alone anything publishing on it. See Faults for why the framework owns
+        // this answer and why it is still a halt.
+        Faults.install(info);
         Launch launch = parseOrExit(args, info);
 
         Shell shell = new Shell(launch, info);
@@ -131,6 +134,7 @@ public final class VexelApplication {
      */
     public static Shell tree(Wiring wiring, String[] args) {
         AppInfo info = wiring.info();
+        Faults.install(info);
         Shell shell = new Shell(parseOrExit(args, info), info);
         try {
             toTree(wiring, shell, shell.disposer(), info);

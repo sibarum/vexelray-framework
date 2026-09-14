@@ -134,6 +134,13 @@ cannot be fixed from here at all.
       of owning the executor is that placement is decided in the wiring rather than by how many trees
       an application happens to hold.
 
+      **The fault policy is decided and owned**, in `Faults` and in
+      [architecture.md](architecture.md#what-a-full-mailbox-does-and-where-survivability-actually-lives):
+      a bus fault still halts, for upstream's reason rather than ours, and a wedged component is answered
+      by the `Backpressure` of its channel rather than by a process policy. What that leaves is the part
+      neither half covers — **nothing notices that a component has stopped draining, or names it.** That
+      is supervision, and it wants `Overrun` per grouping before it is built on anything but a timeout.
+
       **Also add the `FrameHooks` note while it is cheap.** The doc records that a flat `Runnable[]`
       walked on one thread is the barrier's N=1 case; the file itself does not say so, and its
       no-allocation rigour will get defended into a shape that cannot grow if nobody writes it there.

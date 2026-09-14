@@ -420,6 +420,44 @@ one more axis, and writing them down is what stops the processor freezing the cu
 | **`@MainThread` is two-coloured; the model needs one colour per thread** | Main-thread versus worker-safe cannot express "confined to *this* component", so a graph that passes today's check can still be two worker components racing. Because placement is static, the colour of a value **is** the thread it was placed on — known while compiling — so the processor can allow a direct reference between two components sharing a thread and reject one that crosses, alongside a shareable set (immutable, `Versioned`, `State<T>`). Dynamic placement would have made that check undecidable; this does not |
 | **`FrameHooks` is the barrier's degenerate case** | A flat `Runnable[]` walked on one thread, *"not thread-safe and not meant to be"*, is the N=1 answer. The model wants release-at-tick, drain, await quiescence, reconcile — and saying so in the file is what stops its no-allocation rigour being defended into a shape that cannot grow |
 
+### What a full mailbox does, and where survivability actually lives
+
+Settled before the first component rather than after, because a default chosen once something depends
+on it is not a choice. It divides in two, and keeping the halves apart is the whole of the answer.
+
+**A bus fault is the framework's to answer, and the answer is still a halt.** `Atchung.onFatal` is
+process-wide and says *"call it once, at the application edge"* — which is `VexelApplication`, for
+every application on this stack, and nothing called it. So the answer to *what does this application do
+when the bus cannot continue honestly* was `Fatal.HALT` by inheritance: the right answer, and nobody's
+decision. `Faults` now installs one. The obvious framework addition — save the window placement first,
+since the `Disposer` and `WindowMemory.save` are right there — is refused, and the reason is upstream's:
+*"running application code on a thread that is mid-publish, holding a mailbox lock, with a full queue
+behind it, is how a crash becomes a hang."* A lost placement is the cheaper loss. What the framework
+adds is the sentence naming the application, and then upstream's report and upstream's exit code,
+called rather than copied.
+
+**A wedged component is not a bus fault, and reading it as one would put survivability in the wrong
+place.** A component that stops draining is a mailbox filling up, and the answer to that is the
+`Backpressure` chosen for that channel — which atchung has already reasoned out, per channel, by the
+loss class of what it carries:
+
+| The payload | Policy | Because |
+| --- | --- | --- |
+| A **sample** — a pointer position, a window size, a clock reading | `COALESCE_LATEST` | the next one supersedes this one, so dropping it costs nothing that could still have been drawn |
+| An **edge** — a keystroke, a command, a tree mutation | `FAIL`, or `BLOCK` where the publisher can safely wait | nothing supersedes it and nothing downstream can reconstruct it |
+
+And the rule that falls out of it, which is the one a component author will meet first: *"a channel
+carrying both classes cannot be given a correct policy — every choice is wrong for half the traffic.
+That is not a policy problem to be solved here; it is a signal to split the channel."* So a component
+does not get one mailbox with one policy; it gets a mailbox per loss class, and the processor's job is
+to make that structural rather than remembered.
+
+**What is still open** is the part neither half covers: an application staying *responsive* while one
+component is wedged. Coalescing keeps its publishers running and the loop alive, which is most of it —
+but nothing yet notices that a component has stopped draining, names it, or decides what the rest of
+the application does about it. That is supervision, and it wants `Overrun` surfaced per grouping
+(above) before it can be built on anything but a timeout.
+
 `Disposer` needs the matching answer too. An actor's shutdown is *drain then stop*, with a timeout, and
 a start order distinct from construction order — a mailbox must not pump before its publishers exist.
 Not cosmetic: `Backpressure.FAIL` is the default and resolves through `Fatal`, so getting shutdown
