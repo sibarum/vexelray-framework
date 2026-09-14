@@ -141,6 +141,15 @@ cannot be fixed from here at all.
       neither half covers — **nothing notices that a component has stopped draining, or names it.** That
       is supervision, and it wants `Overrun` per grouping before it is built on anything but a timeout.
 
+      **The first component exists, in `vexelray-designer`**, and what writing it by hand found is in
+      [architecture.md](architecture.md#the-first-component-written-by-hand). The one that needs an
+      answer from this side: **`Pump` cannot be a component's inbound mailbox**, because `drain()` is
+      non-blocking and nothing signals arrival — a `Pump` is drained by an owner that already has a
+      wake. The designer's mailbox is therefore a field and a park, and the bus carries results
+      outward. The second component decides whether atchung grows an await or the framework owns the
+      parking; **do not extract the designer's `Mailbox` before there is a second one**, on the same
+      grounds the second automation socket is waiting for a second witness.
+
       **Also add the `FrameHooks` note while it is cheap.** The doc records that a flat `Runnable[]`
       walked on one thread is the barrier's N=1 case; the file itself does not say so, and its
       no-allocation rigour will get defended into a shape that cannot grow if nobody writes it there.

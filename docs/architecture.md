@@ -409,6 +409,50 @@ anywhere — it owns **the bus a component publishes on**, and not yet **the thr
 on**. That is where the model starts, and it is why the entry in `docs/TODO.md` says the missing half
 is entirely on this side.
 
+### The first component, written by hand
+
+`vexelray-designer`'s shader composition now runs as one: `Mailbox<T>` — one platform thread, one slot,
+latest wins — with `Composed` as the immutable result it publishes. Nothing was extracted here, on
+purpose. What two of these have in common is what the framework should own, and one of them is not a
+census.
+
+**It found a defect, which is the answer to whether the exercise was worth doing.** `Viewport.show`
+hand-rolled the same mechanism — an `AtomicInteger` revision, a submit to `Gui`'s pool, and a check
+that this task was still the newest — and made the check *before* composing rather than around it. So
+an edit that passed it and then lost its place kept composing beside the edit that replaced it, and
+both wrote five independently `volatile` fields:
+
+```
+reports, in the order they finished:
+  6,188 B in 17 ms       the sphere — asked for last, finished first
+  2,662,152 B in 171 ms  the heavy design — superseded after 40 ms, composed anyway, and landed last
+```
+
+The viewport settled on a design the user had already replaced, and the frame pump could build a
+pipeline from one compose's modules and another's push size. A slider emits an edit every few
+milliseconds and a compose takes tens, so that is the ordinary case of dragging one.
+
+Four things the hand-written version turned up that the model above does not say:
+
+- **Atchung cannot be the inbound mailbox today, and the reason is structural rather than missing
+  API.** `COALESCE_LATEST` is exactly the right policy and its capacity *is* one. But `Pump.drain()` is
+  non-blocking and nothing signals arrival, because a `Pump` is drained by an owner that already has a
+  wake — a frame loop. A component whose only reason to wake is its own mailbox has nothing to park on.
+  So the inbound half is a field and a park, and the bus carries the *result* outward where it has many
+  readers. Whether `Pump` should grow an await is a question for atchung, and **the second component is
+  the one that should answer it** — the same standard applied to the second automation socket.
+- **The wake obligation is real, and was being met by accident.** A compose landing woke the loop
+  because announcing the phase writes to a `Node` and a node mutation wakes the loop. A real wake
+  hanging on an unrelated line of reporting: stop announcing and the window parks. It is now
+  `shell.wake(viewport::onWork)`, which is `WakeSource` used as written.
+- **Drain-then-stop is an edge rule, not a universal one.** It exists so nothing downstream loses what
+  it cannot reconstruct. A coalescing mailbox holds a *sample* by construction, and the sample it holds
+  at shutdown is a picture nobody will see — so this one stops.
+- **Coalescing cannot cancel work already started, and the useful move is to not *apply* it.** Nothing
+  here interrupts a compose in flight; what a component can do is ask whether it has been superseded
+  before publishing, and stay quiet if it has. That makes *superseded* a third outcome beside composed
+  and refused, and it is the difference between a stale picture flashing on screen and never appearing.
+
 ### Three mismatches this leaves for the processor
 
 None of these is a defect today. Each is a place where a vocabulary written for one thread has to grow

@@ -516,10 +516,10 @@
       </div>
       <p class="dim-read">
         The detailed plan exists — <b>one component, one thread, one mailbox</b>, with the mapping
-        decided in the wiring and never at runtime. One line of it is now built: the container owns the
-        application's bus, so there is one fabric to place a component <i>on</i>. Everything about
-        placing one is still unwritten. A grep of all four modules' main sources returns <b>zero</b>
-        occurrences of <code>Thread</code>,
+        decided in the wiring and never at runtime. Two pieces are now real: the container owns the
+        application's bus, and <b>one component exists</b> — hand-written in the designer, where it
+        found a live defect. None of it is in the framework yet, deliberately. A grep of all four
+        modules' main sources still returns <b>zero</b> occurrences of <code>Thread</code>,
         <code>Executor</code>, <code>java.util.concurrent</code>, <code>volatile</code>,
         <code>synchronized</code> or <code>Atomic</code>. The entire thread-aware API surface is one
         <code>Runnable</code>: <code>WakeSource.onWake</code>.
@@ -562,8 +562,13 @@
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
+      <div class="row s2">
+        <span class="what">One component: a thread, a mailbox, a wake <span>— hand-written, once</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
+      </div>
       <div class="row s0">
-        <span class="what">A <code>WakeSource</code> per component mailbox</span>
+        <span class="what">A mailbox the bus can drain <span>— <code>Pump</code> cannot block or signal arrival</span></span>
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
@@ -1003,22 +1008,36 @@
           </p>
         </div>
       </div>
-      <div class="step now">
+      <div class="step done">
         <span class="num">03</span>
         <div>
-          <h3>Write the first component by hand</h3>
+          <h3>Write the first component by hand <span class="landed">landed</span></h3>
           <p>
-            One real component on its own platform thread, with a mailbox and a
-            <code>WakeSource</code> of its own — the designer's off-thread shader composition, which is
-            its open <b>P4/R4</b> and wanted regardless.
-            <span class="why">The fourth witness. Three hand-written wirings are the processor's
-            specification and all three are single-threaded, so generating from them is how the
-            vocabulary gets frozen despite the model being written.</span>
+            The designer's shader composition, on its own platform thread with a capacity-one
+            latest-wins mailbox and a <code>WakeSource</code> of its own. It found a real defect on the
+            way in: the hand-rolled version checked for a newer edit <i>before</i> composing rather
+            than around it, so a superseded design could finish last and land on screen.
+            <span class="why">Nothing extracted into the framework yet, deliberately — one component is
+            not a census, and what two of them share is what the container should own.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step now">
+        <span class="num">04</span>
+        <div>
+          <h3>The second component, and then extract</h3>
+          <p>
+            It is the one that answers the open question: atchung's <code>Pump</code> cannot be a
+            component's inbound mailbox, because <code>drain()</code> is non-blocking and nothing
+            signals arrival — a pump is drained by an owner that already has a wake.
+            <span class="why">Either <code>Pump</code> grows an await or the framework owns the
+            parking. Deciding that on one witness is how a shared library acquires a shape nobody
+            asked for.</span>
           </p>
         </div>
       </div>
       <div class="step">
-        <span class="num">04</span>
+        <span class="num">05</span>
         <div>
           <h3>Write the processor</h3>
           <p>
@@ -1030,7 +1049,7 @@
         </div>
       </div>
       <div class="step">
-        <span class="num">05</span>
+        <span class="num">06</span>
         <div>
           <h3>Starters, a BOM, and the stack's reachability metadata</h3>
           <p>
@@ -1042,7 +1061,7 @@
         </div>
       </div>
       <div class="step">
-        <span class="num">06</span>
+        <span class="num">07</span>
         <div>
           <h3>Name and build the diagnostics module</h3>
           <p>
