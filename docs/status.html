@@ -618,7 +618,7 @@
         <ul>
           <li><b>One bus is not one thread.</b> The fabric is now the application's — the framework's
             tree and the dialogs share it — but <code>Gui</code> builds a cached pool in a field
-            initializer and <code>work()</code> submits to <i>that</i>, so handing it an executor
+            initializer and <code>async()</code> submits to <i>that</i>, so handing it an executor
             redirects handlers and leaves the pool. Closing that is an upstream change.</li>
           <li>The dream case — <b>responsive through a component's infinite loop</b> — is now half
             designed. Coalescing keeps a wedged component's publishers running and the loop alive;

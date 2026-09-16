@@ -127,7 +127,7 @@ cannot be fixed from here at all.
       than one per `Gui`, and the calculator no longer runs two.
 
       **The second is the handler executor, and it is not one line.** `Gui(Atchung, Executor)` exists,
-      but `Gui`'s worker pool is a field initializer and `Gui.work()` submits to *that* pool, so a
+      but `Gui`'s worker pool is a field initializer and `Gui.async` submits to *that* pool, so a
       `Gui` builds a `newCachedThreadPool` whatever it is handed. Passing an executor redirects input
       handlers and leaves the pool. Making one application mean one set of threads is therefore an
       upstream change in `vexelray-gui` — worth doing before components are placed, because the point
@@ -152,6 +152,44 @@ cannot be fixed from here at all.
       **Also add the `FrameHooks` note while it is cheap.** The doc records that a flat `Runnable[]`
       walked on one thread is the barrier's N=1 case; the file itself does not say so, and its
       no-allocation rigour will get defended into a shape that cannot grow if nobody writes it there.
+
+- [ ] **Nothing in the model covers work that outlasts a frame, and the stack already named the
+      answer.** `kronometer/docs/architecture.md` §10 specifies it: *"`offload(work)` remains available
+      for work that is genuinely unbounded — file I/O, network, image decode — moving it to an ordinary
+      executor (**its own**, never the kernel's single carrier) and delivering completion as a timeline
+      event."* Specified and unbuilt — `offload` appears in no Java source in that repo. The framework
+      wants the same lane, and naming it here is what stops the component model being read as the answer
+      to a question it does not answer.
+
+      **A pool does not contradict static placement.** A component is placed statically because it is
+      stateful and ordered; an offloaded task is stateless and unordered, so there is nothing to confine
+      and no sequence to keep. The edge is policed by the shareable set the `@MainThread` colouring
+      already needs — immutable, `Versioned`, `State<T>` — which makes an offloaded lambda that captures
+      a component's state a compile error rather than a race.
+
+      **Platform threads, and the reason is not the component one.** Blocking I/O is the textbook
+      virtual-thread case, but §3.1 records that `jdk.virtualThreadScheduler.parallelism` is a global JVM
+      property with *"no public per-thread scheduler"* in JDK 25 — so an application that takes
+      Kronometer's 3× baton flag has no second carrier to give this pool, and the obvious choice is the
+      documented deadlock again. That flag is the application's and correctness never depends on it, so
+      the framework's default has to be the one that is right when it *is* set.
+
+      **The completion path is the content; the pool is the boring half.** A result is published on a
+      `Topic` and folded into a `Cell` by `KronBridge`, or dropped on a queue drained in
+      `FrameStage.APP` — the two doors that already exist, and `APP`'s own list is *"a history to
+      restore, a file to open, a preview to render."* What an offload thread must never do is touch the
+      tree or the timeline in place.
+
+      **It exists today, and it is unbounded.** `Gui` builds a `newCachedThreadPool`, handlers run on it,
+      and `Gui.async` is the escape hatch — `text-editor-vexel-demo`'s `Highlighter` and `SymbolLinks`
+      use it, while `FileActions` calls `Files.write` and a blocking `FileDialog.save` inline on a handler
+      thread and `TextFile` calls `Files.readAllBytes` there. So a slow filesystem call and click dispatch
+      share one unbounded lane, and a wedged network mount answers backpressure by spawning threads —
+      the one answer the rest of the model refuses.
+
+      **Blocked on the same upstream change, and rides with it**: until `Gui`'s pool stops being a field
+      initializer the container cannot own this lane either. Two lanes rather than one when it lands,
+      mirroring the split Kronometer already makes between the precompute pool and `offload`.
 
 - [ ] **Fully-qualified names inline where every other file imports.** `Shell.onClose` takes a
       `java.util.function.Consumer<CloseRequest>`, and `Pacing` and `FrameHooks` write
