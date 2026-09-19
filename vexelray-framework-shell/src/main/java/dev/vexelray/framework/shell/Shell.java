@@ -3,6 +3,7 @@ package dev.vexelray.framework.shell;
 import dev.vexelray.framework.core.DeadlineSource;
 import dev.vexelray.framework.core.Disposer;
 import dev.vexelray.framework.core.FrameHooks;
+import dev.vexelray.framework.core.Lanes;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Pacing;
 import dev.vexelray.framework.core.Phase;
@@ -46,6 +47,9 @@ public final class Shell {
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
     private final Atchung bus = Atchung.create();
+    private final Lanes lanes;
+    /** Components placed but not yet started. See {@link #place} for why those are two different moments. */
+    private final java.util.List<Placement> placements = new java.util.ArrayList<>();
 
     private Appearance appearance = Appearance.DEFAULT;
     private Settings settings;
@@ -60,8 +64,16 @@ public final class Shell {
     private Phase phase = Phase.CONFIG;
 
     Shell(Launch launch, AppInfo info) {
+        this(launch, info, new Lanes());
+    }
+
+    Shell(Launch launch, AppInfo info, Lanes lanes) {
         this.launch = launch;
         this.info = info;
+        this.lanes = lanes;
+        // First registration, so it is the last thing closed: a lane outlives every tree presented on it, and
+        // the whole point of the container owning the threads is that a window closing does not take them.
+        disposer.register(lanes);
     }
 
     // ---- always available -------------------------------------------------------------------------------
@@ -101,14 +113,71 @@ public final class Shell {
      * other arrangement, but taking one today means a parameter on every entry point for a case nobody has
      * yet; the seam to add when somebody does is an overload of {@code run}, not a change here.
      *
-     * <p><b>What this is not, yet.</b> One bus is not one thread. {@code Gui} still makes a cached worker pool
-     * of its own whatever it is handed, and nothing here places a component on a thread or gives it a mailbox
-     * — see <i>the concurrency model</i> in {@code docs/architecture.md}. What is true today is that there is
-     * one fabric to place them on, which is the part that could not be added later without moving everything
-     * already built on top of it.
+     * <p>One fabric, and — since {@link #lanes()} — one set of threads to place work on it from. The two
+     * together are what a component needs: somewhere to publish, and somewhere to run.
      */
     public Atchung bus() {
         return bus;
+    }
+
+    /**
+     * <b>The application's threads</b> — the handler lane, the offload lane, and the component threads.
+     *
+     * <p>The second of the two things the concurrency model needed, and the one that was not true until the
+     * pool upstream stopped being a field initializer. {@code Gui} used to build a {@code newCachedThreadPool}
+     * whatever it was handed, so passing an executor redirected input handlers and left the pool standing: an
+     * application's thread count was a property of how many trees it happened to hold rather than of anything
+     * it decided, and placement could not be decided in the wiring because there was nothing to decide it
+     * <em>with</em>.
+     *
+     * <p><b>Available in every phase</b>, for the same reason the bus is: a lane is what the phases are built
+     * on rather than something one of them builds. A component placed in {@link Phase#MODEL}, before there is
+     * a {@code Gui} at all, is exactly the case this is heading for.
+     *
+     * <p><b>Owned rather than accepted</b>, again like the bus. An application that already has an executor it
+     * means to share is a real case and would want the other arrangement; the seam to add when somebody has
+     * one is an overload of {@code run}, not a change here.
+     *
+     * <p>Closed last, after every tree presented on it — registered with the {@link #disposer()} before
+     * anything else exists, which is what makes that ordering structural rather than remembered.
+     */
+    public Lanes lanes() {
+        return lanes;
+    }
+
+    /**
+     * <b>Place a component on a thread of its own</b>, with its mailboxes and its wake — the seam the whole
+     * concurrency model is for.
+     *
+     * <p>Returns a {@link Placement} with nothing running on it: give it its mailboxes, and the framework
+     * starts it once every component is constructed. Start order is distinct from construction order because a
+     * mailbox must not pump before its publishers exist, and that is a rule the container keeps rather than one
+     * a wiring is trusted to remember:
+     *
+     * {@snippet :
+     * Placement compose = shell.place("compose")
+     *         .subscribe(EDITS, this::composeNow, 1, Backpressure.COALESCE_LATEST);
+     * }
+     *
+     * <p><b>Available in every phase</b>, like the bus and the lanes it is built from. A component in
+     * {@link Phase#MODEL} — what the application knows, before there is anything to draw it with — is the case
+     * this is most obviously for, and it exists two phases before there is a {@code Gui}.
+     *
+     * <p><b>The wake comes with it.</b> Every placement is registered as a {@code WakeSource} when it starts,
+     * so a component that publishes a result wakes the loop by calling {@link Placement#published()} rather
+     * than by an application remembering a line per component. That line being forgotten is a window which is
+     * responsive except for the interactions that happened to arrive that way, and it is a bug this stack has
+     * already paid for twice.
+     *
+     * <p>Closed in reverse placement order at shutdown, drain then stop, before the lanes themselves go.
+     *
+     * @param name what the component is called — on its thread and in whatever reports on it later
+     */
+    public Placement place(String name) {
+        Placement placement = new Placement(name, bus, lanes);
+        placements.add(placement);
+        disposer.register(placement);
+        return placement;
     }
 
     /** Register a per-frame hook. See {@code FrameStage} for why the position is a name and not a number. */
@@ -296,6 +365,27 @@ public final class Shell {
 
     void phase(Phase phase) {
         this.phase = phase;
+    }
+
+    /**
+     * Start every placed component, each with its wake already connected.
+     *
+     * <p>Called once, after the wiring's {@code ATTACH} has returned and before the loop begins — so every
+     * publisher a component might hear from exists, and every component's own thread starts at the same known
+     * moment rather than wherever its constructor happened to sit.
+     *
+     * <p>The wake is connected <em>before</em> the thread starts, because a component whose first drain
+     * publishes something would otherwise announce it into a wake that is still a no-op. There is no wake in a
+     * headless {@code tree} run, where there is no loop to nudge; a placement with none simply does not nudge
+     * one, which is the same shape as the accessor that refuses before its phase.
+     */
+    void startComponents() {
+        for (Placement placement : placements) {
+            if (app != null) {
+                placement.onWake(app::postWake);
+            }
+            placement.start();
+        }
     }
 
     void settings(Settings settings) {

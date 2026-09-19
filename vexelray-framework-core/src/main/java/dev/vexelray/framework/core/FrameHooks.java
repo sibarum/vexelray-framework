@@ -22,6 +22,15 @@ import java.util.List;
  * <p>Not thread-safe and not meant to be. Hooks are added while the application is being built and the array is
  * frozen by {@link #seal()} before the first frame — after which this object is read-only, on one thread, which
  * is what lets the walk be as plain as it is.
+ *
+ * <p><b>This is the barrier's degenerate case, and saying so is what keeps it able to grow.</b> A flat
+ * {@code Runnable[]} walked on one thread is the N=1 answer to a question the concurrency model asks in
+ * general: release at tick, drain, await quiescence, reconcile. With one thread the first and last are
+ * nothing, quiescence is the return of the call, and what remains is the walk. The no-allocation rigour above
+ * is right and should stay — but it is a property of the frame budget, not an argument that the shape is
+ * final, and without this paragraph it will be defended into one. See <i>the concurrency model</i> in
+ * {@code docs/architecture.md}; a placed component's work happens on {@link Lanes}, and what reaches a frame
+ * from it is drained at {@code FrameStage.APP} rather than run here.
  */
 public final class FrameHooks {
 

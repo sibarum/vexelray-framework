@@ -138,6 +138,11 @@ public final class VexelApplication {
         Shell shell = new Shell(parseOrExit(args, info), info);
         try {
             toTree(wiring, shell, shell.disposer(), info);
+            // Components run here too. A tree built headlessly is still a running application as far as its
+            // model is concerned, and one whose picture comes from a component would otherwise be captured
+            // before anything had composed it. There is no loop to wake, so their wakes stay unconnected --
+            // see Shell.startComponents.
+            shell.startComponents();
         } catch (RuntimeException | Error e) {
             // The Gui and the clock are registered by the time most failures here can happen, and a caller
             // that never received the Shell has no way to close them.
@@ -183,9 +188,13 @@ public final class VexelApplication {
 
         // ---- GUI: the look applied before the first widget, and the clock attached before it too. --------
         shell.phase(Phase.GUI);
-        // On the application's bus, not a private one. A Gui made with no bus makes itself one, so every tree
-        // built this way is its own fabric and nothing published on one is heard on another. See Shell.bus.
-        Gui gui = disposer.register(new Gui(shell.bus()));
+        // On the application's bus and the application's lanes, not private ones. A Gui made with neither
+        // makes itself both -- its own fabric, so nothing published on one tree is heard on another, and its
+        // own cached pool, so the thread count is a property of the window count. Handing both over is what
+        // makes placement a decision the wiring takes rather than an accident of how many trees exist.
+        // See Shell.bus and Shell.lanes.
+        Gui gui = disposer.register(
+                new Gui(shell.bus(), shell.lanes().handlers(), shell.lanes().offload()));
         Appearance appearance = shell.appearance();
         // The theme and the zoom range, through the same call an application uses on the windows the framework
         // did not build -- so there is one definition of what an appearance means on a Gui rather than two that
@@ -299,6 +308,11 @@ public final class VexelApplication {
         shell.phase(Phase.RUN);
         shell.hooks().seal();
         shell.pacing().seal();
+        // Every component's thread starts here and not in its constructor: a mailbox must not pump before its
+        // publishers exist, and the wiring has only just finished making them. Each gets its wake connected on
+        // the way, so a component that publishes a result nudges the loop without the wiring saying so. See
+        // Shell.place.
+        shell.startComponents();
 
         if (launch.mode() == RunMode.WINDOWED) {
             // Render on demand: park until something says a frame is due.

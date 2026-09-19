@@ -15,6 +15,8 @@ which on this stack is the whole reason for being on native-image at all.
   [atchung](../atchung) (bus), [kronometer](../kronometer) (time)
 - [docs/architecture.md](docs/architecture.md) is the deep version of this document
 - [docs/TODO.md](docs/TODO.md) is what is known about and not done
+- [docs/threading.md](docs/threading.md) is the rules — lanes, colour, ownership, channels, completion
+  and lifecycle, each carrying whether anything enforces it yet
 - [docs/status.html](docs/status.html) grades five capabilities by **where each one lives** — absent,
   specified, in a sibling repo, or in the framework. Open it in a browser; it is a page rather than a
   document because the answer is a matrix rather than prose

@@ -113,45 +113,22 @@ cannot be fixed from here at all.
       has nowhere to attach. All three want the same thing, which is why it is worth building once
       rather than three times.
 
-- [ ] **The container has no way to give a component a thread and a mailbox, which is the design.**
-      The model is now written down — [the concurrency model](architecture.md#the-concurrency-model),
-      including the three mismatches it leaves for the processor, the `WakeSource` a component mailbox
-      owes, and why `Disposer` needs *drain then stop*. What is missing is entirely on this side, and
-      [what is actually wired today](architecture.md#what-is-actually-wired-today) is the inventory:
-      no `Executor`, no `Thread`, no `sibarum.atchung` and no `sibarum.kronometer` anywhere in the four
-      modules' main sources.
+- [ ] **The container now gives a component a thread and a mailbox; what is left is the colour rule.**
+      `Shell.lanes()` owns the application's threads and `Shell.place(name)` puts a component on one of
+      them with its mailboxes, its wake and its drain-then-stop — `Lanes` in `-core` (pure JDK, so the
+      container stays testable with no GPU) and `Placement` in `-shell` (a mailbox is atchung's, and that
+      edge already falls there). The upstream half landed with it: `Gui` takes both lanes rather than
+      building a `newCachedThreadPool` whatever it is handed, and closes only the lanes it built itself.
 
-      **The first of the two constructor arguments is taken.** `Shell` owns an `Atchung` and hands it
-      out as `Shell.bus()`; the framework's `Gui` is built on it and so are the dialogs, through a new
-      `Modals.install(app, bus, appearance)` upstream. So there is one fabric per application rather
-      than one per `Gui`, and the calculator no longer runs two.
+      **Eight of [threading.md](threading.md)'s rules are now held rather than five**, and none of the
+      promotions needed the processor — they needed something to *be* the rule. The `upstream` column is
+      down to one entry, because T1.2 and T1.5 turned out to be the same change.
 
-      **The second is the handler executor, and it is not one line.** `Gui(Atchung, Executor)` exists,
-      but `Gui`'s worker pool is a field initializer and `Gui.async` submits to *that* pool, so a
-      `Gui` builds a `newCachedThreadPool` whatever it is handed. Passing an executor redirects input
-      handlers and leaves the pool. Making one application mean one set of threads is therefore an
-      upstream change in `vexelray-gui` — worth doing before components are placed, because the point
-      of owning the executor is that placement is decided in the wiring rather than by how many trees
-      an application happens to hold.
-
-      **The fault policy is decided and owned**, in `Faults` and in
-      [architecture.md](architecture.md#what-a-full-mailbox-does-and-where-survivability-actually-lives):
-      a bus fault still halts, for upstream's reason rather than ours, and a wedged component is answered
-      by the `Backpressure` of its channel rather than by a process policy. What that leaves is the part
-      neither half covers — **nothing notices that a component has stopped draining, or names it.** That
-      is supervision, and it wants `Overrun` per grouping before it is built on anything but a timeout.
-
-      **The first component exists, in `vexelray-designer`**, and what writing it by hand found is in
-      [architecture.md](architecture.md#the-first-component-written-by-hand). Atchung grew the piece it
-      was missing — `Pump.drain(long)` and `Pump.wake()` — so the mailbox is the bus's and the
-      designer's hand-written one is gone. **What is left on this side is the thread**: the bus owns the
-      queue, the policy, the waiting and the wake, and something still has to own the platform thread
-      that does the waiting and the `drain-then-stop` around it. That is the component seam, and it
-      wants a second witness before it is written.
-
-      **Also add the `FrameHooks` note while it is cheap.** The doc records that a flat `Runnable[]`
-      walked on one thread is the barrier's N=1 case; the file itself does not say so, and its
-      no-allocation rigour will get defended into a shape that cannot grow if nobody writes it there.
+      **What is actually left**, and it is the part a runtime object cannot hold: the colour rule (§2, five
+      rules), the message-graph checks (§4.1, §4.3–§4.5), and supervision (§6.5, §6.3) — *nothing
+      notices that a component has stopped draining, or names it*, which wants `Overrun` surfaced per
+      grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on
+      the blocking handlers in `text-editor-vexel-demo` moving to the offload lane.
 
 - [ ] **Nothing in the model covers work that outlasts a frame, and the stack already named the
       answer.** `kronometer/docs/architecture.md` §10 specifies it: *"`offload(work)` remains available

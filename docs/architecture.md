@@ -207,6 +207,9 @@ text editor binds the clipboard to *every* window in a loop, and remembers each 
 
 ## The concurrency model
 
+*The reasoning is here; the rules it produces are in [threading.md](threading.md), stated normatively and
+each carrying whether anything enforces it yet.*
+
 The intended shape of a VexelRay application is **one component, one thread, one mailbox**, and it is
 the most load-bearing constraint in this design that has never been written down. It is why
 `atchung-core` exists — its own README routes *"one process, many components (input, graphics, GUI,
@@ -311,13 +314,18 @@ anyone noticing they were the multi-threaded answer as well:
   more than it sounds: the timeline is driven from the main thread's frame, so a parked window would
   otherwise stop a 50 Hz component dead. `DeadlineSource`'s own Javadoc already lists *"a component
   waiting out a cue"* among its implementors.
-- **The wake is not, and this is a real gap.** A component that finishes early and publishes a result
-  has produced work the loop cannot predict — which is `WakeSource`'s definition — and no wake exists
-  for it. `gui::onWork` covers a node mutated off the frame thread and `krono.kron()::onWork` covers
-  the timeline; a component's own publish is a third path, and the symptom of omitting it is the exact
-  one the GUI already paid for — a window that is responsive except for the interactions that happened
-  to arrive that way. **Each component mailbox owes a `WakeSource`**, and the processor should emit it
-  rather than leave it to be remembered.
+- **The wake was a real gap, and it is now closed by construction.** A component that finishes early and
+  publishes a result has produced work the loop cannot predict — which is `WakeSource`'s definition — and
+  no wake existed for it. `gui::onWork` covers a node mutated off the frame thread and
+  `krono.kron()::onWork` covers the timeline; a component's own publish is a third path, and the symptom
+  of omitting it is the exact one the GUI already paid for — a window that is responsive except for the
+  interactions that happened to arrive that way. **Each component mailbox owes a `WakeSource`**, so a
+  `Placement` *is* one: the container connects it when it starts the component, and a component publishes
+  through `published()`. The obligation is no longer something the processor has to remember to emit —
+  what it will emit is the call site, which is a smaller job than the registration and a much smaller one
+  to get wrong. The designer's hand-written component is the argument for doing it this way round: it met
+  the obligation *by accident*, because announcing a phase wrote to a node and a node mutation wakes the
+  loop, so a real wake was hanging on an unrelated line of reporting.
 - **`Overrun` wants surfacing per thread.** Slip is a property of the one timeline and cannot be made
   per-domain, but *which grouping is late* is a question a static mapping makes answerable — so an
   overloaded grouping should name itself rather than show up as a global plateau.
@@ -333,15 +341,21 @@ The model above is the design. This is an inventory of the code as it stands, ta
 between the two is a readable distance rather than an impression. Everything here is a grep over the
 four modules' main sources.
 
-> **One line of it has since been built**, and the paragraphs below are marked where it changed them.
-> The container now owns the application's bus — `Shell.bus()`, handed to the framework's `Gui` and to
-> `Modals` — which was the first of the two constructor arguments named at the end of this section. The
-> second, the handler executor, is not taken, and nothing here places a component on a thread. The
-> distance is one argument shorter, and no other claim below has moved.
+> **Both of it have since been built**, and the paragraphs below are struck through where they have
+> stopped being true. The container owns the application's bus — `Shell.bus()`, handed to the framework's
+> `Gui` — and now its threads as well: `Shell.lanes()` is the handler lane, the offload lane and the
+> component threads, and `Shell.place(name)` puts a component on one of the last with its mailboxes and
+> its wake. The two constructor arguments named at the end of this section are both taken. **This section
+> is now a record of where the model started rather than an inventory of the present**, which is what it
+> was written to become.
 
-**The framework contains no concurrency primitives at all.** Zero occurrences of `Thread`, `Executor`,
+~~**The framework contains no concurrency primitives at all.** Zero occurrences of `Thread`, `Executor`,
 `java.util.concurrent`, `volatile`, `synchronized` or `Atomic`. The only matches for those searches are
-the string `@MainThread` inside Javadoc. Its whole thread-aware API surface is one `Runnable`:
+the string `@MainThread` inside Javadoc.~~ `Lanes` is in `-core` and `Placement` in `-shell`, and the
+module split held under the change: `Lanes` is pure JDK, because `-api` and `-core` stay JDK-only and a
+pool is exactly the kind of thing that keeps the container testable with no GPU; `Placement` is in
+`-shell` because a mailbox is atchung's and that dependency edge already falls there. Its thread-aware API
+surface was one `Runnable`:
 
 | Seam | What it says about threads |
 | --- | --- |
@@ -351,11 +365,20 @@ the string `@MainThread` inside Javadoc. Its whole thread-aware API surface is o
 | `Disposer` | reverse construction order; no timeout, no drain, no start order distinct from it |
 | `@MainThread` | inert — there is no processor, so the two-colour rule is enforced by nobody |
 
-**The stack is already multithreaded, and none of the threading is the framework's.** `Gui` owns an
-`Executors.newCachedThreadPool` per instance and runs every input handler on it. The applications make
+Two rows of that table have moved. `Disposer` now has a component half — `Placement.close` is drain then
+stop, on a timer, and a placement's start is a separate moment from its construction, which is the row's
+"no start order distinct from it" answered rather than restated. `@MainThread` is still inert, and that
+has not moved at all: it is the colour rule, and the colour rule is the processor's.
+
+~~**The stack is already multithreaded, and none of the threading is the framework's.**~~ The threading is
+now the framework's, which is the whole of what changed. `Gui` used to own an
+`Executors.newCachedThreadPool` per instance and run every input handler on it. The applications make
 almost no threads of their own: one daemon reporter in the editor's `FpsProbe`, and none at all in the
-calculator or the designer. So the concurrency an application has today is a property of how many
-`Gui`s it happens to hold.
+calculator or the designer. ~~So the concurrency an application has today is a property of how many
+`Gui`s it happens to hold.~~ It is now a property of what the wiring placed, which is the sentence the
+whole model turns on: the container builds one set of lanes, hands them to every tree it makes, and
+`Gui.close()` shuts down only the lanes that `Gui` built itself — so a dialog closing cannot take the
+application's threads with it.
 
 **Atchung is named once, and only as a fabric.** ~~No `sibarum.atchung.*` import appears anywhere in
 the four modules~~ — `Shell` now imports `Atchung`, creates one in its constructor and hands it out as
@@ -418,18 +441,25 @@ semantic — because it is exactly what a second window is barred from joining. 
 naming its topics per instance rather than per class, which is a real change in `vexelray-gui` and not
 a line in this repo.
 
-**The second is not, and one thing about it is worth knowing before it is.** `Gui`'s worker pool is a
-field initializer, so a `Gui` builds a `newCachedThreadPool` whatever it is handed, and `Gui.work()`
-submits to that pool rather than to the executor. Passing a handler executor therefore redirects
-handlers and does not remove the per-`Gui` pool — so *one bus is not one thread*, and making it one is
-an upstream change rather than another argument at this call site.
+**The second is now taken too, and what it cost is worth recording.** `Gui`'s worker pool was a field
+initializer, so a `Gui` built a `newCachedThreadPool` whatever it was handed and `Gui.async` submitted to
+*that* pool rather than to the executor. Passing a handler executor therefore redirected handlers and did
+not remove the per-`Gui` pool — so *one bus was not one thread*, and this was correctly filed as an
+upstream change rather than another argument at this call site.
 
-So the distance between this section and the model above is not missing substrate. `Pump`, `State`,
-`Fold`, `Backpressure`, `Rate` and `KronBridge` are all built and none of them is reached from here.
-What is missing is the second of the two arguments that would let the container place a component
-anywhere — it owns **the bus a component publishes on**, and not yet **the thread its handlers run
-on**. That is where the model starts, and it is why the entry in `docs/TODO.md` says the missing half
-is entirely on this side.
+It was one change upstream and it closed three things at once. `Gui` now takes both lanes, `null` means
+*build that one and close it*, and `close()` shuts down only what that `Gui` built. The lanes are named
+apart, because "worker thread" meant both of them; and the offload default is bounded, because the
+unbounded one answered a wedged filesystem mount by spawning a thread per blocked call. Two of those
+three were filed here as `upstream` rules that this repo could not fix, and they turned out to be one
+problem rather than two.
+
+So the distance between this section and the model above is no longer the substrate *or* the seam.
+`Pump`, `State`, `Fold`, `Backpressure`, `Rate` and `KronBridge` were all built and none of them was
+reached from here; `Shell.place` reaches the first four now. The container owns **the bus a component
+publishes on** and **the threads it runs on**, which is where the model starts. What remains is the
+colour rule — which is the processor's, and is the one thing on this list that a runtime object cannot
+be made to hold.
 
 ### The first component, written by hand
 
