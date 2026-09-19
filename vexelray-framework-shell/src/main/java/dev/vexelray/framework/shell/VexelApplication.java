@@ -306,6 +306,10 @@ public final class VexelApplication {
 
         // ---- RUN ----------------------------------------------------------------------------------------
         shell.phase(Phase.RUN);
+        // Before the seal, because the seal is what freezes the walk this measures. Always on: the failure it
+        // names does not throw and writes nothing to a log -- the window simply stops, which reads as "the
+        // application is slow" and sends nobody to the right file. See Stalls for what it deliberately is not.
+        shell.hooks().onOverrun(Stalls.thresholdNanos(), Stalls::stalled);
         shell.hooks().seal();
         shell.pacing().seal();
         // Every component's thread starts here and not in its constructor: a mailbox must not pump before its

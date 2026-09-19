@@ -40,6 +40,13 @@ public final class FrameHooks {
     private FrameStage[] stages = new FrameStage[0];
     private boolean sealed;
 
+    /** One entry per run of consecutive hooks sharing a stage: which stage, and where the run ends. */
+    private FrameStage[] runStage = new FrameStage[0];
+    private int[] runEnd = new int[0];
+
+    private long overrunNanos;
+    private StageOverrun overrun;
+
     private record Entry(FrameStage stage, Runnable hook) {
     }
 
@@ -76,8 +83,69 @@ public final class FrameHooks {
             stages[i] = pending.get(i).stage();
         }
         pending.clear();
+        sealStageRuns();
         sealed = true;
         return this;
+    }
+
+    /**
+     * Precompute where each stage's run of hooks begins and ends, so {@link #run()} can time a stage without
+     * asking which stage it is in per hook.
+     *
+     * <p>This is the same trade the sort above makes and for the same reason: the stage structure is known at
+     * startup and spent there, so the walk stays a counted loop over an array with nothing to decide. Timing
+     * per stage without this would put a comparison on every element, which is the one thing that file's
+     * shape exists to avoid.
+     */
+    private void sealStageRuns() {
+        int runs = 0;
+        for (int i = 0; i < stages.length; i++) {
+            if (i == 0 || stages[i] != stages[i - 1]) {
+                runs++;
+            }
+        }
+        runStage = new FrameStage[runs];
+        runEnd = new int[runs];
+        int r = -1;
+        for (int i = 0; i < stages.length; i++) {
+            if (i == 0 || stages[i] != stages[i - 1]) {
+                r++;
+                runStage[r] = stages[i];
+            }
+            runEnd[r] = i + 1;
+        }
+    }
+
+    /**
+     * Be told when one stage held the main thread for longer than {@code thresholdNanos}.
+     *
+     * <p><b>Measured here, reported elsewhere</b>, and the split is a layering rule rather than a preference:
+     * this module is JDK-only, so it has no channel to warn on and no opinion about what a warning should say.
+     * It knows the one thing nobody else can see — which stage the time went into — and hands that to whoever
+     * does. {@code VexelApplication} connects it to the stack's diagnostics channel.
+     *
+     * <p>The listener runs <b>on the main thread, inside the frame that overran</b>. It is called only on a
+     * breach, so it may allocate and format; a frame that has already lost a third of a second is not one to
+     * be careful about a string in. It must not block, for the obvious reason.
+     *
+     * <p>{@code thresholdNanos} of zero or less turns the measurement off entirely.
+     */
+    public FrameHooks onOverrun(long thresholdNanos, StageOverrun listener) {
+        this.overrunNanos = listener == null ? 0L : thresholdNanos;
+        this.overrun = listener;
+        return this;
+    }
+
+    /**
+     * Told that {@code stage} took {@code nanos} — longer than anyone watching a window would forgive.
+     *
+     * <p>Primitive {@code long} rather than a {@code Duration} or a boxed type, because this is declared in the
+     * one file that runs inside the frame budget and a functional interface that boxes would put an allocation
+     * on the breach path of every stall.
+     */
+    @FunctionalInterface
+    public interface StageOverrun {
+        void overran(FrameStage stage, long nanos);
     }
 
     /**
@@ -92,8 +160,31 @@ public final class FrameHooks {
      */
     public void run() {
         Runnable[] local = hooks;
-        for (int i = 0; i < local.length; i++) {
-            local[i].run();
+        long threshold = overrunNanos;
+        if (threshold <= 0) {
+            for (int i = 0; i < local.length; i++) {
+                local[i].run();
+            }
+            return;
+        }
+        // One clock read per stage boundary rather than per hook, which is what sealStageRuns bought. Four
+        // stages is eight nanoTime calls a frame, on the order of 200ns against a 16ms budget -- and the
+        // reason it is worth paying always rather than behind a flag is that the failure it catches is
+        // invisible by construction. A blocking call on this thread does not throw and does not log; the
+        // window simply stops, which reads as "the application is slow" and sends nobody to the right file.
+        // A diagnostic a consumer has to switch on is one the consumer who needed it never saw.
+        int from = 0;
+        for (int r = 0; r < runEnd.length; r++) {
+            long started = System.nanoTime();
+            int end = runEnd[r];
+            for (int i = from; i < end; i++) {
+                local[i].run();
+            }
+            long took = System.nanoTime() - started;
+            if (took > threshold) {
+                overrun.overran(runStage[r], took);
+            }
+            from = end;
         }
     }
 

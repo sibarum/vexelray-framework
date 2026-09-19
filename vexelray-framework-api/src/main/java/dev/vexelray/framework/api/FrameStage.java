@@ -62,14 +62,15 @@ public enum FrameStage {
      * every device event flows through tactroller, and a second input path is a bug in this stack even when it
      * works ({@code vexelray-gui/CLAUDE.md}).
      */
-    INPUT,
+    INPUT("a hook in INPUT is pumping input, so the backend itself is blocking"),
 
     /**
      * The frame clock: timelines advance, animations post their values. After {@link #INPUT} so that a value
      * an animation computes from this frame's input is on the bus before reconciliation, and before
      * {@link #APP} so application work sees the time it is running at rather than the previous frame's.
      */
-    CLOCK,
+    CLOCK("the timeline ticks in CLOCK on one thread, so a cue or effect is doing work there that"
+            + " belongs off the baton"),
 
     /**
      * <b>The main thread draining what a worker left for it</b> — the one stage an application should be
@@ -97,7 +98,8 @@ public enum FrameStage {
      * that bus would be a second drain point landing at a different moment than the tree edits it has to agree
      * with. What gets drained here is the application's queues, and only the application knows what they are.
      */
-    APP,
+    APP("APP is for draining a queue a worker filled, and the wrong place for the work the worker was"
+            + " doing"),
 
     /**
      * Deferred bookkeeping that must not hold up the frame it belongs to: debounced window placement, settings
@@ -107,5 +109,28 @@ public enum FrameStage {
      * putting them after the application's work means a frame that overruns overruns here, where nothing the
      * eye is waiting for is queued behind them.
      */
-    SETTLE
+    SETTLE("SETTLE is deferred bookkeeping, so something registered there is doing real work");
+
+    private final String whenSlow;
+
+    FrameStage(String whenSlow) {
+        this.whenSlow = whenSlow;
+    }
+
+    /**
+     * Where to look when this stage has held the main thread long enough for the window to stop.
+     *
+     * <p>On the stage rather than in whatever prints it, because it is the stage's own knowledge — the same
+     * rule that keeps this repo free of switches over closed types. Each of these is the short form of the
+     * paragraph above it, written for the moment somebody is reading a warning instead of reading this file.
+     * A reader told that {@code CLOCK} overran, and reminded that the timeline is single-threaded by
+     * construction, has somewhere to go; one told that "a frame took 300ms" does not.
+     *
+     * <p>The framework has no way to name the hook that did it — a hook is a {@code Runnable}, and the lambda
+     * implementing one carries no name worth printing — so the stage is the whole of the address, which is
+     * why it has to be a good one.
+     */
+    public String whenSlow() {
+        return whenSlow;
+    }
 }
