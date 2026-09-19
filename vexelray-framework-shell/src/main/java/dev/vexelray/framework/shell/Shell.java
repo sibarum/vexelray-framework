@@ -163,11 +163,11 @@ public final class Shell {
      * {@link Phase#MODEL} — what the application knows, before there is anything to draw it with — is the case
      * this is most obviously for, and it exists two phases before there is a {@code Gui}.
      *
-     * <p><b>The wake comes with it.</b> Every placement is registered as a {@code WakeSource} when it starts,
-     * so a component that publishes a result wakes the loop by calling {@link Placement#published()} rather
-     * than by an application remembering a line per component. That line being forgotten is a window which is
-     * responsive except for the interactions that happened to arrive that way, and it is a bug this stack has
-     * already paid for twice.
+     * <p><b>The wake comes with it, and there is nothing to call.</b> Every placement is registered as a
+     * {@code WakeSource} when it starts, and wakes the loop itself after any drain that delivered something.
+     * A wake an application has to remember is a window which is responsive except for the interactions that
+     * happened to arrive that way — a bug this stack has already paid for twice, the second time through a
+     * method on this very seam that was there to be called and could therefore be missed.
      *
      * <p>Closed in reverse placement order at shutdown, drain then stop, before the lanes themselves go.
      *

@@ -36,21 +36,25 @@ import java.util.List;
  * half-built when its thread starts"</i> — which is a real ordering rule enforced by where one line happened to
  * sit in a constructor.
  *
- * <p><b>The wake is not optional and is not the application's to remember.</b> A component that finishes early
- * and publishes has produced work the loop cannot predict, which is {@code WakeSource}'s definition exactly;
- * omitting it gives a window that is responsive except for the interactions that happened to arrive that way.
- * So a placement <em>is</em> a {@code WakeSource}, registered by the framework when it is started, and the
- * component calls {@link #published()} when it has something for the loop to show. The designer met this
- * obligation by accident — announcing a phase wrote to a node, and a node mutation wakes the loop — which is a
- * real wake hanging on an unrelated line of reporting.
+ * <p><b>The wake is not optional, is not the application's to remember, and is not the application's to
+ * call.</b> A component that finishes work has produced something the loop could not predict, which is
+ * {@code WakeSource}'s definition exactly; omitting the wake gives a window that is responsive except for the
+ * interactions that happened to arrive that way. So a placement <em>is</em> a {@code WakeSource}, registered
+ * by the framework when it starts, and it wakes the loop itself after any drain that delivered something —
+ * hung on the one thing every path has in common, which is that a delivery ran. There is no call to forget.
  *
- * <p>Usage, which is the hand-written component with the thread taken out of it:
+ * <p>The two witnesses are why it is not merely documented. The designer's component met the obligation
+ * <em>by accident</em>, because announcing a phase wrote to a node and a node mutation wakes the loop — a
+ * real wake hanging on an unrelated line of reporting. And this class's first version replaced that with a
+ * {@code published()} the component had to call, which is the same bug one step further along: still
+ * omittable, still silent, still producing exactly the symptom it existed to prevent.
+ *
+ * <p>Usage, which is the hand-written component with the thread taken out of it — and there is no second
+ * line:
  *
  * {@snippet :
- * Placement compose = shell.place("compose")
+ * shell.place("compose")
  *         .subscribe(EDITS, this::composeNow, 1, Backpressure.COALESCE_LATEST);
- * // ... and when a compose lands:
- * compose.published();
  * }
  */
 public final class Placement implements WakeSource, AutoCloseable {
@@ -155,17 +159,6 @@ public final class Placement implements WakeSource, AutoCloseable {
     }
 
     /**
-     * Tell the loop that work it could not predict has arrived — call it after publishing a result.
-     *
-     * <p>Cheap and safe from this component's thread, which is the only thread that should be calling it: the
-     * runnable behind it is the loop's own wake, whose contract is that it is <i>"safe to call from any
-     * thread — that is its purpose"</i>.
-     */
-    public void published() {
-        wake.run();
-    }
-
-    /**
      * {@code WakeSource}: the framework connects this to the loop when the component starts.
      *
      * <p>Not called by an application. A placement is registered as a wake source by whoever started it, which
@@ -206,7 +199,23 @@ public final class Placement implements WakeSource, AutoCloseable {
     private void pumpUntilStopped() {
         while (running) {
             try {
-                pump.drain(PARK_NANOS);
+                // The wake hangs on the one thing every path has in common: a delivery ran. Whatever the
+                // component did with it -- published a result, mutated a node, filled a queue the frame
+                // drains -- it has produced work the loop could not predict, and that is WakeSource's
+                // definition. Waking here covers all of them, including the ones an application has not
+                // written yet, and costs one frame per delivery that turned out to change nothing.
+                //
+                // This is Gui's own answer to the same question, one level down: it wraps every input
+                // handler with a wake in a finally, for the reason written on that constructor -- a handler's
+                // effect is very often neither a mutation nor a clock operation, and to a loop that parks it
+                // does not exist. A component is the same shape.
+                //
+                // It replaces a published() call the component had to remember. That was the gotcha this
+                // seam shipped with: forgetting it gave the exact symptom it existed to prevent, a window
+                // responsive except for the interactions that happened to arrive that way.
+                if (pump.drain(PARK_NANOS) > 0) {
+                    wake.run();
+                }
             } catch (RuntimeException e) {
                 // A subscriber threw. The component is the unit of failure, so this thread keeps its mailbox
                 // draining rather than dying silently and leaving publishers to fill a queue nobody reads --

@@ -184,13 +184,25 @@ effects. *(read)*
 worker filled, and the wrong place for the work the worker was doing"* — whatever runs there is inside
 the frame budget, on the main thread, every frame the loop wakes for. *(read)*
 
-**T5.3 — Every mailbox owes a `WakeSource`.** A component that finishes early and publishes has produced
-work the loop cannot predict, which is `WakeSource`'s definition. The symptom of omitting one is the one
-the GUI already paid for: a window that is responsive except for the interactions that happened to arrive
-that way. It is no longer owed and remembered — a `Placement` **is** a `WakeSource`, and the container
-connects it when it starts the component, so a component publishes through `published()` and the wake
-cannot be the line somebody forgot. *(held, by `PlacementTest.aPlacementIsTheWakeSourceItOwes`; the
-processor will emit the call site, which is a smaller job now that it cannot emit the registration wrong)*
+**T5.3 — Every mailbox owes a `WakeSource`, and nothing has to pay it.** A component that finishes work has
+produced something the loop cannot predict, which is `WakeSource`'s definition. The symptom of omitting the
+wake is the one the GUI already paid for: a window that is responsive except for the interactions that
+happened to arrive that way. A `Placement` **is** a `WakeSource`, the container connects it when it starts
+the component, and it wakes the loop itself after any drain that delivered something — hung on the one
+thing every path has in common, which is that a delivery ran. **There is no call to make and therefore none
+to forget**, and the processor has nothing to emit for this at all. *(held, by
+`PlacementTest.aDeliveryWakesTheLoopWithoutTheComponentAskingItTo`, with
+`anIdleComponentDoesNotWakeTheLoop` holding the other side — a park expiring is not work, and a component
+that woke on one would turn a render-on-demand loop back into a polling one while looking like a fix)*
+
+> **This rule was held twice, and the first time was not good enough.** The first version gave the
+> component a `published()` to call after publishing a result. That is a real improvement on the designer's
+> hand-written original — which met the obligation *by accident*, because announcing a phase wrote to a node
+> and a node mutation wakes the loop — and it is still the same bug one step along: omittable, silent, and
+> producing exactly the symptom the rule exists to prevent. **A rule enforced by an API you must remember to
+> call is not enforced.** Worth keeping here as the shape of the mistake, because it is the one this
+> document is most likely to make again: `held` is a claim about whether something *can* go wrong, not about
+> whether the framework has written down that it shouldn't.
 
 **T5.4 — One drain period of latency is the price of the ordering guarantee, and it is not a defect.**
 *"It is the same price every retained-mode GUI pays."* Named here so it is not re-litigated later as a

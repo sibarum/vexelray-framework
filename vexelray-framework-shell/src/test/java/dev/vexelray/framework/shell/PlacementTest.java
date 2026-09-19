@@ -142,24 +142,53 @@ final class PlacementTest {
     }
 
     @Test
-    void aPlacementIsTheWakeSourceItOwes() throws Exception {
+    void aDeliveryWakesTheLoopWithoutTheComponentAskingItTo() throws Exception {
         Shell shell = shell();
         try {
-            Placement component = shell.place("publisher");
             AtomicInteger wakes = new AtomicInteger();
-
-            // Before anything connects one, published() is a no-op rather than a null — a headless tree run
-            // has no loop to nudge, and a component should not have to know which kind of run it is in.
-            component.published();
-
+            CountDownLatch delivered = new CountDownLatch(1);
+            // A subscriber that does nothing at all: it publishes nothing, mutates nothing and calls nothing.
+            // If a wake still arrives, the wake is not the component's to remember — which is the claim.
+            Placement component = shell.place("publisher")
+                    .subscribe(WORK, msg -> delivered.countDown(), 8, Backpressure.BLOCK);
             component.onWake(wakes::incrementAndGet);
-            component.published();
-            component.published();
-            assertEquals(2, wakes.get(), "a component's publish did not reach the wake it was given");
+            component.start();
+
+            shell.bus().publish(WORK, "a result");
+            assertTrue(delivered.await(5, TimeUnit.SECONDS), "the component never drained");
+
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (wakes.get() == 0 && System.nanoTime() < until) {
+                Thread.sleep(5);
+            }
+            assertTrue(wakes.get() > 0,
+                    "a delivery ran and the loop was never woken, which is the silent half-responsive window "
+                            + "this seam exists to make impossible");
 
             // The shape is WakeSource's, and that is the point rather than a coincidence: it is the seam the
             // loop already takes, so the framework registers a placement without a second mechanism.
             assertTrue(component instanceof dev.vexelray.framework.core.WakeSource);
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
+    @Test
+    void anIdleComponentDoesNotWakeTheLoop() throws Exception {
+        Shell shell = shell();
+        try {
+            AtomicInteger wakes = new AtomicInteger();
+            Placement component = shell.place("idle")
+                    .subscribe(WORK, msg -> { }, 8, Backpressure.BLOCK);
+            component.onWake(wakes::incrementAndGet);
+            component.start();
+
+            // The park expiring is not work. A component that woke the loop every time its drain timed out
+            // would be a frame every half second forever, which is the render-on-demand loop turned back into
+            // a polling one -- and it would look like a fix rather than a regression, because everything
+            // would still be responsive.
+            Thread.sleep(250);
+            assertEquals(0, wakes.get(), "an idle component woke the loop with nothing to show for it");
         } finally {
             shell.disposer().close();
         }
