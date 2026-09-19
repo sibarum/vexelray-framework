@@ -62,10 +62,10 @@ choosing loss is §4.2's decision, taken per channel by whoever knows what the c
 default a pool takes on their behalf. *(held, by `LanesTest.theOffloadLaneIsBoundedInThreadsRatherThanGrowing`)*
 
 **The handler lane is deliberately not bounded yet**, and that is a gap with a reason rather than an
-oversight. While blocking work still runs on handlers — `text-editor-vexel-demo` reads and writes files
-straight from one — bounding that lane stops click dispatch dead rather than revealing the defect. The
-bound arrives after the blocking handlers move to §1.5's lane, and it is the one rule here whose
-enforcement is waiting on an application rather than on this framework.
+oversight. Bounding it is safe only once nothing blocking runs on it, and the census that would settle
+that has not been taken — the one application checked, `text-editor-vexel-demo`, turned out to be doing
+its file I/O on the *main* thread rather than on a handler, which is a different defect and is now fixed.
+So the bound waits on knowing, not on a known blocker. *(open — and the thing it wants is a census)*
 
 ## 2. Colour
 

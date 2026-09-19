@@ -127,8 +127,8 @@ cannot be fixed from here at all.
       **What is actually left**, and it is the part a runtime object cannot hold: the colour rule (§2, five
       rules), the message-graph checks (§4.1, §4.3–§4.5), and supervision (§6.5, §6.3) — *nothing
       notices that a component has stopped draining, or names it*, which wants `Overrun` surfaced per
-      grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on
-      the blocking handlers in `text-editor-vexel-demo` moving to the offload lane.
+      grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on a
+      census of what still blocks on a handler rather than on any one known blocker.
 
 - [ ] **Nothing in the model covers work that outlasts a frame, and the stack already named the
       answer.** `kronometer/docs/architecture.md` §10 specifies it: *"`offload(work)` remains available
@@ -157,16 +157,23 @@ cannot be fixed from here at all.
       restore, a file to open, a preview to render."* What an offload thread must never do is touch the
       tree or the timeline in place.
 
-      **It exists today, and it is unbounded.** `Gui` builds a `newCachedThreadPool`, handlers run on it,
-      and `Gui.async` is the escape hatch — `text-editor-vexel-demo`'s `Highlighter` and `SymbolLinks`
-      use it, while `FileActions` calls `Files.write` and a blocking `FileDialog.save` inline on a handler
-      thread and `TextFile` calls `Files.readAllBytes` there. So a slow filesystem call and click dispatch
-      share one unbounded lane, and a wedged network mount answers backpressure by spawning threads —
-      the one answer the rest of the model refuses.
+      **The lane now exists.** `Lanes.offload()` is bounded, platform, and separate from the handler lane;
+      `Gui.offload()` is the same lane reached from a widget. Two lanes rather than one, mirroring the split
+      Kronometer already makes between the precompute pool and `offload`.
 
-      **Blocked on the same upstream change, and rides with it**: until `Gui`'s pool stops being a field
-      initializer the container cannot own this lane either. Two lanes rather than one when it lands,
-      mirroring the split Kronometer already makes between the precompute pool and `offload`.
+      **What this entry got wrong is worth keeping.** It said `FileActions` called `Files.write` and a
+      blocking `FileDialog.save` *"inline on a handler thread"*, sharing an unbounded lane with click
+      dispatch. It did not: every command there goes through `GuiApp.post`, so the I/O was on the **GUI
+      thread** — which is the right place for the dialog, whose contract requires it, and a worse place for
+      the blocking call than the handler lane would have been. A read from a mount that had gone away held
+      the frame loop rather than one document. Both are now on the offload lane and land back through
+      `app.post`; the dialogs stay where they were. **The lesson is about the inventory, not the editor:** a
+      claim about which thread something runs on was written once, was true once, and was not re-checked
+      when `app.post` moved it.
+
+      **Still to do**: `kronometer`'s own `offload` remains specified and unbuilt, and the framework does not
+      yet route completions into the timeline — the second door (a `Topic` folded into a `Cell` by
+      `KronBridge`) is unused, and everything that lands today takes the first one.
 
 - [ ] **Fully-qualified names inline where every other file imports.** `Shell.onClose` takes a
       `java.util.function.Consumer<CloseRequest>`, and `Pacing` and `FrameHooks` write

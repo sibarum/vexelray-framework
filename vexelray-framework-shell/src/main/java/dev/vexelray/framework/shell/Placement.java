@@ -74,7 +74,20 @@ public final class Placement implements WakeSource, AutoCloseable {
     private volatile boolean stopped;
     private Thread thread;
 
-    Placement(String name, Atchung bus, Lanes lanes) {
+    /**
+     * A placement outside a container — one component, a bus and somewhere to get a thread.
+     *
+     * <p>For a test that wants to exercise a component rather than an application, and it is public for the
+     * same reason {@code -core} is JDK-only: a seam that could only be reached through {@code VexelApplication}
+     * would make every component test an application test, which is the cost this framework charges elsewhere
+     * precisely so it does not have to be paid here. The designer's compose component is tested this way, with
+     * a real bus, a real thread and no window.
+     *
+     * <p>An application does not call this. {@link Shell#place} is the same object with the container keeping
+     * the ordering rules that make it correct — registered for shutdown, started when every publisher exists,
+     * and connected to the loop's wake.
+     */
+    public Placement(String name, Atchung bus, Lanes lanes) {
         this.name = name;
         this.lanes = lanes;
         this.pump = bus.pump();
@@ -126,6 +139,22 @@ public final class Placement implements WakeSource, AutoCloseable {
     }
 
     /**
+     * Whether something is already queued for this component — in a word, <em>have I been superseded?</em>
+     *
+     * <p>For the case coalescing alone cannot answer. A {@code COALESCE_LATEST} mailbox drops the message
+     * that was waiting, but it cannot cancel work already started: an expensive job that began before a newer
+     * request arrived will finish, and the useful move is then not to <em>apply</em> it. Asking this before
+     * publishing makes <i>superseded</i> a third outcome beside done and refused, and it is the difference
+     * between a stale picture flashing on screen and one that never appears.
+     *
+     * <p>Only meaningful on the component's own thread, and only between a delivery and its result. Anywhere
+     * else it is a race dressed up as a question.
+     */
+    public boolean superseded() {
+        return pump.hasPending();
+    }
+
+    /**
      * Tell the loop that work it could not predict has arrived — call it after publishing a result.
      *
      * <p>Cheap and safe from this component's thread, which is the only thread that should be calling it: the
@@ -148,17 +177,24 @@ public final class Placement implements WakeSource, AutoCloseable {
     }
 
     /**
-     * Start the thread. Called by the framework once every component has been constructed and every publisher
-     * exists — see the class note on why that is not the constructor.
+     * Start the thread, once every publisher this component might hear from exists.
+     *
+     * <p><b>An application does not call this.</b> For a placement from {@link Shell#place}, the container
+     * calls it — after the wiring's {@code ATTACH} has returned, for every component together — and calling it
+     * from a wiring would start a mailbox pumping before the wiring has finished making the things that
+     * publish to it. It is public for a component constructed standalone, which has no container to do it.
+     *
+     * <p>Idempotent, and returns {@code this} so a standalone component reads as one expression.
      */
-    void start() {
+    public Placement start() {
         if (running) {
-            return;
+            return this;
         }
         running = true;
         // A platform thread, from the application's lanes rather than minted here, so that what a component
         // runs on is one decision for the whole application rather than one per component that wanted a thread.
         thread = lanes.thread(name, this::pumpUntilStopped);
+        return this;
     }
 
     /**
@@ -197,6 +233,13 @@ public final class Placement implements WakeSource, AutoCloseable {
      * <p>Bounded at {@link #JOIN_MILLIS}. A component that will not return has to be left behind, because a
      * process that refuses to quit is worse than one that quits having abandoned a message — the same trade the
      * framework's fault policy makes, for the same reason.
+     *
+     * <p><b>Idempotent, and that is what makes it callable early.</b> The container closes every placement at
+     * shutdown, in reverse placement order — but a component holding a resource its own thread touches has to
+     * stop <em>before</em> that resource goes, and only the component knows which resource that is. So it
+     * closes its own placement first and the container's later close is a no-op. The designer's viewport is
+     * the case: a compose landing after its pipeline is gone raises dirty flags for a frame that is never
+     * coming.
      */
     @Override
     public void close() {
