@@ -365,7 +365,7 @@
   <header class="masthead">
     <div class="mark">
       <h1>Vexel<span class="ray">Ray</span> Framework</h1>
-      <span class="kicker">Readiness&nbsp;·&nbsp;14 Sep 2026</span>
+      <span class="kicker">Readiness&nbsp;·&nbsp;21 Sep 2026</span>
     </div>
 
     <p class="thesis">
@@ -376,12 +376,12 @@
     </p>
 
     <div class="facts">
-      <span class="fact pass"><b>86</b> tests green</span>
-      <span class="fact">core <b>37</b> · shell <b>47</b> · automation <b>2</b></span>
+      <span class="fact pass"><b>120</b> tests green</span>
+      <span class="fact">core <b>47</b> · shell <b>71</b> · automation <b>2</b></span>
       <span class="fact"><b>4</b> modules built · <b>2</b> planned</span>
       <span class="fact"><b>3</b> applications ported</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
-      <span class="fact">read @ <b>8a9dc09</b></span>
+      <span class="fact">read @ <b>04c8c8c</b></span>
     </div>
   </header>
 
@@ -512,17 +512,20 @@
       <span class="eyebrow">Dimension 02 · Concurrency</span>
       <div class="dim-title">
         <h2>Multithreaded by default</h2>
-        <span class="verdict v-spec">Designed in full · zero code</span>
+        <span class="verdict v-part">The threads are the container's · the colour rule is not</span>
       </div>
       <p class="dim-read">
-        The detailed plan exists — <b>one component, one thread, one mailbox</b>, with the mapping
-        decided in the wiring and never at runtime. Two pieces are now real: the container owns the
-        application's bus, and <b>one component exists</b> — hand-written in the designer, where it
-        found a live defect. None of it is in the framework yet, deliberately. A grep of all four
-        modules' main sources still returns <b>zero</b> occurrences of <code>Thread</code>,
-        <code>Executor</code>, <code>java.util.concurrent</code>, <code>volatile</code>,
-        <code>synchronized</code> or <code>Atomic</code>. The entire thread-aware API surface is one
-        <code>Runnable</code>: <code>WakeSource.onWake</code>.
+        <b>This dimension has started.</b> The plan is unchanged — <b>one component, one thread, one
+        mailbox</b>, with the mapping decided in the wiring and never at runtime — but it is no longer
+        only a plan. <code>Lanes</code> in <code>-core</code> owns the application's handler, offload
+        and component threads; <code>Placement</code> in <code>-shell</code> owns a component's thread,
+        its mailboxes and the drain-then-stop around it; <code>Shell.place(name)</code> is how a wiring
+        reaches both. The grep this page prints as its own check used to return <b>zero</b> and now
+        returns <b>37 hits across five files</b> — which is the intended shape rather than a leak: 29
+        are <code>Lanes</code>, 5 are <code>Placement</code>, and the other three are a
+        <code>TimeUnit</code> import, one <code>volatile</code> flag and a sentence of Javadoc.
+        <b>Eight of threading.md's thirty-two rules are held rather than five</b>, and none of the
+        promotions needed the processor — they needed something to <i>be</i> the rule.
       </p>
     </div>
 
@@ -557,15 +560,25 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
-      <div class="row s0">
-        <span class="what">…and the thread its handlers run on <span>— every <code>Gui</code> still makes a pool</span></span>
-        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Absent</span>
+      <div class="row s3">
+        <span class="what">…and the threads everything runs on <span>— <code>Lanes</code>: handler, offload, one per component</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
-      <div class="row s2">
-        <span class="what">One component: a thread, a mailbox, a wake <span>— hand-written, once</span></span>
-        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
-        <span class="stage">In the stack</span>
+      <div class="row s3">
+        <span class="what">Work that outlasts a frame <span>— <code>Lanes.offload()</code>, bounded in threads and never virtual</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s3">
+        <span class="what">One component: a thread, a mailbox, a wake <span>— <code>Shell.place(name)</code>, drain then stop on a timer</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s3">
+        <span class="what">A wake nobody has to remember <span>— a delivery wakes the loop; an expired park does not</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
       <div class="row s2">
         <span class="what">A mailbox the bus owns <span>— <code>Pump.drain(timeout)</code>, parked without holding a lock</span></span>
@@ -592,8 +605,13 @@
         <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Specified</span>
       </div>
+      <div class="row s3">
+        <span class="what">Somebody notices a blocked main thread <span>— <code>Stalls</code>, 250&nbsp;ms, always on</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
       <div class="row s0">
-        <span class="what">Supervision <span>— nothing notices that a component stopped draining, or names it</span></span>
+        <span class="what">Supervision <span>— nothing notices that a <i>component</i> stopped draining, or names it</span></span>
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
@@ -616,14 +634,19 @@
       <div class="col gap">
         <h3>Open before the processor</h3>
         <ul>
-          <li><b>One bus is not one thread.</b> The fabric is now the application's — the framework's
-            tree and the dialogs share it — but <code>Gui</code> builds a cached pool in a field
-            initializer and <code>async()</code> submits to <i>that</i>, so handing it an executor
-            redirects handlers and leaves the pool. Closing that is an upstream change.</li>
+          <li><b>The handler lane has no bound, and the blocker is a census rather than a fix.</b>
+            "One bus is not one thread" is closed — <code>Gui</code> takes both lanes now and closes
+            only the ones it built itself, which turned two <code>upstream</code> rules into one
+            change. What replaced it is smaller and less certain: the one application checked for
+            blocking handlers turned out to route everything through <code>GuiApp.post</code> instead,
+            so nobody yet knows what <i>does</i> block one. <code>-Dvexelray.stall.ms=16</code> is the
+            setting that answers it by running the applications rather than reading them.</li>
           <li>The dream case — <b>responsive through a component's infinite loop</b> — is now half
-            designed. Coalescing keeps a wedged component's publishers running and the loop alive;
-            what is missing is anything that <b>notices</b>, names the component, and decides what the
-            rest of the application does about it.</li>
+            designed and a quarter built. Coalescing keeps a wedged component's publishers running and
+            the loop alive, and <code>Stalls</code> now names a blocked <i>main thread</i>. What is
+            still missing is the component half: nothing notices that a placement stopped draining,
+            names it, or decides what the rest of the application does about it. It wants
+            <code>Overrun</code> surfaced per grouping before it is built on anything but a timeout.</li>
           <li>Three vocabulary mismatches are recorded for the processor's brief:
             <code>@Component</code> is a DI contract not an actor one, <code>@MainThread</code> is
             two-coloured, <code>FrameHooks</code> is the barrier's N=1 case.</li>
@@ -782,7 +805,8 @@
           <li><b>Nothing reflects.</b> Retention is <code>CLASS</code> deliberately; no
             <code>Class.forName</code> on the startup path.</li>
           <li><code>-api</code> and <code>-core</code> stay JDK-only, so <b>every decision the
-            container makes is testable with no GPU</b> — which is why 80 tests run anywhere.</li>
+            container makes is testable with no GPU</b> — which is why all 120 tests run anywhere, a
+            real <code>GuiApp</code> and a placed component among them.</li>
           <li>The spreadsheet half is demonstrated three times over: one window, three windows, and two
             windows on one device.</li>
         </ul>
@@ -797,7 +821,10 @@
             a CPU AST — and <b>nowhere in the framework</b>. <code>FrameStage.APP</code> is an empty
             slot, by design.</li>
           <li><code>-diagnostics</code> may be mostly free: <code>atchung-probe</code> already has
-            spans, counters and stall-hunting, and <code>Automation</code> already imports it.</li>
+            spans, counters and stall-hunting, and <code>Automation</code> already imports it. The
+            always-on half was taken without waiting for the module — <code>Stalls</code> reports a
+            stage that held the main thread past 250&nbsp;ms, which is deliberately the narrow
+            question <i>did somebody block this thread</i> rather than the profiler's.</li>
         </ul>
       </div>
     </div>
@@ -933,7 +960,7 @@
             <td class="repo">tactroller</td>
             <td class="note">Every device event on the desk</td>
             <td><span class="pill p-full">Absorbed</span></td>
-            <td class="note"><code>InputBackend</code> — a default, and a named report when a platform module is missing.</td>
+            <td class="note"><code>InputBackend</code> — a default, and a named report when a platform module is missing. <code>PointerLock</code> carries the GUI's lock intent onto the device.</td>
           </tr>
           <tr>
             <td class="repo">…-gui-automation</td>
@@ -962,8 +989,8 @@
           <tr>
             <td class="repo">atchung</td>
             <td class="note">The typed bus</td>
-            <td><span class="pill p-none">None</span></td>
-            <td class="note"><code>shell.gui().bus()</code> — which is <i>that window's</i> private bus, not the application's.</td>
+            <td><span class="pill p-part">Fabric and mailboxes</span></td>
+            <td class="note"><code>Shell.bus()</code> is the application's own, and <code>Shell.place()</code> puts a component on it with a <code>Pump</code> for an inbox. A second <code>Gui</code> still may not join it — see dimension 02.</td>
           </tr>
           <tr>
             <td class="repo">elektroq</td>
@@ -1027,29 +1054,34 @@
           </p>
         </div>
       </div>
-      <div class="step now">
+      <div class="step done">
         <span class="num">04</span>
         <div>
-          <h3>The component seam: the thread, not the mailbox</h3>
+          <h3>The component seam: the thread, not the mailbox <span class="landed">landed</span></h3>
           <p>
-            The mailbox question is answered — <code>Pump.drain(timeout)</code> and
-            <code>Pump.wake()</code> landed in atchung, so a component's inbox is an ordinary
-            subscription and the designer's hand-written one is deleted. What is still the
-            application's is the platform thread, its loop, and <i>drain then stop</i> around it.
-            <span class="why">A second witness first: one component tells you what a component needs,
-            two tell you which half of it was about this component.</span>
+            <code>Lanes</code> owns the application's threads and <code>Shell.place(name)</code> puts a
+            component on one with its mailboxes, its wake and its drain-then-stop; upstream,
+            <code>Gui</code> takes both lanes rather than minting a pool per tree. A component's
+            concurrency is now a property of what the wiring placed rather than of how many windows an
+            application happens to hold.
+            <span class="why">Eight of threading.md's rules moved to <i>held</i> and none of them
+            needed the processor — they needed something to <i>be</i> the rule.</span>
           </p>
         </div>
       </div>
-      <div class="step">
+      <div class="step now">
         <span class="num">05</span>
         <div>
           <h3>Write the processor</h3>
           <p>
             Reproduce the three hand-written wirings, then make <code>@MainThread</code> and the
-            component colouring real. Deliberately last, and correctly so.
-            <span class="why">It freezes what <code>@Component</code> means, which is why the
-            concurrency model had to be settled first.</span>
+            component colouring real. Deliberately last, and correctly so — and now the front of the
+            path, because placement is static, so the colour of a value <i>is</i> the thread it was
+            placed on and the check is decidable while compiling.
+            <span class="why"><b>Thirteen of the thirty-two threading rules say <code>processor</code></b>
+            — the single change that moves the most of that document out of the reader's memory. Two
+            open questions want answers first: incremental compilation, and window scope onto a
+            callback API.</span>
           </p>
         </div>
       </div>
@@ -1084,18 +1116,22 @@
   <section class="method">
     <h2>How to re-check this page</h2>
     <p>
-      Every grade above was read off the tree on 14 September 2026 at <code>8a9dc09</code>, not
-      inferred from the docs — except the bus row, which changed in the commit this page ships in. The two claims worth re-running are the test count and the concurrency
-      inventory — if the second one ever returns a hit, dimension 2 has started.
+      Every grade above was read off the tree on 21 September 2026 at <code>04c8c8c</code>, not
+      inferred from the docs. The hash is <b>when this page was read, not what it describes</b> — the
+      previous grading stood at <code>8a9dc09</code> and went eleven commits stale, which the first two
+      checks below caught by returning the opposite of what the page then claimed. Both have been
+      rewritten to assert the shape rather than the absence, because an absence stops being a useful
+      check the moment it ends.
     </p>
-    <pre><span class="c"># 86 green, no siblings needed for -api and -core</span>
+    <pre><span class="c"># 120 green, offline, no siblings installed</span>
 mvn -o test
 
-<span class="c"># dimension 2 is "absent" for exactly as long as this prints nothing</span>
+<span class="c"># 37 hits in five files: Lanes 29, Placement 5, and one each in</span>
+<span class="c"># Stalls, Shell and PointerLock. A sixth file is a new thread seam</span>
 grep -rn "Thread\|Executor\|java.util.concurrent\|volatile\|synchronized\|Atomic" \
      --include=*.java vexelray-framework-*/src/main | grep -v MainThread
 
-<span class="c"># five hits today: four tactroller, and the Atchung that Shell owns. A sixth name is a new seam</span>
+<span class="c"># 20 hits, two names: tactroller and atchung. A third name is a new dependency edge</span>
 grep -rn "import sibarum" --include=*.java vexelray-framework-*/src/main
 
 <span class="c"># dimension 5, against a real window: exit status is the verdict</span>
@@ -1103,7 +1139,7 @@ printf 'find Save\nclick save\nsettle\nshot after.png\n' | ottermate --script -<
   </section>
 
   <footer>
-    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 8a9dc09</span>
+    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 04c8c8c</span>
     <span>Graded by where the capability lives</span>
   </footer>
 
