@@ -47,6 +47,7 @@ public final class Shell {
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
     private final Atchung bus = Atchung.create();
+    private final PointerLock pointerLock = new PointerLock();
     private final Lanes lanes;
     /** Components placed but not yet started. See {@link #place} for why those are two different moments. */
     private final java.util.List<Placement> placements = new java.util.ArrayList<>();
@@ -178,6 +179,36 @@ public final class Shell {
         placements.add(placement);
         disposer.register(placement);
         return placement;
+    }
+
+    /**
+     * <b>The pointer lock</b> — what carries {@code gui.dragLocksPointer(node, true)} onto the device, so that
+     * a drag meaning a displacement keeps turning instead of stopping at the window edge.
+     *
+     * <p><b>There is nothing to switch on here, and that is the point.</b> A tree declares which of its nodes
+     * want the lock, in the place the node is built, through {@code Gui}'s own API — that declaration is
+     * upstream and this framework does not duplicate it. What was missing was anyone carrying it out: the
+     * dispatcher has been firing {@code Gui.onPointerLock} into an unset sink on every stack that has one, and
+     * {@code vexelray-designer}'s viewport has been asking for a held pointer since it was written and never
+     * getting it. The framework installs the sink for every window it opens, so a viewport works because it
+     * said what it was, not because its application remembered a line.
+     *
+     * <p>So this accessor is for the application that wants to <em>tune</em> the carrying-out — the capture
+     * mode, how far the pointer travels before the cursor is hidden, or refusing the lock outright:
+     *
+     * {@snippet :
+     * shell.pointerLock().mode(PointerLockMode.RECENTER);   // no raw-input plumbing on this platform
+     * }
+     *
+     * <p><b>Available in every phase</b>, like the bus and the lanes, and configurable in any of them before
+     * the window exists — it is built with the container and installed at {@link Phase#ATTACH}, so a wiring can
+     * settle it in {@code CONFIG} beside the appearance without a phase rule to remember. See
+     * {@link PointerLock} for the four visual discontinuities a naive carrying-out produces and what is done
+     * about each; the short version is that the cursor is not hidden until the pointer has actually moved, it
+     * is not warped, and it does not stay hidden across an alt-tab.
+     */
+    public PointerLock pointerLock() {
+        return pointerLock;
     }
 
     /** Register a per-frame hook. See {@code FrameStage} for why the position is a name and not a number. */

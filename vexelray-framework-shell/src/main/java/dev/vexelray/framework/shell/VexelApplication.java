@@ -250,8 +250,13 @@ public final class VexelApplication {
         // ---- ATTACH: everything that needed the handle. -------------------------------------------------
         shell.phase(Phase.ATTACH);
         input.attach(app.windowHandle());
-        input.bridge(gui);
-        app.input(InputBackend.perWindow());
+        // The bridge and the pointer lock together: the lock has to be reconciled ahead of each frame's
+        // snapshot, and one hook doing both in order is what keeps that from resting on registration order.
+        // Until this call existed, Gui.onPointerLock had no listener anywhere on the stack, so every
+        // dragLocksPointer declaration -- the designer's viewport among them -- was stated and never carried
+        // out. See PointerLock.
+        input.bridge(gui, shell.pointerLock());
+        app.input(InputBackend.perWindow(shell.pointerLock()));
         // Held rather than discarded once installed: a clipboard belongs to a Gui, so an application with more
         // than one window has to bind the rest itself. See Shell.clipboard.
         ClipboardBackend clipboard = disposer.register(ClipboardBackend.open());

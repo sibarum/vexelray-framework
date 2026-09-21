@@ -55,8 +55,9 @@ final class DroppedCapabilitiesTest {
     @Test
     void aWindowThatEndsUpWithNoInputSaysSoRatherThanReturningNoneQuietly() {
         // The arguments are never read on this path: the factory opens its backend first, and that is what
-        // fails, so nothing here reaches the window or its Gui. Passing null is the honest way to say that.
-        WindowInput windowInput = InputBackend.perWindow().attach(null, null);
+        // fails, so nothing here reaches the window, its Gui, or the pointer lock that would have been tuned
+        // from the first argument. Passing null three times is the honest way to say that.
+        WindowInput windowInput = InputBackend.perWindow(null).attach(null, null);
 
         assertSame(WindowInput.NONE, windowInput, "a window with no backend still has to be a window");
         assertEquals(1, Diagnostics.recorded().size(), "one report: " + Diagnostics.recorded());
@@ -65,9 +66,9 @@ final class DroppedCapabilitiesTest {
 
     @Test
     void aSecondWindowWithTheSameFaultDoesNotRepeatTheWarning() {
-        InputBackend.perWindow().attach(null, null);
-        InputBackend.perWindow().attach(null, null);
-        InputBackend.perWindow().attach(null, null);
+        InputBackend.perWindow(null).attach(null, null);
+        InputBackend.perWindow(null).attach(null, null);
+        InputBackend.perWindow(null).attach(null, null);
 
         // Warn-once is per call site and not per window, deliberately: this seam runs once per window an
         // application opens, and "a warning that repeats is a warning that gets filtered out". The cost is
@@ -79,7 +80,7 @@ final class DroppedCapabilitiesTest {
     @Test
     void twoDifferentDroppedCapabilitiesAreTwoReports() {
         InputBackend.open();
-        InputBackend.perWindow().attach(null, null);
+        InputBackend.perWindow(null).attach(null, null);
 
         // Distinct keys, so neither silences the other — which is the thing five hand-written printlns could
         // not have got wrong and one shared warn-once table could.

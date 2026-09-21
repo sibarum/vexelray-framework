@@ -42,6 +42,24 @@ cannot be fixed from here at all.
       `setApplicationIcon` to throw. Each would need a seam taking the backend rather than opening it,
       which is more API than the assertion is worth today — recorded so the gap is a decision.
 
+- [ ] **`PointerLock`'s state machine is asserted; the line that installs it is not.**
+      `PointerLockTest` drives the threshold, the focus rule, the modes and the teardown against
+      `PointerLock.Device`, which is the seam the previous entry turns down in general and which was
+      worth it here because the thing behind it is a state machine rather than a one-line report. What
+      is still taken on faith is `gui.onPointerLock(this::want)` — that the framework subscribes at
+      all. Asserting it needs the dispatcher to fire the sink, which needs a press hit-tested against a
+      laid-out tree, which is `vexelray-gui-harness` rather than a unit test. `WakeSeamsTest` already
+      runs a real `GuiApp`, so the pattern exists; the missing part is a node that declares
+      `dragLocksPointer` and a synthesised press over it.
+
+- [ ] **The designer's comment describes the mode the framework does not use** (fix belongs in
+      `vexelray-designer`). `Viewport.java` says *"turning is a displacement, so the pointer is held for
+      the gesture and warped back each frame"* — warping is `PointerLockMode.RECENTER`, and
+      `PointerLock` defaults to `RAW` precisely so that nothing warps and the cursor reappears where it
+      vanished. The line was written when nothing carried the intent out at all, so it described an
+      intention rather than an observation. Now that it does, the comment is the only place on the
+      stack that still says the cursor moves.
+
 ## Later
 
 - [ ] **An application that configures a non-default zoom range will disagree with the text editor's
@@ -221,3 +239,18 @@ Cannot be fixed from this repo.
       of its own (`vexelray-gui` §6.11): the harness made its first window on the calling thread and the
       rest on the loop thread, and a dialog is modal, which was enough to leave no thread able to tear them
       all down.
+
+- [ ] **The pointer lock is asked for on the press, not on a drag** (`vexelray-gui-core`).
+      `InputDispatcher` calls `requestPointerLock(dragLocks.contains(...))` inside its `ButtonPressed`
+      case, beside `fireDrag(START)` — so the intent arrives before the pointer has moved at all, and a
+      plain click on a viewport asks for the cursor to be hidden and then released a few frames later.
+      Carried out literally, that is a flicker on every click on the designer's canvas.
+
+      Worked around downstream rather than fixed: `PointerLock` holds the intent until the pointer has
+      travelled `DEFAULT_THRESHOLD_PX`, so a press that releases without moving never hides anything.
+      That is the right place for *a* threshold — travel is a fact about the device, which is the
+      framework's side of the seam — but it is not the right place for *this* one. The dispatcher
+      already owns a recogniser that draws exactly this distinction, in `DragGesture`'s own words:
+      *"distance decides whether it was a drag"*. A lock requested on the promoted drag rather than on
+      the press would need no threshold here at all, and would fix it for every consumer of
+      `vexelray-gui` rather than for applications that happen to run under this framework.
