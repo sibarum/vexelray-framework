@@ -110,6 +110,16 @@
                 <version>3.13.0</version>
                 <configuration>
                     <release>$${maven.compiler.release}</release>
+                    <!-- The framework's annotation processor: what its vocabulary calls a compile error is
+                         one. Named rather than found, because since JDK 23 javac runs no processor it merely
+                         finds on the class path. -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>dev.vexelray.framework</groupId>
+                            <artifactId>vexelray-framework-processor</artifactId>
+                            <version>$${vexelray-framework.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>

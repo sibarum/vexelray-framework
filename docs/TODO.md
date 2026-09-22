@@ -11,20 +11,6 @@ cannot be fixed from here at all.
 
 ## Next
 
-- [ ] **The acceptance loop, now that the builder is here.** The engine moved as it stood — nine classes,
-      the `vexel-desktop` template, and 46 tests that needed no edit beyond a package name and the
-      classpath root the bundled templates sit under. What is not built is the loop the move was for:
-      drive the API, `Scaffold.of` to a `Blueprint`, assert the tree in memory, write it, build it, and
-      drive the result under `--automation`. The first two steps are cheap and headless, because
-      `Scaffold.of` never touches a filesystem. **The last step is the one that cannot be dropped** —
-      without it the builder and the framework can agree with each other about being wrong, which is the
-      argument in
-      [architecture.md](architecture.md#the-witness-is-the-project-builder-not-an-application).
-
-      Building the generated tree needs the stack `mvn install`ed, so that half of the loop is not
-      headless and does not belong in `mvn test`. How it is triggered is undecided — a profile, a
-      separate module, or a script the release runs.
-
 - [ ] **`mainframe-template` still has its own copy of the engine** (fix belongs in `mainframe`). The
       move was a copy, deliberately: this repo went green before anything over there was touched. What
       is left is to delete the nine engine classes and `TemplateTest`/`VexelDesktopTest` from
@@ -51,10 +37,10 @@ cannot be fixed from here at all.
       holds every rule the vocabulary calls a compile error that a declaration can decide — T2.1–T2.3, T3.7,
       one provider per type per mode, and the shape of each annotation — and emits no source. What is left,
       in the order it wants doing:
-      - **The witness does not run it.** The `vexel-desktop` template uses no annotation and names no
-        processor, so the one project the framework is verified by has never been compiled through it.
-        Adding it to the generated `pom.xml`'s `annotationProcessorPaths` is one step; making the template
-        *use* the vocabulary is the start of generation, and is the acceptance test
+      - **The witness runs it and gives it nothing to read.** The generated `pom.xml` names the processor
+        on `annotationProcessorPaths` and `-Pacceptance` builds that project, so it loads in a real build and
+        does not misfire — but the `vexel-desktop` template uses no annotation. Making it *use* the
+        vocabulary is the start of generation, and is the acceptance test
         [architecture.md](architecture.md#what-it-does-for-the-processor) states.
       - **Generation**: `<App>Wiring` from `@VexelApp`, `@Component`, `@Provides`, `@Setting`,
         `@BeforeFrame` and `@OnMode`, replacing the template's hand-written one; and `Shell.place` becoming

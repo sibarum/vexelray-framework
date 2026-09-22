@@ -112,6 +112,19 @@ class VexelDesktopTest {
     }
 
     /**
+     * The processor is named on the compiler's processor path, and the builder checks it is installed. Both
+     * halves, because a path naming an artifact nobody installed is a build that fails on its first line.
+     */
+    @Test
+    void theProjectCompilesThroughTheFrameworksProcessor() {
+        String pom = blueprint(Map.of()).text("pom.xml");
+        assertTrue(pom.contains("<annotationProcessorPaths>"));
+        assertTrue(pom.contains("<artifactId>vexelray-framework-processor</artifactId>"));
+        assertTrue(template().needs().stream().anyMatch(n -> n.artifact().equals("vexelray-framework-processor")),
+                "the builder should check the processor is installed before writing anything");
+    }
+
+    /**
      * The one that would have caught the template's own first bug: an em dash in an
      * XML comment, which is two hyphens, which XML will not have.
      */

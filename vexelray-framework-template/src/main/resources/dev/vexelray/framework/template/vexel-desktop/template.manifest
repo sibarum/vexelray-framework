@@ -173,6 +173,7 @@ file src/test/java/${packagePath}/LookTest.java      from LookTest.java   when t
 
 needs dev.vexelray.framework:vexelray-framework-shell:${frameworkVersion}
 needs dev.vexelray.framework:vexelray-framework-automation:${frameworkVersion}
+needs dev.vexelray.framework:vexelray-framework-processor:${frameworkVersion}
 needs dev.vexelray.gui:vexelray-gui-widget:${guiVersion}
 needs dev.vexelray.gui:vexelray-gui-krono:${guiVersion}
 needs dev.vexelray.gui:vexelray-gui-automation:${guiVersion}

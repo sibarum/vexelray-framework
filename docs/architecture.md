@@ -1068,6 +1068,14 @@ The engine is already shaped for the first two. `Scaffold.of(Template, Answers, 
 so most of the loop is an ordinary headless test. `Blueprint.Writing` is transactional, `begin` / `write`
 / `undo`, for the part that has to land on disk.
 
+**Built, as `vexelray-framework-acceptance`, and only under `-Pacceptance`.** A profile rather than a
+script, because the build that is always run is `mvn clean install`, and one flag on it is the cheapest
+trigger there is; a module rather than a test in `-template`, because building the generated project needs
+every module installed first, and a reactor orders by dependency. It builds the project with the Maven
+running the reactor, against the same local repository, and drives it with the command the template tells
+its user to type — `mvn compile exec:exec` — so the loop runs what a person would run rather than a
+cleaner equivalent of it.
+
 **The last step is the one that is not optional, and the reason is circularity.** If the builder lives
 in this repo and this repo is verified by what the builder emits, then a mistake present in both the
 template and the framework is invisible: the tree compiles, the shapes agree, and what they agree on is

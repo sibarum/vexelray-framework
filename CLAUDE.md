@@ -69,3 +69,11 @@ The siblings, in dependency order, once `-shell` exists:
 ```bash
 cd ../supirvast && mvn install && cd ../vexelray && mvn install && cd ../tactroller && mvn install && cd ../vexelray-gui && mvn install
 ```
+
+The acceptance loop, with the siblings installed: generate a project from the builder, build it, and drive
+it through its automation socket. It opens a real window for a few seconds; the logs, the generated tree and
+a screenshot land in `vexelray-framework-acceptance/target/acceptance`.
+
+```bash
+mvn clean install -Pacceptance
+```

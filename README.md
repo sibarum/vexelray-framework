@@ -101,6 +101,7 @@ final class Editor {
 | `vexelray-framework-shell` | **built** — the absorbed edge, the threads, and the window chrome (71 tests) |
 | `vexelray-framework-automation` | **built** — the driving socket, in its own module (2 tests) |
 | `vexelray-framework-template` | **built** — the project builder, arrived from `mainframe-template` (46 tests) |
+| `vexelray-framework-acceptance` | **built**, under `-Pacceptance` only — generates a project, builds it, and drives it through the automation socket |
 | `vexelray-framework-processor` | **checks built** (31 tests) — every rule the vocabulary calls a compile error that a declaration can decide; next, generate the wiring the template writes by hand |
 
 Three applications ran on it, each with its wiring hand-written in its own repo, and each was chosen so

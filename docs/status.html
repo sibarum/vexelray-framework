@@ -1073,16 +1073,15 @@
           </p>
         </div>
       </div>
-      <div class="step now">
+      <div class="step done">
         <span class="num">05</span>
         <div>
-          <h3>Close the acceptance loop <span class="landed">builder moved</span></h3>
+          <h3>Close the acceptance loop <span class="landed">landed</span></h3>
           <p>
-            The engine arrived from <code>mainframe-template</code> as it stood — nine classes, the
-            <code>vexel-desktop</code> template, and 46 tests that needed nothing but a package name
-            and a new classpath root. What is left is the loop: drive the API,
-            <code>Scaffold.of</code> to a <code>Blueprint</code>, assert the tree in memory, write it,
-            build it, and drive the result under <code>--automation</code>.
+            <code>mvn clean install -Pacceptance</code> drives the builder API, asserts the
+            <code>Blueprint</code> in memory, writes it, builds it — its own tests and the framework's
+            processor included — and runs it with <code>mvn compile exec:exec</code> under automation:
+            count, count, reset by key, reset by button, and a screenshot of the window.
             <span class="why">The three ported applications were the witness and they are gone on
             purpose. A generated project has no conventions of its own to defend, and the automation
             step is what stops the builder and the framework agreeing with each other about being

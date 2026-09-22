@@ -48,6 +48,18 @@
         <module>vexelray-framework-processor</module>
     </modules>
 
+    <profiles>
+        <!-- The acceptance loop, opt-in: mvn clean install -Pacceptance. Generates a project, builds it and
+             drives it under automation, which needs the stack installed, a window and a GPU — so it is never
+             part of a plain build. Last in the reactor, so everything it builds against was installed first. -->
+        <profile>
+            <id>acceptance</id>
+            <modules>
+                <module>vexelray-framework-acceptance</module>
+            </modules>
+        </profile>
+    </profiles>
+
     <properties>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
