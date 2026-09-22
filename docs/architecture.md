@@ -907,6 +907,81 @@ depends on its listeners. The processor will infer that from constructor paramet
 without anybody thinking about it. A hand-written wiring has to think about it, and putting the seed
 one phase too early is a first frame that draws nothing with no error anywhere.
 
+## The witness is the project builder, not an application
+
+Three applications were ported onto this framework and all three are gone. That was the plan rather
+than an accident, and the reasoning decides how everything after it gets verified.
+
+They were built to find out what the framework needed, and they did — [what porting the text editor
+found](#what-porting-the-text-editor-found) and [what porting the designer
+found](#what-porting-the-designer-found) are that work, and the findings outlived the code. What they
+were not good at was *staying* ported. Each carried its own conventions, so every framework change was
+paid for three times in three idioms, each with problems that resisted being fixed one at a time, and
+repeated attempts to make them cohere made no progress. **A witness that has to be hand-maintained is a
+tax on every change to the thing it witnesses**, and the tax was being paid in the phase where the
+architecture is still moving.
+
+**A generated project is a better witness for the same reason it is a worse application.** It has no
+conventions of its own to defend, because it has no history — it is the framework's own statement of
+what an application looks like, re-emitted from one place. A change that breaks it breaks it at
+generation time rather than in somebody's checkout months later. And rebuilding a real application from
+it costs about a day, which is the whole trade: a day once, rather than a tax per change forever.
+
+### What moves, and what it already is
+
+The builder exists and is not a sketch. It is `mainframe-template`, and its `vexel-desktop` template is
+**already framework-shaped**: the tree it writes has a `VexelApplication` entry point and a `Wiring`
+with one method per phase, importing `dev.vexelray.framework.shell` and
+`dev.vexelray.framework.automation`. So this is a relocation rather than a port, and the note elsewhere
+that the scaffold is "still longhand" has stopped being true.
+
+The split it needs is already drawn. `dev.mainframe.template` — `Scaffold`, `Blueprint`, `Template`,
+`Manifest`, `Answers`, `Transform`, `Checks` — imports **nothing** from mainframe; it is pure JDK, which
+is the same constraint `-api` and `-core` carry and for the same reason: a thing that only computes a
+tree of bytes needs no terminal and no GPU to be tested. Only `dev.mainframe.template.shell`, five
+classes, binds to `Builtin`, `Args` and `Plan`. The engine comes here; the shell commands stay in
+mainframe as an adapter over it.
+
+A template is declared rather than coded — the manifest carries `slot` definitions with a kind, a
+preset, a match and a validation rule, then `fill` lines for what is worked out rather than asked, then
+the file list. That last part is not tidiness: a bundled template's files are classpath resources, and
+**a classpath directory cannot be enumerated in a native image**, so the manifest is the only record of
+what is in the folder. The same constraint that shapes everything else here.
+
+### The acceptance loop
+
+| Step | What it proves |
+| --- | --- |
+| Drive the builder API with a set of answers | the vocabulary a project is described in is reachable without a terminal |
+| `Scaffold.of` returns a `Blueprint` | the emitted tree can be asserted in memory, without touching a disk |
+| Write it and build it | it compiles against the framework as published, not as imagined |
+| Run it under `--automation` and drive it | it is an application, rather than a tree that happens to compile |
+
+The engine is already shaped for the first two. `Scaffold.of(Template, Answers, Catalogue)` returns a
+`Blueprint` — a list of path-and-bytes with `paths()` and `text(path)` — and never touches a filesystem,
+so most of the loop is an ordinary headless test. `Blueprint.Writing` is transactional, `begin` / `write`
+/ `undo`, for the part that has to land on disk.
+
+**The last step is the one that is not optional, and the reason is circularity.** If the builder lives
+in this repo and this repo is verified by what the builder emits, then a mistake present in both the
+template and the framework is invisible: the tree compiles, the shapes agree, and what they agree on is
+being wrong. Driving the generated application through the automation socket is what breaks the circle,
+because *did it run* is the one question neither side can answer by agreeing with itself. That is the
+argument `Driver` was built on, and it is why `-automation` is load-bearing to this plan rather than an
+extra.
+
+### What it does for the processor
+
+The generated project is the processor's fixture, and it solves the problem that the annotations are
+today declared in `-api` and applied by nothing. The scaffold already emits the *output* side — a hand
+`Wiring`, one method per phase — so the processor's acceptance test states itself: **generate a project,
+and the wiring the processor emits from its annotations is the wiring the template would have written by
+hand.** Two sides of one transformation, both owned here, neither of them somebody's application.
+
+It also keeps the fixture honest about conventions. A fixture hand-written to suit the processor will
+quietly be shaped by what the processor found easy; one that has to survive `mvn compile` and an
+automation script in a generated project will not.
+
 ## Modules
 
 ```
@@ -916,20 +991,25 @@ vexelray-framework                    parent (pom)
 ├─ vexelray-framework-shell      the absorbed edge: input, clipboard, memory, loop,
 │                                and the window chrome                              [built]
 ├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
-├─ vexelray-framework-processor  annotation processor -> generated wiring             [next]
+├─ vexelray-framework-template   the project builder, and the acceptance loop's input  [next]
+├─ vexelray-framework-processor  annotation processor -> generated wiring             [after]
 └─ vexelray-framework-diagnostics  the Actuator analogue: frame budget, bean graph   [planned]
 ```
 
-The processor is deliberately **last**. A code generator whose output has never been written by hand
-is a generator whose output nobody has checked the shape of — so three applications' wiring got
-written by hand first, against the real `-shell`, and the processor's job becomes "reproduce these
-files". `CalculatorWiring`, `TextEditorWiring` and `DesignerWiring` live in their own repos rather
-than in a `-demo` module here, and that is the right place for them: they are what an application
-author writes, so they should be read where an application author would look. Three is the number
-that matters — one window, three windows, and two windows on one device — because each found
-something the other two could not have. That also settles the incremental-compilation
-question with evidence rather than a guess, because the generated shape is known before the
-generator is designed around it.
+*The `-template` name is provisional. `-diagnostics` was already claimed upstream for a different
+concept, which is the reason to check a name before a module is written rather than after.*
+
+The processor is deliberately **last**, and the reason survived a change in what comes before it. A
+code generator whose output has never been written by hand is a generator whose output nobody has
+checked the shape of — so the output gets written by hand first, against the real `-shell`, and the
+processor's job becomes *reproduce these files*.
+
+What changed is whose hand. That role was held by three applications' wirings — `CalculatorWiring`,
+`TextEditorWiring` and `DesignerWiring`, one window, three windows, and two windows on one device —
+and [it is the project builder's now](#the-witness-is-the-project-builder-not-an-application). The
+applications were deleted on purpose, because a witness that must be hand-maintained taxes every
+change to the thing it witnesses, and the template's `vexel-desktop` tree is the same artefact without
+the tax: a `Wiring` per phase, written out longhand, regenerated rather than maintained.
 
 `-api` and `-core` are **JDK-only**, and not as an agnosticism goal — it is simply where the
 dependency edges fall. A phase enum and a topological sort do not need a Vulkan device. The payoff is
@@ -941,8 +1021,6 @@ drift out of agreement with a driver.
 - **Incremental compilation.** A processor that generates one wiring class from the whole annotated
   set is a whole-program view, which is the thing incremental javac is trying not to give it. Needs a
   deliberate answer before the processor is written, not after.
-- **Window scope onto a callback API.** `GuiApp.window(key, Supplier<WindowSpec>)` is
-  callback-shaped; mapping per-window components onto it needs care about what exists when.
 - **`@MainThread` on foreign types.** The check is only as good as the annotations, and the types
   that most need it live in other repos. `Provides`-level `@MainThread` covers this, but it has to
   actually be applied.

@@ -378,8 +378,8 @@
     <div class="facts">
       <span class="fact pass"><b>120</b> tests green</span>
       <span class="fact">core <b>47</b> · shell <b>71</b> · automation <b>2</b></span>
-      <span class="fact"><b>4</b> modules built · <b>2</b> planned</span>
-      <span class="fact"><b>3</b> applications ported</span>
+      <span class="fact"><b>4</b> modules built · <b>3</b> planned</span>
+      <span class="fact"><b>1</b> template, framework-shaped</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
       <span class="fact">read @ <b>04c8c8c</b></span>
     </div>
@@ -748,10 +748,10 @@
         <span class="verdict v-part">Container real · the three multipliers unbuilt</span>
       </div>
       <p class="dim-read">
-        The no-reflection thesis holds and three applications run on it. What is missing is precisely
-        what makes Boot <i>Boot</i>: the generator that turns vocabulary into enforcement, the starter
-        that makes one dependency enough, and the instrument that answers
-        <b>"why did we miss a frame"</b>.
+        The no-reflection thesis holds, and three applications ran on it before being deleted on
+        purpose — the witness is a generated project now. What is missing is precisely what makes Boot
+        <i>Boot</i>: the generator that turns vocabulary into enforcement, the starter that makes one
+        dependency enough, and the instrument that answers <b>"why did we miss a frame"</b>.
       </p>
     </div>
 
@@ -807,8 +807,9 @@
           <li><code>-api</code> and <code>-core</code> stay JDK-only, so <b>every decision the
             container makes is testable with no GPU</b> — which is why all 120 tests run anywhere, a
             real <code>GuiApp</code> and a placed component among them.</li>
-          <li>The spreadsheet half is demonstrated three times over: one window, three windows, and two
-            windows on one device.</li>
+          <li>The spreadsheet half was demonstrated three times over — one window, three windows, and
+            two windows on one device — and those three applications have since been deleted on
+            purpose. What they found is written up; keeping them ported was a tax on every change.</li>
         </ul>
       </div>
       <div class="col gap">
@@ -1072,21 +1073,38 @@
       <div class="step now">
         <span class="num">05</span>
         <div>
-          <h3>Write the processor</h3>
+          <h3>Move the project builder here, and close the acceptance loop</h3>
           <p>
-            Reproduce the three hand-written wirings, then make <code>@MainThread</code> and the
-            component colouring real. Deliberately last, and correctly so — and now the front of the
-            path, because placement is static, so the colour of a value <i>is</i> the thread it was
-            placed on and the check is decidable while compiling.
-            <span class="why"><b>Thirteen of the thirty-two threading rules say <code>processor</code></b>
-            — the single change that moves the most of that document out of the reader's memory. Two
-            open questions want answers first: incremental compilation, and window scope onto a
-            callback API.</span>
+            <code>mainframe-template</code>'s engine is pure JDK and its <code>vexel-desktop</code>
+            template already emits a <code>VexelApplication</code> and a <code>Wiring</code> per phase,
+            so this is a relocation. Then the loop: drive the API, <code>Scaffold.of</code> to a
+            <code>Blueprint</code>, assert the tree in memory, write it, build it, and drive the result
+            under <code>--automation</code>.
+            <span class="why">The three ported applications were the witness and they are gone on
+            purpose. A generated project has no conventions of its own to defend, and the automation
+            step is what stops the builder and the framework agreeing with each other about being
+            wrong.</span>
           </p>
         </div>
       </div>
       <div class="step">
         <span class="num">06</span>
+        <div>
+          <h3>Write the processor</h3>
+          <p>
+            The generated project is the fixture: the wiring the processor emits from annotations
+            should be the wiring the template writes by hand. Then make <code>@MainThread</code> and
+            the component colouring real.
+            <span class="why"><b>Thirteen of the thirty-two threading rules say <code>processor</code></b>
+            — the single change that moves the most of that document out of the reader's memory. Two
+            things first: an answer on incremental compilation, and placement moved onto the
+            declaration, because <code>shell.place("compose")</code> is a call in a method body and a
+            processor reads declarations.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">07</span>
         <div>
           <h3>Starters, a BOM, and the stack's reachability metadata</h3>
           <p>
@@ -1098,7 +1116,7 @@
         </div>
       </div>
       <div class="step">
-        <span class="num">07</span>
+        <span class="num">08</span>
         <div>
           <h3>Name and build the diagnostics module</h3>
           <p>

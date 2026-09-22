@@ -22,8 +22,9 @@ before this repo sees it.
 | **tactroller** | Input. **Every** device event flows through it; there is no side channel |
 | **atchung** | The typed bus. Also `elektroq` — **the house precedent for this repo's mechanism**: annotate a record, a processor emits code, native-image needs no `reflect-config.json` |
 | **kronometer** | Timing and animation, wrapped as `vexelray-gui-krono` |
-| **mainframe** | A terminal/shell, and `mainframe-template` — whose `vexel-desktop/files/App.java` is this framework's specification written out longhand. **Read it.** It is also a library that imports `WindowMemory` and `Settings`, so it is inside the absorption blast radius |
-| **calculator-vexel-demo**, **text-editor-vexel-demo**, **vexelray-designer** | The application edges this framework replaces, and the drift between them is the evidence. All three are now ported and each is a `Wiring` — so they are also the reference for what the processor must generate. `mainframe-template`'s scaffold is the fourth and is still longhand |
+| **mainframe** | A terminal/shell, and `mainframe-template` — **the project builder, which is moving into this repo and becoming the primary witness**. Its `vexel-desktop` template is already framework-shaped, and its engine (`Scaffold`, `Blueprint`, `Template`, `Manifest`) is pure JDK with no mainframe imports; only `…template.shell` binds to the shell. **Read the template's `files/App.java` and `files/Wiring.java`** — they are what a correct application looks like. mainframe is also a library importing `WindowMemory` and `Settings`, so it is inside the absorption blast radius |
+| **calculator-vexel-demo**, **text-editor-vexel-demo** | **Deliberately emptied — do not restore them.** They were built to find out what the framework needed, and what they found is written up in [architecture.md](docs/architecture.md)'s two *what porting … found* sections. Keeping them ported cost a tax on every framework change, in three separate house styles. A generated project is the witness now |
+| **vexelray-designer** | No longer tracked. Still on disk, still a `Wiring`, and useful to read — but it is not the reference for anything and nothing here should be shaped to keep it compiling |
 
 ## Where the design comes from
 

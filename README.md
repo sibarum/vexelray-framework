@@ -97,20 +97,27 @@ final class Editor {
 | Module | State |
 | --- | --- |
 | `vexelray-framework-api` | **built** — the annotation vocabulary |
-| `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (37 tests) |
-| `vexelray-framework-shell` | **built** — the absorbed edge, and the window chrome (41 tests) |
+| `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (47 tests) |
+| `vexelray-framework-shell` | **built** — the absorbed edge, the threads, and the window chrome (71 tests) |
 | `vexelray-framework-automation` | **built** — the driving socket, in its own module (2 tests) |
-| `vexelray-framework-processor` | next — generate the wiring the three ports below wrote by hand |
+| `vexelray-framework-template` | next — the project builder, and the acceptance loop's input |
+| `vexelray-framework-processor` | after — generate the wiring the template writes by hand |
 
-Three applications run on it, each with its wiring hand-written in its own repo. That is what the
-processor's output has to reproduce, and they were chosen so that each could find what the others
-could not:
+Three applications ran on it, each with its wiring hand-written in its own repo, and each was chosen so
+it could find what the others could not:
 
 | Application | What it proved |
 | --- | --- |
-| [`calculator-vexel-demo`](../calculator-vexel-demo) | `CalculatorWiring` — one window, a marched viewport, a device-backed component in `WINDOW` |
-| [`text-editor-vexel-demo`](../text-editor-vexel-demo) | `TextEditorWiring` — three windows, an OS clipboard on all of them, unsaved documents behind a close gate, an application mark, and its own headless capture. It is what found the four gaps in [docs/architecture.md](docs/architecture.md#what-porting-the-text-editor-found) |
-| [`vexelray-designer`](../vexelray-designer) | `DesignerWiring` — two windows on one device and one frame loop, the second one ray-marched by the application into a target the host mints, and the only one of the three that lets the OS draw its frame. See [what it found](docs/architecture.md#what-porting-the-designer-found) |
+| `calculator-vexel-demo` | `CalculatorWiring` — one window, a marched viewport, a device-backed component in `WINDOW` |
+| `text-editor-vexel-demo` | `TextEditorWiring` — three windows, an OS clipboard on all of them, unsaved documents behind a close gate, an application mark, and its own headless capture. It found the four gaps in [docs/architecture.md](docs/architecture.md#what-porting-the-text-editor-found) |
+| `vexelray-designer` | `DesignerWiring` — two windows on one device and one frame loop, the second ray-marched by the application into a target the host mints, and the only one of the three that lets the OS draw its frame. See [what it found](docs/architecture.md#what-porting-the-designer-found) |
+
+**All three have since been deleted, on purpose**, and their findings are the two *what porting … found*
+sections linked above. They were built to discover what the framework needed; keeping them ported after
+that cost a tax on every framework change, in three separate house styles, and the repeated attempts to
+make them cohere made no progress. The witness is [a generated
+project](docs/architecture.md#the-witness-is-the-project-builder-not-an-application) now — it has no
+conventions of its own to defend, and rebuilding a real application from it costs about a day.
 
 `-api` and `-core` are JDK-only, so the container's decisions are testable on a machine with no GPU.
 `-shell` is the only Vulkan-aware module.

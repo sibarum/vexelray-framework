@@ -11,6 +11,24 @@ cannot be fixed from here at all.
 
 ## Next
 
+- [ ] **Move the project builder here, and make its output the acceptance loop.** The reasoning is in
+      [architecture.md](architecture.md#the-witness-is-the-project-builder-not-an-application); this is
+      the work. `mainframe-template`'s engine — `Scaffold`, `Blueprint`, `Template`, `Manifest`,
+      `Answers`, `Transform`, `Checks` — imports nothing from mainframe and is pure JDK, so it moves as
+      it stands; the five classes under `dev.mainframe.template.shell` bind to `Builtin`, `Args` and
+      `Plan` and stay there as an adapter. The `vexel-desktop` template is already framework-shaped, so
+      nothing about the emitted tree needs rewriting. Then the loop: drive the API, `Scaffold.of` to a
+      `Blueprint`, assert the tree in memory, write it, build it, and drive the result under
+      `--automation`. The last step is the one that cannot be dropped — without it the builder and the
+      framework can agree with each other about being wrong.
+
+      Two stale references to fix on the way past. The template manifest's header calls
+      `calculator-vexel-demo` *"the reference implementation of this stack"* and says the template copies
+      its shape; that application no longer exists, and the template is the reference now. And this
+      repo's `CLAUDE.md` still lists the three demos as *"the reference for what the processor must
+      generate"* with the scaffold as a fourth that is *"still longhand"* — the demos are gone and the
+      scaffold was ported.
+
 - [ ] **The `@Provides` interface rule is decided and is not true in two places yet.**
       [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything) settles
       that `@Provides` returns an interface, so that generated code can swap an implementation without a
