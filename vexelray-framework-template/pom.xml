@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.vexelray.framework</groupId>
+        <artifactId>vexelray-framework</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>vexelray-framework-template</artifactId>
+    <packaging>jar</packaging>
+
+    <name>vexelray-framework-template</name>
+    <description>
+        The project builder: reads a template, works out the tree it would write, refuses the files it
+        should not, and writes them transactionally. Its output is this framework's primary witness —
+        see docs/architecture.md, "The witness is the project builder, not an application".
+    </description>
+
+    <!--
+      Arrived here from mainframe-template, where the boundary this module needs was already drawn.
+      Two packages lived there; one of them had no business being in a terminal:
+
+        dev.mainframe.template        the engine. "Imports nothing from MainFrame, and nothing from
+                                      anywhere else either: a JDK and a folder of templates is the whole
+                                      of it." That is this module.
+        dev.mainframe.template.shell  the adapter — slots to form fields, answers to a record, the
+                                      result to a Plan. Stays there, and becomes a caller of this.
+
+      The test that pom asked of the first package was "could another project use it", and it answered
+      itself: "Scaffold and Checks would drop into an installer or a Maven mojo unchanged." This is that
+      happening. Nothing in the move needed a change of shape — only the package name and the classpath
+      root the bundled templates sit under.
+
+      JDK-only, and for the same reason -api and -core are: a thing that computes a tree of bytes needs
+      no terminal, no GPU and no siblings installed to be tested. junit is the only dependency, and
+      `mvn -o test` runs the whole module on a bare checkout.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

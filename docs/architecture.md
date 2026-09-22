@@ -1077,8 +1077,8 @@ vexelray-framework                    parent (pom)
 ├─ vexelray-framework-shell      the absorbed edge: input, clipboard, memory, loop,
 │                                and the window chrome                              [built]
 ├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
-├─ vexelray-framework-template   the project builder, and the acceptance loop's input  [next]
-├─ vexelray-framework-processor  annotation processor -> generated wiring             [after]
+├─ vexelray-framework-template   the project builder, and the acceptance loop's input [built]
+├─ vexelray-framework-processor  annotation processor -> generated wiring             [next]
 └─ vexelray-framework-diagnostics  the Actuator analogue: frame budget, bean graph   [planned]
 ```
 

@@ -100,8 +100,8 @@ final class Editor {
 | `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (47 tests) |
 | `vexelray-framework-shell` | **built** — the absorbed edge, the threads, and the window chrome (71 tests) |
 | `vexelray-framework-automation` | **built** — the driving socket, in its own module (2 tests) |
-| `vexelray-framework-template` | next — the project builder, and the acceptance loop's input |
-| `vexelray-framework-processor` | after — generate the wiring the template writes by hand |
+| `vexelray-framework-template` | **built** — the project builder, arrived from `mainframe-template` (46 tests) |
+| `vexelray-framework-processor` | next — generate the wiring the template writes by hand |
 
 Three applications ran on it, each with its wiring hand-written in its own repo, and each was chosen so
 it could find what the others could not:

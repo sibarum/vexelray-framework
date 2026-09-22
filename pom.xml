@@ -36,6 +36,11 @@
         <!-- The driving socket, off unless asked for. Its own module so that a binary that never wants to be
              driven does not link a listening socket. -->
         <module>vexelray-framework-automation</module>
+        <!-- The project builder, arrived from mainframe-template. JDK-only for the same reason -api and -core
+             are: computing a tree of bytes needs no terminal and no GPU. What it emits is this framework's
+             primary witness, which is why it lives here rather than in a terminal that happens to have
+             started it. -->
+        <module>vexelray-framework-template</module>
     </modules>
 
     <properties>
@@ -75,6 +80,11 @@
             <dependency>
                 <groupId>dev.vexelray.framework</groupId>
                 <artifactId>vexelray-framework-automation</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray.framework</groupId>
+                <artifactId>vexelray-framework-template</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

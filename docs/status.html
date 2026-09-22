@@ -376,9 +376,9 @@
     </p>
 
     <div class="facts">
-      <span class="fact pass"><b>120</b> tests green</span>
-      <span class="fact">core <b>47</b> · shell <b>71</b> · automation <b>2</b></span>
-      <span class="fact"><b>4</b> modules built · <b>3</b> planned</span>
+      <span class="fact pass"><b>166</b> tests green</span>
+      <span class="fact">core <b>47</b> · shell <b>71</b> · template <b>46</b> · automation <b>2</b></span>
+      <span class="fact"><b>5</b> modules built · <b>2</b> planned</span>
       <span class="fact"><b>1</b> template, framework-shaped</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
       <span class="fact">read @ <b>04c8c8c</b></span>
@@ -1073,13 +1073,13 @@
       <div class="step now">
         <span class="num">05</span>
         <div>
-          <h3>Move the project builder here, and close the acceptance loop</h3>
+          <h3>Close the acceptance loop <span class="landed">builder moved</span></h3>
           <p>
-            <code>mainframe-template</code>'s engine is pure JDK and its <code>vexel-desktop</code>
-            template already emits a <code>VexelApplication</code> and a <code>Wiring</code> per phase,
-            so this is a relocation. Then the loop: drive the API, <code>Scaffold.of</code> to a
-            <code>Blueprint</code>, assert the tree in memory, write it, build it, and drive the result
-            under <code>--automation</code>.
+            The engine arrived from <code>mainframe-template</code> as it stood — nine classes, the
+            <code>vexel-desktop</code> template, and 46 tests that needed nothing but a package name
+            and a new classpath root. What is left is the loop: drive the API,
+            <code>Scaffold.of</code> to a <code>Blueprint</code>, assert the tree in memory, write it,
+            build it, and drive the result under <code>--automation</code>.
             <span class="why">The three ported applications were the witness and they are gone on
             purpose. A generated project has no conventions of its own to defend, and the automation
             step is what stops the builder and the framework agreeing with each other about being
@@ -1141,7 +1141,7 @@
       rewritten to assert the shape rather than the absence, because an absence stops being a useful
       check the moment it ends.
     </p>
-    <pre><span class="c"># 120 green, offline, no siblings installed</span>
+    <pre><span class="c"># 166 green, offline, no siblings installed</span>
 mvn -o test
 
 <span class="c"># 37 hits in five files: Lanes 29, Placement 5, and one each in</span>
