@@ -90,15 +90,26 @@ bodies — cannot see it. The rule holds; what it needs first is placement moved
 *(processor, once placement is declared — see
 [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything))*
 
-**T2.4 — The shareable set is closed**: immutable values, `Versioned<T>`, and `State<T>` — the last two
-being `atchung-core`'s answer to the same question, *"consumers read coherent, immutable, versioned
-snapshots."* **How an application declares a type of its own shareable is not decided**, and it should be
-before the processor freezes the classification, because every application type gets classified by this
-rule. *(open)*
+**T2.4 — A value crossing a lane arrives as if it had crossed a wire**: no shared reference to the
+sender's heap, anywhere in the reachable graph. Sharing a deeply immutable value is indistinguishable
+from copying it, so the copy is elided exactly then — an optimisation the rule cannot observe, not an
+exception to it. Everything else crosses by a copier the processor emits from a declaration, elektroq's
+pattern, so the declaration is a request that compiles or does not rather than a promise taken on faith.
+The reader's form of the rule is *could this survive a network hop* — which a Vulkan handle, a window, a
+`Gui` node and an open file cannot, and those are the same values T2.2 confines. **Identity does not
+survive a crossing**: `a == b` is false afterwards.
 
-**T2.5 — A lambda that crosses a lane may capture only shareable values.** This is what makes the
+*This replaces a closed set of three. The set was not closed:* `State<T>` *and* `Versioned<T>` *are
+wrappers, shareable only as far as* `T` *is, and* `State`*'s own Javadoc says what* `T` *must be in a
+parenthesis — "should be immutable". The reasoning is in*
+[architecture.md](architecture.md#what-may-cross-a-lane-and-what-crossing-does-to-it)*, including why
+`Serializable` is the semantics here and never the mechanism.* *(processor)*
+
+**T2.5 — A lambda that crosses a lane may capture only what T2.4 lets cross.** This is what makes the
 offload lane a policed edge of the model rather than a hole in it: an offloaded task that captures a
-component's state becomes a compile error rather than a race. *(processor)*
+component's state becomes a compile error rather than a race. Capture is the case a copier cannot be
+slipped into invisibly — a lambda closes over a reference — so here the rule is a refusal rather than a
+copy, and the fix at the call site is to pass the value rather than close over it. *(processor)*
 
 ## 3. Ownership
 
@@ -260,19 +271,21 @@ The point of the column is that the unenforced rules are a list rather than an i
 | | held | processor | upstream | open | read |
 | --- | --- | --- | --- | --- | --- |
 | **1 Lanes** | T1.2, T1.4, T1.5 | T1.3 | | | T1.1 |
-| **2 Colour** | | T2.1, T2.2, T2.3, T2.5 | | T2.4 | |
+| **2 Colour** | | T2.1, T2.2, T2.3, T2.4, T2.5 | | | |
 | **3 Ownership** | | T3.1, T3.3, T3.6, T3.7 | | T3.4 | T3.2, T3.5 |
 | **4 Channels** | T4.2 | T4.1, T4.3, T4.4, T4.5 | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4 | | | T6.3, T6.5 | |
 
-Three readings worth taking from it. **Thirteen of the thirty-two rules say `processor`**, which is still
+Three readings worth taking from it. **Fourteen of the thirty-two rules say `processor`**, which is still
 the argument for writing the colour checker earlier than its position on the critical path: it is the
-single change that moves the most of this document out of the reader's memory. **`open` is four rules,
-three of which are the component seam and its supervision**, which is where the remaining design work
-actually is. And **the `upstream` column is down to one**, which is the useful surprise: T1.2 and T1.5
-were filed as things this repo could not fix, and both turned out to be one change in `vexelray-gui` —
-the worker pool ceasing to be a field initializer — rather than two problems.
+single change that moves the most of this document out of the reader's memory. **`open` is three rules,
+and §2 is now empty of them** — the colour section was the one place where an unanswered question would
+have been classified into every application type by the processor, and T2.4 is answered. What is left open is the
+component seam and its supervision, which is where the remaining design work actually is. And
+**the `upstream` column is down to one**, which is the useful surprise: T1.2 and T1.5 were filed as
+things this repo could not fix, and both turned out to be one change in `vexelray-gui` — the worker pool
+ceasing to be a field initializer — rather than two problems.
 
 **What moved this commit, and what made it move.** Eight rules are now held rather than five, and every
 one of them was paid for by the same two objects: `Lanes`, which owns the application's threads instead

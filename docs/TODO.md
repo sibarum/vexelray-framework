@@ -194,9 +194,11 @@ cannot be fixed from here at all.
 
       **A pool does not contradict static placement.** A component is placed statically because it is
       stateful and ordered; an offloaded task is stateless and unordered, so there is nothing to confine
-      and no sequence to keep. The edge is policed by the shareable set the `@MainThread` colouring
-      already needs — immutable, `Versioned`, `State<T>` — which makes an offloaded lambda that captures
-      a component's state a compile error rather than a race.
+      and no sequence to keep. The edge is policed by [the crossing
+      rule](architecture.md#what-may-cross-a-lane-and-what-crossing-does-to-it) — a value crossing a lane
+      arrives as if it had crossed a wire — which makes an offloaded lambda that captures a component's
+      state a compile error rather than a race. Capture is the one case the rule refuses rather than
+      copies, because a lambda closes over a reference and no copier can be slipped in behind it.
 
       **Platform threads, and the reason is not the component one.** Blocking I/O is the textbook
       virtual-thread case, but §3.1 records that `jdk.virtualThreadScheduler.parallelism` is a global JVM

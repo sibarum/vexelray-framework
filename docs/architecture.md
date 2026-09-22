@@ -597,10 +597,72 @@ applied to the rule with the most to lose by it.
 is tempting to think two colourings need a third rule for the boundary between them — whether a
 component on one lane may hold a `@MainThread` value. They do not, because the crossing rule is already
 one rule for every lane and it is not about colours at all: **behaviour is reached by publishing, never
-by holding**, and a value crosses only if it is in the shareable set (immutable, `Versioned`,
-`State<T>`). A component that holds another's state is the thing the mailbox exists to prevent,
+by holding**, and a value crosses only under the rule in [what may cross a
+lane](#what-may-cross-a-lane-and-what-crossing-does-to-it). A component that holds another's state is
+the thing the mailbox exists to prevent,
 whichever lane either of them is on. So the boundary between the two colourings is the same boundary
 the model already had, and keeping them apart adds an annotation rather than a rule.
+
+### What may cross a lane, and what crossing does to it
+
+[threading.md](threading.md)'s T2.4 said the shareable set is *closed* — immutable values,
+`Versioned<T>`, `State<T>` — and left open how an application declares a type of its own. Reading the
+code sharpened the question before it answered it. **The set is not closed**, because two of its three
+members are generic wrappers:
+
+```java
+public record Versioned<T>(T value, long version, long timestampNanos) { }
+```
+
+`State<T>` and `Versioned<T>` are shareable only as far as `T` is, and `State`'s own Javadoc says what
+`T` must be in a parenthesis — *"the state type (should be immutable)"*. Unenforced prose. So the rule
+as written admits `State<MutableThing>`, which is a race with a blessing on it. There was no house
+precedent to inherit either: elektroq's processor validates package structure and code generation and
+says nothing about what a payload may contain.
+
+**The rule, and it replaces the set.** *A value crossing a lane arrives as if it had crossed a wire* —
+no shared reference to the sender's heap, anywhere in the reachable graph. Immutability stops being the
+thing that has to be proved, because copying makes mutability irrelevant. That is the actor model's own
+answer, and it is why Erlang has never needed a shareable set.
+
+**One elision, which is not an exception.** Sharing a deeply immutable value is *indistinguishable*
+from copying it — no observation separates them — so the copy may be skipped exactly then, and
+`Composed` or a settings record crosses without being duplicated. That is what keeps this one rule
+rather than two tiers: the optimisation is invisible to the rule, which is the only kind a correctness
+rule may carry.
+
+**The test is one a reader can apply without knowing this framework.** *Could it survive a network
+hop?* A Vulkan handle, a window, a `Gui` node, an open file: no. That is the same set which must never
+cross a thread anyway, so the rule **derives**
+[§2](#2-thread-affinity-is-a-type-level-concern)'s restriction rather than sitting beside it — a value
+that cannot cross a wire has no business crossing a lane, and the reason is the same one.
+
+**Serialization is the semantics, not the mechanism.** `Serializable` is the obvious route and is
+rejected. It is reflection: GraalVM needs serialization metadata per participating class, which is the
+`reflect-config.json` this stack exists not to need, and *nothing reflects* is not a rule with an
+exception in it. It is also far too permissive as a marker — `ArrayList` and `HashMap` implement it, so
+it means "somebody once thought about persistence" rather than "safe to cross". The mechanism is the
+house one instead: **annotate the record, and the processor emits the copier** — elektroq's pattern,
+which is why that repo is named in `CLAUDE.md` as the precedent for this one.
+
+That also disposes of the objection to an application-declared shareable, which would otherwise be the
+one annotation in the vocabulary that can be **wrong and still compile**. An annotation the processor
+*trusts* is a promise. An annotation that makes it *emit* the copy is a request, and it either compiles
+or it does not — the same move `@Component` and `@Provides` already make.
+
+**Identity does not survive a crossing.** After it, `a == b` is false. That is correct and intended,
+and it is written here because it is the surprise: anything resting on reference identity across a lane
+was resting on a shared heap, which is the thing being removed.
+
+**A consequence worth recognising rather than promising.** If crossing a lane already has network
+semantics, then a lane boundary and a *process* boundary are the same boundary, and moving a component
+out of process stops being a semantic change — no calling code differs. `elektroq` has been sitting in
+this stack with `Actor`, `Conduit` and four transports, reachable by nothing here. This rule does not
+build that, and nothing below depends on it. What it removes is the reason cross-process would have had
+to be a second model.
+
+Nothing here touches the frame budget: a crossing happens off the frame thread by construction, and
+`FrameHooks.run` and `Pacing.nanosUntilNextFrame` cross nothing.
 
 ### What a full mailbox does, and where survivability actually lives
 
