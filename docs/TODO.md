@@ -11,6 +11,24 @@ cannot be fixed from here at all.
 
 ## Next
 
+- [ ] **The `@Provides` interface rule is decided and is not true in two places yet.**
+      [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything) settles
+      that `@Provides` returns an interface, so that generated code can swap an implementation without a
+      call site knowing. Two things do not satisfy it. `InputBackend` and `ClipboardBackend` are concrete
+      final classes reached through static `open()` factories at `VexelApplication:238` and `:262`, which
+      also means the README's claim that every default is overridable *"by a `@Provides` method returning
+      that type"* is not true of either — there is nothing to return. Making them interfaces fixes the
+      claim and satisfies the rule in one move. And the README's own target example returns `Workspace`,
+      `Highlighter` and `ClipboardBinding`, all concrete; it wants revisiting when the editor's wiring is
+      restored, since that is the application it describes.
+
+- [ ] **Placement is not visible to the processor, and the colour rule assumes it is.** Recorded in
+      full in [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything):
+      `shell.place("compose")` is a call in a wiring body, so the thread a component is placed on is
+      decided once and never changes, but is not *known while compiling*. The fix is placement on the
+      declaration, which makes that annotation a precondition of the colour checker rather than one of
+      its outputs. Nothing to do until the processor is started; recorded so it is not discovered then.
+
 - [ ] **`shell.wake(gui::onWork)` is redundant, and the framework should probably stop making the call.**
       `GuiApp.wireAllWakes` already does `gui.onWork(this::postWake)` for **every** tree it presents,
       re-checked each iteration, and says why: *"an application has more trees than it has main

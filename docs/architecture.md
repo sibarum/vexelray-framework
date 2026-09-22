@@ -518,6 +518,66 @@ one more axis, and writing them down is what stops the processor freezing the cu
 | **`@MainThread` is two-coloured; the model needs one colour per thread** | Main-thread versus worker-safe cannot express "confined to *this* component", so a graph that passes today's check can still be two worker components racing. Because placement is static, the colour of a value **is** the thread it was placed on — known while compiling — so the processor can allow a direct reference between two components sharing a thread and reject one that crosses, alongside a shareable set (immutable, `Versioned`, `State<T>`). Dynamic placement would have made that check undecidable; this does not |
 | **`FrameHooks` is the barrier's degenerate case** | A flat `Runnable[]` walked on one thread, *"not thread-safe and not meant to be"*, is the N=1 answer. The model wants release-at-tick, drain, await quiescence, reconcile — and saying so in the file is what stops its no-allocation rigour being defended into a shape that cannot grow |
 
+### The vocabulary, decided before the processor emits anything
+
+The three mismatches above say what does not fit. These are the decisions taken about what the
+annotations *mean*, settled here rather than discovered in generated code, because the processor bakes
+whatever they mean into every application that compiles against it. Each one narrows the vocabulary,
+which was the useful surprise: the question that moved them was not *what else should the container
+do*, but *what is the container's business at all*.
+
+**`@Component` is a thread and a mailbox.** Not a container-managed singleton — that is `@Provides`. A
+component is the actor: it owns a platform thread, it has an inbox, and it is reached by publishing
+rather than by holding. Everything that has one is constructed before the loop runs, which is what
+makes the placement static and is the simplification the whole model rests on. A worker thread that
+allocates resources and takes no mailbox is not a component, and neither is anything built per window
+— the designer already builds its viewport window in `TREE` rather than resolving it from a container,
+and that is now the rule rather than an accident of how that window happened to be written.
+
+This settles the first mismatch by choosing the actor contract over the DI one, and it settles
+[§6](#6-scopes-are-application--window--frame) as a side effect. Window scope is real and stays
+hand-maintained; what it is not is a *component* scope. There is no `@Component` lifetime shorter than
+the application's, and so nothing about scope for the processor to track.
+
+**`@Provides` returns an interface, and a concrete class is a compile error.** The cheapest check in
+the whole brief — a return-type kind test at the declaration, no graph analysis behind it — and it
+buys the one thing that is expensive to add later. Generated code can swap what it constructs without
+touching a call site, but only if the call sites were written against something that can have a second
+implementation. Front-loading an actual proxy instead would cost more than it saves: it would hide the
+crossing the colour rule exists to catch, since a reference through a proxy always looks local, and it
+would turn what should be a compile error into a message delivered at runtime. An interface costs
+nothing at runtime and keeps the slot open.
+
+**A value is not the container's business.** The question that made the other two fall out: *why would
+an instance of a record need dependency injection?* It does not. A record has nothing the container
+provides — no disposal, no phase ordering beyond its own constructor arguments, no behaviour to swap —
+and this framework already agrees in code. `Launch`, `AppInfo` and `Appearance` are reached as `Shell`
+accessors rather than injected, and the one thing an application might want from them — a different
+answer than the default — is configuration: `@Setting`, or an attribute on `@VexelApp`. So a record
+behind `@Provides` is itself the smell, and the rule above needs no exception carved for one.
+
+The three are one test applied three times, which is why they are worth stating as a set:
+
+| Ask | And it is |
+| --- | --- |
+| Does it have a thread and a mailbox? | a `@Component` — an actor, application-scoped, built before the loop |
+| Does it have behaviour worth swapping, and a lifetime? | a `@Provides`, returning an interface |
+| Is it a value? | not the container's; a `Shell` accessor if anything needs to reach it |
+
+**One correction this forces, and it is to the table above.** The second mismatch argues the colour
+rule is decidable because *"placement is static… the colour of a value **is** the thread it was placed
+on — known while compiling."* Static it is, in the sense that it is decided once and never changes
+afterwards. *Known while compiling* it is not. A placement is a call in a wiring method body —
+`shell.place("compose")`, in the designer's `tree` — returning a `Placement` at runtime, and a
+processor reads declarations rather than bodies. The two senses of *static* carrying that sentence are
+not the same sense, and the check it promises cannot be run against the code as written.
+
+Three ways out, and one of them is in keeping with the rest of this document. Reading wiring bodies
+contradicts [there is no scan](#there-is-no-scan-at-runtime-or-at-build-time). Leaving it means
+thirteen of threading.md's rules stay enforced by the reader's memory. So placement belongs on the
+declaration — `@Component(lane = "compose")` or its equivalent — which makes the annotation that does
+not exist yet a **precondition** of the colour checker rather than an output of it.
+
 ### What a full mailbox does, and where survivability actually lives
 
 Settled before the first component rather than after, because a default chosen once something depends

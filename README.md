@@ -123,8 +123,8 @@ is a generator whose output nobody has checked the shape of.
 | Annotation | Does |
 | --- | --- |
 | `@VexelApp` | the entry class, and the settings-directory name |
-| `@Component` | a container-managed singleton; one constructor, phase inferred |
-| `@Configuration` / `@Provides` | recipes for types the application does not own |
+| `@Component` | an actor: one platform thread, one mailbox, built before the loop runs |
+| `@Configuration` / `@Provides` | recipes for types the application does not own; returns an interface |
 | `@Default` | the framework's answer *unless the application has one* |
 | `@MainThread` | may only be touched on the main thread — checked at compile time |
 | `@BeforeFrame(FrameStage)` | per-frame work, in a named stage |
