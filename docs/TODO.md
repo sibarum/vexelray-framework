@@ -39,8 +39,8 @@ cannot be fixed from here at all.
       call site knowing. The processor now holds it for an application's **own** types; a type arriving as a
       class file is exempt, because `Tactroller` and `Clipboard` are final and the application cannot give
       them a second implementation. That carve-out is also why the processor will not flag what follows —
-      from an application's side, `InputBackend` is somebody else's class file. Two things do not satisfy it. `InputBackend` and `ClipboardBackend` are concrete
-      final classes reached through static `open()` factories at `VexelApplication:238` and `:262`, which
+      from an application's side, `InputBackend` is somebody else's class file. Two things do not satisfy
+      it. `InputBackend` and `ClipboardBackend` are concrete final classes reached through static `open()` factories at `VexelApplication:238` and `:262`, which
       also means the README's claim that every default is overridable *"by a `@Provides` method returning
       that type"* is not true of either — there is nothing to return. Making them interfaces fixes the
       claim and satisfies the rule in one move. And the README's own target example returns `Workspace`,
