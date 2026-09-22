@@ -578,6 +578,30 @@ thirteen of threading.md's rules stay enforced by the reader's memory. So placem
 declaration — `@Component(lane = "compose")` or its equivalent — which makes the annotation that does
 not exist yet a **precondition** of the colour checker rather than an output of it.
 
+**And that annotation does not absorb `@MainThread`.** Both are confinement colours, so the obvious
+economy is one axis with the main thread as a lane like any other — `lane = "main"`. It is the wrong
+economy, and `Lanes`' own Javadoc says why before the question is asked:
+
+> Three of the five lanes live here: the **handler lane**, the **offload lane**, and the **component
+> threads**… The other two are not this class's to make — the main thread is the one the process
+> started on, and the timeline is single-threaded by construction inside Kronometer.
+
+The main thread is not a lane in the sense the others are. It is not minted, it cannot be closed,
+there is exactly one of it, and what it may do is different in kind — Vulkan, the window and present
+live there and nothing else may. Folding it into the lane axis would make a **string** the
+discriminator for all of that, and a string that has to be spelled right is one that compiles when it
+is spelled wrong. That is the same objection this document already makes to qualifiers on `@Provides`,
+applied to the rule with the most to lose by it.
+
+**The separation costs no extra rule**, which is what makes it cheap rather than merely defensible. It
+is tempting to think two colourings need a third rule for the boundary between them — whether a
+component on one lane may hold a `@MainThread` value. They do not, because the crossing rule is already
+one rule for every lane and it is not about colours at all: **behaviour is reached by publishing, never
+by holding**, and a value crosses only if it is in the shareable set (immutable, `Versioned`,
+`State<T>`). A component that holds another's state is the thing the mailbox exists to prevent,
+whichever lane either of them is on. So the boundary between the two colourings is the same boundary
+the model already had, and keeping them apart adds an annotation rather than a rule.
+
 ### What a full mailbox does, and where survivability actually lives
 
 Settled before the first component rather than after, because a default chosen once something depends

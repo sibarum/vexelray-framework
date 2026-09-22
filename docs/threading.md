@@ -70,7 +70,11 @@ So the bound waits on knowing, not on a known blocker. *(open — and the thing 
 ## 2. Colour
 
 **T2.1 — Every value has exactly one colour**: the main thread, one named component thread, or
-*shareable*. Colour is a property of the value, not of the moment. *(processor)*
+*shareable*. Colour is a property of the value, not of the moment. The main thread being its own colour
+rather than a lane with a reserved name is now a **decision** rather than an accident of how this
+sentence was first written — see [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything).
+`Lanes` does not mint it, there is exactly one of it, and what may happen there differs in kind; naming
+it as a lane would make a string the discriminator for all of that. *(processor)*
 
 **T2.2 — A main-thread value may not be injected into anything that is not itself main-thread.** One
 rule, one direction. The inverse is deliberately allowed: handing a main-thread component an immutable
@@ -78,8 +82,13 @@ model or a settings record violates nothing, and requiring an annotation for it 
 on most of an application. *(processor — this is `@MainThread`'s written specification, and it is inert)*
 
 **T2.3 — A direct reference between two components is permitted only where they share a thread.**
-Decidable precisely because placement is static: the colour of a value *is* the thread it was placed on,
-known while compiling. Dynamic placement would have made this check undecidable. *(processor)*
+Decidable because placement is static: the colour of a value *is* the thread it was placed on, and
+dynamic placement would have made this check undecidable. **Static is not yet the same as visible**, and
+this rule as written assumed it was. `shell.place("compose")` is a call in a wiring method body, so the
+placement is decided once and never changes afterwards but a processor — which reads declarations, not
+bodies — cannot see it. The rule holds; what it needs first is placement moved onto the declaration.
+*(processor, once placement is declared — see
+[architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything))*
 
 **T2.4 — The shareable set is closed**: immutable values, `Versioned<T>`, and `State<T>` — the last two
 being `atchung-core`'s answer to the same question, *"consumers read coherent, immutable, versioned
