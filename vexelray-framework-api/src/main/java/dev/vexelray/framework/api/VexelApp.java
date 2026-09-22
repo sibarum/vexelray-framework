@@ -28,8 +28,9 @@ import java.lang.annotation.Target;
  * the one value here that, changed after a release, loses a user's window placement and open files. The other
  * three are first-run defaults, which window memory overwrites the moment there is anything remembered.
  *
- * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
- * {@link dev.vexelray.framework.api} for which half of this package is built.
+ * <p><b>Checked, not yet generated.</b> {@code vexelray-framework-processor} allows one per compilation, requires
+ * every starter to be a {@link Configuration}, and reads the starters' providers into its conflict check. No
+ * wiring class is generated yet. See {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)

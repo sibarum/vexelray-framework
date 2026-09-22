@@ -363,12 +363,14 @@ surface was one `Runnable`:
 | `DeadlineSource.nanosUntilNextFrame()` | *"Called on the main thread… must be cheap and must not block"* |
 | `FrameHooks` | *"Not thread-safe and not meant to be"*, and sealed before the first frame |
 | `Disposer` | reverse construction order; no timeout, no drain, no start order distinct from it |
-| `@MainThread` | inert — there is no processor, so the two-colour rule is enforced by nobody |
+| `@MainThread` | inert — there was no processor, so the two-colour rule was enforced by nobody |
 
 Two rows of that table have moved. `Disposer` now has a component half — `Placement.close` is drain then
 stop, on a timer, and a placement's start is a separate moment from its construction, which is the row's
-"no start order distinct from it" answered rather than restated. `@MainThread` is still inert, and that
-has not moved at all: it is the colour rule, and the colour rule is the processor's.
+"no start order distinct from it" answered rather than restated. `@MainThread` stayed inert through all of
+that, because it is the colour rule and the colour rule is the processor's — and it has since moved too:
+`vexelray-framework-processor` makes T2.2 a compile error, with the gap that `GuiApp` and `Gui` themselves
+carry no mark yet.
 
 ~~**The stack is already multithreaded, and none of the threading is the framework's.**~~ The threading is
 now the framework's, which is the whole of what changed. `Gui` used to own an
@@ -548,6 +550,16 @@ crossing the colour rule exists to catch, since a reference through a proxy alwa
 would turn what should be a compile error into a message delivered at runtime. An interface costs
 nothing at runtime and keeps the slot open.
 
+**It binds an application's own types, and not somebody else's.** Taken literally the rule forbade the
+case `@Configuration` exists for: its own Javadoc names `Tactroller`, `Clipboard` and `Settings` as what a
+provider is the recipe for, and all three — like `GuiApp` and `Gui` — are `public final class`. The rule's
+whole purpose is that a call site *can* be handed a second implementation, and for a final class from
+another jar the application cannot write one; wrapping each in an interface of its own would be ceremony
+in service of a slot nobody can fill. So the processor holds the rule for types **compiled from source in
+this build** and exempts a type that arrives as a class file. That is a clean distinction only because the
+build is always a clean one — a module's own types are all source in the compilation that checks them, so
+a class file is always somebody else's.
+
 **A value is not the container's business.** The question that made the other two fall out: *why would
 an instance of a record need dependency injection?* It does not. A record has nothing the container
 provides — no disposal, no phase ordering beyond its own constructor arguments, no behaviour to swap —
@@ -577,6 +589,14 @@ contradicts [there is no scan](#there-is-no-scan-at-runtime-or-at-build-time). L
 thirteen of threading.md's rules stay enforced by the reader's memory. So placement belongs on the
 declaration — `@Component(lane = "compose")` or its equivalent — which makes the annotation that does
 not exist yet a **precondition** of the colour checker rather than an output of it.
+
+It exists now, as exactly that: `lane` is a required member of `@Component`, and T2.3 is a compile error
+naming both lanes. **Required rather than defaulted**, because which thread a component runs on is a
+decision and *"a default is not a choice anyone can read"* — when §3.4's tree lands, *a child shares its
+parent's lane* is the default that would be worth re-arguing this against. **A string, and safe as one**,
+which is not a contradiction of the paragraph below: the only thing two lane spellings agreeing permits is
+a direct reference, so a misspelling can deny one and never grant it, and the error it produces prints both
+spellings side by side. A misspelled *main thread* would decide what may touch Vulkan.
 
 **And that annotation does not absorb `@MainThread`.** Both are confinement colours, so the obvious
 economy is one axis with the main thread as a lane like any other — `lane = "main"`. It is the wrong
@@ -1078,7 +1098,7 @@ vexelray-framework                    parent (pom)
 │                                and the window chrome                              [built]
 ├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
 ├─ vexelray-framework-template   the project builder, and the acceptance loop's input [built]
-├─ vexelray-framework-processor  annotation processor -> generated wiring             [next]
+├─ vexelray-framework-processor  annotation processor: checks [built], generated wiring [next]
 └─ vexelray-framework-diagnostics  the Actuator analogue: frame budget, bean graph   [planned]
 ```
 
@@ -1089,6 +1109,12 @@ The processor is deliberately **last**, and the reason survived a change in what
 code generator whose output has never been written by hand is a generator whose output nobody has
 checked the shape of — so the output gets written by hand first, against the real `-shell`, and the
 processor's job becomes *reproduce these files*.
+
+**Checking is the half that did not have to wait.** A generator freezes what the annotations mean into
+every application; a checker does not, because it only refuses what the vocabulary already says is wrong.
+So the processor arrived in two halves, checks first: every rule a declaration can decide is a compile
+error now, and nothing is generated. The sequencing argument above is about the second half, and still
+holds for it.
 
 What changed is whose hand. That role was held by three applications' wirings — `CalculatorWiring`,
 `TextEditorWiring` and `DesignerWiring`, one window, three windows, and two windows on one device —
@@ -1104,12 +1130,16 @@ drift out of agreement with a driver.
 
 ## Open questions
 
-- **Incremental compilation.** A processor that generates one wiring class from the whole annotated
-  set is a whole-program view, which is the thing incremental javac is trying not to give it. Needs a
-  deliberate answer before the processor is written, not after.
+- ~~**Incremental compilation.**~~ **Answered: the build is always a clean one.** The processor is a
+  whole-program view and says so — it collects every round and runs its graph checks once, when the last
+  is over — and nothing here builds incrementally, so there is no partial compilation for it to be unsound
+  on. The same fact is what makes the `@Provides` interface rule's *own type* test clean: in a clean
+  build, a class file is always somebody else's. An IDE compiling one file at a time is not a build this
+  framework answers for.
 - **`@MainThread` on foreign types.** The check is only as good as the annotations, and the types
-  that most need it live in other repos. `Provides`-level `@MainThread` covers this, but it has to
-  actually be applied.
+  that most need it live in other repos. `Provides`-level `@MainThread` covers this, and the processor
+  honours it — but it has to actually be applied, and for `GuiApp` and `Gui` the provider that would
+  apply it is the framework's own, which is generation's to write.
 - **Reachability metadata as a framework asset.** The framework adds no reflection, but the *stack*
   needs metadata already — `vexelray-gui-demo` and `mainframe-dist` both ship
   `reachability-metadata.json`. Aggregating those into the starters, so an application inherits the

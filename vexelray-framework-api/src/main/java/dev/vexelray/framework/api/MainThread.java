@@ -16,9 +16,7 @@ import java.lang.annotation.Target;
  * <p>What the processor will check is one rule, in one direction: <b>a main-thread value may not be injected
  * into anything that is not itself main-thread.</b> A worker-safe component asking for a {@code GuiApp} becomes
  * a compile error naming both types, rather than a Vulkan call from a worker thread that happens to survive
- * testing on one driver. Nothing is checked at runtime, so the annotation costs the binary nothing — and
- * nothing is checked at compile time either until the processor is written, so today the rule is exactly what
- * it was before this annotation existed: true, load-bearing, and enforced by the reader.
+ * testing on one driver. Nothing is checked at runtime, so the annotation costs the binary nothing.
  *
  * <p>The inverse is deliberately allowed: a main-thread component may depend on worker-safe values freely.
  * Handing the render thread an immutable model or a settings record is not a violation of anything, and
@@ -27,8 +25,11 @@ import java.lang.annotation.Target;
  * <p>Applied to a type, it describes every instance. Applied to a {@link Provides} method, it describes that
  * one value — which is how a type from another repo, with no annotation of its own, gets the same protection.
  *
- * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
- * {@link dev.vexelray.framework.api} for which half of this package is built.
+ * <p><b>Checked.</b> The rule above is a compile error from {@code vexelray-framework-processor}, into a
+ * {@link Component}'s constructor and into a {@link Provides} method whose value is not main-thread. It is only
+ * as good as where it is applied, and the types that most need it are unannotated: {@code GuiApp} and {@code Gui}
+ * carry nothing of their own, and the providers that would mark them are the generated wiring's, which does not
+ * exist yet. See {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.CLASS)

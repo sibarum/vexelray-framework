@@ -20,8 +20,13 @@ import java.lang.annotation.Target;
  * non-default providers for the same type will be a compile error naming both, because at that point the
  * application is disagreeing with itself and the framework has no business picking a winner.
  *
- * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
- * {@link dev.vexelray.framework.api} for which half of this package is built.
+ * <p>The rule is asked once per {@link RunMode}, because {@link OnMode} makes it a different question in each: a
+ * non-default that exists only while windowed backs a default off only while windowed.
+ *
+ * <p><b>Checked, not yet generated.</b> {@code vexelray-framework-processor} holds the back-off as a conflict
+ * check — two winners for one type in one mode is a compile error naming both — and a {@code @Default} on
+ * anything but a provider is one too. Nothing emits the winner yet. See {@link dev.vexelray.framework.api} for
+ * which half of this package is built.
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.CLASS)

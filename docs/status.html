@@ -512,7 +512,7 @@
       <span class="eyebrow">Dimension 02 · Concurrency</span>
       <div class="dim-title">
         <h2>Multithreaded by default</h2>
-        <span class="verdict v-part">The threads are the container's · the colour rule is not</span>
+        <span class="verdict v-part">The threads are the container's · colour is checked, not yet copied</span>
       </div>
       <p class="dim-read">
         <b>This dimension has started.</b> The plan is unchanged — <b>one component, one thread, one
@@ -524,8 +524,10 @@
         returns <b>37 hits across five files</b> — which is the intended shape rather than a leak: 29
         are <code>Lanes</code>, 5 are <code>Placement</code>, and the other three are a
         <code>TimeUnit</code> import, one <code>volatile</code> flag and a sentence of Javadoc.
-        <b>Eight of threading.md's thirty-two rules are held rather than five</b>, and none of the
-        promotions needed the processor — they needed something to <i>be</i> the rule.
+        <b>Twelve of threading.md's thirty-two rules are held.</b> Eight came from <code>Lanes</code> and
+        <code>Placement</code>, which needed something to <i>be</i> the rule rather than a processor; the other
+        four — T2.1, T2.2, T2.3 and T3.7 — are the processor's checks, now that placement is declared as
+        <code>@Component(lane = …)</code>.
       </p>
     </div>
 
@@ -590,10 +592,10 @@
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
-      <div class="row s0">
-        <span class="what"><code>@MainThread</code> actually enforced <span>— inert until the processor</span></span>
-        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Absent</span>
+      <div class="row s3">
+        <span class="what"><code>@MainThread</code> actually enforced <span>— a compile error; <code>GuiApp</code> and <code>Gui</code> carry no mark yet</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
       <div class="row s3">
         <span class="what">The process fault policy is the framework's <span>— not inherited</span></span>
@@ -766,10 +768,10 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
-      <div class="row s1">
-        <span class="what">The annotation processor <span>— nine annotations wait on it for enforcement</span></span>
-        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Specified</span>
+      <div class="row s2">
+        <span class="what">The annotation processor <span>— every declaration-level check; nothing generated yet</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">Checks built</span>
       </div>
       <div class="row s1">
         <span class="what"><code>-diagnostics</code>, the Actuator analogue <span>— blocked on a name</span></span>
@@ -815,9 +817,10 @@
       <div class="col gap">
         <h3>Not yet true</h3>
         <ul>
-          <li><b>"A compile error beats a startup error"</b> is the house rule and it is not in force —
-            with no processor, <code>@Component</code>, <code>@MainThread</code> and
-            <code>@Setting</code> are vocabulary without enforcement.</li>
+          <li><b>"A compile error beats a startup error"</b> is in force for declarations and not yet
+            for bodies. The processor refuses a misused <code>@Component</code>, <code>@MainThread</code>
+            or <code>@Setting</code>, but a hand-written <code>Wiring</code> is a method body, and a
+            backwards <code>Phase</code> dependency in one is still a startup error.</li>
           <li>The game-engine half exists <i>in the engine</i> — render == sim, one IR to SPIR-V and to
             a CPU AST — and <b>nowhere in the framework</b>. <code>FrameStage.APP</code> is an empty
             slot, by design.</li>
@@ -1090,16 +1093,17 @@
       <div class="step">
         <span class="num">06</span>
         <div>
-          <h3>Write the processor</h3>
+          <h3>Write the processor <span class="landed">checks landed</span></h3>
           <p>
-            The generated project is the fixture: the wiring the processor emits from annotations
-            should be the wiring the template writes by hand. Then make <code>@MainThread</code> and
-            the component colouring real.
-            <span class="why"><b>Thirteen of the thirty-two threading rules say <code>processor</code></b>
-            — the single change that moves the most of that document out of the reader's memory. Two
-            things first: an answer on incremental compilation, and placement moved onto the
-            declaration, because <code>shell.place("compose")</code> is a call in a method body and a
-            processor reads declarations.</span>
+            The checks are in: <code>@MainThread</code> and the lane colouring are compile errors, and
+            so is every other rule a declaration can decide. What is left is generation — the generated
+            project is the fixture, and the wiring the processor emits from annotations should be the
+            wiring the template writes by hand.
+            <span class="why"><b>Ten of the thirty-two threading rules still say
+            <code>processor</code></b>, and none of them can be decided from a declaration: they want
+            generated wiring, a method body, or a channel seam. Both preconditions were settled on the
+            way — the build is always clean, so a whole-program view is sound, and placement is
+            declared as <code>@Component(lane = …)</code>.</span>
           </p>
         </div>
       </div>

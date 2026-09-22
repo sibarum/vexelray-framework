@@ -19,7 +19,12 @@ import java.lang.annotation.Target;
  * per-frame hook is the last place a stack trace does anyone any good, because it will arrive sixty times
  * before it is read.
  *
- * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
+ * <p><b>No component's.</b> The frame is the main thread's, and no component enters it — a hook on a
+ * {@link Component} would run on the main thread against state that belongs to the component's own. Publish to
+ * the component instead.
+ *
+ * <p><b>Checked, not yet generated.</b> {@code vexelray-framework-processor} rejects a hook that takes parameters,
+ * declares a thrown exception, is private, or sits on a component; nothing calls one yet. See
  * {@link dev.vexelray.framework.api} for which half of this package is built. {@code FrameHooks} is the part
  * that does exist — the array this would generate a call into, filled today by {@code Shell.hooks().add}.
  *

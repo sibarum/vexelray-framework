@@ -36,7 +36,10 @@ cannot be fixed from here at all.
 - [ ] **The `@Provides` interface rule is decided and is not true in two places yet.**
       [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything) settles
       that `@Provides` returns an interface, so that generated code can swap an implementation without a
-      call site knowing. Two things do not satisfy it. `InputBackend` and `ClipboardBackend` are concrete
+      call site knowing. The processor now holds it for an application's **own** types; a type arriving as a
+      class file is exempt, because `Tactroller` and `Clipboard` are final and the application cannot give
+      them a second implementation. That carve-out is also why the processor will not flag what follows —
+      from an application's side, `InputBackend` is somebody else's class file. Two things do not satisfy it. `InputBackend` and `ClipboardBackend` are concrete
       final classes reached through static `open()` factories at `VexelApplication:238` and `:262`, which
       also means the README's claim that every default is overridable *"by a `@Provides` method returning
       that type"* is not true of either — there is nothing to return. Making them interfaces fixes the
@@ -44,12 +47,26 @@ cannot be fixed from here at all.
       `Highlighter` and `ClipboardBinding`, all concrete; it wants revisiting when the editor's wiring is
       restored, since that is the application it describes.
 
-- [ ] **Placement is not visible to the processor, and the colour rule assumes it is.** Recorded in
-      full in [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything):
-      `shell.place("compose")` is a call in a wiring body, so the thread a component is placed on is
-      decided once and never changes, but is not *known while compiling*. The fix is placement on the
-      declaration, which makes that annotation a precondition of the colour checker rather than one of
-      its outputs. Nothing to do until the processor is started; recorded so it is not discovered then.
+- [ ] **The processor checks; it does not generate, and nothing uses it yet.** `vexelray-framework-processor`
+      holds every rule the vocabulary calls a compile error that a declaration can decide — T2.1–T2.3, T3.7,
+      one provider per type per mode, and the shape of each annotation — and emits no source. What is left,
+      in the order it wants doing:
+      - **The witness does not run it.** The `vexel-desktop` template uses no annotation and names no
+        processor, so the one project the framework is verified by has never been compiled through it.
+        Adding it to the generated `pom.xml`'s `annotationProcessorPaths` is one step; making the template
+        *use* the vocabulary is the start of generation, and is the acceptance test
+        [architecture.md](architecture.md#what-it-does-for-the-processor) states.
+      - **Generation**: `<App>Wiring` from `@VexelApp`, `@Component`, `@Provides`, `@Setting`,
+        `@BeforeFrame` and `@OnMode`, replacing the template's hand-written one; and `Shell.place` becoming
+        what generated code calls for each declared lane rather than what a wiring body calls.
+      - **T3.1 is only as good as the annotations, and the types that need it most are bare.** `GuiApp`
+        and `Gui` carry no `@MainThread`, and should not — `vexelray-gui` must not learn this repo exists.
+        The answer is a framework-side provider marked `@MainThread`, which is generation's.
+      - **Two promises need a method body.** A `@Provides` calling another directly, and T2.5's capture
+        rule, are both about what code *does* rather than what it declares. The Trees API can read them;
+        doing so is a decision, since *the processor reads declarations* is load-bearing in
+        architecture.md's argument about placement.
+      - **The copier (T2.4)** and the message-graph checks (§4) wait on the seam that declares a channel.
 
 - [ ] **`shell.wake(gui::onWork)` is redundant, and the framework should probably stop making the call.**
       `GuiApp.wireAllWakes` already does `gui.onWork(this::postWake)` for **every** tree it presents,
@@ -178,12 +195,14 @@ cannot be fixed from here at all.
       edge already falls there). The upstream half landed with it: `Gui` takes both lanes rather than
       building a `newCachedThreadPool` whatever it is handed, and closes only the lanes it built itself.
 
-      **Eight of [threading.md](threading.md)'s rules are now held rather than five**, and none of the
-      promotions needed the processor — they needed something to *be* the rule. The `upstream` column is
+      **Twelve of [threading.md](threading.md)'s rules are now held.** Eight came from these two objects, and
+      none of those promotions needed the processor — they needed something to *be* the rule; the other four
+      are the processor's. The `upstream` column is
       down to one entry, because T1.2 and T1.5 turned out to be the same change.
 
-      **What is actually left**, and it is the part a runtime object cannot hold: the colour rule (§2, five
-      rules), the message-graph checks (§4.1, §4.3–§4.5), and supervision (§6.5, §6.3) — *nothing
+      **What is actually left**, and it is the part a runtime object cannot hold: the colour rule's copier
+      and capture halves (T2.4, T2.5 — T2.1–T2.3 are the processor's now, and held), the message-graph
+      checks (§4.1, §4.3–§4.5), and supervision (§6.5, §6.3) — *nothing
       notices that a component has stopped draining, or names it*, which wants `Overrun` surfaced per
       grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on a
       census of what still blocks on a handler rather than on any one known blocker.

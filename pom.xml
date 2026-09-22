@@ -41,6 +41,11 @@
              primary witness, which is why it lives here rather than in a terminal that happens to have
              started it. -->
         <module>vexelray-framework-template</module>
+        <!-- The annotation processor that reads -api's vocabulary. Checks only, so far: every rule the
+             annotations call a compile error that a declaration can decide. JDK-only, depending on -api alone,
+             because a processor path is part of every application's compile. An application names it on its
+             annotationProcessorPaths — since JDK 23, javac runs no processor it merely finds on the class path. -->
+        <module>vexelray-framework-processor</module>
     </modules>
 
     <properties>
@@ -85,6 +90,11 @@
             <dependency>
                 <groupId>dev.vexelray.framework</groupId>
                 <artifactId>vexelray-framework-template</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.vexelray.framework</groupId>
+                <artifactId>vexelray-framework-processor</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

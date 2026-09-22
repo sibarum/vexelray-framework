@@ -13,7 +13,7 @@ reader's memory."* A rule here is one of:
 | | Meaning |
 | --- | --- |
 | **held** | enforced now, by a test or by the type system |
-| **processor** | a compile error once `-processor` exists; inert until then |
+| **processor** | the processor's to make a compile error, and it does not yet — `-processor` exists and checks what a declaration can decide; these need generation, a method body, or a seam not built |
 | **upstream** | cannot hold until a sibling repo changes |
 | **open** | the rule is not yet decided, and the entry says what is missing |
 | **read** | true, load-bearing, and enforced by the reader — the state to get things out of |
@@ -74,21 +74,28 @@ So the bound waits on knowing, not on a known blocker. *(open — and the thing 
 rather than a lane with a reserved name is now a **decision** rather than an accident of how this
 sentence was first written — see [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything).
 `Lanes` does not mint it, there is exactly one of it, and what may happen there differs in kind; naming
-it as a lane would make a string the discriminator for all of that. *(processor)*
+it as a lane would make a string the discriminator for all of that. *(held, by
+`VexelProcessorTest.aComponentIsNotAlsoMainThread` — a `@Component` that is also `@MainThread` is a compile
+error. The third colour, shareable, is not declarable until T2.4's copier exists, so the only way to give a
+value two colours today is the one that is refused)*
 
 **T2.2 — A main-thread value may not be injected into anything that is not itself main-thread.** One
 rule, one direction. The inverse is deliberately allowed: handing a main-thread component an immutable
 model or a settings record violates nothing, and requiring an annotation for it would put `@MainThread`
-on most of an application. *(processor — this is `@MainThread`'s written specification, and it is inert)*
+on most of an application. *(held, by `VexelProcessorTest`'s T2.2 cases — into a component's constructor,
+and into a provider whose value is not main-thread, with the colour read off the type's `@MainThread` or off a
+`@MainThread` provider's, including from a class file. Only as good as where it is applied: see T3.1)*
 
 **T2.3 — A direct reference between two components is permitted only where they share a thread.**
 Decidable because placement is static: the colour of a value *is* the thread it was placed on, and
 dynamic placement would have made this check undecidable. **Static is not yet the same as visible**, and
-this rule as written assumed it was. `shell.place("compose")` is a call in a wiring method body, so the
-placement is decided once and never changes afterwards but a processor — which reads declarations, not
-bodies — cannot see it. The rule holds; what it needs first is placement moved onto the declaration.
-*(processor, once placement is declared — see
-[architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything))*
+this rule as written assumed it was. `shell.place("compose")` is a call in a wiring method body, which a
+processor — reading declarations, not bodies — cannot see. So placement moved onto the declaration:
+`@Component(lane = "compose")`, required rather than defaulted. The lane is a string, and that is safe here
+in a way it would not be for the main thread: all two spellings agreeing permits is a direct reference, so a
+misspelling can deny one and never grant it, and the error names both spellings side by side. *(held, by
+`VexelProcessorTest.componentsOnDifferentLanesMayNotHoldEachOther` and
+`aMisspelledLaneDeniesAReferenceAndNamesBothSpellings`)*
 
 **T2.4 — A value crossing a lane arrives as if it had crossed a wire**: no shared reference to the
 sender's heap, anywhere in the reachable graph. Sharing a deeply immutable value is indistinguishable
@@ -115,7 +122,9 @@ copy, and the fix at the call site is to pass the value rather than close over i
 
 **T3.1 — Vulkan, the window and present are the main thread's.** The stack's constraint, not this
 framework's invention — `vexelray-gui/CLAUDE.md` files it under constraints *not visible in the code*.
-*(processor, via §2.2)*
+*(processor, via §2.2 — which is held, and which this rule does not yet benefit from: `GuiApp` and `Gui` carry
+no `@MainThread` and should not learn this repo exists, so the mark has to come from a framework-side
+`@MainThread` provider, which is generation's)*
 
 **T3.2 — The timeline graph is the baton's.** A component thread never holds the baton and never reads
 or writes a `Signal`, `Cell` or `Effect`. `KronBridge` exists because the two systems have incompatible
@@ -125,7 +134,9 @@ publisher's thread *"would mean mutating the graph from off the timeline, which 
 design does not permit."* *(read)*
 
 **T3.3 — A component's state is its own thread's.** Nothing else reads it, writes it, or holds a
-reference to it. *(processor, via §2.3)*
+reference to it. *(processor, via §2.3 and §2.4 — the first is held, so the container can no longer hand a
+component's object across a lane; what it cannot yet stop is a component publishing a reference into its own
+state, which is the copier's to answer)*
 
 **T3.4 — Components form a tree.** A component may own child components; the application is the root.
 *(open — new to this stack, see the note below)*
@@ -148,7 +159,9 @@ that is overrunning. *(processor)*
 unreachable unless the wiring exposes them, and what the container hands out is a channel or a shareable
 value, never the object. This is the sharp form of a mismatch already recorded for the processor's brief:
 `@Component` is a DI contract, and constructor injection handing A a direct reference to B is the thing a
-mailbox exists to prevent. *(processor)*
+mailbox exists to prevent. *(held, by `VexelProcessorTest.aProviderMayNotHoldAComponent` with T2.3: a
+component reaches another component's object only on its own lane, and a provider never does — a provided
+value holding a component could be injected anywhere, carrying it across lanes with no check seeing it)*
 
 > **On §3.4–§3.7.** These are new to the stack — there is no hierarchy, parent or supervision concept in
 > `atchung`, its documentation, or elektro-Q, whose `Actor` is a marker and whose `Conduit` is flat. By
@@ -271,15 +284,16 @@ The point of the column is that the unenforced rules are a list rather than an i
 | | held | processor | upstream | open | read |
 | --- | --- | --- | --- | --- | --- |
 | **1 Lanes** | T1.2, T1.4, T1.5 | T1.3 | | | T1.1 |
-| **2 Colour** | | T2.1, T2.2, T2.3, T2.4, T2.5 | | | |
-| **3 Ownership** | | T3.1, T3.3, T3.6, T3.7 | | T3.4 | T3.2, T3.5 |
+| **2 Colour** | T2.1, T2.2, T2.3 | T2.4, T2.5 | | | |
+| **3 Ownership** | T3.7 | T3.1, T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
 | **4 Channels** | T4.2 | T4.1, T4.3, T4.4, T4.5 | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4 | | | T6.3, T6.5 | |
 
-Three readings worth taking from it. **Fourteen of the thirty-two rules say `processor`**, which is still
-the argument for writing the colour checker earlier than its position on the critical path: it is the
-single change that moves the most of this document out of the reader's memory. **`open` is three rules,
+Three readings worth taking from it. **Ten of the thirty-two rules still say `processor`**, down from
+fourteen, and what the remaining ten have in common is the useful thing to know about them: none can be
+decided from a declaration. T1.3, T3.1 and T3.6 want generated wiring, T2.4 and §4 want a seam that declares
+a channel, T2.5 wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
 and §2 is now empty of them** — the colour section was the one place where an unanswered question would
 have been classified into every application type by the processor, and T2.4 is answered. What is left open is the
 component seam and its supervision, which is where the remaining design work actually is. And
@@ -287,13 +301,13 @@ component seam and its supervision, which is where the remaining design work act
 things this repo could not fix, and both turned out to be one change in `vexelray-gui` — the worker pool
 ceasing to be a field initializer — rather than two problems.
 
-**What moved this commit, and what made it move.** Eight rules are now held rather than five, and every
-one of them was paid for by the same two objects: `Lanes`, which owns the application's threads instead
-of a `Gui` owning one set per tree, and `Placement`, which owns a component's thread and the
-drain-then-stop around it. Worth noticing that none of the promoted rules needed the processor. They
-needed something to *be* the rule — a lane with a name, a placement that is a `WakeSource`, a start that
-is a separate moment from a construction — which is the difference between a rule enforced by a type and
-a rule enforced by a reader, and it is available a long way before the compile error is.
+**What moved, and what made it move.** Twelve rules are held. The first eight were paid for by two
+objects: `Lanes`, which owns the application's threads instead of a `Gui` owning one set per tree, and
+`Placement`, which owns a component's thread and the drain-then-stop around it. None of those needed the
+processor — they needed something to *be* the rule, which is available a long way before the compile error
+is. The next four — T2.1, T2.2, T2.3 and T3.7 — are the processor's, and they arrived without it generating
+anything: the checks read declarations, and generation is still to come. The precondition T2.3 named for
+itself, placement on the declaration, turned out to be one required annotation member.
 
 ## Promoting a rule
 

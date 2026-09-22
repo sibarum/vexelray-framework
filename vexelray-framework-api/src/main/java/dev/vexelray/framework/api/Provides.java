@@ -22,8 +22,19 @@ import java.lang.annotation.Target;
  * <p>A provider for a type the framework also supplies wins over it silently, provided the framework's is
  * marked {@link Default}. Two non-default providers for one type will be a compile error.
  *
- * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
- * {@link dev.vexelray.framework.api} for which half of this package is built.
+ * <p><b>It returns an interface, when the type is this build's own.</b> Generated code can swap what it constructs
+ * without touching a call site only if the call sites were written against something that can have a second
+ * implementation. A type that arrives as a class file from another jar — {@code Tactroller}, {@code Clipboard},
+ * {@code Settings}, all {@code final} — cannot be given one by the application, and those are exactly the types
+ * {@link Configuration} exists for, so the rule is kept where it can be. A record, a primitive or an array is a
+ * value, and a value is not the container's business.
+ *
+ * <p>A provider never takes a {@link Component}: a value holding one could be injected anywhere, carrying the
+ * component across lanes without a check seeing it (T3.7).
+ *
+ * <p><b>Checked, not yet generated.</b> {@code vexelray-framework-processor} holds every rule above that a
+ * declaration can decide; nothing calls a provider yet. See {@link dev.vexelray.framework.api} for which half of
+ * this package is built.
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.CLASS)

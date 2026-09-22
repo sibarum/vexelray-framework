@@ -34,8 +34,12 @@ import java.lang.annotation.Target;
  * reinvented: <i>"a malformed value falls back to the caller's default, same policy as a missing one"</i>.
  * Settings are a convenience, and an application must not refuse to launch over a preferences file.
  *
- * <p><b>Inert.</b> Nothing reads this annotation yet; the above is its specification. See
- * {@link dev.vexelray.framework.api} for which half of this package is built.
+ * <p><b>Checked, not yet generated.</b> {@code vexelray-framework-processor} rejects a type {@code Settings} has no
+ * accessor for, a {@link #def()} that does not parse, and a setting on a parameter the container does not supply.
+ * One place it is stricter than {@code Settings}: a boolean default is {@code true} or {@code false}, because
+ * {@code getBoolean} calls {@code "yes"} false without complaint, which is right for a hand-edited file and wrong
+ * for source. Nothing binds a setting yet. See {@link dev.vexelray.framework.api} for which half of this package
+ * is built.
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.CLASS)

@@ -101,7 +101,7 @@ final class Editor {
 | `vexelray-framework-shell` | **built** — the absorbed edge, the threads, and the window chrome (71 tests) |
 | `vexelray-framework-automation` | **built** — the driving socket, in its own module (2 tests) |
 | `vexelray-framework-template` | **built** — the project builder, arrived from `mainframe-template` (46 tests) |
-| `vexelray-framework-processor` | next — generate the wiring the template writes by hand |
+| `vexelray-framework-processor` | **checks built** (31 tests) — every rule the vocabulary calls a compile error that a declaration can decide; next, generate the wiring the template writes by hand |
 
 Three applications ran on it, each with its wiring hand-written in its own repo, and each was chosen so
 it could find what the others could not:
@@ -122,8 +122,9 @@ conventions of its own to defend, and rebuilding a real application from it cost
 `-api` and `-core` are JDK-only, so the container's decisions are testable on a machine with no GPU.
 `-shell` is the only Vulkan-aware module.
 
-The processor comes **last** on purpose: a code generator whose output has never been written by hand
-is a generator whose output nobody has checked the shape of.
+The processor's *generator* comes **last** on purpose: a code generator whose output has never been
+written by hand is a generator whose output nobody has checked the shape of. Its *checks* did not have to
+wait, because refusing what the vocabulary already calls wrong freezes nothing.
 
 ## The vocabulary
 
