@@ -1,197 +1,61 @@
 package dev.vexelray.framework.shell;
 
-import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.WindowInput;
-import sibarum.tactroller.api.BackendException;
-import sibarum.tactroller.api.CoordinateSpace;
-import sibarum.tactroller.api.Tactroller;
-import sibarum.tactroller.atchung.TactrollerInputBridge;
 
 /**
- * The input backend, attached to the window and bridged onto the bus — the framework's copy of four helper
- * methods that every application on this stack currently writes for itself.
+ * The input backend, attached to the window and bridged onto the bus.
  *
- * <p><b>Absence is a state, not a failure.</b> {@code Tactroller.open()} throws where there is no backend, and
- * every hand-written edge answers it the same way, for a reason worth keeping verbatim: <i>"a window nobody can
- * click is a degraded window rather than a failed launch"</i>. So this class is always constructible, reports
- * {@link #present()} false when there is nothing underneath it, and every method is a no-op in that state. No
- * caller needs a null check, and CI keeps rendering.
+ * <p><b>An interface, because a provider returns one.</b> {@code @Provides} returns an interface so that the
+ * wiring can construct something else without a call site knowing, and this is the first thing an application
+ * would want to swap: a recorded session instead of a device, a scripted one in a test, a backend for a platform
+ * tactroller does not cover. {@link #open()} is the framework's answer, on tactroller, and it is the only one
+ * there is today.
+ *
+ * <p><b>Absence is a state, not a failure</b>, and every implementation keeps it. {@code Tactroller.open()}
+ * throws where there is no backend, and every hand-written edge answers it the same way, for a reason worth
+ * keeping verbatim: <i>"a window nobody can click is a degraded window rather than a failed launch"</i>. So a
+ * backend is always there to be had, reports {@link #present()} false when there is nothing underneath it, and
+ * every method is a no-op in that state. No caller needs a null check, and CI keeps rendering.
  */
-public final class InputBackend implements AutoCloseable {
+public interface InputBackend extends AutoCloseable {
 
-    private final Tactroller input;
-
-    private TactrollerInputBridge bridge;
-    private PointerLock pointerLock;
-
-    private InputBackend(Tactroller input) {
-        this.input = input;
-    }
-
-    /** Open the backend, or report its absence. Never throws, never returns null. */
-    public static InputBackend open() {
-        try {
-            Tactroller t = Tactroller.open();
-            System.out.println("input: " + t.backendName());
-            return new InputBackend(t);
-        } catch (BackendException e) {
-            Diagnostics.dropped("InputBackend.open", "pointer and keyboard input for this application",
-                    e.getMessage() + "; the window renders and nothing in it can be clicked");
-            return new InputBackend(null);
-        }
-    }
-
-    /** Whether there is a backend at all. */
-    public boolean present() {
-        return input != null;
+    /** The framework's backend, on tactroller, or its absence reported. Never throws, never returns null. */
+    static InputBackend open() {
+        return TactrollerInputBackend.open();
     }
 
     /**
-     * Attach to the window and settle the coordinate space.
-     *
-     * <p><b>{@code CLIENT}, and density deliberately left at 1.0.</b> Both follow from one fact: the engine's
-     * window and {@code Canvas} are in <em>logical</em> coordinates, not framebuffer pixels. On a scaled
-     * display that has two consequences, and getting either wrong is visible immediately — {@code FRAMEBUFFER}
-     * coordinates are {@code CLIENT} times {@code contentScale}, so every press would land past its target; and
-     * the OS is already scaling a logical window's output, so feeding {@code contentScale()} into
-     * {@code Gui.dpi} scales the content a second time.
-     */
-    public void attach(long windowHandle) {
-        if (input == null) {
-            return;
-        }
-        try {
-            input.attach(sibarum.tactroller.api.NativeWindow.ofHwnd(windowHandle));
-            input.setCoordinateSpace(CoordinateSpace.CLIENT);
-        } catch (BackendException e) {
-            Diagnostics.dropped("InputBackend.attach", "pointer input for the main window",
-                    e.getMessage() + "; the backend opened but could not be bound to the window handle");
-        }
-    }
-
-    /**
-     * Bridge this backend's events onto {@code gui}'s bus, and carry {@code gui}'s pointer-lock intent onto
-     * this backend. Call once, after {@link #attach}.
-     *
-     * <p>The two together rather than separately, because the lock has to be reconciled <em>before</em> each
-     * frame's snapshot and taking them as one argument list is what makes that impossible to get wrong — see
-     * {@link #pump()}.
-     */
-    public void bridge(Gui gui, PointerLock lock) {
-        if (input != null) {
-            bridge = new TactrollerInputBridge(input, gui.bus());
-        }
-        pointerLock = lock;
-        if (lock != null) {
-            lock.attach(input, gui);
-        }
-    }
-
-    /**
-     * Reconcile the pointer lock, then snapshot this frame's input onto the bus.
-     *
-     * <p><b>In that order, in one method, on purpose.</b> A lock that engages after the snapshot has drained
-     * leaves this frame's motion read in the wrong mode, and it arrives as one large delta — the camera snaps.
-     * {@code Fathom}, the stack's hand-written mouselook, has the rule and the reason: <i>"Reconcile the lock
-     * BEFORE pumping so this frame's snapshot drains in the right mode. lockPointer(RAW) zeroes the backend
-     * accumulator, so toggling never yields a stray jump."</i> Two frame hooks in {@code FrameStage.INPUT}
-     * would express the same thing and rest it on registration order, which {@code FrameStage} says outright is
-     * a mistake to depend on. One hook cannot be registered in the wrong order.
-     *
-     * <p>A transient poll failure drops this frame's input rather than tearing down the loop — the frame stage
-     * this runs in is documented as not throwing, and sixty stack traces a second inform nobody.
-     */
-    public void pump() {
-        if (pointerLock != null) {
-            pointerLock.reconcile();
-        }
-        if (bridge == null) {
-            return;
-        }
-        try {
-            bridge.pump();
-        } catch (BackendException e) {
-            // Transient: this frame goes without input.
-        }
-    }
-
-    /**
-     * Input for a window the framework opened on its own — a dialog, a named window: its own backend, attached
-     * to that window's handle, bridged onto that window's bus, pumped by the frame loop.
-     *
-     * <p>Note the two unrelated {@code NativeWindow} types in play, which is why both are written out in full
-     * here. The parameter is the engine's ({@code dev.vexelray.os.NativeWindow}); the one tactroller attaches
-     * to is its own ({@code sibarum.tactroller.api.NativeWindow}). Importing either shadows the other in a file
-     * that names both, with no complaint at the import.
-     *
-     * <p><b>Each such window gets a {@link PointerLock} of its own</b>, tuned like the main window's and
-     * sharing none of its state — a lock is a property of one pointer over one window, and two windows cannot
-     * hold it at once. Giving the other windows the lock as well is not thoroughness: the framework's own TODO
-     * already names this failure shape, <i>"a line to repeat per window, correct on the window under test and
-     * missing on the one being used"</i>, and a viewport in a second window is exactly the case the designer
-     * has.
+     * Input for each window the framework opens on its own — a dialog, a named window — each with its own
+     * backend and its own {@link PointerLock}, tuned like the main window's.
      *
      * @param tuning the main window's lock, read for its mode and threshold only
      */
-    public static WindowInput.Factory perWindow(PointerLock tuning) {
-        return (window, windowGui) -> {
-            Tactroller backend;
-            try {
-                backend = Tactroller.open();
-                backend.attach(sibarum.tactroller.api.NativeWindow.ofHwnd(window.osHandle()));
-                backend.setCoordinateSpace(CoordinateSpace.CLIENT);
-            } catch (BackendException e) {
-                // The one of these that used to say nothing at all, and the one that most needed to. A second
-                // window that renders and hears no device is indistinguishable, by eye, from a window whose
-                // application forgot to wire a handler — which is Diagnostics' own fault "a capability that is
-                // silently dropped", arriving as something that reads like a taste decision.
-                Diagnostics.dropped("InputBackend.perWindow", "pointer and keyboard input for a window the "
-                        + "framework opened", e.getMessage() + "; that window renders and takes no input");
-                return WindowInput.NONE;
-            }
-            TactrollerInputBridge windowBridge = new TactrollerInputBridge(backend, windowGui.bus());
-            PointerLock windowLock = tuning == null ? null : tuning.forAnotherWindow();
-            if (windowLock != null) {
-                windowLock.attach(backend, windowGui);
-            }
-            return new WindowInput() {
-
-                @Override
-                public void pump() {
-                    // Before the drain, for the reason InputBackend.pump gives.
-                    if (windowLock != null) {
-                        windowLock.reconcile();
-                    }
-                    try {
-                        windowBridge.pump();
-                    } catch (BackendException e) {
-                        // As above: drop the frame's input, keep the loop.
-                    }
-                }
-
-                @Override
-                public void close() {
-                    // Before the backend goes, so a window closed mid-drag hands the cursor back rather than
-                    // leaving it hidden over whatever is behind it.
-                    if (windowLock != null) {
-                        windowLock.dispose();
-                    }
-                    backend.close();
-                }
-            };
-        };
+    static WindowInput.Factory perWindow(PointerLock tuning) {
+        return TactrollerInputBackend.perWindow(tuning);
     }
 
+    /** Whether there is a backend at all. */
+    boolean present();
+
+    /** Attach to the main window's handle, in the logical coordinates the engine's window and canvas use. */
+    void attach(long windowHandle);
+
+    /**
+     * Bridge this backend's events onto {@code gui}'s bus, and carry {@code gui}'s pointer-lock intent onto it.
+     * Once, after {@link #attach}; the two together, because the lock has to be reconciled before each frame's
+     * snapshot — see {@link #pump()}.
+     */
+    void bridge(Gui gui, PointerLock lock);
+
+    /**
+     * Reconcile the pointer lock, then snapshot this frame's input onto the bus — in that order, in one call, so
+     * the order cannot rest on how two hooks happened to be registered. Runs in {@code FrameStage.INPUT}, so it
+     * must not throw: a transient failure drops this frame's input and keeps the loop.
+     */
+    void pump();
+
+    /** Hand back the pointer, then release the device. Never throws. */
     @Override
-    public void close() {
-        // The lock first: Tactroller.close clears it too, but only once it has managed to stop its event loop,
-        // and a shutdown that times out there would otherwise leave the cursor hidden on the way out.
-        if (pointerLock != null) {
-            pointerLock.dispose();
-        }
-        if (input != null) {
-            input.close();
-        }
-    }
+    void close();
 }

@@ -54,7 +54,9 @@ public final class TextEditorApp {
 
 Input, clipboard, window memory, the app icon, dialogs, the theme and the zoom range, pacing, wakes
 and argument parsing are defaults. Overriding one is a `@Provides` method returning that type; the
-framework's stops being generated, and there is no precedence documentation to read.
+framework's stops being generated, and there is no precedence documentation to read. The types are
+interfaces — `InputBackend`, `ClipboardBackend` — because a provider returns one, and an override needs
+something it can be a second implementation of.
 
 The close gate is the exception that proves the direction: the framework owns the *place* it is
 registered (`Shell.onClose`, from phase `ATTACH`) and installs none of its own, because the default
@@ -70,24 +72,24 @@ final class Editor {
      */
     @Provides
     Workspace workspace(Gui gui, KronoGui krono, SourceIndex index) {
-        return new Workspace(gui, krono, index);
+        return new TabbedWorkspace(gui, krono, index);
     }
 
     /** Phase CONFIG: a bound setting and nothing else, so it is built first. */
     @Provides
     Highlighter highlighter(@Setting(value = "theme", def = "editor") String theme) {
-        return new Highlighter(theme);
+        return new ThemedHighlighter(theme);
     }
 
     /**
-     * Only in a session. A capture never opens an input backend, so this is not constructed at all
-     * on a machine that has none — rather than constructed and then found to be null.
+     * Only in a session, and only where tactroller's clipboard is on the build's classpath — so a
+     * scripted FRAMES run never constructs it, rather than constructing it and finding it null.
      */
     @Provides
     @OnMode(RunMode.WINDOWED)
     @ConditionalOnType("sibarum.tactroller.clipboard.Clipboard")
     ClipboardBinding clipboards(Workspace workspace) {
-        return new ClipboardBinding(workspace.windows());
+        return new EveryWindowClipboard(workspace.windows());
     }
 }
 ```

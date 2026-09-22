@@ -11,20 +11,6 @@ cannot be fixed from here at all.
 
 ## Next
 
-- [ ] **The `@Provides` interface rule is decided and is not true in two places yet.**
-      [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything) settles
-      that `@Provides` returns an interface, so that generated code can swap an implementation without a
-      call site knowing. The processor now holds it for an application's **own** types; a type arriving as a
-      class file is exempt, because `Tactroller` and `Clipboard` are final and the application cannot give
-      them a second implementation. That carve-out is also why the processor will not flag what follows —
-      from an application's side, `InputBackend` is somebody else's class file. Two things do not satisfy
-      it. `InputBackend` and `ClipboardBackend` are concrete final classes reached through static `open()` factories at `VexelApplication:238` and `:262`, which
-      also means the README's claim that every default is overridable *"by a `@Provides` method returning
-      that type"* is not true of either — there is nothing to return. Making them interfaces fixes the
-      claim and satisfies the rule in one move. And the README's own target example returns `Workspace`,
-      `Highlighter` and `ClipboardBinding`, all concrete; it wants revisiting when the editor's wiring is
-      restored, since that is the application it describes.
-
 - [ ] **The processor checks; it does not generate, and nothing uses it yet.** `vexelray-framework-processor`
       holds every rule the vocabulary calls a compile error that a declaration can decide — T2.1–T2.3, T3.7,
       one provider per type per mode, and the shape of each annotation — and emits no source. What is left,
@@ -36,7 +22,11 @@ cannot be fixed from here at all.
         [architecture.md](architecture.md#what-it-does-for-the-processor) states.
       - **Generation**: `<App>Wiring` from `@VexelApp`, `@Component`, `@Provides`, `@Setting`,
         `@BeforeFrame` and `@OnMode`, replacing the template's hand-written one; and `Shell.place` becoming
-        what generated code calls for each declared lane rather than what a wiring body calls.
+        what generated code calls for each declared lane rather than what a wiring body calls. This is also
+        where the README's *"overriding one is a `@Provides` method returning that type"* starts being true:
+        `InputBackend` and `ClipboardBackend` are interfaces now, so there is something to return, but
+        `VexelApplication` still calls their `open()` itself. They want to become `@Default` providers the
+        generated wiring consumes, so an application's own provider backs them off.
       - **T3.1 is only as good as the annotations, and the types that need it most are bare.** `GuiApp`
         and `Gui` carry no `@MainThread`, and should not — `vexelray-gui` must not learn this repo exists.
         The answer is a framework-side provider marked `@MainThread`, which is generation's.
