@@ -11,14 +11,6 @@ cannot be fixed from here at all.
 
 ## Next
 
-- [ ] **`mainframe-template` still has its own copy of the engine** (fix belongs in `mainframe`). The
-      move was a copy, deliberately: this repo went green before anything over there was touched. What
-      is left is to delete the nine engine classes and `TemplateTest`/`VexelDesktopTest` from
-      `mainframe-template`, depend on `vexelray-framework-template`, and leave the five classes under
-      `dev.mainframe.template.shell` as what they already are — the adapter that turns slots into form
-      fields and the result into a `Plan`. `NewProjectTest` stays with them. Until that lands there are
-      two copies, and the one over there is the one that will drift.
-
 - [ ] **The `@Provides` interface rule is decided and is not true in two places yet.**
       [architecture.md](architecture.md#the-vocabulary-decided-before-the-processor-emits-anything) settles
       that `@Provides` returns an interface, so that generated code can swap an implementation without a

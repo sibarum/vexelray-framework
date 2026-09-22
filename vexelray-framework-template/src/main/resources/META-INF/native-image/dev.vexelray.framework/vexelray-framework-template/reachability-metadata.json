@@ -1,0 +1,22 @@
+{
+  "comment": [
+    "A bundled template's files are classpath resources, and a native image ships",
+    "only the resources it was told about. Without these, a native binary embedding",
+    "the builder builds clean, lists the template, asks every question, and then",
+    "cannot find a single file to write -- a green build is not evidence for this.",
+    "",
+    "It travels with the module rather than with whatever binary embeds it, so",
+    "anything depending on vexelray-framework-template gets it. It arrived from",
+    "mainframe-template with the resources it describes: the globs name the classpath",
+    "root Catalogue reads, and VexelDesktopTest.theManifestAndTheFolderAgree keeps the",
+    "second one honest."
+  ],
+  "resources": [
+    {
+      "glob": "dev/vexelray/framework/template/*/template.manifest"
+    },
+    {
+      "glob": "dev/vexelray/framework/template/**/files/**"
+    }
+  ]
+}

@@ -308,4 +308,39 @@ class VexelDesktopTest {
         assertTrue(absent.isEmpty(), "the manifest names files that are not there: " + absent);
     }
 
+    /**
+     * The native-image metadata names every resource the builder reads, at the root {@link Catalogue} reads it
+     * from.
+     *
+     * <p>A native binary ships only the resources it was told about, and one missing here is a builder that
+     * lists the template, asks every question, and then cannot find a file to write — a green JVM build is no
+     * evidence either way. The metadata came from {@code mainframe-template} after the resources did, which is
+     * the drift this exists to catch: globs naming a root nothing reads any more.
+     */
+    @Test
+    void theNativeImageMetadataCoversEveryBundledFile() throws IOException {
+        String json;
+        try (var in = Catalogue.class.getResourceAsStream(
+                "/META-INF/native-image/dev.vexelray.framework/vexelray-framework-template/reachability-metadata.json")) {
+            assertNotNull(in, "the metadata is not on the classpath");
+            json = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        List<java.nio.file.PathMatcher> globs = new java.util.ArrayList<>();
+        var m = java.util.regex.Pattern.compile("\"glob\"\\s*:\\s*\"([^\"]+)\"").matcher(json);
+        while (m.find()) {
+            globs.add(java.nio.file.FileSystems.getDefault().getPathMatcher("glob:" + m.group(1)));
+        }
+        assertFalse(globs.isEmpty(), "the metadata names no resources");
+
+        String root = "dev/vexelray/framework/template/" + ID + "/";
+        List<String> read = new java.util.ArrayList<>();
+        read.add(root + "template.manifest");
+        for (Template.Item item : template().items()) read.add(root + "files/" + item.source());
+        for (String resource : read) {
+            Path path = Path.of(resource);
+            assertTrue(globs.stream().anyMatch(g -> g.matches(path)),
+                    resource + " is read by the builder and would not ship in a native image");
+        }
+    }
+
 }
