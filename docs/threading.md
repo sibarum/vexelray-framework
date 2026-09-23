@@ -43,7 +43,11 @@ load-bearing in the thread dump somebody reaches for when one lane is the proble
 **T1.3 — Placement is decided in the wiring and never at runtime.** No work stealing, no placement
 decision, nothing to tune while running. This is the restriction the rest of the model is bought with:
 static assignment is what lets the processor emit thread construction, the component-to-thread mapping
-and barrier participation as generated code, with no scheduler in the binary. *(processor)*
+and barrier participation as generated code, with no scheduler in the binary. *(processor — half of it
+generated now: a `@Component`'s lane is on its declaration, and the generated wiring places each lane once and
+hands the placement to the components declared on it. What keeps it `processor` is that `Shell.place` is still a
+public call any part taking the `Shell` can make, so placement decided later than the wiring is refused by
+nothing but convention; barrier participation is not built at all)*
 
 **T1.4 — Component and offload threads are platform threads, never virtual.** Not stylistic:
 `jdk.virtualThreadScheduler.parallelism` is a global JVM property and JDK 25 has *"no public per-thread
@@ -122,9 +126,10 @@ copy, and the fix at the call site is to pass the value rather than close over i
 
 **T3.1 — Vulkan, the window and present are the main thread's.** The stack's constraint, not this
 framework's invention — `vexelray-gui/CLAUDE.md` files it under constraints *not visible in the code*.
-*(processor, via §2.2 — which is held, and which this rule does not yet benefit from: `GuiApp` and `Gui` carry
-no `@MainThread` and should not learn this repo exists, so the mark has to come from a framework-side
-`@MainThread` provider, which is generation's)*
+*(held, via §2.2, by `VexelProcessorTest.aComponentAskingForTheWindowIsAnError`. `GuiApp` carries no
+`@MainThread` and should not learn this repo exists, so the mark comes from the processor's own table of what
+the framework hands out — `Framework`, held against `Shell` by `FrameworkTableTest` — which is where the
+generated wiring gets the `GuiApp` from as well)*
 
 **T3.2 — The timeline graph is the baton's.** A component thread never holds the baton and never reads
 or writes a `Signal`, `Cell` or `Effect`. `KronBridge` exists because the two systems have incompatible
@@ -285,15 +290,16 @@ The point of the column is that the unenforced rules are a list rather than an i
 | --- | --- | --- | --- | --- | --- |
 | **1 Lanes** | T1.2, T1.4, T1.5 | T1.3 | | | T1.1 |
 | **2 Colour** | T2.1, T2.2, T2.3 | T2.4, T2.5 | | | |
-| **3 Ownership** | T3.7 | T3.1, T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
+| **3 Ownership** | T3.1, T3.7 | T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
 | **4 Channels** | T4.2 | T4.1, T4.3, T4.4, T4.5 | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4 | | | T6.3, T6.5 | |
 
-Three readings worth taking from it. **Ten of the thirty-two rules still say `processor`**, down from
-fourteen, and what the remaining ten have in common is the useful thing to know about them: none can be
-decided from a declaration. T1.3, T3.1 and T3.6 want generated wiring, T2.4 and §4 want a seam that declares
-a channel, T2.5 wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
+Three readings worth taking from it. **Nine of the thirty-two rules still say `processor`**, down from
+fourteen, and what the remaining nine have in common is the useful thing to know about them: none can be
+decided from a declaration, and generation did not move them either. T1.3 is half generated and half a
+convention, T3.6 waits on the component tree (§3.4), T2.4 and §4 want a seam that declares a channel, T2.5
+wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
 and §2 is now empty of them** — the colour section was the one place where an unanswered question would
 have been classified into every application type by the processor, and T2.4 is answered. What is left open is the
 component seam and its supervision, which is where the remaining design work actually is. And
@@ -301,13 +307,16 @@ component seam and its supervision, which is where the remaining design work act
 things this repo could not fix, and both turned out to be one change in `vexelray-gui` — the worker pool
 ceasing to be a field initializer — rather than two problems.
 
-**What moved, and what made it move.** Twelve rules are held. The first eight were paid for by two
+**What moved, and what made it move.** Thirteen rules are held. The first eight were paid for by two
 objects: `Lanes`, which owns the application's threads instead of a `Gui` owning one set per tree, and
 `Placement`, which owns a component's thread and the drain-then-stop around it. None of those needed the
 processor — they needed something to *be* the rule, which is available a long way before the compile error
-is. The next four — T2.1, T2.2, T2.3 and T3.7 — are the processor's, and they arrived without it generating
-anything: the checks read declarations, and generation is still to come. The precondition T2.3 named for
-itself, placement on the declaration, turned out to be one required annotation member.
+is. The next four — T2.1, T2.2, T2.3 and T3.7 — are the processor's checks, and they arrived before it
+generated anything: the checks read declarations. The precondition T2.3 named for itself, placement on the
+declaration, turned out to be one required annotation member. The thirteenth, T3.1, came with generation,
+and not because of it: the generated wiring needed a table of what the framework hands out, and a table of the
+framework's values is the one place a type from another repo can be marked main-thread without that repo
+knowing.
 
 ## Promoting a rule
 

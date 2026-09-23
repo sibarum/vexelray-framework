@@ -42,7 +42,7 @@ Four files carry the whole shape, and it is worth reading them in this order.
 
 | file | what belongs in it |
 | --- | --- |
-| `${className}Wiring.java` | **what this application builds, and in which phase.** One method per phase, called in order. New components go here. |
+| `Recipes.java` | **what this application builds.** One `@Provides` method per part; `${className}Wiring`, which builds them in order, is generated from it while the project compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. New parts go here. |
 | `Model.java` | the one authoritative state, and the only way to change it. Every edit is a function of the current value, committed through atchung's `State`. |
 | `Doc.java` | what the application knows, as one immutable record. Add fields here rather than adding state elsewhere. |
 | `Ui.java` | the tree. Holds no state; `show(Doc)` writes everything derived from the document. |

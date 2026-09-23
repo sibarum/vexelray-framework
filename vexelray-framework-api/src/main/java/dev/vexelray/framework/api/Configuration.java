@@ -23,10 +23,11 @@ import java.lang.annotation.Target;
  * {@link VexelApp#starters()}. <b>Named, not found</b> — see that method for why a framework that discovers its
  * starters has to walk the classpath to do it, and what the class literal buys instead.
  *
- * <p><b>Read, not yet generated.</b> {@code vexelray-framework-processor} collects the {@link Provides} methods
- * here and on every starter, and checks them; nothing calls them yet. One promise above is not kept by it: a
- * {@code @Provides} calling another directly is a method body, and the processor reads declarations. See
- * {@link dev.vexelray.framework.api} for which half of this package is built.
+ * <p><b>Checked and generated.</b> {@code vexelray-framework-processor} collects the {@link Provides} methods here
+ * and on every starter, checks them, and the generated wiring constructs this class once — so it needs a
+ * non-private constructor taking nothing, and a starter's is public — and calls each winning provider once. One
+ * promise above is not kept: a {@code @Provides} calling another directly is a method body, and the processor
+ * reads declarations. See {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)

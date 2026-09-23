@@ -15,13 +15,13 @@ import dev.vexelray.framework.core.Phase;
  *
  * <p>The methods default to doing nothing, and that is a real answer rather than a swallowed one — most
  * applications have nothing in most phases. What an implementation must not do is put work in the wrong one:
- * {@link Shell}'s accessors refuse to hand over what does not exist yet, and once the processor exists it
- * rejects a backwards dependency outright.
+ * {@link Shell}'s accessors refuse to hand over what does not exist yet, and a generated wiring cannot do it at
+ * all, because every phase in it was inferred.
  *
- * <p><b>Hand-writing one of these is supported, and is how the framework is being built.</b> The generated
- * version is not privileged — it extends this class with constructor calls in phase order, which is exactly
- * what a hand-written one does. A code generator whose output has never been written by hand is a generator
- * whose output nobody has checked the shape of.
+ * <p><b>Generated from an application's {@code @VexelApp} and its {@code @Provides} methods, and hand-writing
+ * one is still supported.</b> The generated version is not privileged — it extends this class with provider and
+ * constructor calls in phase order, which is exactly what a hand-written one does, and the template's
+ * hand-written wiring was the shape it was written to reproduce.
  *
  * <p><b>A class rather than an interface, because an interface here was a lambda.</b> With {@link #info} the
  * only abstract method and all six phase methods {@code default}, this was a functional interface by accident:

@@ -12,9 +12,9 @@ import java.lang.annotation.Target;
  * {@code getBoolean}, {@code getString} and the rest — chosen by the parameter's declared type at compile time.
  * There is no reflective binder, no type coercion at runtime, and no metadata: a parameter declared {@code int}
  * compiles to a {@code getInt} call, and a parameter declared as a type nothing can supply becomes a build
- * error rather than a startup one. Until the processor exists, a wiring reads {@code Settings} itself and
- * {@code AppInfo.settingKeys} is typed out by hand — which that method calls the sharpest single argument for
- * generating this.
+ * error rather than a startup one. A hand-written wiring still reads {@code Settings} itself and types
+ * {@code AppInfo.settingKeys} out by hand, which that method calls the sharpest single argument for generating
+ * this; a generated one does neither.
  *
  * <p><b>Four sources, one precedence, stated once.</b> Today each application resolves its own configuration
  * inline and each picks its own order; the scaffold reads {@code System.getProperty("automation", "off")} in
@@ -38,7 +38,9 @@ import java.lang.annotation.Target;
  * accessor for, a {@link #def()} that does not parse, and a setting on a parameter the container does not supply.
  * One place it is stricter than {@code Settings}: a boolean default is {@code true} or {@code false}, because
  * {@code getBoolean} calls {@code "yes"} false without complaint, which is right for a hand-edited file and wrong
- * for source. Nothing binds a setting yet. See {@link dev.vexelray.framework.api} for which half of this package
+ * for source. The generated wiring binds each one through {@code Shell.setting(key, def)}, which keeps the
+ * precedence above in one place, and lists every key in {@code AppInfo.settingKeys} so {@code --key=value} is
+ * accepted rather than refused as unknown. See {@link dev.vexelray.framework.api} for which half of this package
  * is built.
  */
 @Target(ElementType.PARAMETER)

@@ -34,21 +34,26 @@ import java.util.Set;
  *
  * <p><b>A whole-program view, and it says so.</b> The providers are the round's {@code @Configuration}
  * classes plus the starters {@code @VexelApp} names by class literal — resolved, never searched for — and the
- * checks run once, when the last round is over. That is sound because the build is always a clean one: every
- * source in the module is in the compilation, so nothing the checks need can be sitting in a stale class file.
+ * checks run once: in the round the application is seen, so the wiring can be generated in a round javac still
+ * compiles, or when the last round is over for a library with no application. That is sound because the build is
+ * always a clean one: every source in the module is in the first round, so nothing the checks need can be sitting
+ * in a stale class file.
  * It is the answer {@code docs/architecture.md} asked for before the processor was written, taken on the side
  * that costs nothing to state.
  *
- * <p>A type nothing here provides is not an error. {@code Gui}, {@code GuiApp} and {@code Shell} are the
- * framework's to supply, and supplying them is the generated wiring's job, which does not exist yet. What those
- * values are resolved against is therefore only what the application and its starters declare.
+ * <p>A type nothing here provides is not this class's error. The framework's own values — {@code Gui},
+ * {@code GuiApp}, the {@code Shell} — are in {@link Framework}'s table, and whether everything else a parameter
+ * names is supplied is a question only an application has an answer to, so {@link Generator} asks it, and only
+ * when there is a {@code @VexelApp} to generate for. A starter compiled on its own is allowed to need things.
  */
 final class Graph {
 
     /** One {@code @Provides} method, with what the processor settles about it before any check runs. */
-    private record Provider(ExecutableElement method, TypeMirror type, boolean isDefault, boolean onMain,
-                            Set<String> modes) {
+    record Provider(TypeElement configuration, ExecutableElement method, TypeMirror type, boolean isDefault,
+                    boolean onMain, Set<String> modes) {
     }
+
+    private List<Provider> live = List.of();
 
     private final Mirrors mirrors;
     private final Declarations declarations;
@@ -75,8 +80,25 @@ final class Graph {
         components.add(type);
     }
 
+    /** The live providers, as the last {@link #check()} found them — what the generator builds from. */
+    List<Provider> providersSeen() {
+        return live;
+    }
+
+    /** Every live component, in the order the rounds offered them. */
+    List<TypeElement> componentsSeen() {
+        List<TypeElement> out = new ArrayList<>();
+        for (TypeElement c : components) {
+            if (live(c)) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
     void check() {
         List<Provider> providers = providers();
+        live = providers;
         conflicts(providers);
         for (TypeElement component : components) {
             if (live(component)) {
@@ -115,7 +137,7 @@ final class Graph {
                 TypeElement returned = Mirrors.element(type);
                 boolean main = mirrors.has(method, MainThread.class)
                         || returned != null && mirrors.has(returned, MainThread.class);
-                out.add(new Provider(method, type, mirrors.has(method, Default.class), main,
+                out.add(new Provider(configuration, method, type, mirrors.has(method, Default.class), main,
                         modes(configuration, method)));
             }
         }
@@ -154,7 +176,7 @@ final class Graph {
     }
 
     /** Whether {@code p} is a candidate in {@code mode}: a non-default always is, a default only unopposed. */
-    private boolean winsIn(Provider p, RunMode mode, List<Provider> providers) {
+    boolean winsIn(Provider p, RunMode mode, List<Provider> providers) {
         if (!p.isDefault()) {
             return true;
         }
@@ -233,6 +255,10 @@ final class Graph {
                     + " container hands out a channel or a shareable value, never the object, and a provided"
                     + " value holding a component would carry it to whoever asks for that value");
         }
+        if (other != null && other.getQualifiedName().contentEquals(Framework.PLACEMENT)) {
+            error(parameter, where + " takes a Placement, which is a component's thread and mailboxes. Only a"
+                    + " @Component's constructor is handed one — the placement of the lane it is declared on");
+        }
     }
 
     /** Why a value of this type is main-thread, or {@code null} when it is not. */
@@ -243,6 +269,11 @@ final class Graph {
         TypeElement element = Mirrors.element(type);
         if (mirrors.has(element, MainThread.class)) {
             return Mirrors.simple(element) + " is @MainThread";
+        }
+        Framework.Root root = Framework.root(element.getQualifiedName().toString());
+        if (root != null && root.onMain()) {
+            return Mirrors.simple(element) + " is the main thread's, and the framework hands it out from "
+                    + root.phase();
         }
         for (Provider p : providers) {
             if (mirrors.has(p.method(), MainThread.class) && types.isSameType(p.type(), type)) {
@@ -259,7 +290,7 @@ final class Graph {
      * named type resolves, by name, on this compile's classpath. A guard that fails is not a {@code false}
      * branch — it is code that does not exist.
      */
-    private boolean live(Element element) {
+    boolean live(Element element) {
         for (Element e = element; e != null && e.getKind() != ElementKind.PACKAGE; e = e.getEnclosingElement()) {
             AnnotationMirror guard = mirrors.find(e, ConditionalOnType.class);
             if (guard != null) {

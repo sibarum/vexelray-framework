@@ -20,6 +20,13 @@
     </description>
 
     <dependencies>
+        <!-- Test scope only, and read rather than run: FrameworkTableTest holds the processor's table of Shell
+             accessors, which it can only name by string, against the Shell they name. -->
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-processor</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>dev.vexelray.framework</groupId>
             <artifactId>vexelray-framework-core</artifactId>

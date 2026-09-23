@@ -299,6 +299,106 @@ public final class Shell {
         return require(Phase.CONFIG, "settings", settings);
     }
 
+    // --- @Setting, resolved -------------------------------------------------------------------------------------
+
+    /**
+     * <b>One {@code @Setting}, resolved by the one precedence</b> {@code @Setting}'s own Javadoc states: an
+     * explicit {@code --key=value}, then a {@code -Dkey=value} property, then the user's settings file, then
+     * {@code def}. Highest wins, and each level is more specific to this launch than the one beneath it.
+     *
+     * <p>What generated wiring calls for a {@code String} parameter; the overloads below are the same order for
+     * the other types {@code Settings} has an accessor for, chosen by the type of the default. <b>A malformed
+     * value falls through</b> to the next source rather than failing, which is {@code Settings}' own policy kept
+     * rather than reinvented — an application must not refuse to launch over a preferences file, and a typo in a
+     * flag is not a better reason.
+     */
+    public String setting(String key, String def) {
+        for (String given : given(key)) {
+            return given;
+        }
+        return settings().getString(key, def);
+    }
+
+    /** {@link #setting(String, String)}, for an {@code int}. */
+    public int setting(String key, int def) {
+        for (String given : given(key)) {
+            try {
+                return Integer.parseInt(given.trim());
+            } catch (NumberFormatException malformed) {
+                // Falls through to the next source, as a missing one does.
+            }
+        }
+        return settings().getInt(key, def);
+    }
+
+    /** {@link #setting(String, String)}, for a {@code long}. */
+    public long setting(String key, long def) {
+        for (String given : given(key)) {
+            try {
+                return Long.parseLong(given.trim());
+            } catch (NumberFormatException malformed) {
+                // Falls through to the next source, as a missing one does.
+            }
+        }
+        return settings().getLong(key, def);
+    }
+
+    /** {@link #setting(String, String)}, for a {@code float}. */
+    public float setting(String key, float def) {
+        for (String given : given(key)) {
+            try {
+                return Float.parseFloat(given.trim());
+            } catch (NumberFormatException malformed) {
+                // Falls through to the next source, as a missing one does.
+            }
+        }
+        return settings().getFloat(key, def);
+    }
+
+    /**
+     * {@link #setting(String, String)}, for a {@code boolean}. Only {@code true} and {@code false} count as
+     * given; anything else falls through rather than being read as false, which is what {@code parseBoolean}
+     * would quietly do to a {@code --fast=yes}.
+     */
+    public boolean setting(String key, boolean def) {
+        for (String given : given(key)) {
+            String g = given.trim();
+            if (g.equalsIgnoreCase("true") || g.equalsIgnoreCase("false")) {
+                return Boolean.parseBoolean(g);
+            }
+        }
+        return settings().getBoolean(key, def);
+    }
+
+    /**
+     * {@link #setting(String, String)}, for a list. A list given on the command line or as a property is split on
+     * commas; the file keeps its own separator. There is no default: an absent list is empty.
+     */
+    public java.util.List<String> settingList(String key) {
+        for (String given : given(key)) {
+            return given.isBlank() ? java.util.List.of() : java.util.List.of(given.split(",", -1));
+        }
+        return settings().getList(key);
+    }
+
+    /**
+     * The sources more specific than the file, most specific first: the command line, then the system property.
+     * A list rather than the first one present, so a value that does not parse at one level falls through to the
+     * next level rather than straight to the file. Startup code, not frame code — the allocation is once per key.
+     */
+    private java.util.List<String> given(String key) {
+        java.util.List<String> out = new java.util.ArrayList<>(2);
+        String flag = launch.override(key);
+        if (flag != null) {
+            out.add(flag);
+        }
+        String property = System.getProperty(key);
+        if (property != null) {
+            out.add(property);
+        }
+        return out;
+    }
+
     /** The GUI. Exists from {@link Phase#GUI}. */
     public Gui gui() {
         return require(Phase.GUI, "the Gui", gui);

@@ -46,9 +46,11 @@ import java.lang.annotation.Target;
  * <p>If the component holds a resource, implement {@link AutoCloseable}: it is closed in reverse construction
  * order at shutdown, after its thread has drained and stopped.
  *
- * <p><b>Checked, not yet generated.</b> {@code vexelray-framework-processor} holds every rule above that a
- * declaration can decide; nothing constructs a component from this annotation yet, and {@code Shell.place} is
- * still how a wiring puts one on its thread. See {@link dev.vexelray.framework.api} for which half is built.
+ * <p><b>Checked and generated.</b> {@code vexelray-framework-processor} holds every rule above that a
+ * declaration can decide, and the generated wiring constructs each component in its inferred phase. A constructor
+ * parameter of type {@code Placement} is handed the placement of the component's own lane — one per lane, from
+ * {@code shell.place(lane)} — which is where it subscribes its mailboxes; the framework starts it once everything is
+ * built. See {@link dev.vexelray.framework.api} for which half is built.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)

@@ -16,9 +16,9 @@ import java.util.Set;
  * @param width       first-run width, in the engine's logical coordinates
  * @param height      first-run height
  * @param settingKeys every {@code @Setting} key the application declares, so an unknown {@code --flag} can be
- *                    refused by name with the alternatives listed. The processor will fill this in, which is
- *                    why it will then be unable to fall out of date with the code that reads the settings —
- *                    and see {@link #settingKeys()}, because until the processor exists somebody types it
+ *                    refused by name with the alternatives listed. A generated wiring fills this in from every
+ *                    {@code @Setting} it binds, so it cannot fall out of date with the code that reads them;
+ *                    see {@link #settingKeys()} for what that costs a hand-written one
  * @param icon        the mark this application wears, or {@code null} to leave every window under the OS
  *                    default. See {@link #icon()} for why identity belongs here and not in {@link Appearance}
  */
@@ -55,14 +55,14 @@ public record AppInfo(String name, String title, int width, int height, Set<Stri
     /**
      * Every {@code @Setting} key this application declares.
      *
-     * <p><b>Hand-written until the processor exists, and that is the one thing worth knowing about it.</b>
+     * <p><b>Generated, or hand-written, and the difference is the one thing worth knowing about it.</b>
      * {@code Launch} says of this list that it <i>"cannot fall out of date, because it is not written by
-     * anybody"</i>, which is the argument for generating it rather than a description of today: a wiring class
-     * types the set out by hand. {@code --terminal} works in {@code text-editor-vexel-demo} because somebody
-     * remembered to put {@code "terminal"} in it.
+     * anybody"</i> — which is true of a generated wiring, where the processor lists every {@code @Setting} key
+     * it binds, and not of a hand-written one, which types the set out. {@code --terminal} worked in
+     * {@code text-editor-vexel-demo} because somebody remembered to put {@code "terminal"} in it.
      *
-     * <p>So the failure the mechanism exists to make impossible is, for now, only unlikely — and it is quiet
-     * in both directions. A key left out means a real flag refused as a typo. A key left behind after the
+     * <p>So in a hand-written wiring the failure the mechanism exists to make impossible is only unlikely — and
+     * it is quiet in both directions. A key left out means a real flag refused as a typo. A key left behind after the
      * {@code @Setting} that justified it is gone means a flag accepted and then ignored, which is the exact
      * failure {@link dev.vexelray.framework.core.Launch#FRAMEWORK_KEYS} is careful about. Neither shows up in
      * a test that did not think to look, which is why this is the sharpest single argument for the processor

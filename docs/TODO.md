@@ -11,25 +11,28 @@ cannot be fixed from here at all.
 
 ## Next
 
-- [ ] **The processor checks; it does not generate, and nothing uses it yet.** `vexelray-framework-processor`
-      holds every rule the vocabulary calls a compile error that a declaration can decide — T2.1–T2.3, T3.7,
-      one provider per type per mode, and the shape of each annotation — and emits no source. What is left,
-      in the order it wants doing:
-      - **The witness runs it and gives it nothing to read.** The generated `pom.xml` names the processor
-        on `annotationProcessorPaths` and `-Pacceptance` builds that project, so it loads in a real build and
-        does not misfire — but the `vexel-desktop` template uses no annotation. Making it *use* the
-        vocabulary is the start of generation, and is the acceptance test
-        [architecture.md](architecture.md#what-it-does-for-the-processor) states.
-      - **Generation**: `<App>Wiring` from `@VexelApp`, `@Component`, `@Provides`, `@Setting`,
-        `@BeforeFrame` and `@OnMode`, replacing the template's hand-written one; and `Shell.place` becoming
-        what generated code calls for each declared lane rather than what a wiring body calls. This is also
-        where the README's *"overriding one is a `@Provides` method returning that type"* starts being true:
-        `InputBackend` and `ClipboardBackend` are interfaces now, so there is something to return, but
-        `VexelApplication` still calls their `open()` itself. They want to become `@Default` providers the
-        generated wiring consumes, so an application's own provider backs them off.
-      - **T3.1 is only as good as the annotations, and the types that need it most are bare.** `GuiApp`
-        and `Gui` carry no `@MainThread`, and should not — `vexelray-gui` must not learn this repo exists.
-        The answer is a framework-side provider marked `@MainThread`, which is generation's.
+- [ ] **The wiring is generated; what it does not do yet.** The processor writes `<App>Wiring` from
+      `@VexelApp`, `@Provides`, `@Component`, `@Setting`, `@BeforeFrame`, `@OnMode` and `@ConditionalOnType`,
+      the `vexel-desktop` template ships a `Recipes` configuration instead of a hand-written wiring, and
+      `-Pacceptance` builds and drives the result. What is left, roughly in the order it wants doing:
+      - **The framework's own defaults are not providers.** `VexelApplication` still opens `InputBackend`
+        and `ClipboardBackend` itself, so the README's *"overriding one is a `@Provides` method returning that
+        type"* is true of the look and nothing else. They want to become `@Default` providers in a framework
+        starter the generated wiring consumes — which needs a seam in `VexelApplication` that takes what the
+        wiring built rather than opening its own, and the order it opens them in is load-bearing (input
+        before the window exists, attached after).
+      - **`Driver` wants to be a starter.** The template provides it by hand, with
+        `@Provides Driver driver(Shell shell)`; guarded by `@ConditionalOnType`, depending on
+        `-automation` would be the whole of the decision.
+      - **A provider returning `null` is passed on as `null`.** `@Provides` says absence is a supported answer,
+        that dependents which tolerate it still build, and that the framework reports it once. Today the
+        dependents are built with the `null` and nothing reports it; the consumers the wiring itself calls
+        (`appearance`, `register`, the hooks) are guarded, and that is all.
+      - **Types match exactly.** A parameter asking for an interface is resolved only by a provider
+        returning that interface, never by one returning a subtype. Deliberate for now — a subtype match is
+        the ambiguity `@Default` exists to rule out — but it is a decision nobody has argued.
+      - **One round.** The graph is taken in the round the `@VexelApp` is seen, which is every source of a
+        clean build; anything another processor generates in a later round is not in it.
       - **Two promises need a method body.** A `@Provides` calling another directly, and T2.5's capture
         rule, are both about what code *does* rather than what it declares. The Trees API can read them;
         doing so is a decision, since *the processor reads declarations* is load-bearing in
@@ -163,8 +166,8 @@ cannot be fixed from here at all.
       edge already falls there). The upstream half landed with it: `Gui` takes both lanes rather than
       building a `newCachedThreadPool` whatever it is handed, and closes only the lanes it built itself.
 
-      **Twelve of [threading.md](threading.md)'s rules are now held.** Eight came from these two objects, and
-      none of those promotions needed the processor — they needed something to *be* the rule; the other four
+      **Thirteen of [threading.md](threading.md)'s rules are now held.** Eight came from these two objects, and
+      none of those promotions needed the processor — they needed something to *be* the rule; the other five
       are the processor's. The `upstream` column is
       down to one entry, because T1.2 and T1.5 turned out to be the same change.
 

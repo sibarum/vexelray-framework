@@ -1,5 +1,6 @@
 package ${packageName};
 
+import dev.vexelray.framework.api.VexelApp;
 import dev.vexelray.framework.shell.VexelApplication;
 
 import java.io.IOException;
@@ -16,10 +17,12 @@ import java.io.IOException;
  * command line and closing everything in the right order — this file used to be three hundred lines of exactly
  * that, near-identically to every other application on this stack.
  *
- * <p>What this application actually builds is in {@link ${className}Wiring}, one method per phase. Everything
- * above that is in {@link Ui}; everything the application <em>knows</em> is in {@link Model}. This class holds
- * no state of its own, and that is a rule worth keeping: the moment the edge starts remembering things, there
- * are two places a value can live.
+ * <p>What this application actually builds is in {@link Recipes}, one method per part. {@code ${className}Wiring},
+ * which builds those parts in order, is generated from them and from the annotation on this class while the project
+ * compiles — so the facts below are stated once, here, and the wiring reads them. Everything above that is in
+ * {@link Ui}; everything the application <em>knows</em> is in {@link Model}. This class holds no state of its own,
+ * and that is a rule worth keeping: the moment the edge starts remembering things, there are two places a value can
+ * live.
  *
  * <pre>
  * ${className}                     the window, interactively
@@ -31,6 +34,7 @@ import java.io.IOException;
  * <p>A misspelled flag is refused by name with the alternatives listed, rather than a stack trace before any
  * window. Needs {@code --enable-native-access=ALL-UNNAMED}.
  */
+@VexelApp(name = ${className}.APP, title = ${className}.TITLE, width = ${className}.W, height = ${className}.H)
 public final class ${className} {
 
     /** The application's own name, which is what its settings directory is called. Stable across releases. */
@@ -47,7 +51,7 @@ public final class ${className} {
      * The smallest this UI is still coherent at, in root ems — a floor, not the design size.
      *
      * <p>Named here rather than written at each use because it is read from two places that have to agree:
-     * {@link ${className}Wiring#config} declares it to the framework, and a capture of the tree at exactly the
+     * {@link Recipes#look} declares it to the framework, and a capture of the tree at exactly the
      * minimum is the picture that shows a panel outgrowing it.
      */
     static final float MIN_W_EM = 24;

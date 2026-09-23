@@ -150,7 +150,7 @@ file docs/TODO.md
 # that sits at the top of the project.
 
 file src/main/java/${packagePath}/${className}.java  from App.java
-file src/main/java/${packagePath}/${className}Wiring.java from Wiring.java
+file src/main/java/${packagePath}/Recipes.java       from Recipes.java
 file src/main/java/${packagePath}/Ui.java            from Ui.java
 file src/main/java/${packagePath}/Model.java         from Model.java
 file src/main/java/${packagePath}/Doc.java           from Doc.java

@@ -27,9 +27,10 @@ import java.lang.annotation.Target;
  *
  * <p><b>Checked.</b> The rule above is a compile error from {@code vexelray-framework-processor}, into a
  * {@link Component}'s constructor and into a {@link Provides} method whose value is not main-thread. It is only
- * as good as where it is applied, and the types that most need it are unannotated: {@code GuiApp} and {@code Gui}
- * carry nothing of their own, and the providers that would mark them are the generated wiring's, which does not
- * exist yet. See {@link dev.vexelray.framework.api} for which half of this package is built.
+ * as good as where it is applied, and the type that most needs it lives in another repo and carries nothing:
+ * {@code GuiApp}. So the processor's own table of what the framework hands out marks it main-thread instead, and a
+ * worker asking for the {@code GuiApp} is the compile error the paragraph above promises. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.CLASS)

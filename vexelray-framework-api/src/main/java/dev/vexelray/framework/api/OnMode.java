@@ -18,9 +18,10 @@ import java.lang.annotation.Target;
  * will work that out and say so at the one place it can be read — the build — rather than leaving a null to be
  * discovered a phase later.
  *
- * <p><b>Read, not yet generated.</b> {@code vexelray-framework-processor} uses the modes when it asks whether two
- * providers conflict, once per mode; nothing emits the {@code if} yet, and the absent-dependency inference above
- * waits on generation. See {@link dev.vexelray.framework.api} for which half of this package is built.
+ * <p><b>Checked and generated.</b> {@code vexelray-framework-processor} asks the conflict question once per mode,
+ * narrows each part to the modes everything it takes exists in — saying so, as a note at the build — and makes a
+ * part that exists in no mode at all a compile error. The generated wiring carries the {@code if}. See
+ * {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.CLASS)

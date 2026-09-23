@@ -369,8 +369,8 @@ Two rows of that table have moved. `Disposer` now has a component half — `Plac
 stop, on a timer, and a placement's start is a separate moment from its construction, which is the row's
 "no start order distinct from it" answered rather than restated. `@MainThread` stayed inert through all of
 that, because it is the colour rule and the colour rule is the processor's — and it has since moved too:
-`vexelray-framework-processor` makes T2.2 a compile error, with the gap that `GuiApp` and `Gui` themselves
-carry no mark yet.
+`vexelray-framework-processor` makes T2.2 a compile error, and marks `GuiApp` main-thread in its own table of
+what the framework hands out, since `GuiApp` lives in a repo that must not learn this one exists.
 
 ~~**The stack is already multithreaded, and none of the threading is the framework's.**~~ The threading is
 now the framework's, which is the whole of what changed. `Gui` used to own an
@@ -559,6 +559,13 @@ in service of a slot nobody can fill. So the processor holds the rule for types 
 this build** and exempts a type that arrives as a class file. That is a clean distinction only because the
 build is always a clean one — a module's own types are all source in the compilation that checks them, so
 a class file is always somebody else's.
+
+**And public ones, not package-private ones.** Generating the template's wiring found the second edge. Its
+`Model` and `Ui` are the application's own concrete classes, and neither a component nor a value, so the rule
+as it stood would have made the witness wrap each in an interface nothing else implements. The same argument
+exempts them: a call site that could be handed a second implementation has to be able to *see* the type, and
+outside its package nobody can see a package-private class — swapping it is always the application's own edit.
+A record stays refused whatever its visibility, because that objection is that it is a value.
 
 **A value is not the container's business.** The question that made the other two fall out: *why would
 an instance of a record need dependency injection?* It does not. A record has nothing the container
@@ -1106,7 +1113,7 @@ vexelray-framework                    parent (pom)
 │                                and the window chrome                              [built]
 ├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
 ├─ vexelray-framework-template   the project builder, and the acceptance loop's input [built]
-├─ vexelray-framework-processor  annotation processor: checks [built], generated wiring [next]
+├─ vexelray-framework-processor  annotation processor: checks, then the generated wiring  [built]
 └─ vexelray-framework-diagnostics  the Actuator analogue: frame budget, bean graph   [planned]
 ```
 
@@ -1120,9 +1127,20 @@ processor's job becomes *reproduce these files*.
 
 **Checking is the half that did not have to wait.** A generator freezes what the annotations mean into
 every application; a checker does not, because it only refuses what the vocabulary already says is wrong.
-So the processor arrived in two halves, checks first: every rule a declaration can decide is a compile
-error now, and nothing is generated. The sequencing argument above is about the second half, and still
-holds for it.
+So the processor arrived in two halves, checks first: every rule a declaration can decide became a compile
+error while nothing was generated. The sequencing argument above was about the second half, and it held:
+the generator was written against the template's hand-written `Wiring`, and the template now ships a
+`Recipes` configuration instead, whose generated wiring is — field for field and call for call — the one it
+replaced. `-Pacceptance` builds and drives it.
+
+**What generation settled that the vocabulary had left open.** Four things, each derived rather than chosen.
+*The shell itself is an `ATTACH` value*: a part taking the whole `Shell` could touch anything, and the only
+phase where everything exists is the last one. *A part that takes nothing is built in `CONFIG`*: the phase
+is the latest of anything it takes, and of nothing that is the first. *The framework's values are a table in
+the processor, named by string* — the one place in the stack a string stands for a type — because depending on
+`-shell` would put the graphics stack on every application's processor path; `FrameworkTableTest` holds it
+against `Shell`. And *a package-private class of the application's own may be provided as it is*: the
+interface rule protects call sites, and nothing outside a package can hold one against a class it cannot see.
 
 What changed is whose hand. That role was held by three applications' wirings — `CalculatorWiring`,
 `TextEditorWiring` and `DesignerWiring`, one window, three windows, and two windows on one device —

@@ -32,9 +32,14 @@ import java.lang.annotation.Target;
  * <p>A provider never takes a {@link Component}: a value holding one could be injected anywhere, carrying the
  * component across lanes without a check seeing it (T3.7).
  *
- * <p><b>Checked, not yet generated.</b> {@code vexelray-framework-processor} holds every rule above that a
- * declaration can decide; nothing calls a provider yet. See {@link dev.vexelray.framework.api} for which half of
- * this package is built.
+ * <p><b>Package-private classes of the application's own are exempt</b> from the interface rule, for the same
+ * reason: nothing outside the package can hold a call site against one, so swapping it is always the
+ * application's own edit. A record is refused whatever its visibility — that objection is that it is a value.
+ *
+ * <p><b>Checked and generated.</b> {@code vexelray-framework-processor} holds every rule above that a declaration
+ * can decide, and the generated wiring calls each winning provider once, in the phase its parameters put it in. A
+ * parameter nothing supplies — not a framework value, a {@link Setting}, or another provider's type — is a compile
+ * error naming it. See {@link dev.vexelray.framework.api} for which half of this package is built.
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.CLASS)

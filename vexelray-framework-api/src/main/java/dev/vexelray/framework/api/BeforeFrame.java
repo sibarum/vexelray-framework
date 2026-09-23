@@ -23,10 +23,11 @@ import java.lang.annotation.Target;
  * {@link Component} would run on the main thread against state that belongs to the component's own. Publish to
  * the component instead.
  *
- * <p><b>Checked, not yet generated.</b> {@code vexelray-framework-processor} rejects a hook that takes parameters,
- * declares a thrown exception, is private, or sits on a component; nothing calls one yet. See
- * {@link dev.vexelray.framework.api} for which half of this package is built. {@code FrameHooks} is the part
- * that does exist — the array this would generate a call into, filled today by {@code Shell.hooks().add}.
+ * <p><b>Checked and generated.</b> {@code vexelray-framework-processor} rejects a hook that takes parameters,
+ * declares a thrown exception, is private, or sits on a component. The generated wiring adds one
+ * {@code shell.hooks().add(stage, value::method)} for each hook on the type of something it builds — a provider's
+ * return type, or anything it inherits — and a hook on a type nothing builds is a compile error, because it would
+ * never run. See {@link dev.vexelray.framework.api} for which half of this package is built.
  *
  * @see FrameStage for why the stage is a named position rather than an integer priority
  */

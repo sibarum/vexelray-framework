@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -39,22 +40,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class VexelProcessorTest {
 
-    /** Another jar: a main-thread type, a final class, and a starter with a default the app overrides. */
-    private static final Map<String, String> LIB = Map.of(
-            "lib.Window", """
+    /**
+     * Another jar: a main-thread type, a final class, and a starter with a default the app overrides — and
+     * stand-ins for the {@code -shell} and GUI types generated wiring names, since the processor cannot depend on
+     * {@code -shell}. {@code -core} is real: it is on this module's classpath.
+     *
+     * <p>The stand-ins record what the wiring does to them in {@code Shell.LOG}, so a test can run the generated
+     * class one phase at a time and read back what was built when.
+     */
+    private static final Map<String, String> LIB = Map.ofEntries(
+            Map.entry("lib.Window", """
                 package lib;
                 @dev.vexelray.framework.api.MainThread
                 public final class Window {}
-                """,
-            "lib.Device", """
+                """),
+            Map.entry("lib.Device", """
                 package lib;
                 public final class Device {}
-                """,
-            "lib.Clock", """
+                """),
+            Map.entry("lib.Clock", """
                 package lib;
                 public interface Clock {}
-                """,
-            "lib.Starter", """
+                """),
+            Map.entry("lib.Starter", """
                 package lib;
                 import dev.vexelray.framework.api.*;
                 @Configuration
@@ -62,7 +70,75 @@ class VexelProcessorTest {
                     @Default @Provides public Clock clock() { return null; }
                     @Default @Provides public Device device() { return null; }
                 }
-                """);
+                """),
+            Map.entry("dev.vexelray.framework.shell.Shell", """
+                package dev.vexelray.framework.shell;
+                import dev.vexelray.framework.core.*;
+                import java.util.*;
+                public final class Shell {
+                    public static final List<String> LOG = new ArrayList<>();
+                    private final Launch launch;
+                    private final Map<String, String> file;
+                    private final FrameHooks hooks = new FrameHooks();
+                    private final Disposer disposer = new Disposer();
+                    public Shell(Launch launch, Map<String, String> file) { this.launch = launch; this.file = file; }
+                    public Launch launch() { return launch; }
+                    public AppInfo info() { return null; }
+                    public FrameHooks hooks() { return hooks; }
+                    public Disposer disposer() { return disposer; }
+                    public Shell appearance(Appearance a) { LOG.add("appearance applied"); return this; }
+                    public Placement place(String name) { LOG.add("placed " + name); return new Placement(name); }
+                    public dev.vexelray.gui.core.Gui gui() { return new dev.vexelray.gui.core.Gui(); }
+                    public dev.vexelray.gui.core.app.GuiApp app() { return new dev.vexelray.gui.core.app.GuiApp(); }
+                    public dev.vexelray.gui.widget.TitleBar titleBar() { return new dev.vexelray.gui.widget.TitleBar(); }
+                    public String setting(String k, String d) { return file.getOrDefault(k, d); }
+                    public int setting(String k, int d) { return file.containsKey(k) ? Integer.parseInt(file.get(k)) : d; }
+                    public long setting(String k, long d) { return d; }
+                    public float setting(String k, float d) { return d; }
+                    public boolean setting(String k, boolean d) { return d; }
+                    public List<String> settingList(String k) { return List.of(); }
+                }
+                """),
+            Map.entry("dev.vexelray.framework.shell.Wiring", """
+                package dev.vexelray.framework.shell;
+                public abstract class Wiring {
+                    public abstract AppInfo info();
+                    public void config(Shell shell) {}
+                    public void model(Shell shell) {}
+                    public void gui(Shell shell) {}
+                    public void tree(Shell shell) {}
+                    public void window(Shell shell) {}
+                    public void attach(Shell shell) {}
+                }
+                """),
+            Map.entry("dev.vexelray.framework.shell.AppInfo", """
+                package dev.vexelray.framework.shell;
+                public record AppInfo(String name, String title, int width, int height,
+                                      java.util.Set<String> settingKeys) {}
+                """),
+            Map.entry("dev.vexelray.framework.shell.Placement", """
+                package dev.vexelray.framework.shell;
+                public final class Placement {
+                    public final String name;
+                    public Placement(String name) { this.name = name; }
+                }
+                """),
+            Map.entry("dev.vexelray.framework.shell.Appearance", """
+                package dev.vexelray.framework.shell;
+                public final class Appearance {}
+                """),
+            Map.entry("dev.vexelray.gui.core.Gui", """
+                package dev.vexelray.gui.core;
+                public final class Gui {}
+                """),
+            Map.entry("dev.vexelray.gui.core.app.GuiApp", """
+                package dev.vexelray.gui.core.app;
+                public final class GuiApp {}
+                """),
+            Map.entry("dev.vexelray.gui.widget.TitleBar", """
+                package dev.vexelray.gui.widget;
+                public final class TitleBar {}
+                """));
 
     private static final String IMPORTS = """
             package app;
@@ -108,8 +184,12 @@ class VexelProcessorTest {
                     @Provides public Clock clock() { return null; }
                     // A final class from another jar, which the application cannot give an interface to.
                     @Provides public Device device(@Setting("device.name") String name) { return null; }
-                    // A main-thread value into a main-thread value.
-                    @MainThread @Provides public Surface surface(Window window) { return null; }
+                    // A main-thread value into a main-thread value: the framework's GuiApp is the main thread's.
+                    @MainThread @Provides public Surface surface(dev.vexelray.gui.core.app.GuiApp app) {
+                        return null;
+                    }
+                    // Package-private and the application's own, so exempt from the interface rule.
+                    @Provides Pump pump() { return new Pump(); }
                     // Two providers for one type, in disjoint modes: they never meet.
                     @OnMode(RunMode.WINDOWED) @Provides public Pen windowedPen() { return null; }
                     @OnMode(RunMode.FRAMES) @Provides public Pen scriptedPen() { return null; }
@@ -130,7 +210,7 @@ class VexelProcessorTest {
                 public final class Helper {}
                 """,
                 """
-                public final class Hooks {
+                final class Pump {
                     @BeforeFrame void drain() {}
                 }
                 """));
@@ -146,6 +226,18 @@ class VexelProcessorTest {
                 @Component(lane = "compose")
                 public final class Composer { public Composer(Target target) {} }
                 """), "T2.2: Composer takes target, a main-thread value (Target is @MainThread)");
+    }
+
+    /**
+     * T3.1: the window is the main thread's, and the framework's {@code GuiApp} carries no annotation — it lives in
+     * a repo that must not learn this one exists — so the processor's table of framework values marks it instead.
+     */
+    @Test
+    void aComponentAskingForTheWindowIsAnError() {
+        onlyError(app("""
+                @Component(lane = "compose")
+                public final class Composer { public Composer(dev.vexelray.gui.core.app.GuiApp app) {} }
+                """), "T2.2: Composer takes app, a main-thread value (GuiApp is the main thread's");
     }
 
     @Test
@@ -442,6 +534,218 @@ class VexelProcessorTest {
                 """), "A second @VexelApp");
     }
 
+    // --- generation -----------------------------------------------------------------------------------------
+
+    /** An application with one of everything the wiring handles, each part logging when it is built. */
+    private static final String[] RECORDING_APP = {
+            """
+            @VexelApp(name = "demo", title = "Demo \\"quoted\\"", width = 640, height = 480)
+            public final class DemoApp {}
+            """,
+            """
+            final class Model {
+                Model(int size) { dev.vexelray.framework.shell.Shell.LOG.add("model " + size); }
+            }
+            """,
+            """
+            final class Ui {
+                Ui(dev.vexelray.gui.core.Gui gui, Model model) { dev.vexelray.framework.shell.Shell.LOG.add("ui"); }
+            }
+            """,
+            """
+            final class Window {
+                Window(dev.vexelray.gui.core.app.GuiApp app) { dev.vexelray.framework.shell.Shell.LOG.add("window"); }
+                @BeforeFrame(FrameStage.SETTLE) void settle() {}
+            }
+            """,
+            """
+            final class Socket implements AutoCloseable {
+                Socket(dev.vexelray.framework.shell.Shell shell) { dev.vexelray.framework.shell.Shell.LOG.add("socket"); }
+                public void close() { dev.vexelray.framework.shell.Shell.LOG.add("socket closed"); }
+            }
+            """,
+            """
+            final class Preview {
+                Preview(Model model) { dev.vexelray.framework.shell.Shell.LOG.add("preview"); }
+            }
+            """,
+            """
+            @Configuration
+            final class Recipes {
+                @Provides dev.vexelray.framework.shell.Appearance look() {
+                    dev.vexelray.framework.shell.Shell.LOG.add("look");
+                    return new dev.vexelray.framework.shell.Appearance();
+                }
+                @Provides Model model(@Setting(value = "store.size", def = "4") int size) { return new Model(size); }
+                @Provides Ui ui(dev.vexelray.gui.core.Gui gui, Model model) { return new Ui(gui, model); }
+                @MainThread @Provides Window window(dev.vexelray.gui.core.app.GuiApp app) { return new Window(app); }
+                @Provides Socket socket(dev.vexelray.framework.shell.Shell shell) { return new Socket(shell); }
+                @OnMode(RunMode.WINDOWED) @Provides Preview preview(Model model) { return new Preview(model); }
+            }
+            """,
+            """
+            @Component(lane = "work")
+            public final class Worker {
+                public Worker(dev.vexelray.framework.shell.Placement placement, Model model) {
+                    dev.vexelray.framework.shell.Shell.LOG.add("worker on " + placement.name);
+                }
+            }
+            """};
+
+    @Test
+    void eachPartIsBuiltInThePhaseItsParametersPutItIn() throws Exception {
+        Compiled compiled = build(RECORDING_APP);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+
+        // CONFIG: the look is applied the moment it exists; the model takes only a setting; the worker takes the
+        // model and its lane's placement, both CONFIG values.
+        assertEquals(List.of("look", "appearance applied", "model 4", "preview", "placed work", "worker on work"),
+                run.phase("config"));
+        assertEquals(List.of(), run.phase("model"));
+        assertEquals(List.of("ui"), run.phase("gui"), "the Gui exists from GUI");
+        assertEquals(List.of(), run.phase("tree"));
+        assertEquals(List.of("window"), run.phase("window"), "the GuiApp exists from WINDOW");
+        assertEquals(List.of("socket"), run.phase("attach"), "a part taking the whole Shell is built last");
+
+        assertEquals(1, run.hooks(), "Window's @BeforeFrame is in the frame array");
+        run.shutdown();
+        assertEquals(List.of("socket closed"), run.phase("shutdown"), "an AutoCloseable part is closed at shutdown");
+    }
+
+    @Test
+    void theApplicationsFactsAndItsSettingKeysAreItsInfo() throws Exception {
+        Run run = build(RECORDING_APP).run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        assertEquals("AppInfo[name=demo, title=Demo \"quoted\", width=640, height=480, settingKeys=[store.size]]",
+                run.info());
+    }
+
+    @Test
+    void aSettingIsReadThroughTheShell() throws Exception {
+        Run run = build(RECORDING_APP).run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of("store.size", "9"));
+        assertTrue(run.phase("config").contains("model 9"), () -> run.log.toString());
+    }
+
+    @Test
+    void aPartGuardedToOneModeIsNotBuiltInAnother() throws Exception {
+        Run run = build(RECORDING_APP).run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
+        assertFalse(run.phase("config").contains("preview"), () -> run.log.toString());
+        assertTrue(run.phase("config").contains("model 4"));
+    }
+
+    @Test
+    void aParameterNothingProvidesIsAnErrorNamingIt() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides Clock clock(Device device) { return null; }
+                }
+                """), "Recipes.clock takes device, a lib.Device, and nothing provides one");
+    }
+
+    @Test
+    void aCycleIsAnErrorNamingThePath() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                final class A {}
+                """, """
+                final class B {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides A a(B b) { return null; }
+                    @Provides B b(A a) { return null; }
+                }
+                """), "A cycle: Recipes.a -> Recipes.b -> Recipes.a");
+    }
+
+    @Test
+    void theAppearanceCanTakeOnlyConfigValues() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides dev.vexelray.framework.shell.Appearance look(dev.vexelray.gui.core.Gui gui) {
+                        return null;
+                    }
+                }
+                """), "provides the Appearance, and takes something that exists only from GUI");
+    }
+
+    @Test
+    void aFrameHookNothingBuildsIsAnError() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                final class Loose {
+                    @BeforeFrame void drain() {}
+                }
+                """), "@BeforeFrame Loose.drain would never run");
+    }
+
+    @Test
+    void aPartWhoseDependencyNeverExistsIsNeverBuiltAndSaysSo() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                final class Model {}
+                """, """
+                final class View {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @OnMode(RunMode.WINDOWED) @Provides Model model() { return null; }
+                    @OnMode(RunMode.FRAMES) @Provides View view(Model model) { return null; }
+                }
+                """), "Recipes.view is never built");
+    }
+
+    @Test
+    void aProviderIsNotHandedAPlacement() {
+        onlyError(app("""
+                public interface Store {}
+                """, """
+                @Configuration
+                public final class Recipes {
+                    @Provides public Store store(dev.vexelray.framework.shell.Placement p) { return null; }
+                }
+                """), "takes a Placement, which is a component's thread and mailboxes");
+    }
+
+    @Test
+    void aConfigurationTheWiringCannotConstructIsAnError() {
+        onlyError(app("""
+                public interface Store {}
+                """, """
+                @Configuration
+                public final class Recipes {
+                    public Recipes(int x) {}
+                    @Provides public Store store() { return null; }
+                }
+                """), "has no non-private constructor taking nothing");
+    }
+
+    @Test
+    void aPackagePrivateClassOfTheApplicationsOwnMayBeProvided() {
+        assertEquals(List.of(), app("""
+                final class Model {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides Model model() { return new Model(); }
+                }
+                """));
+    }
+
     // --- registration ---------------------------------------------------------------------------------------
 
     /**
@@ -461,14 +765,76 @@ class VexelProcessorTest {
     // --- harness --------------------------------------------------------------------------------------------
 
     private static List<String> app(String... bodies) {
+        return build(bodies).errors();
+    }
+
+    private static Compiled build(String... bodies) {
         Map<String, String> sources = new java.util.LinkedHashMap<>();
         for (String body : bodies) {
             sources.put("app." + typeName(body), IMPORTS + body);
         }
         try {
-            return compile(sources, Files.createTempDirectory(temp, "app"), lib, false);
+            Path out = Files.createTempDirectory(temp, "app");
+            return new Compiled(compile(sources, out, lib, false), out);
         } catch (IOException e) {
             throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** What a compilation said, and where it put the classes — the generated wiring among them. */
+    private record Compiled(List<String> errors, Path out) {
+
+        /**
+         * Load {@code app.DemoAppWiring} beside the stand-ins and a shell for this mode and settings file.
+         * Reflection is a test's privilege here: the framework's own rule is about the startup path.
+         */
+        Run run(dev.vexelray.framework.api.RunMode mode, Map<String, String> file) throws Exception {
+            assertEquals(List.of(), errors);
+            java.net.URLClassLoader loader = new java.net.URLClassLoader(
+                    new java.net.URL[]{out.toUri().toURL(), lib.toUri().toURL()},
+                    VexelProcessorTest.class.getClassLoader());
+            Class<?> shellType = loader.loadClass("dev.vexelray.framework.shell.Shell");
+            Object shell = shellType.getConstructor(dev.vexelray.framework.core.Launch.class, Map.class)
+                    .newInstance(new dev.vexelray.framework.core.Launch(mode, 0, Map.of(), List.of()), file);
+            @SuppressWarnings("unchecked")
+            List<String> log = (List<String>) shellType.getField("LOG").get(null);
+            log.clear();
+            var ctor = loader.loadClass("app.DemoAppWiring").getDeclaredConstructor();
+            ctor.setAccessible(true);
+            return new Run(ctor.newInstance(), shell, shellType, log);
+        }
+    }
+
+    /** A generated wiring, driven one phase at a time the way {@code VexelApplication} drives it. */
+    private record Run(Object wiring, Object shell, Class<?> shellType, List<String> log) {
+
+        /** Call one phase method and return what was built during it. */
+        List<String> phase(String name) throws Exception {
+            if (name.equals("shutdown")) {
+                return List.copyOf(log);
+            }
+            log.clear();
+            var method = wiring.getClass().getSuperclass().getMethod(name, shellType);
+            method.invoke(wiring, shell);
+            return List.copyOf(log);
+        }
+
+        String info() throws Exception {
+            return String.valueOf(wiring.getClass().getSuperclass().getMethod("info").invoke(wiring));
+        }
+
+        int hooks() throws Exception {
+            var hooks = (dev.vexelray.framework.core.FrameHooks) shellType.getMethod("hooks").invoke(shell);
+            return hooks.size();
+        }
+
+        /** Close what the wiring registered, leaving what that logged for {@code phase("shutdown")}. */
+        void shutdown() throws Exception {
+            log.clear();
+            ((dev.vexelray.framework.core.Disposer) shellType.getMethod("disposer").invoke(shell)).close();
+            List<String> closed = List.copyOf(log);
+            log.clear();
+            log.addAll(closed);
         }
     }
 

@@ -524,10 +524,11 @@
         returns <b>37 hits across five files</b> — which is the intended shape rather than a leak: 29
         are <code>Lanes</code>, 5 are <code>Placement</code>, and the other three are a
         <code>TimeUnit</code> import, one <code>volatile</code> flag and a sentence of Javadoc.
-        <b>Twelve of threading.md's thirty-two rules are held.</b> Eight came from <code>Lanes</code> and
+        <b>Thirteen of threading.md's thirty-two rules are held.</b> Eight came from <code>Lanes</code> and
         <code>Placement</code>, which needed something to <i>be</i> the rule rather than a processor; the other
-        four — T2.1, T2.2, T2.3 and T3.7 — are the processor's checks, now that placement is declared as
-        <code>@Component(lane = …)</code>.
+        five — T2.1, T2.2, T2.3, T3.1 and T3.7 — are the processor's, now that placement is declared as
+        <code>@Component(lane = …)</code> and the framework's <code>GuiApp</code> is marked main-thread in the
+        processor's own table.
       </p>
     </div>
 
@@ -593,7 +594,7 @@
         <span class="stage">Absent</span>
       </div>
       <div class="row s3">
-        <span class="what"><code>@MainThread</code> actually enforced <span>— a compile error; <code>GuiApp</code> and <code>Gui</code> carry no mark yet</span></span>
+        <span class="what"><code>@MainThread</code> actually enforced <span>— a compile error, the framework's <code>GuiApp</code> included</span></span>
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
@@ -768,10 +769,10 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
-      <div class="row s2">
-        <span class="what">The annotation processor <span>— every declaration-level check; nothing generated yet</span></span>
-        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
-        <span class="stage">Checks built</span>
+      <div class="row s3">
+        <span class="what">The annotation processor <span>— the checks, then the generated wiring the template runs on</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
       <div class="row s1">
         <span class="what"><code>-diagnostics</code>, the Actuator analogue <span>— blocked on a name</span></span>
@@ -1089,20 +1090,20 @@
           </p>
         </div>
       </div>
-      <div class="step">
+      <div class="step done">
         <span class="num">06</span>
         <div>
-          <h3>Write the processor <span class="landed">checks landed</span></h3>
+          <h3>Write the processor <span class="landed">landed</span></h3>
           <p>
-            The checks are in: <code>@MainThread</code> and the lane colouring are compile errors, and
-            so is every other rule a declaration can decide. What is left is generation — the generated
-            project is the fixture, and the wiring the processor emits from annotations should be the
-            wiring the template writes by hand.
-            <span class="why"><b>Ten of the thirty-two threading rules still say
-            <code>processor</code></b>, and none of them can be decided from a declaration: they want
-            generated wiring, a method body, or a channel seam. Both preconditions were settled on the
-            way — the build is always clean, so a whole-program view is sound, and placement is
-            declared as <code>@Component(lane = …)</code>.</span>
+            Checks, then the wiring: every rule a declaration can decide is a compile error, and an
+            application's <code>Wiring</code> is generated from its <code>@VexelApp</code> and its
+            <code>@Provides</code> methods — each part built once, in the phase its parameters put it in.
+            The template ships a <code>Recipes</code> configuration rather than a hand-written wiring, and
+            <code>-Pacceptance</code> builds and drives what it generates.
+            <span class="why"><b>Nine of the thirty-two threading rules still say
+            <code>processor</code></b>, and none can be decided from a declaration: they want a method body,
+            a channel seam, or the component tree. What generation left for later is in the TODO — the
+            framework's own defaults becoming providers is the one that makes overriding them real.</span>
           </p>
         </div>
       </div>

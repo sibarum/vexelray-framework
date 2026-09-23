@@ -31,9 +31,10 @@ import java.lang.annotation.Target;
  * runtime classpath contributes nothing until the application is recompiled. For a framework whose output is a
  * single native binary, that is not a cost at all.
  *
- * <p><b>Read, not yet generated.</b> {@code vexelray-framework-processor} evaluates the guard to decide which
- * providers exist before it counts two of them as a conflict; nothing emits code from it yet. See
- * {@link dev.vexelray.framework.api} for which half of this package is built.
+ * <p><b>Checked and generated.</b> {@code vexelray-framework-processor} evaluates the guard once, and a provider
+ * or component whose guard fails is neither counted in the conflict check nor mentioned in the generated wiring —
+ * the first bullet above, as written. See {@link dev.vexelray.framework.api} for which half of this package is
+ * built.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.CLASS)

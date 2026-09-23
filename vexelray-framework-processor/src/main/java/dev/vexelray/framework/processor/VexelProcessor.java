@@ -31,11 +31,13 @@ import java.util.Set;
  * Reads {@code vexelray-framework-api}'s vocabulary while an application compiles, and turns what its Javadoc
  * calls a compile error into one.
  *
- * <h2>Checks, and nothing generated</h2>
+ * <h2>Checks, then the wiring</h2>
  *
- * <p>This is the first half of the processor, and it emits no source. What it does is every check that can be
- * decided from declarations alone — which is most of what the vocabulary promises, and all of the colour rule
- * that does not depend on a copier:
+ * <p>Two halves, in that order, and the second runs only if the first reported nothing — a wiring generated from a
+ * graph with an error in it would bury the one message that matters under ones about code nobody wrote. The
+ * second is {@link Generator}: where the compilation has a {@code @VexelApp}, it writes that application's
+ * {@code Wiring}. The first is every check that can be decided from declarations alone — which is most of what the
+ * vocabulary promises, and all of the colour rule that does not depend on a copier:
  *
  * <ul>
  *   <li><b>T2.2</b> — a main-thread value, by its type's {@code @MainThread} or by a {@code @MainThread}
@@ -70,14 +72,22 @@ public final class VexelProcessor extends AbstractProcessor {
     private Mirrors mirrors;
     private Declarations declarations;
     private Graph graph;
+    private Generator generator;
     private TypeElement app;
+    private Report report;
+    private boolean checked;
+    private final Set<ExecutableElement> hooks = new LinkedHashSet<>();
 
     @Override
     public void init(ProcessingEnvironment env) {
         super.init(env);
+        Report report = new Report(env.getMessager());
         mirrors = new Mirrors(env.getElementUtils());
-        declarations = new Declarations(mirrors, env.getMessager());
-        graph = new Graph(mirrors, declarations, env.getElementUtils(), env.getTypeUtils(), env.getMessager());
+        declarations = new Declarations(mirrors, report);
+        graph = new Graph(mirrors, declarations, env.getElementUtils(), env.getTypeUtils(), report);
+        generator = new Generator(mirrors, declarations, graph, env.getElementUtils(), env.getTypeUtils(), report,
+                env.getFiler());
+        this.report = report;
     }
 
     @Override
@@ -104,6 +114,7 @@ public final class VexelProcessor extends AbstractProcessor {
             graph.component((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Configuration.class)) {
+            declarations.configuration((TypeElement) e);
             graph.configuration((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Provides.class)) {
@@ -117,8 +128,20 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(BeforeFrame.class)) {
             declarations.beforeFrame((ExecutableElement) e);
+            hooks.add((ExecutableElement) e);
         }
-        if (round.processingOver()) {
+        // Generated in the round the application is seen, not the last one: javac compiles nothing created in
+        // the final round, and the application's main names the wiring. Every source of a clean build is in the
+        // first round, so the whole program is already here; a starter is a class file, resolved by name.
+        if (app != null && !checked) {
+            checked = true;
+            graph.check();
+            if (!report.failed()) {
+                generator.generate(app, hooks);
+            }
+        } else if (round.processingOver() && !checked) {
+            // A library -- a starter compiled on its own. Checked, and there is nothing to generate for.
+            checked = true;
             graph.check();
         }
         return false;

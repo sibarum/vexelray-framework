@@ -112,7 +112,48 @@ final class Declarations {
     }
 
     /**
-     * <b>A {@code @Provides} returns an interface</b>, when the type is the application's own.
+     * A configuration is instantiated by generated wiring, once, so an instance provider needs a class with a
+     * non-private constructor that takes nothing. Static providers are called on the class, and need no instance.
+     */
+    void configuration(TypeElement type) {
+        String name = Mirrors.simple(type);
+        if (type.getKind() != ElementKind.CLASS) {
+            error(type, "@Configuration " + name + " is not a class, and the wiring calls its providers on one");
+            return;
+        }
+        boolean instance = false;
+        for (Element e : type.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.METHOD && mirrors.has(e, Provides.class)
+                    && !e.getModifiers().contains(Modifier.STATIC)) {
+                instance = true;
+            }
+        }
+        if (!instance) {
+            return;
+        }
+        if (type.getModifiers().contains(Modifier.ABSTRACT)) {
+            error(type, "@Configuration " + name + " is abstract, and the wiring constructs it to call its"
+                    + " providers");
+            return;
+        }
+        boolean noArgs = false;
+        for (Element e : type.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.CONSTRUCTOR && !e.getModifiers().contains(Modifier.PRIVATE)
+                    && ((ExecutableElement) e).getParameters().isEmpty()) {
+                noArgs = true;
+            }
+        }
+        if (!noArgs) {
+            error(type, "@Configuration " + name + " has no non-private constructor taking nothing, and the"
+                    + " wiring constructs it to call its providers. A configuration's dependencies are its"
+                    + " providers' parameters, not its own");
+        }
+    }
+
+    /**
+     * <b>A {@code @Provides} returns an interface</b>, when the type is the application's own and public. A
+     * package-private class is exempt: nothing outside its package can hold a call site against it, so swapping
+     * it is always the application's own edit.
      *
      * <p>The rule buys one thing: generated code can swap what it constructs without touching a call site, but
      * only if the call sites were written against something that can have a second implementation. A type that
@@ -136,6 +177,12 @@ final class Declarations {
             return;
         }
         if (element.getKind() == ElementKind.INTERFACE || !mirrors.owned(element)) {
+            return;
+        }
+        if (element.getKind() == ElementKind.CLASS && !element.getModifiers().contains(Modifier.PUBLIC)) {
+            // Package-private: nothing outside the package can hold a call site against it, so a second
+            // implementation is always the application's own edit and the rule has nothing to protect. A record
+            // stays refused whatever its visibility -- that objection is that it is a value, not who can see it.
             return;
         }
         String kind = element.getKind() == ElementKind.RECORD

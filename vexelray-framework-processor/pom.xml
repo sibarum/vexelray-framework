@@ -24,6 +24,14 @@
             <groupId>dev.vexelray.framework</groupId>
             <artifactId>vexelray-framework-api</artifactId>
         </dependency>
+        <!-- For Phase, so the order generated wiring builds in is the enum itself rather than a copy of it.
+             JDK-only like -api, so the processor path still needs no GPU. -shell is named only by string, in
+             Framework, because depending on it would put the graphics stack on every application's
+             processor path. -->
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-core</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
