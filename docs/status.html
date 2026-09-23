@@ -365,7 +365,7 @@
   <header class="masthead">
     <div class="mark">
       <h1>Vexel<span class="ray">Ray</span> Framework</h1>
-      <span class="kicker">Readiness&nbsp;·&nbsp;21 Sep 2026</span>
+      <span class="kicker">Readiness&nbsp;·&nbsp;23 Sep 2026</span>
     </div>
 
     <p class="thesis">
@@ -376,12 +376,12 @@
     </p>
 
     <div class="facts">
-      <span class="fact pass"><b>166</b> tests green</span>
-      <span class="fact">core <b>47</b> · shell <b>71</b> · template <b>46</b> · automation <b>2</b></span>
-      <span class="fact"><b>5</b> modules built · <b>2</b> planned</span>
+      <span class="fact pass"><b>222</b> tests green</span>
+      <span class="fact">core <b>47</b> · shell <b>81</b> · template <b>48</b> · processor <b>44</b> · automation <b>2</b></span>
+      <span class="fact"><b>6</b> modules built · <b>1</b> planned</span>
       <span class="fact"><b>1</b> template, framework-shaped</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
-      <span class="fact">read @ <b>04c8c8c</b></span>
+      <span class="fact">read @ <b>7e1faa8</b></span>
     </div>
   </header>
 
@@ -428,7 +428,7 @@
         The pixels path is real end to end and has been pressure-tested by a design tool:
         <b>Surface → SurfaceCompiler → SdfScene → SdfComposer → SPIR-V → SampledColorTarget →
         Node.image</b>. What is missing is a compositing <i>vocabulary</i> and any framework-level
-        presence at all — three mentions of SDF across the four modules, all of them Javadoc prose.
+        presence at all — not one mention of SDF across the six modules' sources.
       </p>
     </div>
 
@@ -521,9 +521,10 @@
         and component threads; <code>Placement</code> in <code>-shell</code> owns a component's thread,
         its mailboxes and the drain-then-stop around it; <code>Shell.place(name)</code> is how a wiring
         reaches both. The grep this page prints as its own check used to return <b>zero</b> and now
-        returns <b>37 hits across five files</b> — which is the intended shape rather than a leak: 29
-        are <code>Lanes</code>, 5 are <code>Placement</code>, and the other three are a
-        <code>TimeUnit</code> import, one <code>volatile</code> flag and a sentence of Javadoc.
+        returns <b>39 hits across six files</b> — which is the intended shape rather than a leak: 29
+        are <code>Lanes</code>, 5 are <code>Placement</code>, three are a <code>TimeUnit</code> import,
+        one <code>volatile</code> flag and a sentence of Javadoc, and the last two are words in the
+        template's list of Java keywords.
         <b>Thirteen of threading.md's thirty-two rules are held.</b> Eight came from <code>Lanes</code> and
         <code>Placement</code>, which needed something to <i>be</i> the rule rather than a processor; the other
         five — T2.1, T2.2, T2.3, T3.1 and T3.7 — are the processor's, now that placement is declared as
@@ -732,7 +733,8 @@
         <h3>Gotchas still open</h3>
         <ul>
           <li><b>Two reserved keys nothing consumes.</b> <code>--profile</code> parses and no module
-            honours it; the honest fix is <code>@ConditionalOnType</code>, which needs the processor.</li>
+            honours it. The processor evaluates <code>@ConditionalOnType</code> now, so a part can be
+            present or absent by what is on the classpath — but nothing uses that to honour a profile.</li>
           <li><code>shell.wake(gui::onWork)</code> is <b>redundant</b> — <code>GuiApp</code> already
             wires every tree it presents — and reads like the line that makes the wake happen.</li>
           <li>A non-default zoom range would <b>disagree across the editor's three windows</b>, because
@@ -785,7 +787,7 @@
         <span class="stage">Specified</span>
       </div>
       <div class="row s0">
-        <span class="what">Starters and a BOM <span>— four modules today, none of them a starter</span></span>
+        <span class="what">Starters and a BOM <span>— six modules today, none of them a starter</span></span>
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
@@ -808,7 +810,7 @@
           <li><b>Nothing reflects.</b> Retention is <code>CLASS</code> deliberately; no
             <code>Class.forName</code> on the startup path.</li>
           <li><code>-api</code> and <code>-core</code> stay JDK-only, so <b>every decision the
-            container makes is testable with no GPU</b> — which is why all 120 tests run anywhere, a
+            container makes is testable with no GPU</b> — which is why all 222 tests run anywhere, a
             real <code>GuiApp</code> and a placed component among them.</li>
           <li>The spreadsheet half was demonstrated three times over — one window, three windows, and
             two windows on one device — and those three applications have since been deleted on
@@ -820,8 +822,9 @@
         <ul>
           <li><b>"A compile error beats a startup error"</b> is in force for declarations and not yet
             for bodies. The processor refuses a misused <code>@Component</code>, <code>@MainThread</code>
-            or <code>@Setting</code>, but a hand-written <code>Wiring</code> is a method body, and a
-            backwards <code>Phase</code> dependency in one is still a startup error.</li>
+            or <code>@Setting</code>, and a generated wiring cannot put a part in the wrong phase — but a
+            hand-written <code>Wiring</code> is still a method body, and a backwards <code>Phase</code>
+            dependency in one is still a startup error.</li>
           <li>The game-engine half exists <i>in the engine</i> — render == sim, one IR to SPIR-V and to
             a CPU AST — and <b>nowhere in the framework</b>. <code>FrameStage.APP</code> is an empty
             slot, by design.</li>
@@ -1138,22 +1141,22 @@
   <section class="method">
     <h2>How to re-check this page</h2>
     <p>
-      Every grade above was read off the tree on 21 September 2026 at <code>04c8c8c</code>, not
+      Every grade above was read off the tree on 23 September 2026 at <code>7e1faa8</code>, not
       inferred from the docs. The hash is <b>when this page was read, not what it describes</b> — the
-      previous grading stood at <code>8a9dc09</code> and went eleven commits stale, which the first two
-      checks below caught by returning the opposite of what the page then claimed. Both have been
-      rewritten to assert the shape rather than the absence, because an absence stops being a useful
-      check the moment it ends.
+      grading before this one stood at <code>04c8c8c</code> and went twelve commits stale in a
+      different way from the one before it: a commit updated the prose and left the numbers, and the
+      checks below are what caught it. The threading grep now reads <code>src/main/java</code> only,
+      because a template's resources are a generated project's source rather than the framework's.
     </p>
-    <pre><span class="c"># 166 green, offline, no siblings installed</span>
+    <pre><span class="c"># 222 green, offline: core 47, shell 81, template 48, processor 44, automation 2</span>
 mvn -o test
 
-<span class="c"># 37 hits in five files: Lanes 29, Placement 5, and one each in</span>
-<span class="c"># Stalls, Shell and PointerLock. A sixth file is a new thread seam</span>
+<span class="c"># 39 hits in six files: Lanes 29, Placement 5, one each in Stalls, Shell and</span>
+<span class="c"># PointerLock, two keywords in the template's Checks. A seventh file is a new thread seam</span>
 grep -rn "Thread\|Executor\|java.util.concurrent\|volatile\|synchronized\|Atomic" \
-     --include=*.java vexelray-framework-*/src/main | grep -v MainThread
+     --include=*.java vexelray-framework-*/src/main/java | grep -v MainThread
 
-<span class="c"># 20 hits, two names: tactroller and atchung. A third name is a new dependency edge</span>
+<span class="c"># 24 hits, two names: tactroller and atchung. A third name is a new dependency edge</span>
 grep -rn "import sibarum" --include=*.java vexelray-framework-*/src/main
 
 <span class="c"># dimension 5, against a real window: exit status is the verdict</span>
@@ -1161,7 +1164,7 @@ printf 'find Save\nclick save\nsettle\nshot after.png\n' | ottermate --script -<
   </section>
 
   <footer>
-    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 04c8c8c</span>
+    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 7e1faa8</span>
     <span>Graded by where the capability lives</span>
   </footer>
 
