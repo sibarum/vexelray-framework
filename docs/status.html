@@ -365,7 +365,7 @@
   <header class="masthead">
     <div class="mark">
       <h1>Vexel<span class="ray">Ray</span> Framework</h1>
-      <span class="kicker">Readiness&nbsp;·&nbsp;23 Sep 2026</span>
+      <span class="kicker">Readiness&nbsp;·&nbsp;24 Sep 2026</span>
     </div>
 
     <p class="thesis">
@@ -376,12 +376,12 @@
     </p>
 
     <div class="facts">
-      <span class="fact pass"><b>222</b> tests green</span>
-      <span class="fact">core <b>47</b> · shell <b>81</b> · template <b>48</b> · processor <b>44</b> · automation <b>2</b></span>
+      <span class="fact pass"><b>234</b> tests green</span>
+      <span class="fact">core <b>47</b> · shell <b>87</b> · template <b>48</b> · processor <b>47</b> · automation <b>5</b></span>
       <span class="fact"><b>6</b> modules built · <b>1</b> planned</span>
-      <span class="fact"><b>1</b> template, framework-shaped</span>
+      <span class="fact"><b>1</b> template, framework-shaped · <b>1</b> starter</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
-      <span class="fact">read @ <b>7e1faa8</b></span>
+      <span class="fact">read @ <b>0838329</b></span>
     </div>
   </header>
 
@@ -683,6 +683,11 @@
         <span class="stage">In the framework</span>
       </div>
       <div class="row s3">
+        <span class="what">…and replaced by a <code>@Provides</code> <span>— the look, input and clipboard; memory, icon, dialogs and pacing not yet</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
+      <div class="row s3">
         <span class="what">Phases, and a <code>Wiring</code> a lambda can no longer satisfy</span>
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
@@ -727,6 +732,9 @@
             repos maintained by a comment.</li>
           <li><code>Launch.FRAMEWORK_KEYS</code> means <code>--automation</code> is asked for the same
             way on every application on the desk.</li>
+          <li><b>"Overriding one is a <code>@Provides</code> method" was true of the look alone.</b> A
+            provided input backend or clipboard is now handed back to the shell and the framework's is never
+            opened — and one built too late for the framework to use it is a compile error naming the phase.</li>
         </ul>
       </div>
       <div class="col gap">
@@ -750,19 +758,21 @@
       <span class="eyebrow">Dimension 04 · The thesis</span>
       <div class="dim-title">
         <h2>The Boot analogue</h2>
-        <span class="verdict v-part">Container real · the three multipliers unbuilt</span>
+        <span class="verdict v-part">Container and generator real · one starter · no instrument</span>
       </div>
       <p class="dim-read">
         The no-reflection thesis holds, and three applications ran on it before being deleted on
-        purpose — the witness is a generated project now. What is missing is precisely what makes Boot
-        <i>Boot</i>: the generator that turns vocabulary into enforcement, the starter that makes one
-        dependency enough, and the instrument that answers <b>"why did we miss a frame"</b>.
+        purpose — the witness is a generated project now. Of the three things that make Boot
+        <i>Boot</i>, <b>the generator is built</b>: vocabulary is enforcement, and the template's wiring is
+        generated. <b>The starter has its first instance</b> — the driving socket, named in
+        <code>@VexelApp</code> — but no BOM makes one dependency enough. And the instrument that answers
+        <b>"why did we miss a frame"</b> is still only specified.
       </p>
     </div>
 
     <div class="matrix">
       <div class="row s3">
-        <span class="what">Compile-time container, hand-wired <span>— phases, launch, pacing, disposal</span></span>
+        <span class="what">Compile-time container <span>— phases, launch, pacing, disposal</span></span>
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
@@ -786,8 +796,13 @@
         <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Specified</span>
       </div>
+      <div class="row s3">
+        <span class="what">Starters <span>— <code>AutomationStarter</code>, a <code>@Default</code> an application names and may back off</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
+      </div>
       <div class="row s0">
-        <span class="what">Starters and a BOM <span>— six modules; since this grading, one starter (the driving socket) and no BOM</span></span>
+        <span class="what">A BOM <span>— six modules, and an application still lists the ones it wants</span></span>
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
@@ -810,7 +825,7 @@
           <li><b>Nothing reflects.</b> Retention is <code>CLASS</code> deliberately; no
             <code>Class.forName</code> on the startup path.</li>
           <li><code>-api</code> and <code>-core</code> stay JDK-only, so <b>every decision the
-            container makes is testable with no GPU</b> — which is why all 222 tests run anywhere, a
+            container makes is testable with no GPU</b> — which is why all 234 tests run anywhere, a
             real <code>GuiApp</code> and a placed component among them.</li>
           <li>The spreadsheet half was demonstrated three times over — one window, three windows, and
             two windows on one device — and those three applications have since been deleted on
@@ -858,7 +873,7 @@
 
     <div class="matrix">
       <div class="row s3">
-        <span class="what">The socket, wired once <span>— <code>--automation=7654</code> parses in every application</span></span>
+        <span class="what">The socket, wired once <span>— a starter to name; <code>--automation=7654</code> parses in every application</span></span>
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
@@ -974,7 +989,7 @@
             <td class="repo">…-gui-automation</td>
             <td class="note">Driving a live application end to end</td>
             <td><span class="pill p-full">Absorbed</span></td>
-            <td class="note">A module of its own, so the socket is linked only into an application that wants to be driven. <code>--automation=7654</code>, then <code>ottermate</code> from outside.</td>
+            <td class="note">A module of its own, so the socket is linked only into an application that wants to be driven, and built only in one that names <code>AutomationStarter</code>. <code>--automation=7654</code>, then <code>ottermate</code> from outside.</td>
           </tr>
           <tr>
             <td class="repo">kronometer</td>
@@ -1105,19 +1120,23 @@
             <code>-Pacceptance</code> builds and drives what it generates.
             <span class="why"><b>Nine of the thirty-two threading rules still say
             <code>processor</code></b>, and none can be decided from a declaration: they want a method body,
-            a channel seam, or the component tree. What generation left for later is in the TODO. Since this
-            grading, a provided input backend or clipboard is handed back to the shell in place of the
-            framework's, so overriding a default is real for three of them rather than one.</span>
+            a channel seam, or the component tree. The framework's own defaults turned out to want handing
+            back rather than backing off, because a hand-written wiring still has to start with input; that
+            made overriding the input backend and the clipboard real, and what generation left is in the
+            TODO.</span>
           </p>
         </div>
       </div>
-      <div class="step">
+      <div class="step now">
         <span class="num">07</span>
         <div>
           <h3>Starters, a BOM, and the stack's reachability metadata</h3>
           <p>
             One dependency that brings the whole stack, including hints an application inherits rather
-            than assembles.
+            than assembles. <b>Begun:</b> <code>AutomationStarter</code> is the first starter, a
+            <code>@Default</code> an application names in <code>@VexelApp</code> and may back off, and the
+            template runs on it. What is left is the BOM, the metadata, and checking a starter where it is
+            compiled rather than only where an application names it.
             <span class="why">The single highest-leverage item on the open-questions list, and the thing
             that makes the Boot comparison land for someone who has not read the docs.</span>
           </p>
@@ -1142,14 +1161,15 @@
   <section class="method">
     <h2>How to re-check this page</h2>
     <p>
-      Every grade above was read off the tree on 23 September 2026 at <code>7e1faa8</code>, not
-      inferred from the docs. The hash is <b>when this page was read, not what it describes</b> — the
-      grading before this one stood at <code>04c8c8c</code> and went twelve commits stale in a
-      different way from the one before it: a commit updated the prose and left the numbers, and the
-      checks below are what caught it. The threading grep now reads <code>src/main/java</code> only,
-      because a template's resources are a generated project's source rather than the framework's.
+      Every grade above was read off the tree on 24 September 2026 at <code>0838329</code>, not
+      inferred from the docs. The hash is <b>when this page was read, not what it describes</b>. The
+      grading before this one stood at <code>7e1faa8</code> and was carried two commits by
+      <i>since this grading</i> notes on the lines each commit made wrong — which keeps the page honest
+      between gradings but not graded, so this one folds them in. The threading grep reads
+      <code>src/main/java</code> only, because a template's resources are a generated project's source
+      rather than the framework's.
     </p>
-    <pre><span class="c"># 222 green, offline: core 47, shell 81, template 48, processor 44, automation 2</span>
+    <pre><span class="c"># 234 green, offline: core 47, shell 87, template 48, processor 47, automation 5</span>
 mvn -o test
 
 <span class="c"># 39 hits in six files: Lanes 29, Placement 5, one each in Stalls, Shell and</span>
@@ -1165,7 +1185,7 @@ printf 'find Save\nclick save\nsettle\nshot after.png\n' | ottermate --script -<
   </section>
 
   <footer>
-    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 7e1faa8</span>
+    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 0838329</span>
     <span>Graded by where the capability lives</span>
   </footer>
 
