@@ -20,9 +20,10 @@ cannot be fixed from here at all.
         framework's own defaults are handed back*). Window memory, the icon, the dialogs and pacing cannot, and
         the README lists them among the defaults. Each wants a reason to be replaced before it gets a setter;
         none has one on the stack yet.
-      - **`Driver` wants to be a starter.** The template provides it by hand, with
-        `@Provides Driver driver(Shell shell)`; guarded by `@ConditionalOnType`, depending on
-        `-automation` would be the whole of the decision.
+      - **A starter is not checked where it is compiled.** `AutomationStarterTest` compiles applications
+        against `AutomationStarter` with the real processor, which covers the one starter there is; the
+        processor is not on `-automation`'s own `annotationProcessorPaths`, so a starter's library-level checks
+        run only when an application names it. Worth wiring when there is a second starter, and before a BOM.
       - **A provider returning `null` is passed on as `null`.** `@Provides` says absence is a supported answer,
         that dependents which tolerate it still build, and that the framework reports it once. Today the
         dependents are built with the `null` and nothing reports it; the consumers the wiring itself calls

@@ -101,11 +101,11 @@ final class Editor {
 | --- | --- |
 | `vexelray-framework-api` | **built** — the annotation vocabulary |
 | `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (47 tests) |
-| `vexelray-framework-shell` | **built** — the absorbed edge, the threads, and the window chrome (71 tests) |
-| `vexelray-framework-automation` | **built** — the driving socket, in its own module (2 tests) |
-| `vexelray-framework-template` | **built** — the project builder, arrived from `mainframe-template` (46 tests) |
+| `vexelray-framework-shell` | **built** — the absorbed edge, the threads, and the window chrome (87 tests) |
+| `vexelray-framework-automation` | **built** — the driving socket, in its own module, and `AutomationStarter`, the first starter (5 tests) |
+| `vexelray-framework-template` | **built** — the project builder, arrived from `mainframe-template` (48 tests) |
 | `vexelray-framework-acceptance` | **built**, under `-Pacceptance` only — generates a project, builds it, and drives it through the automation socket |
-| `vexelray-framework-processor` | **built** (44 tests) — every rule the vocabulary calls a compile error that a declaration can decide, then the application's `Wiring`, generated. The template's is |
+| `vexelray-framework-processor` | **built** (47 tests) — every rule the vocabulary calls a compile error that a declaration can decide, then the application's `Wiring`, generated. The template's is |
 
 Three applications ran on it, each with its wiring hand-written in its own repo, and each was chosen so
 it could find what the others could not:

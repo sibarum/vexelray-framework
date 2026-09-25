@@ -96,7 +96,11 @@ compile error naming the phase. The table of these is `Framework.HAND_BACKS`, an
 it against the setters' own phase gates.
 
 `Default` keeps the case it was written for: a starter's provider that an application may back off, where the
-framework does not consume the value itself. `Driver` is the first of those.
+framework does not consume the value itself. `AutomationStarter` is the first of those — `-shell` cannot name a
+`Driver`, since `-automation` depends on it, so there is nothing to hand one back to. An application is driven
+because it depends on `-automation` **and** names the starter: not a `@ConditionalOnType` guard that makes the
+dependency the whole decision, because that is the add-a-jar-get-behaviour arrangement `starters` gives up on
+purpose, and a starter named and missing is a compile error, so the two cannot drift apart silently.
 
 ## What Spring has no answer for
 

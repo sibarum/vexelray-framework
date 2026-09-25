@@ -1,6 +1,7 @@
 package ${packageName};
 
 import dev.vexelray.framework.api.VexelApp;
+import dev.vexelray.framework.automation.AutomationStarter;
 import dev.vexelray.framework.shell.VexelApplication;
 
 import java.io.IOException;
@@ -33,8 +34,15 @@ import java.io.IOException;
  *
  * <p>A misspelled flag is refused by name with the alternatives listed, rather than a stack trace before any
  * window. Needs {@code --enable-native-access=ALL-UNNAMED}.
+ *
+ * <p><b>{@code starters} is everything configuring this application beyond {@link Recipes}</b>, listed rather
+ * than discovered. {@link AutomationStarter} is the driving socket — off unless {@code --automation} or
+ * {@code -Dautomation} asks, and loopback-only when it is, because it hands whoever reaches it full control of the
+ * application's input. Delete it here, and the {@code vexelray-framework-automation} dependency in the pom, and the
+ * binary links no socket at all.
  */
-@VexelApp(name = ${className}.APP, title = ${className}.TITLE, width = ${className}.W, height = ${className}.H)
+@VexelApp(name = ${className}.APP, title = ${className}.TITLE, width = ${className}.W, height = ${className}.H,
+        starters = AutomationStarter.class)
 public final class ${className} {
 
     /** The application's own name, which is what its settings directory is called. Stable across releases. */

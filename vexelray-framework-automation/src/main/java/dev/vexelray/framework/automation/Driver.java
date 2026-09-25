@@ -20,9 +20,8 @@ import dev.vexelray.gui.automation.AutomationServer;
  * <p><b>A module of its own rather than part of {@code -shell}.</b> Absorbing it into the shell would put
  * {@code vexelray-gui-automation} on every application's compile path, and a listening socket linked into every
  * native binary is the wrong trade for a framework whose selling point is what it does not include. An
- * application that wants to be driven depends on this module; one that does not never links it. With the wiring
- * generated, an application provides it with a {@code @Provides Driver driver(Shell shell)}, which the template
- * does; it wants to become a starter, so that depending on this module is the whole of the decision.
+ * application that wants to be driven depends on this module and names {@link AutomationStarter} in its
+ * {@code @VexelApp}; one that does not never links it. A hand-written wiring calls {@link #open} itself.
  */
 public final class Driver implements AutoCloseable {
 

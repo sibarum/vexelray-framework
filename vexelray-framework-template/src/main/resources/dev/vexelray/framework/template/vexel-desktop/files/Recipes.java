@@ -2,9 +2,7 @@ package ${packageName};
 
 import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Provides;
-import dev.vexelray.framework.automation.Driver;
 import dev.vexelray.framework.shell.Appearance;
-import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.widget.TitleBar;
@@ -19,10 +17,13 @@ import sibarum.tactroller.api.Modifier;
  * <p>{@code ${className}Wiring} is written by {@code vexelray-framework-processor} while this project compiles,
  * and lands in {@code target/generated-sources/annotations}. It calls each method below once, in the phase its
  * parameters put it in: <b>a part's phase is the latest phase of anything it takes</b>, so the look and the model,
- * which take nothing the framework builds late, exist before the {@code Gui} does, the tree waits for the
- * {@code Gui} and its title bar, and the driving socket, which takes the whole {@code Shell}, is built last. There
- * is no phase to declare and none to get wrong: a part asking for something that does not exist yet is not a
- * part that can be written.
+ * which take nothing the framework builds late, exist before the {@code Gui} does, and the tree waits for the
+ * {@code Gui} and its title bar. There is no phase to declare and none to get wrong: a part asking for something
+ * that does not exist yet is not a part that can be written.
+ *
+ * <p>The driving socket is not here either. It comes from {@code AutomationStarter}, which {@link ${className}}
+ * names in its {@code @VexelApp} — so this application is drivable because it says so in one place, and a
+ * {@code @Provides Driver} method here would replace the starter's with this application's own.
  *
  * <h2>What is not here is the point</h2>
  *
@@ -82,19 +83,6 @@ final class Recipes {
         zoomShortcuts(gui);
         keys(gui, model);
         return ui;
-    }
-
-    /**
-     * The driving socket. It takes the whole {@code Shell}, which puts it last, after the window exists.
-     *
-     * <p>Off unless {@code -Dautomation} or {@code --automation} asks for it, and loopback-only when it is: this
-     * hands anyone who can reach it full control of the application's input, so it is a debugging instrument and
-     * not a service. It is {@code AutoCloseable}, so the framework closes it at shutdown. Was thirty lines at the
-     * edge of every application on this stack.
-     */
-    @Provides
-    Driver driver(Shell shell) {
-        return Driver.open(shell);
     }
 
     /**
