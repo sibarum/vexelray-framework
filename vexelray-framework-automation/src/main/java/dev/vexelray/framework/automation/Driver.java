@@ -60,8 +60,11 @@ public final class Driver implements AutoCloseable {
             int port = want.equals("on") || want.equals("true")
                     ? AutomationServer.DEFAULT_PORT
                     : Integer.parseInt(want);
-            AutomationServer server = AutomationServer.start(
-                    new Automation(shell.gui(), shell.app().controls()), port);
+            // The clock goes with the Gui, so settle waits out a transition as well as the frame loop: without it,
+            // a click that starts a fade and a settle straight after photographed the fade part-way through and
+            // said ok. The sampled form, because the driver answers on a thread of its own.
+            AutomationServer server = AutomationServer.start(new Automation(
+                    shell.gui(), shell.app().controls(), shell.krono()::quiescentAtLastTick), port);
             System.out.println("automation: localhost:" + server.port());
             return new Driver(server);
         } catch (java.io.IOException | NumberFormatException e) {

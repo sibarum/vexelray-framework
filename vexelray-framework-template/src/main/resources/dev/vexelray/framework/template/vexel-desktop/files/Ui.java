@@ -1,5 +1,6 @@
 package ${packageName};
 
+import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.input.CursorShape;
@@ -9,7 +10,13 @@ import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
 import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
+import dev.vexelray.gui.krono.Colors;
+import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
+import sibarum.kronometer.Dur;
+import sibarum.kronometer.anim.Ease;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The tree. Builds it, holds the handles the application needs afterwards, and owns nothing else.
@@ -24,16 +31,28 @@ import dev.vexelray.gui.widget.TitleBar;
  * framework's own idiom: a prop written off the GUI thread is queued and applied by the next drain, so the
  * frame that presents a value is the frame that reconciled it. What is <em>not</em> allowed is the other
  * direction -- reading the model from inside the frame loop.
+ *
+ * <p>The one thing it does hold is whether the count is mid-{@linkplain #pulse pulse}, which is motion rather than
+ * state: nothing is derived from it, and it is gone the moment the pulse lands.
  */
 final class Ui {
 
+    /**
+     * How long the count glows after a press: long enough to see, and a transition the automation socket's
+     * {@code settle} has to wait out rather than photograph half-way through.
+     */
+    static final Dur PULSE = Dur.ms(600);
+
     private final Gui gui;
+    private final KronoGui krono;
     private final TitleBar titleBar;
     private final Node count;
     private final Node note;
+    private final AtomicBoolean pulsing = new AtomicBoolean();
 
-    Ui(Gui gui, Model model, TitleBar titleBar) {
+    Ui(Gui gui, KronoGui krono, Model model, TitleBar titleBar) {
         this.gui = gui;
+        this.krono = krono;
         // The bar is the framework's: chrome placement belongs to whoever owns the window, so the instruments
         // in it mean the same thing in every window on the desk. This application places the node, below, and
         // supplies every colour in it through Look. It is already pointed at real window controls by the time
@@ -58,7 +77,10 @@ final class Ui {
         gui.landmark(Landmarks.NOTE, note);
 
         Node buttons = gui.row().gap(Type.GAP).alignItems(AlignItems.CENTER).children(
-                button(Landmarks.COUNT_BUTTON, "Count", model::bump),
+                button(Landmarks.COUNT_BUTTON, "Count", () -> {
+                    model.bump();
+                    pulse();
+                }),
                 button(Landmarks.RESET_BUTTON, "Reset", model::reset));
 
         Node card = gui.column()
@@ -109,6 +131,33 @@ final class Ui {
                 : gui.theme().color(Role.NONE)));
         gui.landmark(landmark, button);
         return button;
+    }
+
+    /**
+     * The count glows towards the accent and back, once, in answer to a press.
+     *
+     * <p><b>Out and back in one ramp</b>, so both ends are the colour the figure already is. A figure that jumped
+     * to the accent and faded back would flash, and a sudden change of pixels is the one kind of feedback this
+     * application does not give. For the same reason <b>a press during a pulse does not restart it</b>: a second
+     * ramp would begin at the ink wherever the first had got to, which is a jump by another route.
+     *
+     * <p>Started from a click handler, on a worker, through {@link KronoGui#ramp} — which routes it onto the
+     * timeline and is safe from any thread. The progress lands on the timeline, once per frame; nothing here is
+     * read by the model, and the pulse is not triggered by {@link #show}, so the tree a capture photographs is at
+     * rest.
+     */
+    private void pulse() {
+        if (!pulsing.compareAndSet(false, true)) {
+            return;
+        }
+        Color ink = gui.theme().color(Role.INK);
+        Color accent = gui.theme().color(Role.ACCENT);
+        krono.ramp(PULSE, Ease.LINEAR,
+                p -> count.textColor(Colors.OKLAB.between(ink, accent, (float) Math.sin(Math.PI * p))),
+                () -> {
+                    count.textColor(ink);
+                    pulsing.set(false);
+                });
     }
 
     /**

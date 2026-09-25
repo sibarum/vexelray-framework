@@ -207,6 +207,30 @@ class GeneratedProjectTest {
             driver.ok("click " + driver.ref("button.reset"));
             driver.ok("await count 0");
 
+            // A press starts a 600 ms pulse on the count and publishes nothing else a frame loop would owe for,
+            // so settle has to wait out the clock rather than answer as soon as the count has redrawn. It used
+            // to answer within a frame or two, and a photograph taken then showed the pulse half-way through.
+            //
+            // Two measurements, because the pulse starts inside the click: the handler fires on the release, and
+            // the click's reply arrives a couple of hundred milliseconds after that. So the whole pulse fits
+            // between sending the click and settle's answer -- that is the claim -- and settle on its own still
+            // took a real share of it, which is what tells this from a click that was merely slow.
+            //
+            // From rest: the press two commands up may still be pulsing, and a press during a pulse does not
+            // restart it -- so without this, what is measured is the tail of that one.
+            driver.ok("settle");
+            long pressed = System.nanoTime();
+            driver.ok("click " + count);
+            long clicked = System.nanoTime();
+            driver.ok("settle");
+            long settled = System.nanoTime();
+            long wholeMs = (settled - pressed) / 1_000_000L;
+            long settleMs = (settled - clicked) / 1_000_000L;
+            assertTrue(wholeMs >= 600, "the click and settle took " + wholeMs + " ms, less than the 600 ms pulse"
+                    + " the click started, so settle answered before it finished\n" + tail(log));
+            assertTrue(settleMs >= 150, "settle answered in " + settleMs + " ms with a pulse in flight, so it did"
+                    + " not wait for the clock\n" + tail(log));
+
             Path shot = root.resolve("shot.png");
             driver.ok("shot " + shot);
             assertTrue(Files.size(shot) > 0, "the photograph is empty");

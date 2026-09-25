@@ -5,6 +5,7 @@ import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.shell.Appearance;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
+import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
@@ -62,7 +63,8 @@ final class Recipes {
     }
 
     /**
-     * The tree. Needs the {@code Gui} and its title bar, and no window.
+     * The tree. Needs the {@code Gui}, its clock and its title bar, and no window. The clock is for the one
+     * transition the tree has — see {@code Ui.pulse}.
      *
      * <p>That last part is a claim worth keeping true as this grows: a tree that can be built without a window is
      * a tree {@link Capture} can photograph headlessly. It is also why the initial {@code show} is here rather than
@@ -74,8 +76,8 @@ final class Recipes {
      * node and supplies every colour in it.
      */
     @Provides
-    Ui ui(Gui gui, Model model, TitleBar titleBar) {
-        Ui ui = new Ui(gui, model, titleBar);
+    Ui ui(Gui gui, KronoGui krono, Model model, TitleBar titleBar) {
+        Ui ui = new Ui(gui, krono, model, titleBar);
         // Every change to the state redraws what is derived from it, on the committing thread -- which is a
         // worker, because every control's handler is. The GUI thread never reads the model.
         model.onChange(ui::show);
