@@ -53,8 +53,9 @@ import java.util.Set;
  *       {@code @Setting}, the placement of the component's own lane, or exactly one part's. Anything else is a
  *       compile error naming the parameter — the first place this can be said, since only an application has a
  *       complete answer.</li>
- *   <li><b>What the shell takes back</b>: a provided {@code Appearance} is applied, and so has to exist in
- *       {@code CONFIG}, before the first widget reads a role; anything {@code AutoCloseable} is closed in reverse
+ *   <li><b>What the shell takes back</b>: a provided {@code Appearance}, {@code InputBackend} or
+ *       {@code ClipboardBackend} replaces the framework's own, and so has to exist by the phase the framework
+ *       reaches for it in ({@link Framework#HAND_BACKS}); anything else {@code AutoCloseable} is closed in reverse
  *       at shutdown; a {@code @BeforeFrame} method on a built value's type is put in the frame array.</li>
  * </ul>
  *
@@ -295,7 +296,7 @@ final class Generator {
             }
         }
         for (Binding b : bindings) {
-            appearanceInConfig(b);
+            handedBackInTime(b);
             accessible(app, b);
         }
         claimHooks(app, hooks);
@@ -471,15 +472,23 @@ final class Generator {
         return true;
     }
 
-    /** The look is applied before the first widget reads a role, so what provides it can take only CONFIG values. */
-    private void appearanceInConfig(Binding b) {
-        TypeElement element = Mirrors.element(b.type);
-        if (element != null && element.getQualifiedName().contentEquals(Framework.APPEARANCE)
-                && b.phase != Phase.CONFIG) {
-            error(b.element(), b.where() + " provides the Appearance, and takes something that exists only from "
-                    + b.phase + ". The look is applied before the first widget is constructed — \"a role resolves"
-                    + " at the moment a widget writes a prop\" — so it can be built only out of CONFIG values");
+    /**
+     * A value the framework takes back is taken at a fixed moment, so what provides it has to be built by then: the
+     * look before the first widget reads a role, the input backend before the window exists, the clipboard before
+     * it is installed.
+     */
+    private void handedBackInTime(Binding b) {
+        Framework.HandBack handBack = handBack(b.type);
+        if (handBack != null && b.phase.compareTo(handBack.last()) > 0) {
+            error(b.element(), b.where() + " provides the " + Mirrors.simple(Mirrors.element(b.type))
+                    + ", and takes something that exists only from " + b.phase + ". " + handBack.why()
+                    + " — so it can be built only out of values that exist by " + handBack.last());
         }
+    }
+
+    private static Framework.HandBack handBack(TypeMirror type) {
+        TypeElement element = Mirrors.element(type);
+        return element == null ? null : Framework.handBack(element.getQualifiedName().toString());
     }
 
     // --- frame hooks -----------------------------------------------------------------------------------------
@@ -685,12 +694,13 @@ final class Generator {
         }
 
         List<String> after = new ArrayList<>();
-        TypeElement element = Mirrors.element(b.type);
-        if (element != null && element.getQualifiedName().contentEquals(Framework.APPEARANCE)) {
-            after.add("shell.appearance(" + field + ");");
+        Framework.HandBack handBack = handBack(b.type);
+        if (handBack != null) {
+            after.add("shell." + handBack.setter() + "(" + field + ");");
         }
         TypeElement closeable = elements.getTypeElement("java.lang.AutoCloseable");
-        if (closeable != null && types.isAssignable(b.type, closeable.asType())) {
+        if ((handBack == null || !handBack.owned())
+                && closeable != null && types.isAssignable(b.type, closeable.asType())) {
             after.add("shell.disposer().register(" + field + ");");
         }
         for (Hook h : b.hooks) {

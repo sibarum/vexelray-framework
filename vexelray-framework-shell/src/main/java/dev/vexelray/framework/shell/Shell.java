@@ -28,16 +28,20 @@ import sibarum.atchung.Atchung;
  *
  * <p><b>Accessors throw before their phase.</b> {@link #app()} does not exist until {@link Phase#WINDOW}, and
  * asking early gets a message naming the phase rather than a {@code NullPointerException} thirty frames later.
- * Generated wiring will not be able to reach that state, because the processor rejects a backwards dependency —
- * so these checks are there for hand-written wiring and for the framework's own mistakes, which is the honest
- * description of a backstop.
+ * Generated wiring cannot reach that state, because every phase in it was inferred and the processor rejects a
+ * part that needs something later than the framework takes it back — so these checks are there for hand-written
+ * wiring and for the framework's own mistakes, which is the honest description of a backstop.
  *
- * <p><b>Today they are not a backstop, they are the only check there is.</b> Every wiring on this stack is
- * hand-written and the processor is unwritten, so the phase rule is enforced here, at startup, by an
- * {@code IllegalStateException} — one step to the right of where this repo's own rule puts it, that <i>a
- * compile error beats a startup error beats a runtime error</i>. That is worth knowing in both directions: it
- * is why these messages name the phase and the thing asked for rather than simply failing, and it is why the
- * class of mistake they catch is an argument for the processor rather than evidence that one is unnecessary.
+ * <p>For a hand-written wiring they are still the only check there is: the phase rule is enforced here, at
+ * startup, one step to the right of where this repo's own rule puts it, that <i>a compile error beats a startup
+ * error beats a runtime error</i>. It is why these messages name the phase and the thing asked for rather than
+ * simply failing.
+ *
+ * <p><b>What the wiring hands back.</b> Three of the framework's defaults are replaced by handing one back —
+ * {@link #appearance(Appearance)}, {@link #input(InputBackend)} and {@link #clipboard(ClipboardBackend)} — each
+ * accepted up to the phase before the framework reaches for its own, and each the framework's own answer when
+ * nothing is. A generated wiring calls them for a {@code @Provides} method returning that type, which is the whole
+ * of <i>"overriding one is a {@code @Provides} method returning that type"</i>.
  */
 public final class Shell {
 
@@ -59,6 +63,7 @@ public final class Shell {
     private WindowMemory memory;
     private GuiApp app;
     private TitleBar titleBar;
+    private InputBackend input;
     private ClipboardBackend clipboard;
     private Modals dialogs;
     private boolean closeGateSet;
@@ -290,6 +295,57 @@ public final class Shell {
     }
 
     /**
+     * <b>This application's input backend, in place of the framework's</b> — a recorded session instead of a
+     * device, a scripted one in a test, a backend for a platform tactroller does not cover.
+     *
+     * <p><b>Accepted up to {@link Phase#TREE}</b>, because the framework reaches for the backend at the start of
+     * {@link Phase#WINDOW}: it is opened before the window exists and attached once the window does, and a backend
+     * handed back in {@code WINDOW} would arrive after the framework had already opened its own. The attach, the
+     * bridge onto the bus and the frame's pump stay the framework's, so a replacement supplies a device and not the
+     * order it is driven in.
+     *
+     * <p><b>Taken over</b>: closed at shutdown with everything else, so whoever built it does not also close it.
+     * {@code null} is no opinion, and leaves the framework's. Once only, because a second would leave the first
+     * open with nothing driving it.
+     *
+     * <p>Built where the wiring builds it, which for a provider taking nothing is {@code CONFIG} — so a replacement
+     * is open in a headless {@link VexelApplication#tree} run too, where the framework's own never is.
+     */
+    public Shell input(InputBackend input) {
+        refuseAfter(Phase.TREE, "an input backend", "the framework opens its own at the start of WINDOW");
+        if (input == null) {
+            return this;
+        }
+        if (this.input != null) {
+            throw new IllegalStateException("an input backend is already registered; a second would leave the "
+                    + "first open with nothing driving it");
+        }
+        this.input = disposer.register(input);
+        return this;
+    }
+
+    /**
+     * <b>This application's clipboard, in place of the framework's</b> — one confined to the application for a
+     * kiosk, or a recording one in a test.
+     *
+     * <p><b>Accepted up to {@link Phase#WINDOW}</b>, because the framework installs the clipboard on the main
+     * {@code Gui} at the start of {@link Phase#ATTACH}. Taken over, {@code null} and once only, on the terms of
+     * {@link #input(InputBackend)}. Read back through {@link #clipboard()} from {@code ATTACH}, installed.
+     */
+    public Shell clipboard(ClipboardBackend clipboard) {
+        refuseAfter(Phase.WINDOW, "a clipboard", "the framework installs one at the start of ATTACH");
+        if (clipboard == null) {
+            return this;
+        }
+        if (this.clipboard != null) {
+            throw new IllegalStateException("a clipboard is already registered; a second would leave the first "
+                    + "open and installed on nothing");
+        }
+        this.clipboard = disposer.register(clipboard);
+        return this;
+    }
+
+    /**
      * The one settings store for this application.
      *
      * <p>One, and the container owning it is the whole of a bug two repos carry a comment about: two instances
@@ -470,10 +526,11 @@ public final class Shell {
      *
      * <p>Never null, and every method on it is a no-op where there is no backend — see
      * {@link ClipboardBackend}. So an application binds its windows without asking whether there is anything
-     * to bind them to.
+     * to bind them to. The application's own, if it handed one back through {@link #clipboard(ClipboardBackend)}.
      */
     public ClipboardBackend clipboard() {
-        return require(Phase.ATTACH, "the clipboard", clipboard);
+        // By phase rather than by null: one handed back earlier exists before it is installed.
+        return require(Phase.ATTACH, "the clipboard", phase.compareTo(Phase.ATTACH) < 0 ? null : clipboard);
     }
 
     /**
@@ -543,8 +600,23 @@ public final class Shell {
         this.app = app;
     }
 
-    void clipboard(ClipboardBackend clipboard) {
-        this.clipboard = clipboard;
+    /**
+     * The input backend the application handed back, or the framework's, opened now. Called once, at the start of
+     * {@link Phase#WINDOW} — which is why {@link #input(InputBackend)} refuses from there on.
+     */
+    InputBackend openInput() {
+        if (input == null) {
+            input = disposer.register(InputBackend.open());
+        }
+        return input;
+    }
+
+    /** As {@link #openInput}, for the clipboard, at the start of {@link Phase#ATTACH}. */
+    ClipboardBackend openClipboard() {
+        if (clipboard == null) {
+            clipboard = disposer.register(ClipboardBackend.open());
+        }
+        return clipboard;
     }
 
     void dialogs(Modals dialogs) {
@@ -561,6 +633,13 @@ public final class Shell {
                     what + " does not exist until phase " + from + "; this is " + phase);
         }
         return value;
+    }
+
+    private void refuseAfter(Phase last, String what, String because) {
+        if (phase.compareTo(last) > 0) {
+            throw new IllegalStateException(what + " must be registered by " + last + ", because " + because
+                    + "; this is " + phase);
+        }
     }
 
     private void require(Phase from, String what) {

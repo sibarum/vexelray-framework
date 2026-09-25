@@ -9,8 +9,9 @@ import dev.vexelray.gui.core.app.WindowInput;
  * <p><b>An interface, because a provider returns one.</b> {@code @Provides} returns an interface so that the
  * wiring can construct something else without a call site knowing, and this is the first thing an application
  * would want to swap: a recorded session instead of a device, a scripted one in a test, a backend for a platform
- * tactroller does not cover. {@link #open()} is the framework's answer, on tactroller, and it is the only one
- * there is today.
+ * tactroller does not cover. {@link #open()} is the framework's answer, on tactroller; an application's own is a
+ * {@code @Provides} method returning this type, which the generated wiring hands to {@link Shell#input} — and then
+ * the framework's is never opened.
  *
  * <p><b>Absence is a state, not a failure</b>, and every implementation keeps it. {@code Tactroller.open()}
  * throws where there is no backend, and every hand-written edge answers it the same way, for a reason worth

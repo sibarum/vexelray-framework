@@ -7,7 +7,8 @@ import dev.vexelray.gui.core.Gui;
  *
  * <p><b>An interface, for the reason {@link InputBackend} is one:</b> {@code @Provides} returns an interface, so
  * the wiring can construct another — a clipboard confined to the application for a kiosk, or a recording one in
- * a test — without a call site knowing. {@link #open()} is the framework's answer, and the only one today.
+ * a test — without a call site knowing. {@link #open()} is the framework's answer; an application's own is a
+ * {@code @Provides} method returning this type, handed to {@link Shell#clipboard(ClipboardBackend)}.
  *
  * <p><b>Absent, not failed</b>, on the same terms as {@link InputBackend}: where there is no backend, the GUI's
  * in-memory default stays in place and paste works within the application only.

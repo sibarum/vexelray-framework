@@ -79,6 +79,25 @@ FQN (`sibarum.elektro.queue.generated.ElektroRegistrar`), which collides if two 
 classpath both generate one. The wiring class here is named after its `@VexelApp` type
 (`TextEditorAppWiring`) for that reason.
 
+### The framework's own defaults are handed back, not backed off
+
+`Default` is the back-off rule for providers, and the plan was for the framework's own input backend and
+clipboard to become `@Default` providers in a starter, so that an application's `@Provides` would back them
+off like any other. They are not, because **the framework's answer has to exist without a wiring that says
+anything**: a hand-written `Wiring` is still supported, and one that did not name the starter would start
+with no input. A `@Default` in a starter and a fallback in `-shell` would then be two definitions of the
+same default, kept in agreement by hand.
+
+So the default lives in `-shell`, beside a setter that replaces it — `Shell.appearance`, `Shell.input`,
+`Shell.clipboard` — and the processor hands a provided value to that setter, the same way the look always
+worked. What the processor adds is the timing: each setter is accepted only up to the phase before the
+framework reaches for its own (`CONFIG`, `TREE` and `WINDOW` respectively), so a provider built later is a
+compile error naming the phase. The table of these is `Framework.HAND_BACKS`, and `FrameworkTableTest` holds
+it against the setters' own phase gates.
+
+`Default` keeps the case it was written for: a starter's provider that an application may back off, where the
+framework does not consume the value itself. `Driver` is the first of those.
+
 ## What Spring has no answer for
 
 These are the parts that are not a port of anything.

@@ -235,7 +235,8 @@ public final class VexelApplication {
         shell.phase(Phase.WINDOW);
         WindowMemory memory = new WindowMemory(shell.settings());
         shell.memory(memory);
-        InputBackend input = disposer.register(InputBackend.open());
+        // The application's, if the wiring handed one back by TREE; the framework's, on tactroller, if not.
+        InputBackend input = shell.openInput();
         // The mark goes on the process before the first window exists, so every window this application opens
         // is shown wearing it rather than corrected into it a frame later. See AppInfo.icon for why the same
         // mark is then named on the window's own config as well.
@@ -258,10 +259,9 @@ public final class VexelApplication {
         input.bridge(gui, shell.pointerLock());
         app.input(InputBackend.perWindow(shell.pointerLock()));
         // Held rather than discarded once installed: a clipboard belongs to a Gui, so an application with more
-        // than one window has to bind the rest itself. See Shell.clipboard.
-        ClipboardBackend clipboard = disposer.register(ClipboardBackend.open());
-        clipboard.installOn(gui);
-        shell.clipboard(clipboard);
+        // than one window has to bind the rest itself. See Shell.clipboard. The application's, if the wiring
+        // handed one back by WINDOW.
+        shell.openClipboard().installOn(gui);
         // The dialogs. Installed here rather than on request, because Modals is reached statically from
         // wherever a question arises -- so "the application forgot to install them" surfaces as an exception
         // thrown at the moment somebody needed an answer, which is the worst time to find out.

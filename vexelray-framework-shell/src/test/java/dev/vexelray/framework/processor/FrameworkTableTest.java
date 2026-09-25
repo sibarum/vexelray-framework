@@ -1,11 +1,16 @@
 package dev.vexelray.framework.processor;
 
+import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
+import dev.vexelray.framework.shell.AppInfo;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.Wiring;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -41,6 +46,48 @@ class FrameworkTableTest {
         }
     }
 
+    /**
+     * Every hand-back is a {@code Shell} method taking the type the table says, and a shell refuses it after the
+     * phase the table says — the processor's phase check and the shell's are one rule stated twice, and this is
+     * where the two are held to agree.
+     */
+    @Test
+    void everyHandBackIsAShellSetterRefusedAfterTheTablesPhase() throws Exception {
+        for (Framework.HandBack handBack : Framework.HAND_BACKS) {
+            Class<?> type = Class.forName(handBack.type());
+            Method setter = Shell.class.getMethod(handBack.setter(), type);
+            assertEquals(Shell.class, setter.getReturnType(), "Shell." + handBack.setter() + " chains");
+            assertEquals(handBack.owned(), AutoCloseable.class.isAssignableFrom(type),
+                    handBack.type() + ": the shell owns exactly the hand-backs that need closing");
+            for (Phase phase : Phase.values()) {
+                // null is "no opinion" to every setter, so the phase gate is all that is exercised.
+                Shell shell = shellIn(phase);
+                boolean refused;
+                try {
+                    setter.invoke(shell, (Object) null);
+                    refused = false;
+                } catch (InvocationTargetException e) {
+                    assertTrue(e.getCause() instanceof IllegalStateException, e.getCause().toString());
+                    refused = true;
+                }
+                assertEquals(phase.compareTo(handBack.last()) > 0, refused,
+                        "Shell." + handBack.setter() + " in " + phase + ", against a table that says "
+                        + handBack.last());
+            }
+        }
+    }
+
+    private static Shell shellIn(Phase phase) throws Exception {
+        Constructor<Shell> ctor = Shell.class.getDeclaredConstructor(Launch.class, AppInfo.class);
+        ctor.setAccessible(true);
+        Shell shell = ctor.newInstance(Launch.parse(new String[0], "demo", Set.of()),
+                new AppInfo("demo", "Demo", 800, 600));
+        Method set = Shell.class.getDeclaredMethod("phase", Phase.class);
+        set.setAccessible(true);
+        set.invoke(shell, phase);
+        return shell;
+    }
+
     @Test
     void everyConstructionPhaseIsAWiringMethodTakingTheShell() throws Exception {
         for (Phase phase : Phase.values()) {
@@ -59,6 +106,8 @@ class FrameworkTableTest {
         assertEquals(dev.vexelray.framework.shell.AppInfo.class.getName(), Framework.APP_INFO);
         assertEquals(dev.vexelray.framework.shell.Placement.class.getName(), Framework.PLACEMENT);
         assertEquals(dev.vexelray.framework.shell.Appearance.class.getName(), Framework.APPEARANCE);
+        assertEquals(dev.vexelray.framework.shell.InputBackend.class.getName(), Framework.INPUT);
+        assertEquals(dev.vexelray.framework.shell.ClipboardBackend.class.getName(), Framework.CLIPBOARD);
         assertTrue(Shell.class.getMethod("place", String.class).getReturnType()
                 .getName().equals(Framework.PLACEMENT));
         Shell.class.getMethod("appearance", dev.vexelray.framework.shell.Appearance.class);

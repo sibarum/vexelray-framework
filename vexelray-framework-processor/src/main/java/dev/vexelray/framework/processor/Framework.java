@@ -20,6 +20,8 @@ final class Framework {
     static final String APP_INFO = "dev.vexelray.framework.shell.AppInfo";
     static final String PLACEMENT = "dev.vexelray.framework.shell.Placement";
     static final String APPEARANCE = "dev.vexelray.framework.shell.Appearance";
+    static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
+    static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";
 
     /**
      * A value the framework owns and hands out through a {@code Shell} accessor, from the phase that accessor
@@ -58,8 +60,44 @@ final class Framework {
             new Root("dev.vexelray.gui.core.app.WindowMemory", "memory", Phase.WINDOW, false),
             // "Vulkan, the window and present stay on the main thread" -- vexelray-gui/CLAUDE.md.
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),
-            new Root("dev.vexelray.framework.shell.ClipboardBackend", "clipboard", Phase.ATTACH, false),
+            new Root(CLIPBOARD, "clipboard", Phase.ATTACH, false),
             new Root("dev.vexelray.gui.widget.Modals", "dialogs", Phase.ATTACH, false));
+
+    /**
+     * A default the framework replaces with the application's own when one is provided: the generated wiring hands
+     * the provided value to {@code Shell.<setter>}, and the framework uses it instead of its own.
+     *
+     * <p><b>Not a {@code @Default} provider in a starter</b>, though that was the plan, because the framework's
+     * answer has to exist without any wiring at all — a hand-written one is still supported, and it would otherwise
+     * start with no input. So the default lives in {@code -shell}, next to the setter, and one definition of it is
+     * what there is rather than a starter's and a fallback's that have to agree.
+     *
+     * @param type   the value's type
+     * @param setter the {@code Shell} method taking it back
+     * @param last   the last phase it is accepted in: the framework reaches for its own in the next
+     * @param why    what the framework does with it at the start of the next phase — the reason for {@code last}
+     * @param owned  whether the shell closes it, so the wiring must not register it a second time
+     */
+    record HandBack(String type, String setter, Phase last, String why, boolean owned) {
+    }
+
+    static final List<HandBack> HAND_BACKS = List.of(
+            new HandBack(APPEARANCE, "appearance", Phase.CONFIG, "The look is applied before the first widget is"
+                    + " constructed — \"a role resolves at the moment a widget writes a prop\"", false),
+            new HandBack(INPUT, "input", Phase.TREE, "The input backend is opened at the start of WINDOW, before"
+                    + " the window exists, and attached once it does", true),
+            new HandBack(CLIPBOARD, "clipboard", Phase.WINDOW, "The clipboard is installed on the Gui at the start"
+                    + " of ATTACH", true));
+
+    /** The hand-back for a type, by qualified name, or {@code null}. */
+    static HandBack handBack(String qualifiedName) {
+        for (HandBack h : HAND_BACKS) {
+            if (h.type().equals(qualifiedName)) {
+                return h;
+            }
+        }
+        return null;
+    }
 
     /** The root for a type, by qualified name, or {@code null}. */
     static Root root(String qualifiedName) {

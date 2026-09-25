@@ -87,6 +87,8 @@ class VexelProcessorTest {
                     public FrameHooks hooks() { return hooks; }
                     public Disposer disposer() { return disposer; }
                     public Shell appearance(Appearance a) { LOG.add("appearance applied"); return this; }
+                    public Shell input(InputBackend i) { LOG.add("input handed back"); return this; }
+                    public Shell clipboard(ClipboardBackend c) { LOG.add("clipboard handed back"); return this; }
                     public Placement place(String name) { LOG.add("placed " + name); return new Placement(name); }
                     public dev.vexelray.gui.core.Gui gui() { return new dev.vexelray.gui.core.Gui(); }
                     public dev.vexelray.gui.core.app.GuiApp app() { return new dev.vexelray.gui.core.app.GuiApp(); }
@@ -126,6 +128,14 @@ class VexelProcessorTest {
             Map.entry("dev.vexelray.framework.shell.Appearance", """
                 package dev.vexelray.framework.shell;
                 public final class Appearance {}
+                """),
+            Map.entry("dev.vexelray.framework.shell.InputBackend", """
+                package dev.vexelray.framework.shell;
+                public interface InputBackend extends AutoCloseable { void close(); }
+                """),
+            Map.entry("dev.vexelray.framework.shell.ClipboardBackend", """
+                package dev.vexelray.framework.shell;
+                public interface ClipboardBackend extends AutoCloseable { void close(); }
                 """),
             Map.entry("dev.vexelray.gui.core.Gui", """
                 package dev.vexelray.gui.core;
@@ -677,6 +687,75 @@ class VexelProcessorTest {
                     }
                 }
                 """), "provides the Appearance, and takes something that exists only from GUI");
+    }
+
+    /**
+     * The README's promise, as generated code: a provider returning one of the framework's defaults hands it back,
+     * and the framework uses it instead of opening its own. Handed back rather than registered for shutdown as well,
+     * because the shell closes what it is handed and a second registration would close it twice.
+     */
+    @Test
+    void aProvidedInputBackendAndClipboardAreHandedBackAndClosedOnlyByTheShell() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                final class Recorded implements dev.vexelray.framework.shell.InputBackend {
+                    public void close() { dev.vexelray.framework.shell.Shell.LOG.add("recorded closed"); }
+                }
+                """, """
+                final class Confined implements dev.vexelray.framework.shell.ClipboardBackend {
+                    public void close() { dev.vexelray.framework.shell.Shell.LOG.add("confined closed"); }
+                }
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides dev.vexelray.framework.shell.InputBackend input() { return new Recorded(); }
+                    @Provides dev.vexelray.framework.shell.ClipboardBackend clipboard(dev.vexelray.gui.core.Gui gui) {
+                        return new Confined();
+                    }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+
+        assertEquals(List.of("input handed back"), run.phase("config"), "a provider taking nothing is CONFIG's");
+        assertEquals(List.of("clipboard handed back"), run.phase("gui"), "a provider taking the Gui is built in GUI");
+        run.shutdown();
+        assertEquals(List.of(), run.phase("shutdown"), "the wiring registers neither: the shell owns both");
+    }
+
+    @Test
+    void anInputBackendBuiltAfterTheFrameworkOpensItsOwnIsAnError() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides dev.vexelray.framework.shell.InputBackend input(
+                            dev.vexelray.framework.shell.Shell shell) {
+                        return null;
+                    }
+                }
+                """), "provides the InputBackend, and takes something that exists only from ATTACH. The input"
+                + " backend is opened at the start of WINDOW");
+    }
+
+    @Test
+    void aClipboardBuiltAfterTheFrameworkInstallsItsOwnIsAnError() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides dev.vexelray.framework.shell.ClipboardBackend clipboard(
+                            dev.vexelray.framework.shell.Shell shell) {
+                        return null;
+                    }
+                }
+                """), "provides the ClipboardBackend, and takes something that exists only from ATTACH");
     }
 
     @Test

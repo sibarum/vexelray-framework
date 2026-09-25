@@ -53,10 +53,11 @@ public final class TextEditorApp {
 ```
 
 Input, clipboard, window memory, the app icon, dialogs, the theme and the zoom range, pacing, wakes
-and argument parsing are defaults. Overriding one is a `@Provides` method returning that type; the
-framework's stops being generated, and there is no precedence documentation to read. The types are
-interfaces — `InputBackend`, `ClipboardBackend` — because a provider returns one, and an override needs
-something it can be a second implementation of.
+and argument parsing are defaults. Overriding the look, the input backend or the clipboard is a
+`@Provides` method returning that type: the wiring hands it back, the framework's is never opened, and
+there is no precedence documentation to read. The rest are not replaceable yet ([docs/TODO.md](docs/TODO.md)).
+The types are interfaces — `InputBackend`, `ClipboardBackend` — because a provider returns one, and an
+override needs something it can be a second implementation of.
 
 The close gate is the exception that proves the direction: the framework owns the *place* it is
 registered (`Shell.onClose`, from phase `ATTACH`) and installs none of its own, because the default

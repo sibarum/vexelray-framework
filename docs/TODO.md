@@ -15,12 +15,11 @@ cannot be fixed from here at all.
       `@VexelApp`, `@Provides`, `@Component`, `@Setting`, `@BeforeFrame`, `@OnMode` and `@ConditionalOnType`,
       the `vexel-desktop` template ships a `Recipes` configuration instead of a hand-written wiring, and
       `-Pacceptance` builds and drives the result. What is left, roughly in the order it wants doing:
-      - **The framework's own defaults are not providers.** `VexelApplication` still opens `InputBackend`
-        and `ClipboardBackend` itself, so the README's *"overriding one is a `@Provides` method returning that
-        type"* is true of the look and nothing else. They want to become `@Default` providers in a framework
-        starter the generated wiring consumes — which needs a seam in `VexelApplication` that takes what the
-        wiring built rather than opening its own, and the order it opens them in is load-bearing (input
-        before the window exists, attached after).
+      - **Most of the framework's defaults still cannot be replaced.** The look, the input backend and the
+        clipboard can — a `@Provides` returning one is handed back to `Shell` (see architecture.md, *the
+        framework's own defaults are handed back*). Window memory, the icon, the dialogs and pacing cannot, and
+        the README lists them among the defaults. Each wants a reason to be replaced before it gets a setter;
+        none has one on the stack yet.
       - **`Driver` wants to be a starter.** The template provides it by hand, with
         `@Provides Driver driver(Shell shell)`; guarded by `@ConditionalOnType`, depending on
         `-automation` would be the whole of the decision.

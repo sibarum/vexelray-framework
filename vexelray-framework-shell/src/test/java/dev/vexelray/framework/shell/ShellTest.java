@@ -5,6 +5,7 @@ import dev.vexelray.framework.core.Phase;
 import dev.vexelray.gui.core.style.Theme;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -167,6 +168,111 @@ final class ShellTest {
         IllegalStateException e = assertThrows(IllegalStateException.class, shell::clipboard);
         assertTrue(e.getMessage().contains("ATTACH"), e.getMessage());
         assertTrue(e.getMessage().contains("WINDOW"), e.getMessage());
+    }
+
+    // --- the defaults an application replaces by handing one back ------------------------------------------
+
+    /** An input backend that records what the framework does with it, and opens nothing. */
+    private static final class RecordedInput implements InputBackend {
+        boolean closed;
+
+        public boolean present() {
+            return true;
+        }
+
+        public void attach(long windowHandle) {
+        }
+
+        public void bridge(dev.vexelray.gui.core.Gui gui, PointerLock lock) {
+        }
+
+        public void pump() {
+        }
+
+        public void close() {
+            closed = true;
+        }
+    }
+
+    /** A clipboard confined to the application: installs nothing, so the GUI's in-memory default stays. */
+    private static final class ConfinedClipboard implements ClipboardBackend {
+        boolean closed;
+
+        public boolean present() {
+            return true;
+        }
+
+        public ClipboardBackend installOn(dev.vexelray.gui.core.Gui gui) {
+            return this;
+        }
+
+        public void close() {
+            closed = true;
+        }
+    }
+
+    @Test
+    void anInputBackendHandedBackIsTheOneTheFrameworkUsesAndItOpensNoneOfItsOwn() {
+        dev.vexelray.diag.Diagnostics.reset();
+        Shell shell = shell();
+        RecordedInput mine = new RecordedInput();
+        shell.input(mine);
+        shell.phase(Phase.WINDOW);
+
+        assertSame(mine, shell.openInput());
+        // The framework's own would have reported its absence here, since no platform module is on this
+        // classpath -- so an empty record is what "it never opened one" looks like from outside.
+        assertEquals(List.of(), dev.vexelray.diag.Diagnostics.recorded());
+        shell.disposer().close();
+        assertTrue(mine.closed, "taken over: the shell closes what it was handed");
+    }
+
+    @Test
+    void withNothingHandedBackTheFrameworkOpensItsOwn() {
+        dev.vexelray.diag.Diagnostics.reset();
+        Shell shell = shell();
+        shell.input(null);
+        shell.phase(Phase.WINDOW);
+
+        assertFalse(shell.openInput().present(), "the framework's, on a classpath with no platform module");
+        List<String> recorded = dev.vexelray.diag.Diagnostics.recorded();
+        assertEquals(1, recorded.size(), recorded::toString);
+        dev.vexelray.diag.Diagnostics.reset();
+    }
+
+    @Test
+    void anInputBackendIsRefusedOnceTheFrameworkHasReachedForItsOwn() {
+        Shell shell = shell();
+        shell.phase(Phase.WINDOW);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> shell.input(new RecordedInput()));
+        assertTrue(e.getMessage().contains("by TREE"), e.getMessage());
+        assertTrue(e.getMessage().contains("this is WINDOW"), e.getMessage());
+    }
+
+    @Test
+    void aSecondInputBackendIsRefusedRatherThanLeftOpen() {
+        Shell shell = shell();
+        shell.input(new RecordedInput());
+        assertThrows(IllegalStateException.class, () -> shell.input(new RecordedInput()));
+    }
+
+    @Test
+    void aClipboardHandedBackIsTheOneInstalledAndIsNotReadableBeforeAttach() {
+        Shell shell = shell();
+        ConfinedClipboard mine = new ConfinedClipboard();
+        shell.phase(Phase.WINDOW);
+        shell.clipboard(mine);
+
+        assertThrows(IllegalStateException.class, shell::clipboard,
+                "handed back is not installed: the accessor is ATTACH's whether or not the value exists yet");
+        shell.phase(Phase.ATTACH);
+        assertSame(mine, shell.openClipboard());
+        assertSame(mine, shell.clipboard());
+        assertThrows(IllegalStateException.class, () -> shell.clipboard(new ConfinedClipboard()),
+                "ATTACH is too late: the framework has installed one");
+        shell.disposer().close();
+        assertTrue(mine.closed);
     }
 
     @Test
