@@ -365,7 +365,7 @@
   <header class="masthead">
     <div class="mark">
       <h1>Vexel<span class="ray">Ray</span> Framework</h1>
-      <span class="kicker">Readiness&nbsp;·&nbsp;24 Sep 2026</span>
+      <span class="kicker">Readiness&nbsp;·&nbsp;25 Sep 2026</span>
     </div>
 
     <p class="thesis">
@@ -381,7 +381,7 @@
       <span class="fact"><b>6</b> modules built · <b>1</b> planned</span>
       <span class="fact"><b>1</b> template, framework-shaped · <b>1</b> starter</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
-      <span class="fact">read @ <b>0838329</b></span>
+      <span class="fact">read @ <b>0e811c6</b></span>
     </div>
   </header>
 
@@ -859,7 +859,7 @@
       <span class="eyebrow">Dimension 05 · Verification</span>
       <div class="dim-title">
         <h2>Driving the real application</h2>
-        <span class="verdict v-stack">Mature · three verbs from complete</span>
+        <span class="verdict v-stack">Mature · two verbs from complete</span>
       </div>
       <p class="dim-read">
         The strongest area on this page, and the only capability where the framework's share is already
@@ -897,10 +897,10 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
         <span class="stage">In the stack</span>
       </div>
-      <div class="row s1">
-        <span class="what">A <code>settle</code> that consults the clock <span>— today it photographs mid-fade and says <code>ok</code></span></span>
-        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Specified</span>
+      <div class="row s3">
+        <span class="what">A <code>settle</code> that consults the clock <span>— the framework's driver hands it the application's</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
       <div class="row s1">
         <span class="what"><code>zoom</code> and <code>resize</code> <span>— the last two things per-app <code>--capture</code> can do and this cannot</span></span>
@@ -934,20 +934,22 @@
             and the application runs undriven — one of the six dropped-capability reports.</li>
           <li>Proven against a planted defect: a hover-path bug diagnosed <b>from the CSV alone</b>,
             and recorded as necessary rather than sufficient.</li>
+          <li><b>Settled means the motion has stopped.</b> <code>settle</code> used to answer as soon as
+            nothing was owed, and photographed a panel three seconds before its fade finished. It waits for
+            the clock now — including a fade a click handler has only just posted — and the acceptance loop
+            times a real pulse to keep it that way.</li>
         </ul>
       </div>
       <div class="col gap">
         <h3>What is left</h3>
         <ul>
-          <li><b>A live defect, and the one thing to fix first.</b> <code>settle</code> gates on
-            <code>gui.frameOwed()</code> and never asks the Kron clock, so an application mid-fade
-            returns <code>ok</code> immediately — <code>click</code> → <code>settle</code> →
-            <code>shot</code> has photographed a panel three seconds before its transition finished.
-            <code>Automation</code> holds a <code>Gui</code> and not a <code>KronoGui</code>, so the fix
-            is new API rather than a change inside the verb.</li>
-          <li>Until <code>zoom</code>, <code>resize</code> and that <code>settle</code> land,
-            <b>per-application <code>--capture</code> cannot be retired</b> and every app keeps its own
-            headless entry point.</li>
+          <li>Until <code>zoom</code> and <code>resize</code> land, <b>per-application
+            <code>--capture</code> cannot be retired</b> and every app keeps its own headless entry point.
+            <code>resize</code> is new capability rather than a verb: nothing in
+            <code>WindowControls</code> sets a size.</li>
+          <li><b>An application that never goes quiet cannot be settled.</b> A repeating cue keeps the clock
+            busy by definition, so <code>settle</code> reports it after ten seconds and names
+            <code>await</code> instead — honest, and a real limit for a clock face or a spinner.</li>
           <li>Automation is <b>command-in, response-out</b>. The <code>@Subscribe</code> seam is what
             would let a macro wait on something the application says.</li>
         </ul>
@@ -1161,11 +1163,10 @@
   <section class="method">
     <h2>How to re-check this page</h2>
     <p>
-      Every grade above was read off the tree on 24 September 2026 at <code>0838329</code>, not
-      inferred from the docs. The hash is <b>when this page was read, not what it describes</b>. The
-      grading before this one stood at <code>7e1faa8</code> and was carried two commits by
-      <i>since this grading</i> notes on the lines each commit made wrong — which keeps the page honest
-      between gradings but not graded, so this one folds them in. The threading grep reads
+      Every grade above was read off the tree on 25 September 2026 at <code>0e811c6</code>, not
+      inferred from the docs. The hash is <b>when this page was read, not what it describes</b>. It was
+      last fully regraded at <code>0838329</code>; the one commit since moved dimension 05 alone, which was
+      regraded with it, and left the checks below exactly where they were. The threading grep reads
       <code>src/main/java</code> only, because a template's resources are a generated project's source
       rather than the framework's.
     </p>
@@ -1185,7 +1186,7 @@ printf 'find Save\nclick save\nsettle\nshot after.png\n' | ottermate --script -<
   </section>
 
   <footer>
-    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 0838329</span>
+    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 0e811c6</span>
     <span>Graded by where the capability lives</span>
   </footer>
 
