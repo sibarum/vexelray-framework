@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.os.Icon;
 
 import java.util.Set;
@@ -22,6 +23,7 @@ import java.util.Set;
  * @param icon        the mark this application wears, or {@code null} to leave every window under the OS
  *                    default. See {@link #icon()} for why identity belongs here and not in {@link Appearance}
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public record AppInfo(String name, String title, int width, int height, Set<String> settingKeys, Icon icon) {
 
     public AppInfo {

@@ -52,6 +52,7 @@ package dev.vexelray.framework.api;
  * independent rates at all, which is the whole reason {@code Rate} exists — <i>"an animation framework with
  * one frame rate is a toy."</i>
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public enum FrameStage {
 
     /**

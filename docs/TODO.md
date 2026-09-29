@@ -180,11 +180,6 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       yet listed."* After the component model, because what an application inherits depends on what the
       stack turns out to reach.
 
-- [ ] **How a public type says it is frozen or experimental.** Nothing in the source distinguishes them and
-      the version is `0.1.0-SNAPSHOT`. The mechanism must not reflect — a `CLASS`-retention annotation or a
-      Javadoc tag — and it has to exist before the freeze pass so that the pass has somewhere to write its
-      result. Small, and it blocks the process rather than any one abstraction.
-
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
       is frozen. This is the step that turns *nothing known is wrong* into 1.0. It cannot start early,

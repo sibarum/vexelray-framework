@@ -54,6 +54,7 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)
+@Stability(Stability.Level.EXPERIMENTAL)
 public @interface Component {
 
     /**

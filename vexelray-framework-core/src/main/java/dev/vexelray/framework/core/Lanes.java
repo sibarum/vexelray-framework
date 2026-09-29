@@ -1,5 +1,6 @@
 package dev.vexelray.framework.core;
 
+import dev.vexelray.framework.api.Stability;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>Every thread is a daemon, so a lane that is still working cannot hold the process open past the loop
  * ending. {@link #close} is the orderly path and it is bounded — see it for why stopping is on a timer.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class Lanes implements AutoCloseable {
 
     /**

@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.core.Lanes;
 import dev.vexelray.framework.core.WakeSource;
 import sibarum.atchung.Atchung;
@@ -57,6 +58,7 @@ import java.util.List;
  *         .subscribe(EDITS, this::composeNow, 1, Backpressure.COALESCE_LATEST);
  * }
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class Placement implements WakeSource, AutoCloseable {
 
     /**

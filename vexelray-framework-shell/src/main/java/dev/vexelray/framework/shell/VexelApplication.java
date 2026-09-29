@@ -3,6 +3,7 @@ package dev.vexelray.framework.shell;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.FrameStage;
 import dev.vexelray.framework.api.RunMode;
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.core.Disposer;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
@@ -32,6 +33,7 @@ import java.util.function.Function;
  * <p>Nothing here is reflective and nothing here is discovered. The only thing this class knows about an
  * application is its {@link Wiring} — a normal object, called through six direct method calls, one per phase.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class VexelApplication {
 
     /**

@@ -1,5 +1,7 @@
 package dev.vexelray.framework.core;
 
+import dev.vexelray.framework.api.Stability;
+
 /**
  * The order in which an application comes into existence.
  *
@@ -28,6 +30,7 @@ package dev.vexelray.framework.core;
  * list is prose about {@code VexelApplication}, so it can drift from {@code VexelApplication} silently and the
  * processor will never catch it. Change one and read the other.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public enum Phase {
 
     /**

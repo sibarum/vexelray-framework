@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.layout.Length;
@@ -50,6 +51,7 @@ import java.util.List;
  *                    the application says nothing, which is the range five places on this stack had already
  *                    agreed on. Never null
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorations decorations,
                          List<WindowInstrument> instruments, ZoomRange zoom) {
 
