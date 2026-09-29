@@ -46,6 +46,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       group = lane, the `@Subscribe` defaults, supervision, the landing rule for checks, the tree) rulings owed
       before the seam is built. There is no single document for it yet; see the overview entry below.
 
+      **Ruled: a component that declares no lane gets its own thread, mailbox and wake.** `lane` becomes an
+      optional override, and grouping is opt-in by two components naming the same lane. The default is the
+      contract, because moving it later changes timing and blocking behaviour without a compile error.
+      **Open beneath it:** which things are components. `@Component` is a DI contract, not an actor one (a
+      recorded vocabulary mismatch), and a thread per DI bean is wrong for a plain service. The default has to
+      say what it applies to before it is built, and the unrun grouping measurement is what prices it.
+
 - [ ] **One overview of the component model.** Its requirements are in threading.md (the 32 rules),
       architecture.md (*The concurrency model*, from line 231) and four entries here, and nothing states what a
       component is owed, what exists, and what is decided. Written as the spec the declaration seam is built
