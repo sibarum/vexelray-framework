@@ -291,8 +291,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
 - [ ] **Build the liveness guarantee.** Designed in
       [architecture.md](architecture.md#a-wedged-component-cannot-freeze-the-window), contract in
-      [v1.md](v1.md#the-liveness-guarantee). Nothing below exists yet: each lane thread in its own `ThreadGroup`
-      (today `Lanes` builds bare `Thread`s), a per-lane drain signal and an always-on supervisor for the default
+      [v1.md](v1.md#the-liveness-guarantee). **Landed:** each component thread runs in its own `ThreadGroup`,
+      and `Lanes.interruptLane(name)` sweeps it (tested with no GPU: reaches a child thread, spares other lanes;
+      the default lane and the handler and offload pools are not grouped yet). Nothing else below exists yet: a per-lane drain signal and an always-on supervisor for the default
       lane, a watchdog thread on no lane with an explicit `halt` (`Runtime.halt`, not `System.exit`), the policy
       seam and its context object, the processor check that main-thread code sends only on channels that never
       block, a total bound on shutdown, and cancellation tokens on `Lanes.offload()`. Verify the group sweep under

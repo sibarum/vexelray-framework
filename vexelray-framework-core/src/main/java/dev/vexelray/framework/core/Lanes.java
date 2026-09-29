@@ -3,6 +3,8 @@ package dev.vexelray.framework.core;
 import dev.vexelray.framework.api.Stability;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -67,6 +69,10 @@ public final class Lanes implements AutoCloseable {
     private final ExecutorService offload;
     /** Component threads, in the order they were placed. Stopped in reverse, like everything else. */
     private final List<Thread> components = new ArrayList<>();
+    /** Parent of every component's own group, so the lanes are one subtree in a thread dump. */
+    private final ThreadGroup componentGroups = new ThreadGroup("vexel-lanes");
+    /** Each placed component's group by name, held here because an empty group is not kept alive by the JDK. */
+    private final Map<String, ThreadGroup> groups = new ConcurrentHashMap<>();
     private volatile boolean closed;
 
     /** The lanes an ordinary application gets. */
@@ -135,11 +141,35 @@ public final class Lanes implements AutoCloseable {
         if (closed) {
             throw new IllegalStateException("lanes are closed; " + name + " cannot be placed on one");
         }
-        Thread t = new Thread(body, "vexel-component-" + name);
+        // Its own group, so that a thread the body creates joins it without being told to and one interrupt
+        // reaches all of them. See interruptLane.
+        ThreadGroup group = new ThreadGroup(componentGroups, "vexel-lane-" + name);
+        groups.put(name, group);
+        Thread t = new Thread(group, body, "vexel-component-" + name);
         t.setDaemon(true);
         components.add(t);
         t.start();
         return t;
+    }
+
+    /**
+     * Interrupt every live thread in the lane placed under {@code name}: the component's own thread and any
+     * thread its code created, including the workers of an executor it built.
+     *
+     * <p>A request, not a kill. An interrupt wakes an interruptible blocking call and sets a flag; a thread
+     * spinning in a loop that never checks it ignores this, and Java cannot safely stop such a thread. What it
+     * cannot reach is threads made outside the group — a library's shared executor, the common pool — and
+     * threads blocked on a monitor or in a native call. Ending the process is the watchdog's job, not this.
+     *
+     * @return whether a lane by that name has been placed
+     */
+    public boolean interruptLane(String name) {
+        ThreadGroup group = groups.get(name);
+        if (group == null) {
+            return false;
+        }
+        group.interrupt();
+        return true;
     }
 
     /**

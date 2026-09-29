@@ -128,6 +128,39 @@ final class LanesTest {
     }
 
     @Test
+    void interruptingALaneReachesThreadsItsCodeCreatedAndNoOthers() throws Exception {
+        CountDownLatch parked = new CountDownLatch(3);
+        CountDownLatch swept = new CountDownLatch(2);
+        CountDownLatch bystanderInterrupted = new CountDownLatch(1);
+        try (Lanes lanes = new Lanes()) {
+            lanes.thread("wedged", () -> {
+                Thread child = new Thread(() -> parkUntilInterrupted(parked, swept));
+                child.setDaemon(true);
+                child.start();
+                parkUntilInterrupted(parked, swept);
+            });
+            lanes.thread("bystander", () -> parkUntilInterrupted(parked, bystanderInterrupted));
+            assertTrue(parked.await(5, TimeUnit.SECONDS), "a thread never parked");
+
+            assertTrue(lanes.interruptLane("wedged"));
+            assertTrue(swept.await(5, TimeUnit.SECONDS),
+                    "the sweep missed the lane's thread or the thread its code created");
+            assertFalse(bystanderInterrupted.await(200, TimeUnit.MILLISECONDS),
+                    "the sweep reached a lane it was not asked about");
+            assertFalse(lanes.interruptLane("nothing-placed-here"));
+        }
+    }
+
+    private static void parkUntilInterrupted(CountDownLatch parked, CountDownLatch interrupted) {
+        parked.countDown();
+        try {
+            Thread.sleep(60_000);
+        } catch (InterruptedException e) {
+            interrupted.countDown();
+        }
+    }
+
+    @Test
     void closeIsIdempotent() {
         Lanes lanes = new Lanes();
         lanes.close();
