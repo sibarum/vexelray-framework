@@ -63,8 +63,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       liveness signal in `Lanes` and `Placement` on the v1 build list, at least for the default lane, and it
       is the case that made the observer more than optional: one slow component holds up every other on it.
       **What supervision does is still only report**, and that is frozen: a component's failure never stops
-      the others, a stalled lane is named and not killed, and restart or halt policies arrive later as opt-in
-      attributes, since an action taken by default would be a breaking change to add. **Open:** the stall
+      the others, a stalled lane is named and not killed by the framework on its own, and richer policies are
+      additive (superseded below: the default action is now not contractual). **Open:** the stall
       threshold and where it is set, whether lanes an application names are supervised the same way (the
       mechanism is per-lane, so probably), and what a report looks like to an application that wants to react.
 
@@ -77,6 +77,21 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       halting the process after it is a default action. It is user-directed rather than autonomous, so
       recommended yes. **Test it in W2:** a *wedge* button, then assert the window still repaints and takes
       input, and that close exits within the bound.
+
+      **Ruled: what a wedge does is a policy the application can override, and the default is not part of the
+      contract.** The frozen parts are the liveness guarantee and the seam that takes the policy, a provider
+      handed back like the look and the input backend, told what happened and acting through a context object
+      (`exit` now, `restart` later), never returning an enum. The default today is report and then exit,
+      matching the bus-fault precedent. The target is a main-thread fallback offering the user a restart.
+      **Realism, unverified:** a fallback on the main thread works for a wedged *lane*, because the default
+      lane is not the main thread, and cannot work for a wedged main thread, where the way out is halt.
+      *Restart* comes in two sizes. Relaunching the process (start a new one from the same command, then halt)
+      is small and needs only what the app already persists. Restarting components in place is not: Java
+      cannot stop a wedged thread, so the old one would be abandoned and could wake later on stale state, and
+      the container builds each part once, so it would need a rebuildable subtree and the tree's depth-first
+      teardown (T6.3), which is unbuilt. Do the first as the target and leave the second to an opt-in policy.
+      A default of *exit* on a stall also throws away unsaved work, so the threshold has to be long and the
+      policy needs a bounded chance to save first.
 
 - [ ] **One overview of the component model.** Its requirements are in threading.md (the 32 rules),
       architecture.md (*The concurrency model*, from line 231) and four entries here, and nothing states what a
