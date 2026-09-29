@@ -263,6 +263,12 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       find something, and each finding written up in architecture.md as the ports were. After the
       component model, since that is what they most need to exercise.
 
+      **W2 (component-heavy) is built** and passes: [what it found](architecture.md#what-the-component-witness-found)
+      is mostly confirmation, plus two observations. **Still to build:** W1, several windows on one device,
+      which wants the `Window` seam and is meant to shape it; and W3, long-running with nothing to settle, the
+      one that would test the wake and pacing path for real. W2 also lacks a wedge that ignores interrupts,
+      which is what would make the halt backstop fire.
+
 - [ ] **Starters, a BOM, and the stack's reachability metadata.** The build shape is a contract: an
       application's dependency block and its `@VexelApp` are the first things it writes. One starter
       exists (`AutomationStarter`), so the abstraction is drawn from a single instance; a second starter
