@@ -58,6 +58,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       draining, not only a component. Also open: the default lane's name (reserved, so no application string
       can collide with it), and whether it is bounded.
 
+      **Ruled: the default lane is under supervision.** The framework watches it always on, as `Stalls` does
+      the main thread, and a lane that has stopped draining is reported by name. That puts the per-lane
+      liveness signal in `Lanes` and `Placement` on the v1 build list, at least for the default lane, and it
+      is the case that made the observer more than optional: one slow component holds up every other on it.
+      **What supervision does is still only report**, and that is frozen: a component's failure never stops
+      the others, a stalled lane is named and not killed, and restart or halt policies arrive later as opt-in
+      attributes, since an action taken by default would be a breaking change to add. **Open:** the stall
+      threshold and where it is set, whether lanes an application names are supervised the same way (the
+      mechanism is per-lane, so probably), and what a report looks like to an application that wants to react.
+
 - [ ] **One overview of the component model.** Its requirements are in threading.md (the 32 rules),
       architecture.md (*The concurrency model*, from line 231) and four entries here, and nothing states what a
       component is owed, what exists, and what is decided. Written as the spec the declaration seam is built
