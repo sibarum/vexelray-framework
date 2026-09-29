@@ -370,7 +370,7 @@
 
     <p class="thesis">
       v1 means an application built on it needs <strong>no major refactor for the foreseeable
-      future</strong>, and later releases add to the abstractions it already has. By that bar the
+      future</strong>, and later releases add to the abstractions it already has. It also carries <strong>no legacy</strong>: nothing stays for backwards compatibility. By that bar the
       framework is not close: <strong>one of seven surfaces is ready to freeze</strong>, and the
       concurrency model's declaration side does not exist. The five dimensions below are unchanged —
       most of what they grade is built well, somewhere else.
@@ -1297,6 +1297,20 @@
       <div class="step">
         <span class="num">12</span>
         <div>
+          <h3>Sweep legacy</h3>
+          <p>
+            Delete what exists only for backwards compatibility: kept constructors, redundant seams,
+            reserved names nothing honours, test seams in public API, dead API, and prose that describes
+            how something used to work.
+            <span class="why">The second v1 condition: there is no legacy in v1. It comes after the
+            component model, which makes some seams redundant, and before the freeze, which would
+            otherwise make them permanent.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">13</span>
+        <div>
           <h3>Freeze</h3>
           <p>
             Mark each public type frozen or experimental, walk the whole surface for anything that
@@ -1318,7 +1332,7 @@
       last fully regraded at <code>0838329</code>; the one commit since moved dimension 05 alone, which was
       regraded with it, and left the checks below exactly where they were. The threading grep reads
       <code>src/main/java</code> only, because a template's resources are a generated project's source
-      rather than the framework's. <b>The v1 ledger and the road to v1 are the exception:</b> they were assembled on 28 September 2026 from these docs, TODO.md, and one read of <code>Shell</code>'s public signatures for the sibling types it returns. Nothing checked them against the whole public surface; that walk is step 12.
+      rather than the framework's. <b>The v1 ledger and the road to v1 are the exception:</b> they were assembled on 28 September 2026 from these docs, TODO.md, and one read of <code>Shell</code>'s public signatures for the sibling types it returns. Nothing checked them against the whole public surface; that walk is step 13.
     </p>
     <pre><span class="c"># 234 green, offline: core 47, shell 87, template 48, processor 47, automation 5</span>
 mvn -o test

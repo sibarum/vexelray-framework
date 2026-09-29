@@ -164,6 +164,12 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       accessor rather than once. Every side of the edge is the author's own, which makes freezing cheap
       and makes not deciding the only expensive choice.
 
+      **Ruled 2026-09-28: `Gui` is frozen** — the subset applications use, with the remainder marked
+      experimental. `vexelray-gui/docs/plans/gui-decomposition.md` reports all seven decomposition steps done, and
+      the last app-facing removal from `Gui` was `onCaretHit`/`onCaretDrag` on 2026-08-14; nothing local calls
+      them. Still to do: classify the ~100 methods, and give `vexelray-gui` a marker of its own, since the
+      framework's `@Stability` sits above it in the dependency order.
+
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and left one generated counter-style
       application validating everything. *One component is not a census* applies to the framework itself.
@@ -180,10 +186,32 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       yet listed."* After the component model, because what an application inherits depends on what the
       stack turns out to reach.
 
+      **Ruled 2026-09-28: v1 may ship native on Windows only, provided adding another OS later needs no
+      change to an existing application.** That makes where the metadata lives a v1 decision. It must be
+      carried by each backend's jar (GraalVM merges `META-INF/native-image` from every jar on the classpath)
+      or by a starter, never by a file in the application, or every new OS is an edit to every app. The
+      per-OS backend selection in a starter has to meet the same test. Also missing, and first in line: no
+      generated application has ever been built as a native image, so acceptance stops at a JVM build.
+
 - [ ] **How a public type says it is frozen or experimental.** Nothing in the source distinguishes them and
       the version is `0.1.0-SNAPSHOT`. The mechanism must not reflect — a `CLASS`-retention annotation or a
       Javadoc tag — and it has to exist before the freeze pass so that the pass has somewhere to write its
       result. Small, and it blocks the process rather than any one abstraction.
+
+- [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
+      [v1.md](v1.md#what-must-not-remain). Known candidates so far, each a question and not yet a finding:
+      the prior constructors and `Config` forms the engine refactor kept on purpose; `--profile`, which parses
+      and nothing honours; `shell.wake(gui::onWork)`, which duplicates what `GuiApp` already does; the
+      `VexelApplication.run` overload taking a window factory, which looks like a test seam; `Gui`'s
+      `hasPendingWork` (no caller), `keyRoutes` (no caller) and the `frameOwed` overlap; `Modals`' one-argument
+      `install`, documented as a library default; the stale `sealed ... permits` in vexelray-gui's
+      architecture.md §6; and the *deliberately not bounded yet* handler lane.
+
+      **It changes one threading ruling.** Keeping `Placement.subscribe` supported *forever* beside
+      `@Subscribe` is a second way to do one thing, which this condition rules out. So the choice is now
+      either the imperative path is the supported, checked route and `@Subscribe` is sugar over it, or it is
+      removed before v1 and the declaration seam has to exist first. It can no longer be "keep both".
+      Wants doing after the component model and before the freeze pass, and binds the siblings `Shell` exposes.
 
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
