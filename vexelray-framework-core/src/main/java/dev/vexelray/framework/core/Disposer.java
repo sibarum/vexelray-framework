@@ -28,6 +28,7 @@ import java.util.List;
 public final class Disposer implements AutoCloseable {
 
     private final List<AutoCloseable> resources = new ArrayList<>();
+    private final List<Runnable> beforeClose = new ArrayList<>(1);
 
     private boolean closed;
 
@@ -50,6 +51,17 @@ public final class Disposer implements AutoCloseable {
         return resource;
     }
 
+    /**
+     * Run {@code action} at the moment {@link #close} begins, before the first resource is closed.
+     *
+     * <p>For what has to start counting when shutdown starts rather than when a particular resource is reached
+     * — a bound on the whole teardown cannot be a resource, because a resource is closed in its turn, after
+     * everything registered later, and the turn it is waiting for is the one that hangs.
+     */
+    public void beforeClose(Runnable action) {
+        beforeClose.add(action);
+    }
+
     /** How many resources are registered. */
     public int size() {
         return resources.size();
@@ -66,6 +78,13 @@ public final class Disposer implements AutoCloseable {
         }
         closed = true;
         Throwable failure = null;
+        for (Runnable action : beforeClose) {
+            try {
+                action.run();
+            } catch (Throwable t) {
+                failure = t;
+            }
+        }
         for (int i = resources.size() - 1; i >= 0; i--) {
             try {
                 resources.get(i).close();

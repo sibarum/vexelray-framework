@@ -108,6 +108,7 @@ class FrameworkTableTest {
         assertEquals(dev.vexelray.framework.shell.Appearance.class.getName(), Framework.APPEARANCE);
         assertEquals(dev.vexelray.framework.shell.InputBackend.class.getName(), Framework.INPUT);
         assertEquals(dev.vexelray.framework.shell.ClipboardBackend.class.getName(), Framework.CLIPBOARD);
+        assertEquals(dev.vexelray.framework.shell.LivenessPolicy.class.getName(), Framework.LIVENESS);
         assertTrue(Shell.class.getMethod("place", String.class).getReturnType()
                 .getName().equals(Framework.PLACEMENT));
         Shell.class.getMethod("appearance", dev.vexelray.framework.shell.Appearance.class);

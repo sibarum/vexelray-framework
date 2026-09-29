@@ -9,6 +9,7 @@ import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Pacing;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.framework.core.WakeSource;
+import dev.vexelray.framework.core.Watchdog;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.CloseRequest;
 import dev.vexelray.gui.core.app.GuiApp;
@@ -17,6 +18,8 @@ import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.atchung.Atchung;
+
+import java.time.Duration;
 
 /**
  * What the framework has built so far, and where the wiring hands things back.
@@ -54,6 +57,7 @@ public final class Shell {
     private final Atchung bus = Atchung.create();
     private final PointerLock pointerLock = new PointerLock();
     private final Lanes lanes;
+    private final Watchdog watchdog;
     /** Components placed but not yet started. See {@link #place} for why those are two different moments. */
     private final java.util.List<Placement> placements = new java.util.ArrayList<>();
 
@@ -66,6 +70,8 @@ public final class Shell {
     private TitleBar titleBar;
     private InputBackend input;
     private ClipboardBackend clipboard;
+    private LivenessPolicy liveness = new LivenessPolicy() { };
+    private boolean livenessSet;
     private boolean closeGateSet;
     private Phase phase = Phase.CONFIG;
 
@@ -77,9 +83,14 @@ public final class Shell {
         this.launch = launch;
         this.info = info;
         this.lanes = lanes;
-        // First registration, so it is the last thing closed: a lane outlives every tree presented on it, and
-        // the whole point of the container owning the threads is that a window closing does not take them.
+        this.watchdog = new Watchdog(lanes);
+        // First registration, so it is the last thing closed: the halt it arms is the backstop for the rest of the
+        // teardown, and a backstop that closed early would be disarmed by the very shutdown it exists to bound.
+        disposer.register(watchdog);
+        // Second, so the lanes are the last of the rest: a lane outlives every tree presented on it, and the
+        // whole point of the container owning the threads is that a window closing does not take them.
         disposer.register(lanes);
+        disposer.beforeClose(() -> watchdog.haltAfter(liveness.closeBound().toNanos()));
     }
 
     // ---- always available -------------------------------------------------------------------------------
@@ -346,6 +357,28 @@ public final class Shell {
     }
 
     /**
+     * <b>This application's answer to a wedged component</b>, in place of the framework's: how long a lane may
+     * stay inside one delivery, what happens when one does, and how long an exit or a shutdown may take before the
+     * process is ended regardless. See {@link LivenessPolicy}, which has a default for every part of it.
+     *
+     * <p><b>Accepted up to {@link Phase#ATTACH}</b>, because the watchdog starts with the components, after it.
+     * {@code null} is no opinion and leaves the framework's. Once only: a second would silently replace the
+     * first, which is the failure the close gate refuses on the same terms.
+     */
+    public Shell liveness(LivenessPolicy liveness) {
+        refuseAfter(Phase.ATTACH, "a liveness policy", "the watchdog starts with the components, after ATTACH");
+        if (liveness == null) {
+            return this;
+        }
+        if (livenessSet) {
+            throw new IllegalStateException("a liveness policy is already registered; a second would replace it");
+        }
+        livenessSet = true;
+        this.liveness = liveness;
+        return this;
+    }
+
+    /**
      * The one settings store for this application.
      *
      * <p>One, and the container owning it is the whole of a bug two repos carry a comment about: two instances
@@ -558,6 +591,34 @@ public final class Shell {
             }
             placement.start();
         }
+        startWatchdog();
+    }
+
+    /**
+     * Start watching the lanes, with the policy in force. After the placements, so a lane exists to be watched
+     * from the moment there is a thread on it.
+     */
+    private void startWatchdog() {
+        LivenessPolicy policy = liveness;
+        LivenessPolicy.Context context = new LivenessPolicy.Context() {
+            @Override
+            public void exit() {
+                // The backstop first: whatever the window does next, the process ends by this deadline.
+                watchdog.haltAfter(policy.exitGrace().toNanos());
+                if (app != null) {
+                    // Through the window's own close route, so the application's close gate is its bounded
+                    // chance to save. Posted, because the watchdog is not the main thread.
+                    app.post(() -> app.controls().close());
+                }
+            }
+
+            @Override
+            public boolean interrupt(String lane) {
+                return lanes.interruptLane(lane);
+            }
+        };
+        watchdog.start(policy.stallThreshold().toNanos(), stall -> policy.onStall(
+                new LivenessPolicy.Stall(stall.lane(), Duration.ofNanos(stall.nanos())), context));
     }
 
     void settings(Settings settings) {

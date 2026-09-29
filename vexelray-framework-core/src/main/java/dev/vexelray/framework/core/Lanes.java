@@ -73,6 +73,7 @@ public final class Lanes implements AutoCloseable {
     private final ThreadGroup componentGroups = new ThreadGroup("vexel-lanes");
     /** Each placed component's group by name, held here because an empty group is not kept alive by the JDK. */
     private final Map<String, ThreadGroup> groups = new ConcurrentHashMap<>();
+    private final Map<String, Busy> gauges = new ConcurrentHashMap<>();
     private volatile boolean closed;
 
     /** The lanes an ordinary application gets. */
@@ -150,6 +151,68 @@ public final class Lanes implements AutoCloseable {
         components.add(t);
         t.start();
         return t;
+    }
+
+    /**
+     * The gauge for the lane called {@code lane}: whether its thread is inside a delivery, and since when.
+     *
+     * <p>Whoever runs application code on a lane brackets each delivery with {@link Busy#enter} and
+     * {@link Busy#exit}. A lane parked on an empty mailbox is idle and never stalls, so what {@link #stalled}
+     * finds is a lane that has been <em>inside one delivery</em> too long — which is what a component that
+     * loops, blocks or deadlocks looks like from outside, and is not what a quiet one looks like.
+     */
+    public Busy busy(String lane) {
+        return gauges.computeIfAbsent(lane, l -> new Busy());
+    }
+
+    /**
+     * The lanes that have been inside a single delivery for at least {@code thresholdNanos}.
+     *
+     * <p>Safe from any thread; the watchdog calls it from one that belongs to no lane.
+     */
+    public List<Stall> stalled(long thresholdNanos) {
+        long now = System.nanoTime();
+        List<Stall> found = new ArrayList<>(0);
+        for (Map.Entry<String, Busy> e : gauges.entrySet()) {
+            Busy busy = e.getValue();
+            long since = busy.since;
+            if (since != Busy.IDLE && now - since >= thresholdNanos) {
+                found.add(new Stall(e.getKey(), now - since, busy.deliveries));
+            }
+        }
+        return found;
+    }
+
+    /**
+     * A lane that has been inside one delivery for {@code nanos}.
+     *
+     * @param delivery which delivery, so a watcher can tell one long stall from a second one on the same lane
+     */
+    public record Stall(String lane, long nanos, long delivery) {
+    }
+
+    /** One lane's busy flag. Written by the lane's own thread and read by the watchdog, so nothing locks. */
+    public static final class Busy {
+
+        private static final long IDLE = Long.MIN_VALUE;
+
+        private volatile long since = IDLE;
+        private volatile long deliveries;
+
+        private Busy() {
+        }
+
+        /** The lane's thread is starting a delivery. Only that thread calls this. */
+        public void enter() {
+            // Count before stamping: a reader that sees the new stamp then sees the new count.
+            deliveries++;
+            since = System.nanoTime();
+        }
+
+        /** The delivery is over, however it ended. */
+        public void exit() {
+            since = IDLE;
+        }
     }
 
     /**

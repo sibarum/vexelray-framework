@@ -297,14 +297,23 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
 - [ ] **Build the liveness guarantee.** Designed in
       [architecture.md](architecture.md#a-wedged-component-cannot-freeze-the-window), contract in
-      [v1.md](v1.md#the-liveness-guarantee). **Landed:** each component thread runs in its own `ThreadGroup`,
-      and `Lanes.interruptLane(name)` sweeps it (tested with no GPU: reaches a child thread, spares other lanes;
-      the default lane and the handler and offload pools are not grouped yet). Nothing else below exists yet: a per-lane drain signal and an always-on supervisor for the default
-      lane, a watchdog thread on no lane with an explicit `halt` (`Runtime.halt`, not `System.exit`), the policy
-      seam and its context object, the processor check that main-thread code sends only on channels that never
-      block, a total bound on shutdown, and cancellation tokens on `Lanes.offload()`. Verify the group sweep under
-      native-image, which is untested. W2 gets the *wedge* button and the assertions; the sweep is the piece
-      that can be tested with no GPU.
+      [v1.md](v1.md#the-liveness-guarantee). **Landed, all tested with no GPU:** each component thread in its
+      own `ThreadGroup` with `Lanes.interruptLane`; a per-lane busy gauge (`Lanes.busy`, set around every
+      `Placement` delivery, so parked is idle and *inside one delivery too long* is a stall); `Watchdog` in
+      `-core`, a thread on no lane that reports each stalled delivery once and ends the process with
+      `Runtime.halt` (status 1) when a deadline passes; `Disposer.beforeClose`, which arms a total bound on
+      shutdown; and `LivenessPolicy`, handed back with `shell.liveness(...)` or a `@Provides` returning it, with
+      a default for every part. **Defaults, not contract:** stall threshold 10 s, shutdown bound 10 s, exit grace
+      30 s (the time a close gate's save prompt has before the process is ended anyway), and on a stall report
+      then exit. All three durations are the policy's to override.
+
+      **Still to do:** the main thread is not watched, on purpose. It legitimately blocks in a modal native
+      dialog for as long as a person takes, and a halt fired at someone choosing a filename is worse than the
+      wedge, so it wants a heartbeat that knows a dialog is up, from the frame loop. The processor check that
+      main-thread code sends only on channels that never block. Cancellation tokens on `Lanes.offload()`, and
+      the handler and offload pools are not grouped. `Context` has `exit` and `interrupt` and no `restart`.
+      Verify the group sweep under native-image, untested. W2 gets the *wedge* button and the assertions that
+      the window keeps painting and close exits within the bound.
 
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
       [v1.md](v1.md#what-must-not-remain). Known candidates so far, each a question and not yet a finding:

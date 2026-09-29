@@ -89,6 +89,7 @@ class VexelProcessorTest {
                     public Shell appearance(Appearance a) { LOG.add("appearance applied"); return this; }
                     public Shell input(InputBackend i) { LOG.add("input handed back"); return this; }
                     public Shell clipboard(ClipboardBackend c) { LOG.add("clipboard handed back"); return this; }
+                    public Shell liveness(LivenessPolicy p) { LOG.add("liveness handed back"); return this; }
                     public Placement place(String name) { LOG.add("placed " + name); return new Placement(name); }
                     public dev.vexelray.gui.core.Gui gui() { return new dev.vexelray.gui.core.Gui(); }
                     public dev.vexelray.gui.core.app.GuiApp app() { return new dev.vexelray.gui.core.app.GuiApp(); }
@@ -136,6 +137,10 @@ class VexelProcessorTest {
             Map.entry("dev.vexelray.framework.shell.ClipboardBackend", """
                 package dev.vexelray.framework.shell;
                 public interface ClipboardBackend extends AutoCloseable { void close(); }
+                """),
+            Map.entry("dev.vexelray.framework.shell.LivenessPolicy", """
+                package dev.vexelray.framework.shell;
+                public interface LivenessPolicy {}
                 """),
             Map.entry("dev.vexelray.gui.core.Gui", """
                 package dev.vexelray.gui.core;
@@ -753,6 +758,25 @@ class VexelProcessorTest {
         assertEquals(List.of("clipboard handed back"), run.phase("gui"), "a provider taking the Gui is built in GUI");
         run.shutdown();
         assertEquals(List.of(), run.phase("shutdown"), "the wiring registers neither: the shell owns both");
+    }
+
+    /** The liveness policy is handed back the same way, and is not closeable, so the shell has nothing to close. */
+    @Test
+    void aProvidedLivenessPolicyIsHandedBack() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides dev.vexelray.framework.shell.LivenessPolicy liveness() {
+                        return new dev.vexelray.framework.shell.LivenessPolicy() {};
+                    }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        assertEquals(List.of("liveness handed back"), run.phase("config"));
     }
 
     @Test

@@ -827,8 +827,8 @@ the component model rather than ahead of it.
 
 ### A wedged component cannot freeze the window
 
-*Status: designed and ruled, not built. What exists is `Lanes` and `Placement`; supervision, the policy seam and the
-group are the work that makes the rest of this true. [v1.md](v1.md#the-liveness-guarantee) states it as the
+*Status: layers 2 to 4 are built for component lanes (the group, the supervisor, `LivenessPolicy`, the watchdog and
+the shutdown bound); the main thread is not watched, and the processor check is not written. See the TODO entry. [v1.md](v1.md#the-liveness-guarantee) states it as the
 contract v1 freezes.*
 
 The point of running components off the main thread by default is that a component that loops forever, blocks or

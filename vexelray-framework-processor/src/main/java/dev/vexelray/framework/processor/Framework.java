@@ -22,6 +22,7 @@ final class Framework {
     static final String APPEARANCE = "dev.vexelray.framework.shell.Appearance";
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";
+    static final String LIVENESS = "dev.vexelray.framework.shell.LivenessPolicy";
 
     /**
      * A value the framework owns and hands out through a {@code Shell} accessor, from the phase that accessor
@@ -86,7 +87,9 @@ final class Framework {
             new HandBack(INPUT, "input", Phase.TREE, "The input backend is opened at the start of WINDOW, before"
                     + " the window exists, and attached once it does", true),
             new HandBack(CLIPBOARD, "clipboard", Phase.WINDOW, "The clipboard is installed on the Gui at the start"
-                    + " of ATTACH", true));
+                    + " of ATTACH", true),
+            new HandBack(LIVENESS, "liveness", Phase.ATTACH, "The watchdog starts with the components, after"
+                    + " ATTACH, and reads the policy once when it does", false));
 
     /** The hand-back for a type, by qualified name, or {@code null}. */
     static HandBack handBack(String qualifiedName) {

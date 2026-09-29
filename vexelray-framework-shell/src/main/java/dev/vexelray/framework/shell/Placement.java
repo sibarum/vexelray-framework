@@ -140,8 +140,25 @@ public final class Placement implements WakeSource, AutoCloseable {
             throw new IllegalStateException(
                     "component " + name + " is already running; a mailbox is added before it starts, not after");
         }
-        mailboxes.add(pump.subscribe(topic, subscriber, capacity, policy, fold));
+        mailboxes.add(pump.subscribe(topic, watched(subscriber), capacity, policy, fold));
         return this;
+    }
+
+    /**
+     * A subscriber that tells the lane's gauge when it is inside a delivery, which is all the watchdog knows of
+     * this lane: parked is idle, and inside one delivery for too long is a stall. Made once per mailbox, so
+     * nothing is allocated per message.
+     */
+    private <T> Subscriber<T> watched(Subscriber<T> subscriber) {
+        Lanes.Busy busy = lanes.busy(name);
+        return event -> {
+            busy.enter();
+            try {
+                subscriber.on(event);
+            } finally {
+                busy.exit();
+            }
+        };
     }
 
     /**
