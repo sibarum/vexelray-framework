@@ -5,6 +5,7 @@ import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Setting;
+import dev.vexelray.framework.api.Subscribe;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
@@ -360,6 +361,51 @@ final class Declarations {
             error(method, "@BeforeFrame " + where + " is on a @Component. The frame is the main thread's, and"
                     + " no component enters it: a hook here would run on the main thread against state that"
                     + " belongs to the component's own. Publish to the component instead");
+        }
+    }
+
+    // --- @Subscribe ------------------------------------------------------------------------------------------
+
+    /**
+     * A mailbox is a method the wiring can hand to a placement: on a component, taking the payload, returning
+     * nothing, and throwing nothing a delivery could not deliver anywhere.
+     */
+    void subscribe(ExecutableElement method) {
+        String where = Mirrors.where(method);
+        AnnotationMirror subscribe = mirrors.find(method, Subscribe.class);
+        if (!mirrors.has(method.getEnclosingElement(), Component.class)) {
+            error(method, "@Subscribe " + where + " is not on a @Component. A mailbox belongs to something with a"
+                    + " thread to drain it, and only a component has one");
+        }
+        if (method.getModifiers().contains(Modifier.PRIVATE) || method.getModifiers().contains(Modifier.STATIC)) {
+            error(method, "@Subscribe " + where + " is private or static, so the generated wiring cannot hand it to"
+                    + " the component's mailbox as an instance method");
+        }
+        if (method.getReturnType().getKind() != TypeKind.VOID) {
+            error(method, "@Subscribe " + where + " returns a value, and a delivery has nowhere to put one."
+                    + " Publish the result on a topic instead");
+        }
+        if (!method.getThrownTypes().isEmpty()) {
+            error(method, "@Subscribe " + where + " declares " + method.getThrownTypes() + ". A delivery has nowhere"
+                    + " to send a checked exception: handle it, or wrap it");
+        }
+        if (method.getParameters().size() != 1) {
+            error(method, "@Subscribe " + where + " takes " + method.getParameters().size() + " parameters, and"
+                    + " must take exactly one: the payload. The topic's type is that parameter's type");
+        } else {
+            TypeMirror payload = method.getParameters().get(0).asType();
+            if (payload.getKind() != TypeKind.DECLARED || !((DeclaredType) payload).getTypeArguments().isEmpty()) {
+                error(method, "@Subscribe " + where + " takes " + payload + ", which cannot name a topic's type."
+                        + " A payload is a class or interface with no type arguments — wrap a primitive or a"
+                        + " generic in a record, which is also what makes the channel readable");
+            }
+        }
+        if (mirrors.string(subscribe, "topic").isBlank()) {
+            error(method, "@Subscribe " + where + " has a blank topic. The name is the channel, and publishers"
+                    + " find it by that name");
+        }
+        if ((Integer) mirrors.value(subscribe, "capacity") < 1) {
+            error(method, "@Subscribe " + where + " has a capacity below one. A mailbox holds at least a message");
         }
     }
 

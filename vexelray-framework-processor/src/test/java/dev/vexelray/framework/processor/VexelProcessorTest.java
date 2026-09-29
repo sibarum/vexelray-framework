@@ -124,7 +124,23 @@ class VexelProcessorTest {
                 public final class Placement {
                     public final String name;
                     public Placement(String name) { this.name = name; }
+                    public <T> Placement subscribe(sibarum.atchung.Topic<T> topic, java.util.function.Consumer<T> on,
+                                                   int capacity, sibarum.atchung.Backpressure policy) {
+                        Shell.LOG.add("subscribed " + topic.name() + " " + topic.payloadType().getSimpleName() + " "
+                                + capacity + " " + policy);
+                        return this;
+                    }
                 }
+                """),
+            Map.entry("sibarum.atchung.Topic", """
+                package sibarum.atchung;
+                public record Topic<T>(String name, Class<T> payloadType) {
+                    public static <T> Topic<T> of(String name, Class<T> payloadType) { return new Topic<>(name, payloadType); }
+                }
+                """),
+            Map.entry("sibarum.atchung.Backpressure", """
+                package sibarum.atchung;
+                public enum Backpressure { FAIL, DROP_OLDEST, DROP_NEWEST, COALESCE_LATEST, BLOCK }
                 """),
             Map.entry("dev.vexelray.framework.shell.Appearance", """
                 package dev.vexelray.framework.shell;
@@ -493,6 +509,168 @@ class VexelProcessorTest {
                 @Component(lane = "index")
                 public final class Indexer {}
                 """), "T2.3: Composer (lane \"<default>\") holds Indexer (lane \"index\")");
+    }
+
+    // --- channels: @Subscribe and @Publishes ---------------------------------------------------------------------
+
+    @Test
+    void aSubscribeBecomesAMailboxOnTheComponentsLaneWithNoPlacementParameter() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                public record Edit(int at) {}
+                """, """
+                @Component(lane = "compose")
+                public final class Composer {
+                    @Subscribe(topic = "edits", capacity = 8) public void edited(Edit e) {}
+                    @Subscribe(topic = "cursor", overflow = Overflow.COALESCE_LATEST) public void moved(Edit e) {}
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        assertEquals(List.of("placed compose", "subscribed edits Edit 8 FAIL",
+                "subscribed cursor Edit 64 COALESCE_LATEST"), run.phase("config"));
+    }
+
+    @Test
+    void componentsThatNameNoLaneSubscribeOnTheOneDefaultPlacement() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                public record Edit(int at) {}
+                """, """
+                @Component
+                public final class One { @Subscribe(topic = "a") public void on(Edit e) {} }
+                """, """
+                @Component
+                public final class Two { @Subscribe(topic = "b") public void on(Edit e) {} }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        long placed = run.phase("config").stream().filter(s -> s.startsWith("placed ")).count();
+        assertEquals(1, placed, "both components share the default lane's one placement: " + run.phase("config"));
+    }
+
+    @Test
+    void aTopicThatIsBothAnEdgeAndASampleIsAnError() {
+        onlyError(app("""
+                public record Edit(int at) {}
+                """, """
+                @Component(lane = "a")
+                public final class Sink { @Subscribe(topic = "edits") public void on(Edit e) {} }
+                """, """
+                @Component(lane = "b")
+                public final class View {
+                    @Subscribe(topic = "edits", overflow = Overflow.COALESCE_LATEST) public void on(Edit e) {}
+                }
+                """), "T4.1: the topic \"edits\" is an edge to Sink.on (FAIL) and a sample to View.on");
+    }
+
+    @Test
+    void aTopicNameCarryingTwoPayloadTypesIsAnError() {
+        onlyError(app("""
+                public record Edit(int at) {}
+                """, """
+                public record Move(int by) {}
+                """, """
+                @Component(lane = "a")
+                public final class Sink { @Subscribe(topic = "edits") public void on(Edit e) {} }
+                """, """
+                @Component(lane = "b")
+                public final class Other { @Subscribe(topic = "edits") public void on(Move m) {} }
+                """), "T4.1: the topic \"edits\" carries");
+    }
+
+    @Test
+    void mainThreadCodeMayNotDeclareASendOnABlockingChannel() {
+        onlyError(app("""
+                public record Edit(int at) {}
+                """, """
+                @Component(lane = "a")
+                public final class Sink {
+                    @Subscribe(topic = "edits", overflow = Overflow.BLOCK) public void on(Edit e) {}
+                }
+                """, """
+                @MainThread @Publishes("edits")
+                public final class Toolbar {}
+                """), "T4.7: Toolbar runs on the main thread and declares a send on \"edits\", where Sink.on has a"
+                + " BLOCK mailbox");
+    }
+
+    @Test
+    void aFrameHookIsMainThreadCodeForTheBlockingSendRule() {
+        onlyError(app("""
+                public record Edit(int at) {}
+                """, """
+                @Component(lane = "a")
+                public final class Sink {
+                    @Subscribe(topic = "edits", overflow = Overflow.BLOCK) public void on(Edit e) {}
+                }
+                """, """
+                @Configuration
+                public final class Recipes {
+                    @Provides Pump pump() { return new Pump(); }
+                }
+                """, """
+                final class Pump {
+                    @BeforeFrame @Publishes("edits") void drain() {}
+                }
+                """), "T4.7: Pump.drain runs on the main thread");
+    }
+
+    @Test
+    void aComponentMayBlockAndTheMainThreadMayFailOrCoalesce() {
+        assertEquals(List.of(), app("""
+                public record Edit(int at) {}
+                """, """
+                @Component(lane = "a")
+                public final class Sink {
+                    @Subscribe(topic = "edits", overflow = Overflow.BLOCK) public void on(Edit e) {}
+                    @Subscribe(topic = "samples", overflow = Overflow.COALESCE_LATEST) public void on2(Edit e) {}
+                    @Subscribe(topic = "commands") public void on3(Edit e) {}
+                }
+                """, """
+                @Component(lane = "b") @Publishes("edits")
+                public final class Producer {}
+                """, """
+                @MainThread @Publishes({"samples", "commands"})
+                public final class Toolbar {}
+                """));
+    }
+
+    @Test
+    void aSubscribeOutsideAComponentIsAnError() {
+        onlyError(app("""
+                public record Edit(int at) {}
+                """, """
+                public final class Loose { @Subscribe(topic = "edits") public void on(Edit e) {} }
+                """), "@Subscribe Loose.on is not on a @Component");
+    }
+
+    @Test
+    void aSubscribeMustTakeOnePayloadThatCanNameATopic() {
+        onlyError(app("""
+                @Component(lane = "a")
+                public final class Sink { @Subscribe(topic = "n") public void on(int n) {} }
+                """), "takes int, which cannot name a topic's type");
+        onlyError(app("""
+                @Component(lane = "a")
+                public final class Sink { @Subscribe(topic = "n") public void on(java.util.List<String> n) {} }
+                """), "cannot name a topic's type");
+        onlyError(app("""
+                @Component(lane = "a")
+                public final class Sink { @Subscribe(topic = "n") public void on(String a, String b) {} }
+                """), "takes 2 parameters, and must take exactly one");
+        onlyError(app("""
+                @Component(lane = "a")
+                public final class Sink { @Subscribe(topic = "n") public String on(String a) { return a; } }
+                """), "returns a value");
+        onlyError(app("""
+                @Component(lane = "a")
+                public final class Sink { @Subscribe(topic = " ") public void on(String a) {} }
+                """), "has a blank topic");
     }
 
     @Test

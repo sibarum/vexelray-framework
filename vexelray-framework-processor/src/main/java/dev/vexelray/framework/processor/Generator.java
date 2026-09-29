@@ -70,16 +70,18 @@ final class Generator {
     private final Mirrors mirrors;
     private final Declarations declarations;
     private final Graph graph;
+    private final Channels channels;
     private final Elements elements;
     private final Types types;
     private final Report report;
     private final Filer filer;
 
-    Generator(Mirrors mirrors, Declarations declarations, Graph graph, Elements elements, Types types,
-              Report report, Filer filer) {
+    Generator(Mirrors mirrors, Declarations declarations, Graph graph, Channels channels, Elements elements,
+              Types types, Report report, Filer filer) {
         this.mirrors = mirrors;
         this.declarations = declarations;
         this.graph = graph;
+        this.channels = channels;
         this.elements = elements;
         this.types = types;
         this.report = report;
@@ -96,6 +98,7 @@ final class Generator {
         final Set<RunMode> declared;
         final List<Arg> args = new ArrayList<>();
         final List<Hook> hooks = new ArrayList<>();
+        final List<Channels.Mailbox> mailboxes = new ArrayList<>();
         Set<RunMode> modes;
         Slot slot;
         Phase phase = Phase.CONFIG;
@@ -300,6 +303,7 @@ final class Generator {
             accessible(app, b);
         }
         claimHooks(app, hooks);
+        claimMailboxes(app);
         if (report.failed()) {
             return;
         }
@@ -528,6 +532,30 @@ final class Generator {
         }
     }
 
+    // --- mailboxes -------------------------------------------------------------------------------------------
+
+    /**
+     * Each component's {@code @Subscribe} methods become mailboxes on its lane's placement, registered where the
+     * component is constructed. The lane's placement is made here too, so a component that declares mailboxes and
+     * never asks for its {@code Placement} still gets a thread: the mailbox is the declaration that it needs one.
+     */
+    private void claimMailboxes(TypeElement app) {
+        for (Binding b : bindings) {
+            if (b.component == null) {
+                continue;
+            }
+            for (Channels.Mailbox m : channels.mailboxes(b.component)) {
+                b.mailboxes.add(m);
+                lanes.computeIfAbsent(declarations.lane(b.component),
+                        l -> field("lane" + capitalize(identifier(l))));
+                if (!visibleFrom(app, m.method())) {
+                    error(m.method(), "@Subscribe " + m.where() + " is not visible from " + Mirrors.simple(app)
+                            + "'s package, where the generated wiring hands it to the mailbox. Make it public");
+                }
+            }
+        }
+    }
+
     // --- visibility ------------------------------------------------------------------------------------------
 
     private void accessible(TypeElement app, Binding b) {
@@ -706,6 +734,16 @@ final class Generator {
         for (Hook h : b.hooks) {
             after.add("shell.hooks().add(dev.vexelray.framework.api.FrameStage." + h.stage() + ", " + field + "::"
                     + Mirrors.simple(h.method()) + ");");
+        }
+        for (Channels.Mailbox m : b.mailboxes) {
+            String lane = lanes.get(declarations.lane(b.component));
+            after.add("if (" + lane + " == null) {");
+            after.add("    " + lane + " = shell.place(" + literal(declarations.lane(b.component)) + ");");
+            after.add("}");
+            after.add(lane + ".subscribe(sibarum.atchung.Topic.of(" + literal(m.topic()) + ", "
+                    + Mirrors.element(m.payload()).getQualifiedName() + ".class), " + field + "::"
+                    + Mirrors.simple(m.method()) + ", " + m.capacity() + ", sibarum.atchung.Backpressure."
+                    + m.overflow().name() + ");");
         }
         if (!after.isEmpty()) {
             src.append(indent).append("if (").append(field).append(" != null) {\n");

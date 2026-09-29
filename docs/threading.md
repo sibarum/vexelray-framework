@@ -212,6 +212,14 @@ and their mailboxes — and never with a second `Gui`. It is also the ceiling on
 application, and on any scoped addressing §3.4 would want. *(upstream — the fix is topics named per
 instance)*
 
+**T4.7 — Main-thread code sends only on channels that never block.** A blocking send from the main thread to a
+lane that has stopped draining is how a window freezes, and the freeze T4.6's `Gui` topics shipped was exactly
+that. `@Subscribe` declares each mailbox's policy and `@Publishes` declares what a sender sends on, so the
+processor rejects main-thread code (a `@MainThread` type or method, or a `@BeforeFrame` hook) that declares a
+send on a topic any mailbox `BLOCK`s. **A declared graph, not a proof:** a send nobody declared is not checked,
+and a subscriber in another module is not seen. *(held for what is declared, by
+`VexelProcessorTest.mainThreadCodeMayNotDeclareASendOnABlockingChannel`)*
+
 ## 5. Completion
 
 **T5.1 — A result never lands in place.** Work done off a lane comes back through one of exactly two
@@ -292,15 +300,16 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **1 Lanes** | T1.2, T1.4, T1.5 | T1.3 | | | T1.1 |
 | **2 Colour** | T2.1, T2.2, T2.3 | T2.4, T2.5 | | | |
 | **3 Ownership** | T3.1, T3.7 | T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
-| **4 Channels** | T4.2 | T4.1, T4.3, T4.4, T4.5 | T4.6 | | |
+| **4 Channels** | T4.1, T4.2, T4.3, T4.7 | T4.4, T4.5 | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4 | | | T6.3, T6.5 | |
 
-Three readings worth taking from it. **Nine of the thirty-two rules still say `processor`**, down from
-fourteen, and what the remaining nine have in common is the useful thing to know about them: none can be
-decided from a declaration, and generation did not move them either. T1.3 is half generated and half a
-convention, T3.6 waits on the component tree (§3.4), T2.4 and §4 want a seam that declares a channel, T2.5
-wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
+Three readings worth taking from it. **Seven of the thirty-three rules still say `processor`**, down from
+fourteen, and what the remaining seven have in common is the useful thing to know about them: none can be
+decided from a declaration alone. T1.3 is half generated and half a convention, T3.6 waits on the component
+tree (§3.4), T2.4 and T4.4/T4.5 want the rest of the message graph (`@Subscribe` and `@Publishes` declare the
+two ends of a channel now, which is what T4.1, T4.3 and T4.7 needed; the cycle check and the *declared in the
+wiring* rule are what is left), T2.5 wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
 and §2 is now empty of them** — the colour section was the one place where an unanswered question would
 have been classified into every application type by the processor, and T2.4 is answered. What is left open is the
 component seam and its supervision, which is where the remaining design work actually is. And
@@ -308,7 +317,8 @@ component seam and its supervision, which is where the remaining design work act
 things this repo could not fix, and both turned out to be one change in `vexelray-gui` — the worker pool
 ceasing to be a field initializer — rather than two problems.
 
-**What moved, and what made it move.** Thirteen rules are held. The first eight were paid for by two
+**What moved, and what made it move.** Sixteen rules are held (the last three, T4.1, T4.3 and T4.7, when
+`@Subscribe` put a channel on a declaration); thirteen were before it. The first eight were paid for by two
 objects: `Lanes`, which owns the application's threads instead of a `Gui` owning one set per tree, and
 `Placement`, which owns a component's thread and the drain-then-stop around it. None of those needed the
 processor — they needed something to *be* the rule, which is available a long way before the compile error

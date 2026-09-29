@@ -88,6 +88,28 @@ class FrameworkTableTest {
         return shell;
     }
 
+    /**
+     * The generated wiring maps {@code Overflow} to atchung's {@code Backpressure} by name, so the two have to
+     * agree constant for constant, and the api's edge/blocks flags have to say what atchung's docs say.
+     */
+    @Test
+    void overflowIsBackpressureByName() {
+        java.util.Set<String> overflow = new java.util.TreeSet<>();
+        for (dev.vexelray.framework.api.Overflow o : dev.vexelray.framework.api.Overflow.values()) {
+            overflow.add(o.name());
+            sibarum.atchung.Backpressure.valueOf(o.name());
+        }
+        java.util.Set<String> backpressure = new java.util.TreeSet<>();
+        for (sibarum.atchung.Backpressure b : sibarum.atchung.Backpressure.values()) {
+            backpressure.add(b.name());
+        }
+        assertEquals(backpressure, overflow);
+        assertTrue(dev.vexelray.framework.api.Overflow.BLOCK.blocks());
+        assertTrue(dev.vexelray.framework.api.Overflow.FAIL.edge());
+        assertTrue(dev.vexelray.framework.api.Overflow.BLOCK.edge());
+        assertTrue(!dev.vexelray.framework.api.Overflow.COALESCE_LATEST.edge());
+    }
+
     @Test
     void everyConstructionPhaseIsAWiringMethodTakingTheShell() throws Exception {
         for (Phase phase : Phase.values()) {

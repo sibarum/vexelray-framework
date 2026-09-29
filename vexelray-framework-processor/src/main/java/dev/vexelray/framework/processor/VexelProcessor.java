@@ -8,7 +8,9 @@ import dev.vexelray.framework.api.Default;
 import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.OnMode;
 import dev.vexelray.framework.api.Provides;
+import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.api.Setting;
+import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.api.VexelApp;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -67,11 +69,13 @@ public final class VexelProcessor extends AbstractProcessor {
     /** Everything read, by class literal, so a renamed annotation fails to compile here rather than to match. */
     private static final List<Class<? extends Annotation>> VOCABULARY = List.of(
             VexelApp.class, Component.class, Configuration.class, Provides.class, Default.class,
-            MainThread.class, Setting.class, BeforeFrame.class, OnMode.class, ConditionalOnType.class);
+            MainThread.class, Setting.class, BeforeFrame.class, OnMode.class, ConditionalOnType.class,
+            Subscribe.class, Publishes.class);
 
     private Mirrors mirrors;
     private Declarations declarations;
     private Graph graph;
+    private Channels channels;
     private Generator generator;
     private TypeElement app;
     private Report report;
@@ -85,7 +89,9 @@ public final class VexelProcessor extends AbstractProcessor {
         mirrors = new Mirrors(env.getElementUtils());
         declarations = new Declarations(mirrors, report);
         graph = new Graph(mirrors, declarations, env.getElementUtils(), env.getTypeUtils(), report);
-        generator = new Generator(mirrors, declarations, graph, env.getElementUtils(), env.getTypeUtils(), report,
+        channels = new Channels(mirrors, env.getElementUtils(), report);
+        generator = new Generator(mirrors, declarations, graph, channels, env.getElementUtils(), env.getTypeUtils(),
+                report,
                 env.getFiler());
         this.report = report;
     }
@@ -130,12 +136,19 @@ public final class VexelProcessor extends AbstractProcessor {
             declarations.beforeFrame((ExecutableElement) e);
             hooks.add((ExecutableElement) e);
         }
+        for (Element e : round.getElementsAnnotatedWith(Subscribe.class)) {
+            declarations.subscribe((ExecutableElement) e);
+        }
+        for (Element e : round.getElementsAnnotatedWith(Publishes.class)) {
+            channels.publishes(e);
+        }
         // Generated in the round the application is seen, not the last one: javac compiles nothing created in
         // the final round, and the application's main names the wiring. Every source of a clean build is in the
         // first round, so the whole program is already here; a starter is a class file, resolved by name.
         if (app != null && !checked) {
             checked = true;
             graph.check();
+            channels.check(graph);
             if (!report.failed()) {
                 generator.generate(app, hooks);
             }
@@ -143,6 +156,7 @@ public final class VexelProcessor extends AbstractProcessor {
             // A library -- a starter compiled on its own. Checked, and there is nothing to generate for.
             checked = true;
             graph.check();
+            channels.check(graph);
         }
         return false;
     }

@@ -116,6 +116,18 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **Why this blocks v1:** the [extension test](v1.md#the-extension-test) fails on it twice: elektro-Q and reactive automation have nowhere to attach without it. It is also where a component declares its channels, so it reshapes component code written before it exists.
 
+      **First slice built (component mailboxes).** `@Subscribe(topic, overflow = FAIL, capacity = 64)` on a
+      `@Component` method registers a mailbox on the component's lane where the wiring constructs it, with the
+      payload type taken from the method's one parameter; the placement's close is the teardown, so there is
+      nothing to generate for it. `@Publishes` declares what a type or method sends on. Held by them: T4.1 (an
+      edge and a sample on one topic, or one topic name with two payload types), T4.3 (a mailbox per method),
+      and T4.7 (main-thread code declaring a send on a `BLOCK` topic). **Not built:** the rest of the seam. A
+      `@Subscribe` that is not on a component (an extension or a macro, which is the whole point of the entry),
+      registration in `ATTACH` and teardown through the `Disposer` for something that is not a placement, `Fold`,
+      the blocking-cycle check (T4.4), and the graph being *declared in the wiring* (T4.5). The three
+      `@Subscribe` defaults (FAIL, 64, registered at construction and started with the lane) are unruled; they
+      are the ones a v1 freeze would make contract.
+
 - [ ] **Nothing in the model covers work that outlasts a frame, and the stack already named the
       answer.** `kronometer/docs/architecture.md` §10 specifies it: *"`offload(work)` remains available
       for work that is genuinely unbounded — file I/O, network, image decode — moving it to an ordinary
@@ -310,7 +322,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       **Still to do:** the main thread is not watched, on purpose. It legitimately blocks in a modal native
       dialog for as long as a person takes, and a halt fired at someone choosing a filename is worse than the
       wedge, so it wants a heartbeat that knows a dialog is up, from the frame loop. The processor check that
-      main-thread code sends only on channels that never block. Cancellation tokens on `Lanes.offload()`, and
+      main-thread code sends only on channels that never block is built (T4.7) for declared sends only; see
+      the `@Subscribe` entry. Cancellation tokens on `Lanes.offload()`, and
       the handler and offload pools are not grouped. `Context` has `exit` and `interrupt` and no `restart`.
       Verify the group sweep under native-image, untested. W2 gets the *wedge* button and the assertions that
       the window keeps painting and close exits within the bound.
