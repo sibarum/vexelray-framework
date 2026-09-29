@@ -1177,6 +1177,44 @@ It also keeps the fixture honest about conventions. A fixture hand-written to su
 quietly be shaped by what the processor found easy; one that has to survive `mvn compile` and an
 automation script in a generated project will not.
 
+## What the component witness found
+
+The counter every earlier acceptance run drives has one thread of its own and no component, so the concurrency
+model had only ever been checked by an application that does not use it. W2 is a generated application with the
+parts the model is for — a worker on a lane of its own, two components sharing the default lane, another lane
+with a wedge on it, a `BLOCK` mailbox published to from the handler lane — and a button that wedges a component.
+It is the builder's `vexel-desktop` tree with five files overlaid (`vexelray-framework-acceptance`, *test
+resources*, `witnesses/components`), and no wiring anywhere: the components are annotated and the processor writes
+the rest. Two launches of one build, driven through the socket.
+
+**What it confirmed, on the first run.** This is the honest headline: nothing broke.
+
+| Claim | How it was checked |
+| --- | --- |
+| A component that only declares `@Subscribe` gets a thread, a mailbox and a wake | the worker's result reaches the tree with no wake written anywhere |
+| Four components on three lanes are three placements | the generated wiring, counted |
+| A wedge on a lane of its own leaves the window and every other lane working | count, work and echo all answer while `isolated` is wedged |
+| The watchdog names the stalled lane, and the policy's `interrupt` frees it | `stall isolated`, then `isolated freed`, after the 3 s threshold |
+| **The default lane is shared, so a wedge on it holds up its neighbours** | a queued echo is not delivered until the lane is freed, and then it is |
+| The window and the *other* lanes still work while the default lane is wedged | count and work answer |
+| The framework's default policy ends the application through the window's own close route | under `exit`, the process is gone within the grace, after a report naming `<default>` |
+
+The last row is the one no unit test could reach: `Context.exit` posts a close through `GuiApp`'s controls, and
+the acceptance run is the first thing that has ever done that for real.
+
+**Two observations that are not failures.** A `@Component` that declares no `@Subscribe` and takes no
+`Placement` is constructed and given **no thread at all**, because a lane's placement is made by the first thing
+that asks for one. The annotation's own text says a component *has a thread and a mailbox*, and that is true of a
+component that declares a mailbox and not of one that does not; nothing in W2 has one to show it, so it is
+recorded and not tested. And the default policy's report goes through `Diagnostics.dropped`, whose vocabulary is a
+capability that was silently lost (*"the component lane <default> — it has been inside one delivery…"*): it reads
+correctly and is filed under the wrong idea, which matters the day something filters that channel.
+
+**What it did not exercise.** The halt backstop: the JVM exits on its own once the window closes, because every
+lane is a daemon, so `Runtime.halt` never fired and the total shutdown bound is asserted only by the watchdog's
+unit tests. A wedge that ignores interrupts, which the policy cannot free and only the exit path answers. The main
+thread, which is not watched.
+
 ## Modules
 
 ```

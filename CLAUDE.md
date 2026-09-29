@@ -72,7 +72,9 @@ cd ../supirvast && mvn install && cd ../vexelray && mvn install && cd ../tactrol
 
 The acceptance loop, with the siblings installed: generate a project from the builder, build it, and drive
 it through its automation socket. It opens a real window for a few seconds; the logs, the generated tree and
-a screenshot land in `vexelray-framework-acceptance/target/acceptance`.
+a screenshot land in `vexelray-framework-acceptance/target/acceptance/generated`. The same run drives the
+component witness (W2) into `.../acceptance/components`; see `docs/architecture.md`, *what the component
+witness found*.
 
 ```bash
 mvn clean install -Pacceptance

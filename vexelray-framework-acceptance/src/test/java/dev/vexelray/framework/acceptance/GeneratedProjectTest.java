@@ -17,19 +17,25 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
+import dev.vexelray.framework.acceptance.Support.Driver;
+
+import static dev.vexelray.framework.acceptance.Support.BUILD_MINUTES;
+import static dev.vexelray.framework.acceptance.Support.connect;
+import static dev.vexelray.framework.acceptance.Support.freePort;
+import static dev.vexelray.framework.acceptance.Support.fresh;
+import static dev.vexelray.framework.acceptance.Support.maven;
+import static dev.vexelray.framework.acceptance.Support.property;
+import static dev.vexelray.framework.acceptance.Support.stop;
+import static dev.vexelray.framework.acceptance.Support.tail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,10 +72,6 @@ class GeneratedProjectTest {
     private static final String ARTIFACT = "vexel-acceptance";
     private static final String TEMPLATE = "vexel-desktop";
 
-    /** Generous, because the first build of a fresh project resolves every plugin it names. */
-    private static final long BUILD_MINUTES = 10;
-    private static final long LAUNCH_SECONDS = 180;
-
     private static Path root;
     private static Template template;
     private static Answers answers;
@@ -80,15 +82,7 @@ class GeneratedProjectTest {
 
     @BeforeAll
     static void clearTheLastRun() throws IOException {
-        root = Path.of(property("acceptance.dir"));
-        if (Files.exists(root)) {
-            try (Stream<Path> walk = Files.walk(root)) {
-                for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
-                    Files.delete(p);
-                }
-            }
-        }
-        Files.createDirectories(root);
+        root = fresh("generated");
     }
 
     @AfterAll
@@ -153,7 +147,7 @@ class GeneratedProjectTest {
     void theGeneratedProjectBuildsAndItsOwnTestsPass() throws Exception {
         assertNotNull(project, "nothing was written");
         Path log = root.resolve("build.log");
-        Process build = maven(log, "package").start();
+        Process build = maven(project, log, "package").start();
         if (!build.waitFor(BUILD_MINUTES, TimeUnit.MINUTES)) {
             stop(build);
             fail("the generated project's build took longer than " + BUILD_MINUTES + " minutes\n" + tail(log));
@@ -178,11 +172,11 @@ class GeneratedProjectTest {
         int port = freePort();
         Path log = root.resolve("run.log");
         Path home = root.resolve("home");
-        app = maven(log, "compile", "exec:exec",
+        app = maven(project, log, "compile", "exec:exec",
                 "-Dautomation=" + port,
                 "-Dapp.jvmArgs=-D" + ARTIFACT + ".home=" + home).start();
 
-        try (Socket socket = connect(port, log);
+        try (Socket socket = connect(app, port, log);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
              BufferedReader in = new BufferedReader(
                      new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
@@ -242,110 +236,4 @@ class GeneratedProjectTest {
         }
     }
 
-    /** One line protocol, one reply per command, terminated by a line holding only {@code .}. */
-    private record Driver(PrintWriter out, BufferedReader in, Path log) {
-
-        String send(String command) throws IOException {
-            out.println(command);
-            StringBuilder reply = new StringBuilder();
-            for (String line = in.readLine(); line != null && !line.equals("."); line = in.readLine()) {
-                reply.append(line).append('\n');
-            }
-            return reply.toString().strip();
-        }
-
-        String ok(String command) throws IOException {
-            String reply = send(command);
-            if (!reply.startsWith("ok")) {
-                fail("'" + command + "' answered: " + reply + "\n" + tail(log));
-            }
-            return reply;
-        }
-
-        /** The ref of the one node carrying this landmark, from {@code find}'s listing. */
-        String ref(String landmark) throws IOException {
-            for (String line : ok("find " + landmark).lines().skip(1).toList()) {
-                if (line.contains(" @" + landmark)) {
-                    return line.substring(0, line.indexOf(' '));
-                }
-            }
-            return fail("no node carries the landmark " + landmark);
-        }
-    }
-
-    // --- processes -------------------------------------------------------------------------------------------
-
-    /** The Maven running this build, in the generated project, against this build's local repository. */
-    private static ProcessBuilder maven(Path log, String... goals) {
-        String home = property("acceptance.maven");
-        boolean windows = System.getProperty("os.name").toLowerCase().contains("win");
-        List<String> command = new ArrayList<>();
-        command.add(Path.of(home, "bin", windows ? "mvn.cmd" : "mvn").toString());
-        command.add("-B");
-        command.add("-Dstyle.color=never");
-        command.add("-Dmaven.repo.local=" + property("acceptance.repository"));
-        command.addAll(List.of(goals));
-        return new ProcessBuilder(command)
-                .directory(project.toFile())
-                .redirectErrorStream(true)
-                .redirectOutput(log.toFile());
-    }
-
-    /** Keeps trying until the socket answers, and stops early with the log if the application has gone. */
-    private static Socket connect(int port, Path log) throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(LAUNCH_SECONDS);
-        while (System.nanoTime() < deadline) {
-            if (!app.isAlive()) {
-                fail("the application exited with " + app.exitValue() + " before its socket opened\n" + tail(log));
-            }
-            try {
-                return new Socket("127.0.0.1", port);
-            } catch (IOException notYet) {
-                Thread.sleep(250);
-            }
-        }
-        return fail("no automation socket on " + port + " after " + LAUNCH_SECONDS + "s\n" + tail(log));
-    }
-
-    /** Maven forks the application, so the tree goes down, children first. */
-    private static void stop(Process process) {
-        process.descendants().sorted(Comparator.comparingLong(ProcessHandle::pid).reversed())
-                .forEach(ProcessHandle::destroy);
-        process.destroy();
-        try {
-            if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                process.descendants().forEach(ProcessHandle::destroyForcibly);
-                process.destroyForcibly();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private static int freePort() throws IOException {
-        try (ServerSocket s = new ServerSocket(0)) {
-            return s.getLocalPort();
-        }
-    }
-
-    /** The last lines of a log, for a failure message somebody reads instead of opening the file. */
-    private static String tail(Path log) {
-        // Latin-1 because it decodes any byte: a child's console output is in the platform's encoding, and a
-        // failure message that fails to decode is the one moment the log cannot be lost.
-        try {
-            List<String> lines = Files.readAllLines(log, StandardCharsets.ISO_8859_1);
-            return "--- last lines of " + log + " ---\n"
-                    + String.join("\n", lines.subList(Math.max(0, lines.size() - 60), lines.size()));
-        } catch (IOException e) {
-            return "(" + log + " could not be read: " + e.getMessage() + ")";
-        }
-    }
-
-    private static String property(String name) {
-        String value = System.getProperty(name);
-        if (value == null || value.isBlank()) {
-            throw new IllegalStateException(name + " is not set; run this module through its pom, not an IDE");
-        }
-        return value;
-    }
 }
