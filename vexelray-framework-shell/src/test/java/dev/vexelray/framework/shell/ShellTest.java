@@ -275,11 +275,6 @@ final class ShellTest {
         assertTrue(mine.closed);
     }
 
-    @Test
-    void theDialogsAreNotThereBeforeAttach() {
-        assertThrows(IllegalStateException.class, shell()::dialogs);
-    }
-
     /**
      * A gate registered before there is a window would be registered against nothing, on the same terms as a
      * wake registered before there is a loop — so it is refused rather than silently dropped.

@@ -60,8 +60,7 @@ final class Framework {
             new Root("dev.vexelray.gui.core.app.WindowMemory", "memory", Phase.WINDOW, false),
             // "Vulkan, the window and present stay on the main thread" -- vexelray-gui/CLAUDE.md.
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),
-            new Root(CLIPBOARD, "clipboard", Phase.ATTACH, false),
-            new Root("dev.vexelray.gui.widget.Modals", "dialogs", Phase.ATTACH, false));
+            new Root(CLIPBOARD, "clipboard", Phase.ATTACH, false));
 
     /**
      * A default the framework replaces with the application's own when one is provided: the generated wiring hands

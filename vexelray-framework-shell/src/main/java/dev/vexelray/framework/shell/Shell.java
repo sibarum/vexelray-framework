@@ -15,7 +15,6 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
-import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.atchung.Atchung;
 
@@ -67,7 +66,6 @@ public final class Shell {
     private TitleBar titleBar;
     private InputBackend input;
     private ClipboardBackend clipboard;
-    private Modals dialogs;
     private boolean closeGateSet;
     private Phase phase = Phase.CONFIG;
 
@@ -258,7 +256,7 @@ public final class Shell {
      * the default has to be that closing closes. A framework that interposed anything here would be deciding,
      * for every application, that quitting is a question — and most applications have nothing to lose. What
      * the framework owns is the <em>place</em> the answer is given, and the dialog it is given in
-     * ({@link #dialogs()}).
+     * ({@code Modals}).
      *
      * <p>{@link Phase#ATTACH} onwards, because there is no window to be asked about before that. Once only:
      * {@code GuiApp} holds a single handler, so a second registration would silently replace the first — and
@@ -535,22 +533,6 @@ public final class Shell {
         return require(Phase.ATTACH, "the clipboard", phase.compareTo(Phase.ATTACH) < 0 ? null : clipboard);
     }
 
-    /**
-     * The application's dialogs, installed by the framework so that {@code Modals.show(...)} answers from
-     * anywhere without an application having to remember to install them first.
-     *
-     * <p>Exists from {@link Phase#ATTACH}: a dialog is a real OS window owned by the main window, so there is
-     * nothing to own one before then. Registered for shutdown, because <i>"an application that is closing
-     * should not be held up by a question nobody is left to answer."</i>
-     *
-     * <p>Most applications never name this — they call the static {@code Modals.show}, {@code info} and
-     * {@code confirm} from wherever the question arises, which is the whole shape of that class. It is here for
-     * the one that wants to ask whether a dialog is up.
-     */
-    public Modals dialogs() {
-        return require(Phase.ATTACH, "the dialogs", dialogs);
-    }
-
     // ---- set by VexelApplication as each phase opens ----------------------------------------------------
 
     void phase(Phase phase) {
@@ -621,9 +603,6 @@ public final class Shell {
         return clipboard;
     }
 
-    void dialogs(Modals dialogs) {
-        this.dialogs = dialogs;
-    }
 
     Pacing pacing() {
         return pacing;

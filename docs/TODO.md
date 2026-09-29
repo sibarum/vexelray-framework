@@ -157,7 +157,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       per class, and it is a real change in `vexelray-gui` rather than a line here.
 
 - [ ] **What `Shell` hands over is the seventh surface, and it bounds the other six.** `Shell` returns
-      `Gui`, `GuiApp`, `KronoGui`, `Modals`, `TitleBar`, `WindowMemory`, `Settings`, `CloseRequest` and
+      `Gui`, `GuiApp`, `KronoGui`, `TitleBar`, `WindowMemory`, `Settings`, `CloseRequest` and
       `Atchung`, so an application holds `vexelray-gui`'s and `atchung`'s types directly and v1 is only as
       stable as they are. Either those repos freeze what is exposed, or `Shell` stops exposing it — a
       wrapper per type, or fewer accessors. A decision rather than a task, and it wants making per
@@ -169,6 +169,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       the last app-facing removal from `Gui` was `onCaretHit`/`onCaretDrag` on 2026-08-14; nothing local calls
       them. Still to do: classify the ~100 methods, and give `vexelray-gui` a marker of its own, since the
       framework's `@Stability` sits above it in the dependency order.
+
+      **Ruled 2026-09-28: hide or delete what nothing needs; delete is preferred.** `Shell.dialogs()` is
+      deleted: no caller, and it was not an injectable root anyone had a use for. Still open: `memory()` is an
+      injectable root in the processor's table, and the text editor port needed `WindowMemory` injected
+      (architecture.md, *what porting the text editor found*), so *no caller* is partly the deleted witness.
+      `app()` cannot simply go: `Driver`, in a separate module, reaches the window's `WindowControls` through
+      it, so the choice is a narrower accessor for exactly that, or an explicit host seam.
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and left one generated counter-style
