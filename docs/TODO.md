@@ -46,12 +46,17 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       group = lane, the `@Subscribe` defaults, supervision, the landing rule for checks, the tree) rulings owed
       before the seam is built. There is no single document for it yet; see the overview entry below.
 
-      **Ruled: a component that declares no lane gets its own thread, mailbox and wake.** `lane` becomes an
-      optional override, and grouping is opt-in by two components naming the same lane. The default is the
-      contract, because moving it later changes timing and blocking behaviour without a compile error.
-      **Open beneath it:** which things are components. `@Component` is a DI contract, not an actor one (a
-      recorded vocabulary mismatch), and a thread per DI bean is wrong for a plain service. The default has to
-      say what it applies to before it is built, and the unrun grouping measurement is what prices it.
+      **Ruled: there is a default component lane, and it is not the GUI main thread.** A component that
+      declares no `lane` runs on it, so all such components share one thread by default; `lane` is an optional
+      override, and two components naming the same lane share that one instead. The main thread stays a
+      separate colour (`@MainThread`, never a lane), and the default lane is a lane of its own beside the
+      handler and offload lanes in `Lanes`. The default is the contract, because moving it later changes timing
+      and blocking behaviour without a compile error. This is what makes *multithreaded by default* cheap: the
+      thread count does not grow with the component count, and a plain service costs nothing to make a
+      component. **What it costs, and is now to be decided:** one slow component holds up every other on the
+      default lane, so isolating one is `lane = "..."`, and supervision has to name a *lane* that has stopped
+      draining, not only a component. Also open: the default lane's name (reserved, so no application string
+      can collide with it), and whether it is bounded.
 
 - [ ] **One overview of the component model.** Its requirements are in threading.md (the 32 rules),
       architecture.md (*The concurrency model*, from line 231) and four entries here, and nothing states what a
