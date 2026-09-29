@@ -38,6 +38,18 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       notices that a component has stopped draining, or names it*, which wants `Overrun` surfaced per
       grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on a
       census of what still blocks on a handler rather than on any one known blocker.
+      **Ruled 2026-09-28: the component model is a design seam frozen at v1.** Groups, lanes, channels, loss
+      classes and supervision are not deferred behind the version number: v1 ships them declared, checked and
+      frozen, or it does not ship. That makes the declaration side a v1 build item and not a later feature, and
+      it makes the eight decisions in the threading audit (the imperative path, public `Shell.place`, `lane`,
+      group = lane, the `@Subscribe` defaults, supervision, the landing rule for checks, the tree) rulings owed
+      before the seam is built. There is no single document for it yet; see the overview entry below.
+
+- [ ] **One overview of the component model.** Its requirements are in threading.md (the 32 rules),
+      architecture.md (*The concurrency model*, from line 231) and four entries here, and nothing states what a
+      component is owed, what exists, and what is decided. Written as the spec the declaration seam is built
+      against, and it is where the eight rulings are recorded.
+
 
 - [ ] **One seam carries three of the four differentiators, and it is the one not built.** A
       `@Subscribe` that generates its `Pump` registration in `ATTACH` and its teardown in the
