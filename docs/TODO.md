@@ -200,6 +200,24 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       per-OS backend selection in a starter has to meet the same test. Also missing, and first in line: no
       generated application has ever been built as a native image, so acceptance stops at a JVM build.
 
+- [ ] **A `Window` seam instead of `memory()`, `app()` and one-off dialogs.** Each is a singleton accessor in a
+      world where a window is not: the designer already needs two, and every one of them has to say *which
+      window*. Adding that later changes the signatures apps call. The capabilities are reasonable to expect
+      (per-window placement memory, title/size/maximise/fullscreen/close, and dialogs that can be answered by a
+      test as well as a person), the types are not: `GuiApp` is the window, the GPU device and the main-thread
+      boundary in one 41-method class, and `WindowMemory` and `Modals` carry their mechanisms. Sketch: one
+      framework-owned `Window` handle, `shell.window()` for the main one and `shell.window("log")` for a named
+      one, operations safe from any thread and posted to the main thread, with `Driver` using the same seam so
+      `app()` can go. **Unbuilt and unwitnessed**: let W1 (two windows, in the witness specs) shape it rather
+      than designing it first, then delete `memory()` and `app()` under the legacy sweep. Also the natural home
+      for automation's missing `resize` and `zoom` verbs. `Shell.dialogs()` is already deleted.
+
+- [ ] **Spike the extension test.** [v1.md](v1.md#how-future-proofness-is-measured): for each row of the
+      extension table, a throwaway prototype against the API as it stands, and the number of existing
+      signatures it forces to change recorded here. Candidates: the second window, a Linux backend,
+      `@Subscribe`, supervision, a second starter. Zero is the target; anything else is fixed before the
+      freeze. Do it with the witnesses, since both need the same applications.
+
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
       [v1.md](v1.md#what-must-not-remain). Known candidates so far, each a question and not yet a finding:
       the prior constructors and `Config` forms the engine refactor kept on purpose; `--profile`, which parses
