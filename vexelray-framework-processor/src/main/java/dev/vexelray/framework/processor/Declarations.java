@@ -85,8 +85,14 @@ final class Declarations {
             error(type, "@Component " + name + " has a blank lane. The lane is the component's thread, named"
                     + " vexel-component-<lane> in a thread dump, and components sharing a lane are the only"
                     + " ones that may hold each other");
+        } else if (!lane.equals(Component.DEFAULT_LANE) && !LANE_NAME.matcher(lane).matches()) {
+            error(type, "@Component " + name + " has the lane \"" + lane + "\", which is not a name. A lane is a"
+                    + " letter followed by letters, digits, '.', '_' or '-'; that is what keeps the default lane's"
+                    + " reserved name from being something an application could write by accident");
         }
     }
+
+    private static final java.util.regex.Pattern LANE_NAME = java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9._-]*");
 
     /** The lane a component was declared on. */
     String lane(TypeElement component) {

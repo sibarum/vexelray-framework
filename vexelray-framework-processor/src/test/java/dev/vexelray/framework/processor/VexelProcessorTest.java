@@ -461,6 +461,36 @@ class VexelProcessorTest {
     }
 
     @Test
+    void aLaneThatIsNotANameIsAnError() {
+        onlyError(app("""
+                @Component(lane = "<default>x")
+                public final class Composer {}
+                """), "has the lane \"<default>x\", which is not a name");
+    }
+
+    @Test
+    void componentsThatNameNoLaneShareTheDefaultLaneAndMayHoldEachOther() {
+        assertEquals(List.of(), app("""
+                @Component
+                public final class Composer { public Composer(Helper helper) {} }
+                """, """
+                @Component
+                public final class Helper {}
+                """));
+    }
+
+    @Test
+    void aComponentOnTheDefaultLaneMayNotHoldOneOnANamedLane() {
+        onlyError(app("""
+                @Component
+                public final class Composer { public Composer(Indexer indexer) {} }
+                """, """
+                @Component(lane = "index")
+                public final class Indexer {}
+                """), "T2.3: Composer (lane \"<default>\") holds Indexer (lane \"index\")");
+    }
+
+    @Test
     void aSettingWithNoAccessorIsAnError() {
         onlyError(app("""
                 @Component(lane = "compose")

@@ -95,7 +95,8 @@ Decidable because placement is static: the colour of a value *is* the thread it 
 dynamic placement would have made this check undecidable. **Static is not yet the same as visible**, and
 this rule as written assumed it was. `shell.place("compose")` is a call in a wiring method body, which a
 processor — reading declarations, not bodies — cannot see. So placement moved onto the declaration:
-`@Component(lane = "compose")`, required rather than defaulted. The lane is a string, and that is safe here
+`@Component(lane = "compose")`, optional since 2026-09-29: a component naming none shares the reserved default
+lane, one thread that is not the main thread. The lane is a string, and that is safe here
 in a way it would not be for the main thread: all two spellings agreeing permits is a direct reference, so a
 misspelling can deny one and never grant it, and the error names both spellings side by side. *(held, by
 `VexelProcessorTest.componentsOnDifferentLanesMayNotHoldEachOther` and

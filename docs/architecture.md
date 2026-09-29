@@ -620,10 +620,12 @@ thirteen of threading.md's rules stay enforced by the reader's memory. So placem
 declaration — `@Component(lane = "compose")` or its equivalent — which makes the annotation that does
 not exist yet a **precondition** of the colour checker rather than an output of it.
 
-It exists now, as exactly that: `lane` is a required member of `@Component`, and T2.3 is a compile error
-naming both lanes. **Required rather than defaulted**, because which thread a component runs on is a
-decision and *"a default is not a choice anyone can read"* — when §3.4's tree lands, *a child shares its
-parent's lane* is the default that would be worth re-arguing this against. **A string, and safe as one**,
+It exists now, as exactly that: `lane` is a member of `@Component`, and T2.3 is a compile error
+naming both lanes. **Required at first, defaulted since 2026-09-29**: the original argument was *"a default is
+not a choice anyone can read"*, and it lost to the ruling that multithreaded-by-default has to be cheap. A
+component naming no lane shares `Component.DEFAULT_LANE`, one thread that is not the main thread, so the
+thread count does not grow with the component count. The default is now contract. When §3.4's tree lands,
+*a child shares its parent's lane* is the other default worth arguing against it. **A string, and safe as one**,
 which is not a contradiction of the paragraph below: the only thing two lane spellings agreeing permits is
 a direct reference, so a misspelling can deny one and never grant it, and the error it produces prints both
 spellings side by side. A misspelled *main thread* would decide what may touch Vulkan.

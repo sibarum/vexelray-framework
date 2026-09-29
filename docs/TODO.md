@@ -53,10 +53,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       handler and offload lanes in `Lanes`. The default is the contract, because moving it later changes timing
       and blocking behaviour without a compile error. This is what makes *multithreaded by default* cheap: the
       thread count does not grow with the component count, and a plain service costs nothing to make a
-      component. **What it costs, and is now to be decided:** one slow component holds up every other on the
+      component. **What it costs:** one slow component holds up every other on the
       default lane, so isolating one is `lane = "..."`, and supervision has to name a *lane* that has stopped
-      draining, not only a component. Also open: the default lane's name (reserved, so no application string
-      can collide with it), and whether it is bounded.
+      draining, not only a component.
+
+      **Built:** `@Component`'s `lane` is optional and defaults to `Component.DEFAULT_LANE` (`"<default>"`),
+      which is one shared placement, so one thread. It is reserved by construction: the processor requires an
+      explicit lane to be a name (`[A-Za-z][A-Za-z0-9._-]*`), which the default is not. Nothing to bound: the
+      lane is one thread and each mailbox already has a capacity. Default-lane components may hold each other
+      and not a named-lane one (T2.3). **Still open:** `Placement.superseded()` reads the lane's shared pump,
+      so on a lane with several components it also sees a neighbour's mail.
 
       **Ruled: the default lane is under supervision.** The framework watches it always on, as `Stalls` does
       the main thread, and a lane that has stopped draining is reported by name. That puts the per-lane

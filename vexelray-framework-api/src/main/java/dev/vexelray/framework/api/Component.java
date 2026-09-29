@@ -20,8 +20,10 @@ import java.lang.annotation.Target;
  * checked against a body. So the lane is on the declaration, and it is the thread the component runs on —
  * {@code vexel-component-<lane>} in a thread dump. <b>Components sharing a lane are the only ones that may hold
  * each other</b>; a constructor parameter naming a component on another lane is a compile error naming both
- * lanes (T2.3). The lane is required rather than defaulted: which thread a component runs on is a decision, and
- * <i>"a default is not a choice anyone can read."</i>
+ * lanes (T2.3). The lane is optional: a component that names none is on {@link #DEFAULT_LANE}, one shared thread
+ * that is not the main thread. That is a ruled default and therefore a contract — moving it later would change
+ * timing and blocking with no compile error — and it is what keeps a plain service from costing a thread. What it
+ * costs is that one slow component holds up the others on it, so isolating one is {@code lane = "..."}.
  *
  * <p>A lane is a string, and that is safe here in a way it would not be for the main thread. The only thing two
  * spellings agreeing permits is a direct reference, so a misspelled lane can deny that and never grant it — the
@@ -58,8 +60,20 @@ import java.lang.annotation.Target;
 public @interface Component {
 
     /**
+     * The lane a component that names none runs on: one thread, shared by all of them, and not the main thread.
+     *
+     * <p>Reserved by construction rather than by a list of forbidden words. An explicit lane must be a name —
+     * a letter, then letters, digits, {@code .}, {@code _} or {@code -} — and this value is not one, so no
+     * application string can ever be it by accident.
+     */
+    String DEFAULT_LANE = "<default>";
+
+    /**
      * The lane this component runs on — its thread, named {@code vexel-component-<lane>}. Components on the same
      * lane share a thread and may hold each other; on different lanes, they reach each other by publishing.
+     *
+     * <p>Optional: leaving it out is {@link #DEFAULT_LANE}, and every component that does shares that one thread.
+     * Naming a lane is how one component is isolated from the rest.
      */
-    String lane();
+    String lane() default DEFAULT_LANE;
 }
