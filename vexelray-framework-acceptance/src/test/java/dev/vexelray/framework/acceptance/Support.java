@@ -1,7 +1,16 @@
 package dev.vexelray.framework.acceptance;
 
+import dev.vexelray.framework.template.Answers;
+import dev.vexelray.framework.template.Blueprint;
+import dev.vexelray.framework.template.Catalogue;
+import dev.vexelray.framework.template.Checks;
+import dev.vexelray.framework.template.Scaffold;
+import dev.vexelray.framework.template.Template;
+
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -10,10 +19,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -118,6 +131,105 @@ final class Support {
             throw new IllegalStateException(name + " is not set; run this module through its pom, not an IDE");
         }
         return value;
+    }
+
+    /** A generated project on disk, and the names the overlay and the assertions need. */
+    record Project(Path dir, String main, String packageName, String className) {
+
+        /** Where javac put the wiring the processor generated. */
+        Path wiring() {
+            return dir.resolve("target/generated-sources/annotations/" + packageName.replace('.', '/') + "/"
+                    + className + "Wiring.java");
+        }
+    }
+
+    /**
+     * The builder's {@code vexel-desktop} tree, written under {@code root} and then overlaid: each name in
+     * {@code overlay} is read from the test resources at {@code overlayDir}, has {@code ${packageName}} and
+     * {@code ${className}} filled in, and replaces (or adds) that file in the application's package. What is not
+     * overlaid is the builder's own, which is the point: a real generated application, changed only where the
+     * witness is testing something.
+     */
+    static Project generate(Path root, String artifact, String overlayDir, List<String> overlay) throws Exception {
+        Template template = Catalogue.bundled().get("vexel-desktop");
+        Map<String, String> given = new LinkedHashMap<>(Answers.presets(template).values());
+        given.put("where", root.toString());
+        given.put("artifactId", artifact);
+        given.put("groupId", "dev.vexelray.acceptance");
+        Answers answers = Answers.of(given).filled(template);
+        assertEquals(List.of(), Checks.problems(template, answers));
+
+        Blueprint blueprint = Scaffold.of(template, answers, Catalogue.bundled());
+        Path dir = Scaffold.folder(template, answers, root);
+        Blueprint.Writing writing = new Blueprint.Writing(dir);
+        writing.begin();
+        for (Blueprint.Entry entry : blueprint.entries()) {
+            writing.write(entry);
+        }
+
+        String recipes = blueprint.paths().stream().filter(p -> p.endsWith("/Recipes.java")).findFirst()
+                .orElseThrow(() -> new AssertionError("no Recipes.java in " + blueprint.paths()));
+        String main = recipes.substring(0, recipes.lastIndexOf('/'));
+        String packageName = main.substring("src/main/java/".length()).replace('/', '.');
+        String className = blueprint.paths().stream()
+                .filter(p -> p.startsWith(main + "/") && blueprint.text(p).contains("@VexelApp"))
+                .map(p -> p.substring(p.lastIndexOf('/') + 1, p.length() - ".java".length()))
+                .findFirst().orElseThrow(() -> new AssertionError("no @VexelApp class in " + blueprint.paths()));
+        for (String name : overlay) {
+            String source = resource(overlayDir + "/" + name + ".java")
+                    .replace("${packageName}", packageName)
+                    .replace("${className}", className);
+            Files.writeString(dir.resolve(main).resolve(name + ".java"), source, StandardCharsets.UTF_8);
+        }
+        return new Project(dir, main, packageName, className);
+    }
+
+    /** {@code mvn package} in the project, failing with the log if it does not pass. */
+    static void build(Project project, Path log) throws Exception {
+        Process build = maven(project.dir(), log, "package").start();
+        if (!build.waitFor(BUILD_MINUTES, TimeUnit.MINUTES)) {
+            stop(build);
+            fail("the build took longer than " + BUILD_MINUTES + " minutes\n" + tail(log));
+        }
+        assertEquals(0, build.exitValue(), () -> "the project did not build\n" + tail(log));
+    }
+
+    /** One launch of a built project: the process, and the socket it is driven through. */
+    record Session(Process app, Socket socket, PrintWriter out, Driver driver, Path log) implements AutoCloseable {
+
+        @Override
+        public void close() throws IOException {
+            socket.close();
+            if (app.isAlive()) {
+                stop(app);
+            }
+        }
+    }
+
+    /**
+     * Run the project with its automation socket on and a settings home of its own under {@code root}. Extra
+     * {@code -D} arguments go to the application's JVM.
+     */
+    static Session launch(Project project, Path root, String artifact, String name, String... jvmArgs)
+            throws Exception {
+        int port = freePort();
+        Path log = root.resolve("run-" + name + ".log");
+        Path home = root.resolve("home-" + name);
+        List<String> args = new ArrayList<>(List.of("-D" + artifact + ".home=" + home));
+        args.addAll(List.of(jvmArgs));
+        Process app = maven(project.dir(), log, "compile", "exec:exec",
+                "-Dautomation=" + port, "-Dapp.jvmArgs=" + String.join(" ", args)).start();
+        Socket socket = connect(app, port, log);
+        PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
+        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+        return new Session(app, socket, out, new Driver(out, in, log), log);
+    }
+
+    static String resource(String path) throws IOException {
+        try (InputStream in = Support.class.getResourceAsStream(path)) {
+            assertNotNull(in, "missing test resource " + path);
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     /** One line protocol, one reply per command, terminated by a line holding only {@code .}. */

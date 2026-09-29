@@ -1215,6 +1215,49 @@ lane is a daemon, so `Runtime.halt` never fired and the total shutdown bound is 
 unit tests. A wedge that ignores interrupts, which the policy cannot free and only the exit path answers. The main
 thread, which is not watched.
 
+## What the long-running witness found
+
+W2 and the counter are event-driven: they do something and go quiet. The parking and wake machinery — the loop
+that sleeps when nothing is owed, and the `onWork` calls whose omission is *a parked loop rather than an
+exception* — is only exercised for real by something that keeps producing work, so W3 is a generated application
+with a metronome: a component on its own lane that ticks to itself a hundred times a second and rewrites a readout
+each time. The frame count, thread count and heap are copied into a line by a button, never drawn continuously,
+because a readout that changed every frame would owe the next frame itself and a loop that wakes itself cannot be
+measured for whether it parks. (`vexelray-framework-acceptance`, `witnesses/longrun`.)
+
+| Measured | Result | Reading |
+| --- | --- | --- |
+| Frames in 3 s, nothing running | 22 | parked: about 7 a second, the idle refresh |
+| Frames in 5 s, metronome running | 521 | a component's thread does wake the loop, with nothing else asking |
+| Frames in 3 s, after Stop | 18 | it goes back to parking, so nothing is still waking it |
+| Threads, over ~20 s of steady load | 17 → 17 | no thread per tick |
+| Heap after a collection, same run | 5 MB → 5 MB | nothing accumulates |
+| Input while flat out | a click is answered | the loop is not starved by its own wakes |
+
+**Two findings, both real.**
+
+**The frame ceiling does not cap wake-driven frames.** The loop ran about **104 frames a second** against a
+60 Hz `maxFrameRate`, which is the tick rate and not a coincidence. The ceiling is implemented as a timed park
+(`waitEvents(budget)`), and a wake a component posts is a message on the same queue, which ends the park early —
+the ceiling's own javadoc says as much for OS input (*"the wait ends early on OS input regardless"*), and a
+component's wake is indistinguishable from it. So the ceiling limits only how often the loop draws *of its own
+accord*, and any component publishing faster than 60 Hz drives frames at its own rate until the presenter blocks.
+It is harmless here and would not be at a kilohertz. The fix is in `vexelray-gui`'s loop (a wake earns a frame no
+sooner than the ceiling allows, and is remembered rather than dropped), and it is a change of timing under an
+unchanged signature, which is why it is written up and not slipped in.
+
+**`settle` cannot report a run with nothing to settle.** It answered `ok` while the metronome was ticking. That is
+what its javadoc says — *"exact about the frame loop and the clock, and blind to application work still in
+flight"* — and a component ticking to itself is exactly that work, so in the gap between two ticks nothing is owed
+and `settle` is right about the frame loop and wrong about the application. The socket has no way to say *this
+application never goes quiet*, and a script that calls `settle` before a photograph of an animating window gets one
+taken mid-change. The remedy the javadoc already names is to wait on a landmark the application publishes, which is
+what every assertion in W3 does.
+
+**What it did not exercise.** A run of minutes or hours: twenty seconds rules out a thread or a heap that grows
+per tick and nothing that grows per minute. The pulse and the clock's own repeating cues, which are the path
+`settle`'s *"a repeating cue is reported by name"* covers and a component's ticks are not.
+
 ## Modules
 
 ```

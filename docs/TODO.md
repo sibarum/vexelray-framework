@@ -263,11 +263,12 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       find something, and each finding written up in architecture.md as the ports were. After the
       component model, since that is what they most need to exercise.
 
-      **W2 (component-heavy) is built** and passes: [what it found](architecture.md#what-the-component-witness-found)
-      is mostly confirmation, plus two observations. **Still to build:** W1, several windows on one device,
-      which wants the `Window` seam and is meant to shape it; and W3, long-running with nothing to settle, the
-      one that would test the wake and pacing path for real. W2 also lacks a wedge that ignores interrupts,
-      which is what would make the halt backstop fire.
+      **W2 (component-heavy) and W3 (long-running) are built** and pass: [what W2
+      found](architecture.md#what-the-component-witness-found) is mostly confirmation plus two observations, and
+      [what W3 found](architecture.md#what-the-long-running-witness-found) is two real findings, both filed below.
+      **Still to build:** W1, several windows on one device, which wants the `Window` seam and is meant to shape
+      it. W2 also lacks a wedge that ignores interrupts, which is what would make the halt backstop fire, and W3
+      is twenty seconds long, which rules out growth per tick and nothing slower.
 
 - [ ] **Starters, a BOM, and the stack's reachability metadata.** The build shape is a contract: an
       application's dependency block and its `@VexelApp` are the first things it writes. One starter
@@ -489,6 +490,22 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       of its own (`vexelray-gui` §6.11): the harness made its first window on the calling thread and the
       rest on the loop thread, and a dialog is modal, which was enough to leave no thread able to tear them
       all down.
+
+- [ ] **`GuiApp.maxFrameRate` does not cap frames a component's wake earns** (`vexelray-gui-core`). Found by
+      the long-running witness: a component ticking at about 100 Hz drove **104 frames a second** against a
+      60 Hz ceiling. The ceiling is a timed park, a posted wake ends the park early, and a component's wake
+      is the same message as OS input. Harmless at 100 Hz and a busy loop at a kilohertz, since only the
+      presenter blocking would slow it. The fix is a wake that earns a frame no sooner than the ceiling
+      allows and is remembered rather than dropped. It changes frame timing under an unchanged signature, so
+      it is a decision for `vexelray-gui`, and the witness prints the number so the fix has something to move.
+
+- [ ] **`settle` says `ok` for an application that never goes quiet** (`vexelray-gui-automation`, and this
+      repo's `Driver` if it grows a verb). The long-running witness's metronome ticks to itself, and `settle`
+      answered `ok` between two ticks, as its javadoc says it may: it is exact about the frame loop and the
+      clock and blind to application work in flight. Nothing in the socket can say *this application does
+      not go quiet*, so a script that settles before a photograph of an animating window photographs it
+      mid-change. Either the framework offers a way for an application to declare it is busy, which
+      `settle` waits on, or the documentation says loudly that a photograph wants a landmark to wait on.
 
 - [ ] **The pointer lock is asked for on the press, not on a drag** (`vexelray-gui-core`).
       `InputDispatcher` calls `requestPointerLock(dragLocks.contains(...))` inside its `ButtonPressed`
