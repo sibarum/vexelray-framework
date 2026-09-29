@@ -259,9 +259,17 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       or by a starter, never by a file in the application, or every new OS is an edit to every app. The
       per-OS backend selection in a starter has to meet the same test. Also missing, and first in line: no
       generated application has ever been built as a native image, so acceptance stops at a JVM build.
-      **Refined 2026-09-29: Windows is the v1 requirement; macOS is wanted but not required; Linux was not
-      mentioned and is treated like any later OS.** The additivity test above applies to all of them, so what
+      **Refined 2026-09-29: Windows is the v1 requirement; macOS is wanted but not required; Linux is in scope
+      and will become load-bearing, but is not a priority until a distro is chosen and gives it a real build target.** The additivity test above applies to all of them, so what
       v1 must get right is where the metadata lives and how a backend is selected, not the number of backends.
+
+      **Ruled: every native extension is cross-platform in theory, or wrapped in a facade for the future.**
+      Platform-specific code never appears in a public signature or in an application's build. The stack already
+      has the shape (`NativePlatform` behind a `ServiceLoader`, `InputBackend`, `ClipboardBackend`), so the rule
+      is that a new native piece follows it and that an existing one which does not is a v1 fix. **To audit,
+      unverified:** which native pieces have no facade today. The reachability report names FFM bindings in
+      `vexelray-os-windows`, `tactroller-clipboard` and `tactroller-linux`, a native-file-dialog loader that
+      extracts a library from a jar, and bundled `natives/` for image decoding.
 
 - [ ] **A `Window` seam instead of `memory()`, `app()` and one-off dialogs.** Each is a singleton accessor in a
       world where a window is not: the designer already needs two, and every one of them has to say *which
