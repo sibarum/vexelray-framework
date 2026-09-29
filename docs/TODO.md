@@ -278,6 +278,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `@Subscribe`, supervision, a second starter. Zero is the target; anything else is fixed before the
       freeze. Do it with the witnesses, since both need the same applications.
 
+- [ ] **Build the liveness guarantee.** Designed in
+      [architecture.md](architecture.md#a-wedged-component-cannot-freeze-the-window), contract in
+      [v1.md](v1.md#the-liveness-guarantee). Nothing below exists yet: each lane thread in its own `ThreadGroup`
+      (today `Lanes` builds bare `Thread`s), a per-lane drain signal and an always-on supervisor for the default
+      lane, a watchdog thread on no lane with an explicit `halt` (`Runtime.halt`, not `System.exit`), the policy
+      seam and its context object, the processor check that main-thread code sends only on channels that never
+      block, a total bound on shutdown, and cancellation tokens on `Lanes.offload()`. Verify the group sweep under
+      native-image, which is untested. W2 gets the *wedge* button and the assertions; the sweep is the piece
+      that can be tested with no GPU.
+
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
       [v1.md](v1.md#what-must-not-remain). Known candidates so far, each a question and not yet a finding:
       the prior constructors and `Config` forms the engine refactor kept on purpose; `--profile`, which parses
