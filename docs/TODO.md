@@ -39,7 +39,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on a
       census of what still blocks on a handler rather than on any one known blocker.
 
-      **Ruled 2026-09-28: the component model is a design seam frozen at v1.** Groups, lanes, channels, loss
+      **Ruled 2026-09-28: the component model — multithreaded by default — is a design seam frozen at v1.** Groups, lanes, channels, loss
       classes and supervision are not deferred behind the version number: v1 ships them declared, checked and
       frozen, or it does not ship. That makes the declaration side a v1 build item and not a later feature, and
       it makes the eight decisions in the threading audit (the imperative path, public `Shell.place`, `lane`,
