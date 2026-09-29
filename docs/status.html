@@ -365,14 +365,15 @@
   <header class="masthead">
     <div class="mark">
       <h1>Vexel<span class="ray">Ray</span> Framework</h1>
-      <span class="kicker">Readiness&nbsp;·&nbsp;25 Sep 2026</span>
+      <span class="kicker">Readiness for v1&nbsp;·&nbsp;28 Sep 2026</span>
     </div>
 
     <p class="thesis">
-      Five capabilities, checked against the tree. The recurring finding is not that things are
-      unbuilt — most of them are built well. It is that they are built
-      <strong>somewhere else</strong>, and the framework has not yet taken them into a vocabulary
-      an application can reach without going hunting.
+      v1 means an application built on it needs <strong>no major refactor for the foreseeable
+      future</strong>, and later releases add to the abstractions it already has. By that bar the
+      framework is not close: <strong>one of seven surfaces is ready to freeze</strong>, and the
+      concurrency model's declaration side does not exist. The five dimensions below are unchanged —
+      most of what they grade is built well, somewhere else.
     </p>
 
     <div class="facts">
@@ -381,17 +382,106 @@
       <span class="fact"><b>6</b> modules built · <b>1</b> planned</span>
       <span class="fact"><b>1</b> template, framework-shaped · <b>1</b> starter</span>
       <span class="fact"><b>16</b> automation verbs on the wire</span>
-      <span class="fact">read @ <b>0e811c6</b></span>
+      <span class="fact">v1 surfaces ready <b>1</b> · close <b>2</b> · open <b>4</b> of 7</span>
+      <span class="fact">dimensions read @ <b>0e811c6</b></span>
     </div>
   </header>
+
+  <!-- ================= V1 LEDGER ================= -->
+  <section class="section" id="v1-ledger">
+    <span class="eyebrow">The v1 line · <a href="v1.md">what v1 means</a></span>
+    <h2>Would landing it later break an app?</h2>
+    <p class="lede">
+      v1 is a promise that <b>an application built on it needs no major refactor for the foreseeable
+      future, and later releases add to the abstractions it already has</b>. That is a question about
+      whether a shape is <i>final</i>, which is not the same as whether the capability is built. The
+      five dimensions below grade the second; this ledger grades the first. Six surfaces are frozen at
+      v1, and a seventh, the sibling types <code>Shell</code> hands over, bounds them all.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Surface</th>
+            <th scope="col">Ready to freeze?</th>
+            <th scope="col">What stands between it and the freeze</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="repo">The wire protocol</td>
+            <td><span class="pill p-full">Ready</span></td>
+            <td class="note">Framing, <code>ok</code>/<code>err</code> and sixteen verbs, exercised by a real window on every acceptance run. Two verbs are missing and both are additive.</td>
+          </tr>
+          <tr>
+            <td class="repo">Shell and the phases</td>
+            <td><span class="pill p-part">Close</span></td>
+            <td class="note">Phases carry the stack's own constraints and three applications ran on them. Open: what <code>Shell</code> exposes of the siblings, and whether a new <code>Phase</code> can ever be additive.</td>
+          </tr>
+          <tr>
+            <td class="repo">The launch surface</td>
+            <td><span class="pill p-part">Close</span></td>
+            <td class="note"><code>FRAMEWORK_KEYS</code> and the dropped-capability reports are settled. <code>--profile</code> is reserved and nothing honours it, and the module behind it has no name yet.</td>
+          </tr>
+          <tr>
+            <td class="repo">The annotations and the processor's semantics</td>
+            <td><span class="pill p-part">Decisions open</span></td>
+            <td class="note">Exact-type matching, what a <code>null</code> provider does, and the two promises that need a method body are unargued. Every new check is a way to break a build that was accepted, so the checks that exist must be the checks v1 keeps.</td>
+          </tr>
+          <tr>
+            <td class="repo">The component model</td>
+            <td><span class="pill p-none">Declaration unbuilt</span></td>
+            <td class="note">Threads and mailboxes are the container's. What is missing is the declaration side: channels, the colour rule's copier and capture, the message-graph checks and supervision. It reshapes how every component is written.</td>
+          </tr>
+          <tr>
+            <td class="repo">The build shape</td>
+            <td><span class="pill p-none">One instance</span></td>
+            <td class="note">One starter, no BOM, no aggregated reachability metadata, and a composition-root question (<code>GuiApp</code> or <code>VexelEngine</code>) that decides what an application inherits.</td>
+          </tr>
+          <tr>
+            <td class="repo">The sibling boundary</td>
+            <td><span class="pill p-none">Undecided</span></td>
+            <td class="note"><code>Shell</code> returns <code>Gui</code>, <code>GuiApp</code>, <code>KronoGui</code>, <code>Modals</code>, <code>TitleBar</code>, <code>WindowMemory</code>, <code>Settings</code>, <code>CloseRequest</code> and <code>Atchung</code>. v1 is only as stable as they are. One bus also carries one tree, upstream.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:34px">The extension test</h2>
+    <p class="lede">
+      What v1 leaves out is fine if the seam it will use already exists. Two of these have none, which
+      is why the concurrency work comes first.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Left out of v1</th>
+            <th scope="col">The seam it attaches to</th>
+            <th scope="col">Exists?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="repo">Diagnostics, <code>--profile</code></td><td class="note">A starter and <code>@ConditionalOnType</code>; <code>atchung-probe</code></td><td><span class="pill p-full">Yes</span> <span class="note">the name is undecided</span></td></tr>
+          <tr><td class="repo">A second automation socket</td><td class="note"><code>Driver.open(shell, gui, controls, offset)</code></td><td><span class="pill p-full">Yes</span></td></tr>
+          <tr><td class="repo">Framework SDF vocabulary</td><td class="note">A <code>@Provides</code> and a placed component</td><td><span class="pill p-part">When the component model is final</span></td></tr>
+          <tr><td class="repo">Simulation vocabulary</td><td class="note"><code>FrameStage.APP</code> and a placed component</td><td><span class="pill p-part">Partly</span></td></tr>
+          <tr><td class="repo">Supervision</td><td class="note">Per-component <code>Overrun</code>, in the wiring</td><td><span class="pill p-part">Contract undecided</span></td></tr>
+          <tr><td class="repo">elektro-Q, cross-process actors</td><td class="note">The channel declaration</td><td><span class="pill p-none">No</span></td></tr>
+          <tr><td class="repo">Reactive automation, macros, extensions</td><td class="note">The channel declaration</td><td><span class="pill p-none">No</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <section class="legend" aria-label="How each line is graded">
     <div class="legend-head">
       <span class="eyebrow">The scale</span>
       <p>
-        Every line below is graded by <em>where the capability lives</em>, because that is the
-        question this framework exists to answer. The end state for almost everything is the
-        rightmost stop.
+        The five dimensions below are graded by <em>where the capability lives</em>, because that is
+        the question this framework exists to answer. It is not the question v1 asks, which is whether
+        the shape is final — see <a href="#v1-ledger">the ledger above</a>. The end state for almost
+        everything here is the rightmost stop.
       </p>
     </div>
     <div class="lg lg-0">
@@ -1030,10 +1120,10 @@
 
   <!-- ================= PATH ================= -->
   <section class="section">
-    <h2>The critical path</h2>
+    <h2>What has landed</h2>
     <p class="lede">
-      Ordered because the order is load-bearing, not for presentation: each step decides a vocabulary
-      the next one bakes in.
+      Steps 01–06, in the order they were taken. Each decided a vocabulary the next one baked in. What is
+      left is under the road to v1, below.
     </p>
     <div class="path">
       <div class="step done">
@@ -1129,30 +1219,90 @@
           </p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ================= ROAD TO V1 ================= -->
+  <section class="section">
+    <h2>The road to v1</h2>
+    <p class="lede">
+      What is left, in the order that is load-bearing: each step decides a vocabulary the next one
+      bakes in. The detail, and why each entry blocks v1, is in <a href="TODO.md">TODO.md</a>.
+    </p>
+    <div class="path">
       <div class="step now">
         <span class="num">07</span>
         <div>
-          <h3>Starters, a BOM, and the stack's reachability metadata</h3>
+          <h3>Finish the component model</h3>
           <p>
-            One dependency that brings the whole stack, including hints an application inherits rather
-            than assembles. <b>Begun:</b> <code>AutomationStarter</code> is the first starter, a
-            <code>@Default</code> an application names in <code>@VexelApp</code> and may back off, and the
-            template runs on it. What is left is the BOM, the metadata, and checking a starter where it is
-            compiled rather than only where an application names it.
-            <span class="why">The single highest-leverage item on the open-questions list, and the thing
-            that makes the Boot comparison land for someone who has not read the docs.</span>
+            The channel declaration, the colour rule's copier and capture halves, the message-graph
+            checks, supervision, and the way an offloaded result gets back onto the frame loop.
+            <span class="why">It reshapes how every component is written and is where new compile
+            errors come from. It is also the seam elektro-Q, reactive automation and extensions are
+            waiting for, which is why nothing else can be judged final before it.</span>
           </p>
         </div>
       </div>
       <div class="step">
         <span class="num">08</span>
         <div>
-          <h3>Name and build the diagnostics module</h3>
+          <h3>Decide what nobody has argued</h3>
           <p>
-            Blocked on a name — <code>vexelray-diagnostics</code> is taken upstream for a different
-            concept. Most of the substance may already be <code>atchung-probe</code>.
-            <span class="why">Under the concurrency model "why did we miss a frame" becomes "which
-            component's mailbox", and a probe already threaded through the bus is what answers it.</span>
+            Exact-type matching, what a <code>null</code> provider does, the two promises that need a
+            method body, which defaults are replaceable, whether a <code>Phase</code> can ever be added
+            without breaking, and how a new processor check is allowed to land.
+            <span class="why">Cheap while nothing depends on the answer and breaking afterwards. An
+            application relies on these without ever writing them.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">09</span>
+        <div>
+          <h3>Settle the boundary with the siblings</h3>
+          <p>
+            What <code>Shell</code> hands over of <code>vexelray-gui</code> and <code>atchung</code>;
+            the upstream bus that admits one tree; then whether <code>GuiApp</code> or
+            <code>VexelEngine</code> is the composition root.
+            <span class="why">v1 is only as stable as the types an application holds, and every side of
+            this edge is the author's own.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">10</span>
+        <div>
+          <h3>Add witnesses</h3>
+          <p>
+            Two or three generated applications that differ where it matters: several windows on one
+            device, component-heavy with real placement, long-running with nothing to settle.
+            <span class="why">One generated application validates the abstractions today. Each new
+            shape is expected to find something, and what it finds is written up as the ports were.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">11</span>
+        <div>
+          <h3>The build shape</h3>
+          <p>
+            A second starter, the BOM, and aggregated reachability metadata; and a name for the
+            diagnostics module, since a module name is Maven coordinates an application writes down.
+            <span class="why">After the component model, because what an application inherits depends
+            on what the stack turns out to reach. The single highest-leverage item on the
+            open-questions list.</span>
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="num">12</span>
+        <div>
+          <h3>Freeze</h3>
+          <p>
+            Mark each public type frozen or experimental, walk the whole surface for anything that
+            would be renamed today, fix it, and cut 1.0. Releases are 0.x until then.
+            <span class="why">The mechanism for the marking does not exist yet and must not reflect.
+            The pass is meaningless while any step above is open.</span>
           </p>
         </div>
       </div>
@@ -1163,12 +1313,12 @@
   <section class="method">
     <h2>How to re-check this page</h2>
     <p>
-      Every grade above was read off the tree on 25 September 2026 at <code>0e811c6</code>, not
+      The five dimensions were read off the tree on 25 September 2026 at <code>0e811c6</code>, not
       inferred from the docs. The hash is <b>when this page was read, not what it describes</b>. It was
       last fully regraded at <code>0838329</code>; the one commit since moved dimension 05 alone, which was
       regraded with it, and left the checks below exactly where they were. The threading grep reads
       <code>src/main/java</code> only, because a template's resources are a generated project's source
-      rather than the framework's.
+      rather than the framework's. <b>The v1 ledger and the road to v1 are the exception:</b> they were assembled on 28 September 2026 from these docs, TODO.md, and one read of <code>Shell</code>'s public signatures for the sibling types it returns. Nothing checked them against the whole public surface; that walk is step 12.
     </p>
     <pre><span class="c"># 234 green, offline: core 47, shell 87, template 48, processor 47, automation 5</span>
 mvn -o test
@@ -1187,7 +1337,7 @@ printf 'find Save\nclick save\nsettle\nshot after.png\n' | ottermate --script -<
 
   <footer>
     <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 0e811c6</span>
-    <span>Graded by where the capability lives</span>
+    <span>Dimensions: where a capability lives · Ledger: whether its shape is final</span>
   </footer>
 
 </div>

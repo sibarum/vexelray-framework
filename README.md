@@ -14,10 +14,12 @@ which on this stack is the whole reason for being on native-image at all.
   [vexelray-gui](../vexelray-gui) (retained-mode GUI), [tactroller](../tactroller) (input),
   [atchung](../atchung) (bus), [kronometer](../kronometer) (time)
 - [docs/architecture.md](docs/architecture.md) is the deep version of this document
-- [docs/TODO.md](docs/TODO.md) is what is known about and not done
+- [docs/v1.md](docs/v1.md) is what v1 means: an application needs no major refactor afterwards, so the bar is
+  whether the abstractions are final rather than whether the features are all there
+- [docs/TODO.md](docs/TODO.md) is what is known about and not done, split by whether it blocks v1
 - [docs/threading.md](docs/threading.md) is the rules — lanes, colour, ownership, channels, completion
   and lifecycle, each carrying whether anything enforces it yet
-- [docs/status.html](docs/status.html) grades five capabilities by **where each one lives** — absent,
+- [docs/status.html](docs/status.html) grades the v1 surfaces by whether their shape is final, and five capabilities by **where each one lives** — absent,
   specified, in a sibling repo, or in the framework. Open it in a browser; it is a page rather than a
   document because the answer is a matrix rather than prose
 

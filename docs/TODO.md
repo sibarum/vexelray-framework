@@ -1,43 +1,241 @@
 # TODO
 
-Work on this framework that is known about and not done. Most of it is what the ports turned up —
-what [the text editor found](architecture.md#what-porting-the-text-editor-found), and what
+Work on this framework that is known about and not done, organised by [what v1 means](v1.md): **an
+application built on v1 does not need a major refactor, and later releases add to the abstractions v1
+already has.** So the first question about an entry is not how big it is but whether landing it *after* v1
+would break an application that compiled before. Most of it is what the ports turned up — what
+[the text editor found](architecture.md#what-porting-the-text-editor-found), and what
 [the designer found](architecture.md#what-porting-the-designer-found) — where the gaps each port
 closed, and the reasoning behind each, are recorded.
 
 Keep an entry short enough that it does not need editing, and delete it when it is done rather than
 ticking it. An entry whose fix belongs in a sibling repo says which one; the ones under **Upstream**
-cannot be fixed from here at all.
+cannot be fixed from here at all. An entry moves between sections when the answer to *would landing it
+later break an app?* changes, and says why.
 
-## Next
+## Blocks v1
+
+Landing any of these after v1 would break an application that compiled before, or change what an
+application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) orders the work.
+
+- [ ] **The container now gives a component a thread and a mailbox; what is left is the colour rule.**
+      `Shell.lanes()` owns the application's threads and `Shell.place(name)` puts a component on one of
+      them with its mailboxes, its wake and its drain-then-stop — `Lanes` in `-core` (pure JDK, so the
+      container stays testable with no GPU) and `Placement` in `-shell` (a mailbox is atchung's, and that
+      edge already falls there). The upstream half landed with it: `Gui` takes both lanes rather than
+      building a `newCachedThreadPool` whatever it is handed, and closes only the lanes it built itself.
+
+      **Why this blocks v1:** a rule that rejects code v1 accepted is a breaking change, so the copier and capture halves, the message-graph checks and supervision land before v1 or behind an opt-in. They also decide what a component owes the rest of the application, which is how every component is written.
+
+      **Thirteen of [threading.md](threading.md)'s rules are now held.** Eight came from these two objects, and
+      none of those promotions needed the processor — they needed something to *be* the rule; the other five
+      are the processor's. The `upstream` column is
+      down to one entry, because T1.2 and T1.5 turned out to be the same change.
+
+      **What is actually left**, and it is the part a runtime object cannot hold: the colour rule's copier
+      and capture halves (T2.4, T2.5 — T2.1–T2.3 are the processor's now, and held), the message-graph
+      checks (§4.1, §4.3–§4.5), and supervision (§6.5, §6.3) — *nothing
+      notices that a component has stopped draining, or names it*, which wants `Overrun` surfaced per
+      grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on a
+      census of what still blocks on a handler rather than on any one known blocker.
+
+- [ ] **One seam carries three of the four differentiators, and it is the one not built.** A
+      `@Subscribe` that generates its `Pump` registration in `ATTACH` and its teardown in the
+      `Disposer` is at once the actor model's substrate (above), the extension and macro API, and the
+      reactive half of automation. That third one is easy to miss: `Automation` is command-in,
+      response-out — `click`, `type`, `shot`, `await` — so a user-authored macro can *drive* the
+      application but cannot *react* to it, and an extension that wants to run when something happens
+      has nowhere to attach. All three want the same thing, which is why it is worth building once
+      rather than three times.
+
+      **Why this blocks v1:** the [extension test](v1.md#the-extension-test) fails on it twice: elektro-Q and reactive automation have nowhere to attach without it. It is also where a component declares its channels, so it reshapes component code written before it exists.
+
+- [ ] **Nothing in the model covers work that outlasts a frame, and the stack already named the
+      answer.** `kronometer/docs/architecture.md` §10 specifies it: *"`offload(work)` remains available
+      for work that is genuinely unbounded — file I/O, network, image decode — moving it to an ordinary
+      executor (**its own**, never the kernel's single carrier) and delivering completion as a timeline
+      event."* Specified and unbuilt — `offload` appears in no Java source in that repo. The framework
+      wants the same lane, and naming it here is what stops the component model being read as the answer
+      to a question it does not answer.
+
+      **Why this blocks v1:** the completion path is what application code will call to get a result back onto the frame loop. The pool is the easy half; the way back through the timeline is the API.
+
+      **A pool does not contradict static placement.** A component is placed statically because it is
+      stateful and ordered; an offloaded task is stateless and unordered, so there is nothing to confine
+      and no sequence to keep. The edge is policed by [the crossing
+      rule](architecture.md#what-may-cross-a-lane-and-what-crossing-does-to-it) — a value crossing a lane
+      arrives as if it had crossed a wire — which makes an offloaded lambda that captures a component's
+      state a compile error rather than a race. Capture is the one case the rule refuses rather than
+      copies, because a lambda closes over a reference and no copier can be slipped in behind it.
+
+      **Platform threads, and the reason is not the component one.** Blocking I/O is the textbook
+      virtual-thread case, but §3.1 records that `jdk.virtualThreadScheduler.parallelism` is a global JVM
+      property with *"no public per-thread scheduler"* in JDK 25 — so an application that takes
+      Kronometer's 3× baton flag has no second carrier to give this pool, and the obvious choice is the
+      documented deadlock again. That flag is the application's and correctness never depends on it, so
+      the framework's default has to be the one that is right when it *is* set.
+
+      **The completion path is the content; the pool is the boring half.** A result is published on a
+      `Topic` and folded into a `Cell` by `KronBridge`, or dropped on a queue drained in
+      `FrameStage.APP` — the two doors that already exist, and `APP`'s own list is *"a history to
+      restore, a file to open, a preview to render."* What an offload thread must never do is touch the
+      tree or the timeline in place.
+
+      **The lane now exists.** `Lanes.offload()` is bounded, platform, and separate from the handler lane;
+      `Gui.offload()` is the same lane reached from a widget. Two lanes rather than one, mirroring the split
+      Kronometer already makes between the precompute pool and `offload`.
+
+      **What this entry got wrong is worth keeping.** It said `FileActions` called `Files.write` and a
+      blocking `FileDialog.save` *"inline on a handler thread"*, sharing an unbounded lane with click
+      dispatch. It did not: every command there goes through `GuiApp.post`, so the I/O was on the **GUI
+      thread** — which is the right place for the dialog, whose contract requires it, and a worse place for
+      the blocking call than the handler lane would have been. A read from a mount that had gone away held
+      the frame loop rather than one document. Both are now on the offload lane and land back through
+      `app.post`; the dialogs stay where they were. **The lesson is about the inventory, not the editor:** a
+      claim about which thread something runs on was written once, was true once, and was not re-checked
+      when `app.post` moved it.
+
+      **Still to do**: `kronometer`'s own `offload` remains specified and unbuilt, and the framework does not
+      yet route completions into the timeline — the second door (a `Topic` folded into a `Cell` by
+      `KronBridge`) is unused, and everything that lands today takes the first one.
 
 - [ ] **The wiring is generated; what it does not do yet.** The processor writes `<App>Wiring` from
       `@VexelApp`, `@Provides`, `@Component`, `@Setting`, `@BeforeFrame`, `@OnMode` and `@ConditionalOnType`,
       the `vexel-desktop` template ships a `Recipes` configuration instead of a hand-written wiring, and
-      `-Pacceptance` builds and drives the result. What is left, roughly in the order it wants doing:
-      - **Most of the framework's defaults still cannot be replaced.** The look, the input backend and the
+      `-Pacceptance` builds and drives the result. The **resolution rules are the contract** — an application depends on which provider satisfies a parameter without ever writing it — so the decisions below are v1 items and the additions are not. Each bullet says which:
+      - **Additive, once the rule is written.** **Most of the framework's defaults still cannot be replaced.** The look, the input backend and the
         clipboard can — a `@Provides` returning one is handed back to `Shell` (see architecture.md, *the
         framework's own defaults are handed back*). Window memory, the icon, the dialogs and pacing cannot, and
         the README lists them among the defaults. Each wants a reason to be replaced before it gets a setter;
         none has one on the stack yet.
-      - **A starter is not checked where it is compiled.** `AutomationStarterTest` compiles applications
+      - **Additive, but before a BOM.** **A starter is not checked where it is compiled.** `AutomationStarterTest` compiles applications
         against `AutomationStarter` with the real processor, which covers the one starter there is; the
         processor is not on `-automation`'s own `annotationProcessorPaths`, so a starter's library-level checks
         run only when an application names it. Worth wiring when there is a second starter, and before a BOM.
-      - **A provider returning `null` is passed on as `null`.** `@Provides` says absence is a supported answer,
+      - **Decide now.** **A provider returning `null` is passed on as `null`.** `@Provides` says absence is a supported answer,
         that dependents which tolerate it still build, and that the framework reports it once. Today the
         dependents are built with the `null` and nothing reports it; the consumers the wiring itself calls
         (`appearance`, `register`, the hooks) are guarded, and that is all.
-      - **Types match exactly.** A parameter asking for an interface is resolved only by a provider
+      - **Decide now.** **Types match exactly.** A parameter asking for an interface is resolved only by a provider
         returning that interface, never by one returning a subtype. Deliberate for now — a subtype match is
         the ambiguity `@Default` exists to rule out — but it is a decision nobody has argued.
-      - **One round.** The graph is taken in the round the `@VexelApp` is seen, which is every source of a
+      - **Additive.** **One round.** The graph is taken in the round the `@VexelApp` is seen, which is every source of a
         clean build; anything another processor generates in a later round is not in it.
-      - **Two promises need a method body.** A `@Provides` calling another directly, and T2.5's capture
+      - **Decide now.** **Two promises need a method body.** A `@Provides` calling another directly, and T2.5's capture
         rule, are both about what code *does* rather than what it declares. The Trees API can read them;
         doing so is a decision, since *the processor reads declarations* is load-bearing in
         architecture.md's argument about placement.
-      - **The copier (T2.4)** and the message-graph checks (§4) wait on the seam that declares a channel.
+      - **Before v1, with the component model.** **The copier (T2.4)** and the message-graph checks (§4) wait on the seam that declares a channel.
+
+- [ ] **`vexelray-engine` is a second composition root, and `GuiApp` is the first.** The new module (in
+      `../vexelray`) exists because *"six demos each carry a copy of eighty lines of
+      instance/device/swapchain/presenter wiring"* — and `GuiApp` is a seventh, doing `new
+      VulkanInstance`, `selectGraphicsPresentDevice`, `new VulkanDevice` and driving `WindowedPresenter`
+      itself. Nothing is broken by that refactor: it kept every prior constructor and `Config` form
+      deliberately, so the stack still compiles and this repo's tests pass against it. But
+      `VexelEngine.create` resolves an `EngineProvider` through `ServiceLoader`, so if `GuiApp` is ever
+      rebuilt on it the stack acquires reachability metadata an application inherits and this framework
+      does not yet aggregate — the open question architecture.md already calls *"probably the
+      highest-leverage feature not yet listed."* Nothing to do here until that seam moves; recorded so
+      it is not a surprise when it does.
+
+      **Why this blocks v1:** which root owns device creation decides what reachability metadata an application inherits, and so the build shape. Nothing to write until that seam moves, but the decision precedes the BOM.
+
+- [ ] **`Gui`'s topics are `static`, so one bus can carry one tree** (`vexelray-gui-core`). Every
+      instance subscribes to the same `vexelray.gui.mutations`, so two trees on one bus each receive the
+      other's mutations — into a mailbox bounded at 65,536 with `Backpressure.BLOCK`, drained only while
+      that tree is being presented. The second `Gui` fills and then blocks the first one's node setters
+      for good: a freeze after tens of thousands of edits, with nothing thrown and nothing logged. This
+      framework shipped it for three commits by putting `Modals` on `Shell.bus()`, and the designer found
+      it by putting a second window there and watching the viewport stop marching.
+
+      **Why this blocks v1:** it caps one fabric per application, so `Shell.bus()` cannot promise that a second window joins it. Either the fix lands upstream first, or v1 documents the ceiling as part of the contract.
+
+      Constrained rather than fixed: `Gui(Atchung)`'s javadoc now says which things may share a bus.
+      **It is also the ceiling on one inspectable fabric per application**, which is the point of having
+      a bus at all — a second window cannot join it. The fix is topics named per instance rather than
+      per class, and it is a real change in `vexelray-gui` rather than a line here.
+
+- [ ] **What `Shell` hands over is the seventh surface, and it bounds the other six.** `Shell` returns
+      `Gui`, `GuiApp`, `KronoGui`, `Modals`, `TitleBar`, `WindowMemory`, `Settings`, `CloseRequest` and
+      `Atchung`, so an application holds `vexelray-gui`'s and `atchung`'s types directly and v1 is only as
+      stable as they are. Either those repos freeze what is exposed, or `Shell` stops exposing it — a
+      wrapper per type, or fewer accessors. A decision rather than a task, and it wants making per
+      accessor rather than once. Every side of the edge is the author's own, which makes freezing cheap
+      and makes not deciding the only expensive choice.
+
+- [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
+      applications were deleted on purpose, which was right, and left one generated counter-style
+      application validating everything. *One component is not a census* applies to the framework itself.
+      Wants two or three generated applications that differ where it matters — several windows on one
+      device, component-heavy with real placement, long-running with nothing to settle — each expected to
+      find something, and each finding written up in architecture.md as the ports were. After the
+      component model, since that is what they most need to exercise.
+
+- [ ] **Starters, a BOM, and the stack's reachability metadata.** The build shape is a contract: an
+      application's dependency block and its `@VexelApp` are the first things it writes. One starter
+      exists (`AutomationStarter`), so the abstraction is drawn from a single instance; a second starter
+      is the test of it. The BOM and the aggregated native-image metadata are what make one dependency
+      enough, and the metadata is what architecture.md calls *"probably the highest-leverage feature not
+      yet listed."* After the component model, because what an application inherits depends on what the
+      stack turns out to reach.
+
+- [ ] **How a public type says it is frozen or experimental.** Nothing in the source distinguishes them and
+      the version is `0.1.0-SNAPSHOT`. The mechanism must not reflect — a `CLASS`-retention annotation or a
+      Javadoc tag — and it has to exist before the freeze pass so that the pass has somewhere to write its
+      result. Small, and it blocks the process rather than any one abstraction.
+
+- [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
+      public type and ask whether anything would be renamed or restructured today, fix it, then mark what
+      is frozen. This is the step that turns *nothing known is wrong* into 1.0. It cannot start early,
+      because it is meaningless while something above is open.
+
+## Can land after v1
+
+Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
+module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
+
+- [ ] **`-diagnostics`, and move `FpsProbe` into it.** It is `text-editor-vexel-demo`'s, about 250
+      lines, and generic apart from the one thing that makes it worth having: it deliberately pokes
+      each wake path — a timeline post, a node mutated off the frame thread, a handler that changes
+      nothing — to prove each still produces a frame. That is what `--profile` should turn on, and it
+      is the module the architecture doc already lists as the Actuator analogue. Until it exists,
+      `profile` is a name `Launch` reserves and nothing in the framework honours — documented on
+      `FRAMEWORK_KEYS` and in
+      [architecture.md](architecture.md#the-two-reserved-keys), along with why the real fix is
+      `@ConditionalOnType` and not a runtime check.
+
+      **The module can land after v1; its name cannot wait.** A module name is Maven coordinates an application writes into its build, so it is chosen before the freeze even if the module is not. **The name is now taken upstream.** `../vexelray` ships a `vexelray-diagnostics` for a different
+      thing — the channel a seam uses to say it silently dropped a capability (see **Next**). Two
+      concepts, one name, one stack; this module wants a name of its own before it is written.
+
+      **And most of it may already exist.** `atchung-probe` is described as *"the stack-wide profiling
+      seam: off unless asked, free when off, and dependency-free so any layer can take it without
+      taking the bus"*, with spans, counters, a resource ledger, a CSV correlation mode and a
+      `CsvView` that hunts a run for stalls. `Pump` instruments itself with it and `Automation`
+      already imports `Probe` and `Lane`. So `--profile` may be a few lines turning `Probe` on rather
+      than a 250-line port, keeping from `FpsProbe` only the part that is genuinely its own — that it
+      deliberately pokes each wake path to prove each still produces a frame. Worth checking before
+      porting anything, and more so under the concurrency model, where *"why did we miss a frame"*
+      becomes *"which component's mailbox"* and a probe already threaded through the bus is what
+      answers it.
+
+- [ ] **A second automation socket, if a second application ever wants one.** `Driver` binds one, for
+      the `Gui` the framework built. `vexelray-designer` needs two — `tree` on the first does not list
+      the viewport and `shot` on it photographs the wrong window — and places the second itself at
+      `Driver.port() + 1`, so it never parses the flag but cannot ask the framework for the socket.
+      The shape would be a `Driver.open(shell, gui, controls, offset)`. **Not yet**: one application
+      is not a census, and the two things that make the designer's second driver awkward (a named
+      window's controls arrive after the driver starts, and are replaced when it reopens) are facts
+      about that window rather than about starting an application. Recorded so the second witness is
+      recognised as one.
+
+- [ ] **An application that configures a non-default zoom range will disagree with the text editor's
+      other two windows.** `FolderWindow` and `EditorWindow` apply `Appearance.ZoomRange.DEFAULT`
+      rather than the running application's, because both also run under MainFrame where there is no
+      `Shell` to ask. Correct today, since nothing configures a range; wrong the moment something
+      does. The fix is a constructor parameter defaulting to `DEFAULT`, and it is not worth the churn
+      on two library classes until a host wants one.
 
 - [ ] **`shell.wake(gui::onWork)` is redundant, and the framework should probably stop making the call.**
       `GuiApp.wireAllWakes` already does `gui.onWork(this::postWake)` for **every** tree it presents,
@@ -80,6 +278,12 @@ cannot be fixed from here at all.
       runs a real `GuiApp`, so the pattern exists; the missing part is a node that declares
       `dragLocksPointer` and a synthesised press over it.
 
+- [ ] **A test for the second close gate.** `Shell.onClose` refuses a second registration because
+      `GuiApp` holds one handler and the replaced one is as likely as not the one that knew about the
+      unsaved documents. Only the before-`ATTACH` refusal is covered; the duplicate case needs a real
+      `GuiApp`. Now unblocked: `WakeSeamsTest` runs one, so the pattern to copy is its `ProbeWiring`
+      registering a second gate in `attach` and expecting the throw.
+
 - [ ] **The designer's comment describes the mode the framework does not use** (fix belongs in
       `vexelray-designer`). `Viewport.java` says *"turning is a displacement, so the pointer is held for
       the gesture and warped back each frame"* — warping is `PointerLockMode.RECENTER`, and
@@ -87,143 +291,6 @@ cannot be fixed from here at all.
       vanished. The line was written when nothing carried the intent out at all, so it described an
       intention rather than an observation. Now that it does, the comment is the only place on the
       stack that still says the cursor moves.
-
-## Later
-
-- [ ] **An application that configures a non-default zoom range will disagree with the text editor's
-      other two windows.** `FolderWindow` and `EditorWindow` apply `Appearance.ZoomRange.DEFAULT`
-      rather than the running application's, because both also run under MainFrame where there is no
-      `Shell` to ask. Correct today, since nothing configures a range; wrong the moment something
-      does. The fix is a constructor parameter defaulting to `DEFAULT`, and it is not worth the churn
-      on two library classes until a host wants one.
-
-- [ ] **`-diagnostics`, and move `FpsProbe` into it.** It is `text-editor-vexel-demo`'s, about 250
-      lines, and generic apart from the one thing that makes it worth having: it deliberately pokes
-      each wake path — a timeline post, a node mutated off the frame thread, a handler that changes
-      nothing — to prove each still produces a frame. That is what `--profile` should turn on, and it
-      is the module the architecture doc already lists as the Actuator analogue. Until it exists,
-      `profile` is a name `Launch` reserves and nothing in the framework honours — documented on
-      `FRAMEWORK_KEYS` and in
-      [architecture.md](architecture.md#the-two-reserved-keys), along with why the real fix is
-      `@ConditionalOnType` and not a runtime check.
-
-      **The name is now taken upstream.** `../vexelray` ships a `vexelray-diagnostics` for a different
-      thing — the channel a seam uses to say it silently dropped a capability (see **Next**). Two
-      concepts, one name, one stack; this module wants a name of its own before it is written.
-
-      **And most of it may already exist.** `atchung-probe` is described as *"the stack-wide profiling
-      seam: off unless asked, free when off, and dependency-free so any layer can take it without
-      taking the bus"*, with spans, counters, a resource ledger, a CSV correlation mode and a
-      `CsvView` that hunts a run for stalls. `Pump` instruments itself with it and `Automation`
-      already imports `Probe` and `Lane`. So `--profile` may be a few lines turning `Probe` on rather
-      than a 250-line port, keeping from `FpsProbe` only the part that is genuinely its own — that it
-      deliberately pokes each wake path to prove each still produces a frame. Worth checking before
-      porting anything, and more so under the concurrency model, where *"why did we miss a frame"*
-      becomes *"which component's mailbox"* and a probe already threaded through the bus is what
-      answers it.
-
-- [ ] **A second automation socket, if a second application ever wants one.** `Driver` binds one, for
-      the `Gui` the framework built. `vexelray-designer` needs two — `tree` on the first does not list
-      the viewport and `shot` on it photographs the wrong window — and places the second itself at
-      `Driver.port() + 1`, so it never parses the flag but cannot ask the framework for the socket.
-      The shape would be a `Driver.open(shell, gui, controls, offset)`. **Not yet**: one application
-      is not a census, and the two things that make the designer's second driver awkward (a named
-      window's controls arrive after the driver starts, and are replaced when it reopens) are facts
-      about that window rather than about starting an application. Recorded so the second witness is
-      recognised as one.
-
-- [ ] **A test for the second close gate.** `Shell.onClose` refuses a second registration because
-      `GuiApp` holds one handler and the replaced one is as likely as not the one that knew about the
-      unsaved documents. Only the before-`ATTACH` refusal is covered; the duplicate case needs a real
-      `GuiApp`. Now unblocked: `WakeSeamsTest` runs one, so the pattern to copy is its `ProbeWiring`
-      registering a second gate in `attach` and expecting the throw.
-
-- [ ] **`vexelray-engine` is a second composition root, and `GuiApp` is the first.** The new module (in
-      `../vexelray`) exists because *"six demos each carry a copy of eighty lines of
-      instance/device/swapchain/presenter wiring"* — and `GuiApp` is a seventh, doing `new
-      VulkanInstance`, `selectGraphicsPresentDevice`, `new VulkanDevice` and driving `WindowedPresenter`
-      itself. Nothing is broken by that refactor: it kept every prior constructor and `Config` form
-      deliberately, so the stack still compiles and this repo's tests pass against it. But
-      `VexelEngine.create` resolves an `EngineProvider` through `ServiceLoader`, so if `GuiApp` is ever
-      rebuilt on it the stack acquires reachability metadata an application inherits and this framework
-      does not yet aggregate — the open question architecture.md already calls *"probably the
-      highest-leverage feature not yet listed."* Nothing to do here until that seam moves; recorded so
-      it is not a surprise when it does.
-
-- [ ] **One seam carries three of the four differentiators, and it is the one not built.** A
-      `@Subscribe` that generates its `Pump` registration in `ATTACH` and its teardown in the
-      `Disposer` is at once the actor model's substrate (above), the extension and macro API, and the
-      reactive half of automation. That third one is easy to miss: `Automation` is command-in,
-      response-out — `click`, `type`, `shot`, `await` — so a user-authored macro can *drive* the
-      application but cannot *react* to it, and an extension that wants to run when something happens
-      has nowhere to attach. All three want the same thing, which is why it is worth building once
-      rather than three times.
-
-- [ ] **The container now gives a component a thread and a mailbox; what is left is the colour rule.**
-      `Shell.lanes()` owns the application's threads and `Shell.place(name)` puts a component on one of
-      them with its mailboxes, its wake and its drain-then-stop — `Lanes` in `-core` (pure JDK, so the
-      container stays testable with no GPU) and `Placement` in `-shell` (a mailbox is atchung's, and that
-      edge already falls there). The upstream half landed with it: `Gui` takes both lanes rather than
-      building a `newCachedThreadPool` whatever it is handed, and closes only the lanes it built itself.
-
-      **Thirteen of [threading.md](threading.md)'s rules are now held.** Eight came from these two objects, and
-      none of those promotions needed the processor — they needed something to *be* the rule; the other five
-      are the processor's. The `upstream` column is
-      down to one entry, because T1.2 and T1.5 turned out to be the same change.
-
-      **What is actually left**, and it is the part a runtime object cannot hold: the colour rule's copier
-      and capture halves (T2.4, T2.5 — T2.1–T2.3 are the processor's now, and held), the message-graph
-      checks (§4.1, §4.3–§4.5), and supervision (§6.5, §6.3) — *nothing
-      notices that a component has stopped draining, or names it*, which wants `Overrun` surfaced per
-      grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on a
-      census of what still blocks on a handler rather than on any one known blocker.
-
-- [ ] **Nothing in the model covers work that outlasts a frame, and the stack already named the
-      answer.** `kronometer/docs/architecture.md` §10 specifies it: *"`offload(work)` remains available
-      for work that is genuinely unbounded — file I/O, network, image decode — moving it to an ordinary
-      executor (**its own**, never the kernel's single carrier) and delivering completion as a timeline
-      event."* Specified and unbuilt — `offload` appears in no Java source in that repo. The framework
-      wants the same lane, and naming it here is what stops the component model being read as the answer
-      to a question it does not answer.
-
-      **A pool does not contradict static placement.** A component is placed statically because it is
-      stateful and ordered; an offloaded task is stateless and unordered, so there is nothing to confine
-      and no sequence to keep. The edge is policed by [the crossing
-      rule](architecture.md#what-may-cross-a-lane-and-what-crossing-does-to-it) — a value crossing a lane
-      arrives as if it had crossed a wire — which makes an offloaded lambda that captures a component's
-      state a compile error rather than a race. Capture is the one case the rule refuses rather than
-      copies, because a lambda closes over a reference and no copier can be slipped in behind it.
-
-      **Platform threads, and the reason is not the component one.** Blocking I/O is the textbook
-      virtual-thread case, but §3.1 records that `jdk.virtualThreadScheduler.parallelism` is a global JVM
-      property with *"no public per-thread scheduler"* in JDK 25 — so an application that takes
-      Kronometer's 3× baton flag has no second carrier to give this pool, and the obvious choice is the
-      documented deadlock again. That flag is the application's and correctness never depends on it, so
-      the framework's default has to be the one that is right when it *is* set.
-
-      **The completion path is the content; the pool is the boring half.** A result is published on a
-      `Topic` and folded into a `Cell` by `KronBridge`, or dropped on a queue drained in
-      `FrameStage.APP` — the two doors that already exist, and `APP`'s own list is *"a history to
-      restore, a file to open, a preview to render."* What an offload thread must never do is touch the
-      tree or the timeline in place.
-
-      **The lane now exists.** `Lanes.offload()` is bounded, platform, and separate from the handler lane;
-      `Gui.offload()` is the same lane reached from a widget. Two lanes rather than one, mirroring the split
-      Kronometer already makes between the precompute pool and `offload`.
-
-      **What this entry got wrong is worth keeping.** It said `FileActions` called `Files.write` and a
-      blocking `FileDialog.save` *"inline on a handler thread"*, sharing an unbounded lane with click
-      dispatch. It did not: every command there goes through `GuiApp.post`, so the I/O was on the **GUI
-      thread** — which is the right place for the dialog, whose contract requires it, and a worse place for
-      the blocking call than the handler lane would have been. A read from a mount that had gone away held
-      the frame loop rather than one document. Both are now on the offload lane and land back through
-      `app.post`; the dialogs stay where they were. **The lesson is about the inventory, not the editor:** a
-      claim about which thread something runs on was written once, was true once, and was not re-checked
-      when `app.post` moved it.
-
-      **Still to do**: `kronometer`'s own `offload` remains specified and unbuilt, and the framework does not
-      yet route completions into the timeline — the second door (a `Topic` folded into a `Cell` by
-      `KronBridge`) is unused, and everything that lands today takes the first one.
 
 - [ ] **Fully-qualified names inline where every other file imports.** `Shell.onClose` takes a
       `java.util.function.Consumer<CloseRequest>`, and `Pacing` and `FrameHooks` write
@@ -233,20 +300,7 @@ cannot be fixed from here at all.
 
 ## Upstream
 
-Cannot be fixed from this repo.
-
-- [ ] **`Gui`'s topics are `static`, so one bus can carry one tree** (`vexelray-gui-core`). Every
-      instance subscribes to the same `vexelray.gui.mutations`, so two trees on one bus each receive the
-      other's mutations — into a mailbox bounded at 65,536 with `Backpressure.BLOCK`, drained only while
-      that tree is being presented. The second `Gui` fills and then blocks the first one's node setters
-      for good: a freeze after tens of thousands of edits, with nothing thrown and nothing logged. This
-      framework shipped it for three commits by putting `Modals` on `Shell.bus()`, and the designer found
-      it by putting a second window there and watching the viewport stop marching.
-
-      Constrained rather than fixed: `Gui(Atchung)`'s javadoc now says which things may share a bus.
-      **It is also the ceiling on one inspectable fabric per application**, which is the point of having
-      a bus at all — a second window cannot join it. The fix is topics named per instance rather than
-      per class, and it is a real change in `vexelray-gui` rather than a line here.
+Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
 
 - [x] **`Modals` never receives the application's theme** (`vexelray-gui-widget`) — **fixed upstream and
       taken here.** It built its own `new Gui()`, which defaults to `Theme.DARK`, so every dialog the

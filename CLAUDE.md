@@ -3,7 +3,7 @@
 `vexelray-framework` is a Spring-Boot-shaped application framework for the VexelRay stack: compile-time
 DI, typed configuration, and a frame-aware lifecycle for GraalVM native-image desktop applications.
 [README.md](README.md) is the tour; [docs/architecture.md](docs/architecture.md) is the deep version and
-the decision record. [docs/TODO.md](docs/TODO.md) is what is known about and not done, which is
+the decision record. [docs/v1.md](docs/v1.md) defines the bar for v1 (no major refactor of an application afterwards), and [docs/TODO.md](docs/TODO.md) is what is known about and not done, split by whether it blocks that bar, which is
 where anything you notice and do not fix belongs.
 
 It sits at the **top** of a stack of sibling checkouts under `C:\Users\User\Documents\GitHub\`. As in
