@@ -1322,7 +1322,9 @@ loading or a cold JIT. A run with `atchung-probe` on (`-Dprobe=all -Dprobe.forma
      these were the only overshoots, both by about 12 ms. **Confirmed by experiment:** with
      `SetProcessInformation(ProcessPowerThrottling, IGNORE_TIMER_RESOLUTION)` plus `timeBeginPeriod(1)` at startup
      the stall drops from ~29 ms to **~18 ms** in every pulse (18.1, 18.0, 17.7). The same run with
-     `timeBeginPeriod(1)` alone is unchanged, which is why it looked ruled out.
+     `timeBeginPeriod(1)` alone is unchanged, which is why it looked ruled out. **This is now built**
+     (`vexelray-os-windows`, `TimerResolution`, held per window) and asserted by the pacing test, and the plain
+     default run reproduces the ~18 ms with no experiment switch.
 - **B, about 21 ms, 27 to 60 ms in: not explained.** The wait is instant; the frame then spends 14 to 19 ms in
   `gpu wait fence`, waiting on the previous frame's GPU work. The opt-out leaves it exactly where it was (21.5,
   20.3, 21.2 ms).

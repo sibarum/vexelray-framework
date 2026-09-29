@@ -451,11 +451,13 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       nothing ever hiccups. **Two stalls; one is explained.** **A (~29 ms at the click)** is the 60 Hz
       ceiling parking the loop for 16.6 ms just as a `krono.ramp` waits for its first tick, plus **Windows 11
       throttling the timer** for a window that is not in front, which stretches 16 ms to 28. The second half
-      is confirmed and has a cheap fix: at startup, `SetProcessInformation(ProcessPowerThrottling,
-      IGNORE_TIMER_RESOLUTION)` and `timeBeginPeriod(1)`, which takes A from ~29 ms to ~18 ms. It belongs in
-      `vexelray-os-windows`, at platform init, and is not built. (`timeBeginPeriod(1)` alone does nothing, which
-      is why it first looked ruled out.) The rest of A is the ceiling, so it goes with the `maxFrameRate`
-      decision. **B (~21 ms at 27 to 60 ms in) is not explained**: a 14 to 19 ms `gpu wait fence`, untouched by
+      is confirmed and **fixed**: `vexelray-os-windows`'s `TimerResolution` makes both calls,
+      `SetProcessInformation(ProcessPowerThrottling, IGNORE_TIMER_RESOLUTION)` and `timeBeginPeriod(1)`, while any
+      window exists (reference-counted per window), which took A from ~29 ms to ~18 ms. `PacingMeasurementTest`
+      now asserts it: no frame gap over 26 ms in the first 100 ms of a pulse. (`timeBeginPeriod(1)` alone does
+      nothing, which is why it first looked ruled out.) A refusal by Windows is kept in
+      `TimerResolution.problem()` and reported nowhere yet, because the os module has no `Diagnostics` to say it
+      with; the shell could ask. The rest of A is the ceiling, so it goes with the `maxFrameRate` decision. **B (~21 ms at 27 to 60 ms in) is not explained**: a 14 to 19 ms `gpu wait fence`, untouched by
       the opt-out. Next is a run with the GPU held busy beforehand, and a look at the present queue after a
       stall. Ruled out for both: a JVM pause, the uncommitted `GuiApp` draft, the wake path. A per-frame
       assertion belongs in `vexelray-gui-harness` once it is understood, since a frame-gap ceiling is the

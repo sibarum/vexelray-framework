@@ -121,30 +121,18 @@ class PacingMeasurementTest {
     }
 
     /**
-     * The same run with the process asking Windows for a 1 ms timer at startup. If the late frames that follow a
-     * 16 ms timed wait are the timer rounding it up, they go; if they stay, the timer was never the cause.
+     * The regression the window's timer request exists to prevent. Measured before it was built, a 16 ms park at the
+     * start of every pulse returned after 28 ms and the frame gap in the first 100 ms of the pulse was 28 to 31 ms.
+     * With it, the same gap is about 18 ms, and the largest gap seen anywhere in that stretch was 21.6 ms (a
+     * separate stall, in the GPU fence, that is not fixed). The ceiling sits between the two.
      */
-    @Test
-    @Order(4)
-    void theSameRunWithAOneMillisecondTimer() throws Exception {
-        probed("1ms");
-    }
-
-    /**
-     * As above, and also opting out of Windows 11's timer resolution throttling, which ignores the request from
-     * a process whose window is not visible and in front. A test window launched by a build usually is not.
-     */
-    @Test
-    @Order(5)
-    void theSameRunWithTheTimerRequestHonoured() throws Exception {
-        probed("optout");
-    }
+    private static final long EARLY_GAP_CEILING_MICROS = 26_000;
 
     private void probed(String timer) throws Exception {
         assertTrue(project != null, "nothing was built");
         Path csv = root.resolve("probe-" + timer + ".csv");
         try (Session session = live = launch(project, root, ARTIFACT, "probe-" + timer,
-                "-Dprobe=all", "-Dprobe.format=csv", "-Dprobe.out=" + csv, "-Dpacing.timer=" + timer,
+                "-Dprobe=all", "-Dprobe.format=csv", "-Dprobe.out=" + csv,
                 // Relative, because the option's own syntax uses a colon and so does a drive letter. The JVM's
                 // working directory is the project's, so the log lands beside the tree.
                 "-Xlog:gc,safepoint:file=gc-" + timer + ".log:uptime,tags")) {
@@ -192,6 +180,7 @@ class PacingMeasurementTest {
 
         int pulse = 0;
         long windowStart = -1;
+        long earliestWorst = 0;
         for (int i = 0; i < rows.size(); i++) {
             String kind = rows.get(i)[5];
             if (kind.equals("pulse.click")) {
@@ -216,6 +205,10 @@ class PacingMeasurementTest {
                 continue;
             }
             long gapMicros = (Long.parseLong(rows.get(i)[1]) - Long.parseLong(rows.get(previous)[1])) / 1_000;
+            if (Long.parseLong(rows.get(previous)[1]) >= windowStart
+                    && Long.parseLong(rows.get(i)[1]) - windowStart < 100_000_000L) {
+                earliestWorst = Math.max(earliestWorst, gapMicros);
+            }
             if (gapMicros > 12_000 && Long.parseLong(rows.get(previous)[1]) >= windowStart) {
                 System.out.println("PROBE timer=" + timer + " gap " + gapMicros + "us before " + rows.get(i)[6]
                         + ", " + (Long.parseLong(rows.get(previous)[1]) - windowStart) / 1_000_000L
@@ -227,6 +220,10 @@ class PacingMeasurementTest {
                 }
             }
         }
+        System.out.println("PROBE timer=" + timer + " worst gap in the first 100 ms of a pulse: " + earliestWorst + "us");
+        assertTrue(earliestWorst <= EARLY_GAP_CEILING_MICROS, "a frame gap of " + earliestWorst
+                + "us in the first 100 ms of a pulse: a timed park is returning late again. Is the window's timer "
+                + "request (TimerResolution in vexelray-os-windows) still being made?");
     }
 
     private static String landmarked(Driver d, String landmark) throws IOException {

@@ -5,52 +5,6 @@ import dev.vexelray.framework.api.BeforeFrame;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Asks Windows for a 1 ms timer resolution for the life of the process when {@code pacing.timer} is {@code 1ms},
- * and does nothing otherwise. An experiment's switch and not a proposal: it is here to find out whether the
- * default resolution is what makes a 16 ms timed wait return late.
- */
-final class TimerResolution {
-
-    TimerResolution(String mode) {
-        if (!mode.equals("1ms") && !mode.equals("optout")) {
-            return;
-        }
-        try {
-            java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
-            java.lang.foreign.Arena arena = java.lang.foreign.Arena.global();
-            java.lang.foreign.SymbolLookup winmm = java.lang.foreign.SymbolLookup.libraryLookup("winmm", arena);
-            java.lang.invoke.MethodHandle begin = linker.downcallHandle(winmm.find("timeBeginPeriod").orElseThrow(),
-                    java.lang.foreign.FunctionDescriptor.of(java.lang.foreign.ValueLayout.JAVA_INT,
-                            java.lang.foreign.ValueLayout.JAVA_INT));
-            int result = (int) begin.invokeExact(1);
-            System.out.println("pacing: timeBeginPeriod(1) -> " + result);
-            if (mode.equals("optout")) {
-                // Windows 11 stops honouring a timer resolution request for a process with no visible, foreground
-                // window, unless the process says it wants it honoured: ProcessPowerThrottling (class 4), with
-                // IGNORE_TIMER_RESOLUTION (0x4) in the control mask and clear in the state mask.
-                java.lang.foreign.SymbolLookup k32 = java.lang.foreign.SymbolLookup.libraryLookup("kernel32", arena);
-                java.lang.invoke.MethodHandle current = linker.downcallHandle(k32.find("GetCurrentProcess").orElseThrow(),
-                        java.lang.foreign.FunctionDescriptor.of(java.lang.foreign.ValueLayout.ADDRESS));
-                java.lang.invoke.MethodHandle set = linker.downcallHandle(k32.find("SetProcessInformation").orElseThrow(),
-                        java.lang.foreign.FunctionDescriptor.of(java.lang.foreign.ValueLayout.JAVA_INT,
-                                java.lang.foreign.ValueLayout.ADDRESS, java.lang.foreign.ValueLayout.JAVA_INT,
-                                java.lang.foreign.ValueLayout.ADDRESS, java.lang.foreign.ValueLayout.JAVA_INT));
-                java.lang.foreign.MemorySegment state = arena.allocate(12);
-                state.set(java.lang.foreign.ValueLayout.JAVA_INT, 0, 1);
-                state.set(java.lang.foreign.ValueLayout.JAVA_INT, 4, 0x4);
-                state.set(java.lang.foreign.ValueLayout.JAVA_INT, 8, 0);
-                java.lang.foreign.MemorySegment process = (java.lang.foreign.MemorySegment) current.invokeExact();
-                int ok = (int) set.invokeExact(process, 4, state, 12);
-                System.out.println("pacing: SetProcessInformation(ProcessPowerThrottling, ignore timer resolution "
-                        + "throttling) -> " + ok);
-            }
-        } catch (Throwable t) {
-            throw new IllegalStateException("timer resolution request failed", t);
-        }
-    }
-}
-
-/**
  * A frame counter and a stopwatch that the frame itself stops.
  *
  * <p>The hook runs in {@code FrameStage.APP}, once per frame, on the main thread: it counts, and if a probe has

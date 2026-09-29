@@ -24,12 +24,6 @@ final class Recipes {
         return new Meter();
     }
 
-    /** The timer experiment's switch; see {@code TimerResolution}. Built once, before anything draws. */
-    @Provides
-    TimerResolution timer(@dev.vexelray.framework.api.Setting(value = "pacing.timer", def = "off") String mode) {
-        return new TimerResolution(mode);
-    }
-
     @Provides
     Ui ui(Gui gui, KronoGui krono, Meter meter, Atchung bus, TitleBar titleBar) {
         return new Ui(gui, krono, meter, bus, titleBar);
