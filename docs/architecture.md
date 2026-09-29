@@ -1240,11 +1240,10 @@ measured for whether it parks. (`vexelray-framework-acceptance`, `witnesses/long
 60 Hz `maxFrameRate`, which is the tick rate and not a coincidence. The ceiling is implemented as a timed park
 (`waitEvents(budget)`), and a wake a component posts is a message on the same queue, which ends the park early —
 the ceiling's own javadoc says as much for OS input (*"the wait ends early on OS input regardless"*), and a
-component's wake is indistinguishable from it. So the ceiling limits only how often the loop draws *of its own
-accord*, and any component publishing faster than 60 Hz drives frames at its own rate until the presenter blocks.
-It is harmless here and would not be at a kilohertz. The fix is in `vexelray-gui`'s loop (a wake earns a frame no
-sooner than the ceiling allows, and is remembered rather than dropped), and it is a change of timing under an
-unchanged signature, which is why it is written up and not slipped in.
+component's wake is indistinguishable from it. **This first reading was incomplete and one claim in it was
+wrong:** the pacing measurements below show the ceiling holds nothing that wakes the loop, animations included,
+and that the presenter, not the ceiling, is what stops a wake storm. It is why the entry is now a question about
+intent and not a bug report.
 
 **`settle` cannot report a run with nothing to settle.** It answered `ok` while the metronome was ticking. That is
 what its javadoc says — *"exact about the frame loop and the clock, and blind to application work still in
@@ -1257,6 +1256,43 @@ what every assertion in W3 does.
 **What it did not exercise.** A run of minutes or hours: twenty seconds rules out a thread or a heap that grows
 per tick and nothing that grows per minute. The pulse and the clock's own repeating cues, which are the path
 `settle`'s *"a repeating cue is reported by name"* covers and a component's ticks are not.
+
+## What the pacing measurements found
+
+The GUI's design is a hybrid: retained, drawn on demand, parked when nothing is owed, and running at the display's
+rate the moment something animates. W3 suggested the wake half worked and the ceiling did not; three measurements
+on a generated application (`witnesses/pacing`, `PacingMeasurementTest`) test the design directly. The numbers
+are from one machine, whose display appears to run at 144 Hz.
+
+| Question | Result |
+| --- | --- |
+| Frames across one 600 ms pulse (three runs) | 88, 87, 87 in ~610 ms: **~143 a second** |
+| Wake to the first frame from a parked loop (15 trials) | median **1.03 ms**, p95 1.6 ms, min 0.75 ms |
+| Frames in 3 s under 35 million writes, one wake behind each | **434, ~145 a second**, 0 failures |
+
+**What it says.**
+
+- **Animation runs at the display's rate.** ~143 against ~145 under a storm is the same number, so the presenter
+  is what blocks and *animate at vsync speed* is already true. The 60 Hz `maxFrameRate` is not what holds it: an
+  ordinary pulse, with no component involved, ran at 143. The krono clock's wake every tick ends the ceiling's timed
+  park exactly as a component's does.
+- **A wake from a parked loop is answered in about a millisecond**, not in an idle refresh's 200. That is the
+  half of the design that was most feared, and on this path it is not where the latency is. It measures to the
+  start of the next frame, not to the glass: with FIFO present the picture is further behind by the swapchain's
+  queue, which is not measured here.
+- **A storm cannot spin the loop.** Eleven million writes a second plateau at the refresh rate. This is also why
+  the message-queue overflow worry did not materialise: `Gui` coalesces its wakes ("the wake is a cell, not an
+  event"), so the queue sees about one message a frame however many writes there are. A component that called
+  `postWake` itself, per delivery, is not covered by that and was not measured.
+
+**Which changes an earlier claim.** The ceiling was written up as a bug whose fix was a wake object, on the
+reading that a wake storm would run the loop flat out. It would not. What the numbers leave open is the intent: a
+ceiling that worked would hold a 144 Hz display to 60, which is the opposite of the goal the design states.
+
+**What is still unmeasured.** The path a real click takes. Automation publishes straight onto the bus and skips
+Tactroller's 125 Hz polling thread, which adds up to 8 ms (about 4 on average) between the OS event and the
+publish. That is arithmetic on a `Thread.sleep` period and not a measurement, and it is the first suspect for any
+input latency that is felt and does not show up above.
 
 ## Modules
 

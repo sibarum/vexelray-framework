@@ -491,13 +491,18 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       rest on the loop thread, and a dialog is modal, which was enough to leave no thread able to tear them
       all down.
 
-- [ ] **`GuiApp.maxFrameRate` does not cap frames a component's wake earns** (`vexelray-gui-core`). Found by
-      the long-running witness: a component ticking at about 100 Hz drove **104 frames a second** against a
-      60 Hz ceiling. The ceiling is a timed park, a posted wake ends the park early, and a component's wake
-      is the same message as OS input. Harmless at 100 Hz and a busy loop at a kilohertz, since only the
-      presenter blocking would slow it. The fix is a wake that earns a frame no sooner than the ceiling
-      allows and is remembered rather than dropped. It changes frame timing under an unchanged signature, so
-      it is a decision for `vexelray-gui`, and the witness prints the number so the fix has something to move.
+- [ ] **`GuiApp.maxFrameRate`'s 60 Hz is not in force, and it is not clear it should be** (`vexelray-gui-core`,
+      `VexelApplication.MAX_FRAME_NANOS`). The ceiling is a timed park and any wake ends it early: a
+      component's, and also the krono clock's, which fires every tick. So nothing that wakes the loop is held
+      to it. Measured on this machine ([pacing](architecture.md#what-the-pacing-measurements-found)): an
+      ordinary 600 ms pulse runs **~143 frames a second**, and a component ticking at 100 Hz drove 104. **What
+      does throttle is the presenter**: 35 million writes in 3 s, with a wake behind each, plateau at ~145
+      frames a second, so there is no runaway (an earlier version of this entry said there would be, and was
+      wrong). **The open question is which of the two is the intent.** Enforcing the ceiling would hold a
+      144 Hz display to 60, the opposite of *animate at vsync speed*; leaving it means the constant is dead.
+      Either the ceiling goes (the presenter already paces, and is the display's own answer), or it becomes an
+      opt-in power saver below the display's rate. A Win32 wake object would make the loop able to *honour* a
+      ceiling, but that is only worth building if the answer is to keep one.
 
 - [ ] **`settle` says `ok` for an application that never goes quiet** (`vexelray-gui-automation`, and this
       repo's `Driver` if it grows a verb). The long-running witness's metronome ticks to itself, and `settle`
