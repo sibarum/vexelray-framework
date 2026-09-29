@@ -3,6 +3,7 @@ package dev.vexelray.framework.automation;
 import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Default;
 import dev.vexelray.framework.api.Provides;
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.shell.Shell;
 
 /**
@@ -32,6 +33,7 @@ import dev.vexelray.framework.shell.Shell;
  * because a {@code Driver} is {@code AutoCloseable}. Off unless the launch asks — see {@link Driver#SETTING}.
  */
 @Configuration
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class AutomationStarter {
 
     /** The socket, bound if this launch asked for one. Never null; see {@link Driver#bound()}. */

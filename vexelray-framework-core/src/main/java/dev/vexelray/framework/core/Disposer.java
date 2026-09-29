@@ -1,5 +1,6 @@
 package dev.vexelray.framework.core;
 
+import dev.vexelray.framework.api.Stability;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,6 +24,7 @@ import java.util.List;
  * later ones attached as suppressed exceptions, which is the same shape try-with-resources produces and reads
  * the same way in a log.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class Disposer implements AutoCloseable {
 
     private final List<AutoCloseable> resources = new ArrayList<>();

@@ -193,11 +193,6 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       per-OS backend selection in a starter has to meet the same test. Also missing, and first in line: no
       generated application has ever been built as a native image, so acceptance stops at a JVM build.
 
-- [ ] **How a public type says it is frozen or experimental.** Nothing in the source distinguishes them and
-      the version is `0.1.0-SNAPSHOT`. The mechanism must not reflect — a `CLASS`-retention annotation or a
-      Javadoc tag — and it has to exist before the freeze pass so that the pass has somewhere to write its
-      result. Small, and it blocks the process rather than any one abstraction.
-
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
       [v1.md](v1.md#what-must-not-remain). Known candidates so far, each a question and not yet a finding:
       the prior constructors and `Config` forms the engine refactor kept on purpose; `--profile`, which parses

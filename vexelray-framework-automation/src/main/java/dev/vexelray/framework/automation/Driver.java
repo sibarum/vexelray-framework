@@ -1,6 +1,7 @@
 package dev.vexelray.framework.automation;
 
 import dev.vexelray.diag.Diagnostics;
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.automation.Automation;
 import dev.vexelray.gui.automation.AutomationServer;
@@ -23,6 +24,7 @@ import dev.vexelray.gui.automation.AutomationServer;
  * application that wants to be driven depends on this module and names {@link AutomationStarter} in its
  * {@code @VexelApp}; one that does not never links it. A hand-written wiring calls {@link #open} itself.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class Driver implements AutoCloseable {
 
     /**

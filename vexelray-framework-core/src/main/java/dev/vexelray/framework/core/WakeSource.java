@@ -1,5 +1,7 @@
 package dev.vexelray.framework.core;
 
+import dev.vexelray.framework.api.Stability;
+
 /**
  * Something that can produce work while the loop is parked, and so needs a way to wake it.
  *
@@ -15,6 +17,7 @@ package dev.vexelray.framework.core;
  * path. The GUI's own record of this is that five missing wakes shipped past a green test suite, because a test
  * that draws its own frames cannot notice a wake that never came.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public interface WakeSource {
 
     /**

@@ -43,5 +43,6 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.CLASS)
+@Stability(Stability.Level.EXPERIMENTAL)
 public @interface Provides {
 }

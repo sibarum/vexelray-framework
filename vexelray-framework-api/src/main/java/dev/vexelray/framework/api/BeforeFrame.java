@@ -33,6 +33,7 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.CLASS)
+@Stability(Stability.Level.EXPERIMENTAL)
 public @interface BeforeFrame {
 
     /** Which stage of the frame this runs in. {@link FrameStage#APP} unless there is a reason otherwise. */

@@ -1,6 +1,7 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.diag.Diagnostics;
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.gui.core.Gui;
 import sibarum.tactroller.api.BackendException;
 import sibarum.tactroller.api.PointerLockMode;
@@ -80,6 +81,7 @@ import sibarum.tactroller.api.Tactroller;
  * threshold or at the release. Recorded rather than hidden, because this module's rule is that nothing
  * allocates in {@code FrameHooks.run} and this is the one place that does.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class PointerLock {
 
     /**

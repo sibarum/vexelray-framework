@@ -31,6 +31,7 @@ package dev.vexelray.framework.api;
  * {@code Automation}'s {@code shot} command for a script. An application that specifically wants a chrome-only
  * still can still call {@code GuiApp.capture} itself, knowing what it is getting.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public enum RunMode {
 
     /** A session: a window, input, and a loop that runs until the user closes it. The default. */

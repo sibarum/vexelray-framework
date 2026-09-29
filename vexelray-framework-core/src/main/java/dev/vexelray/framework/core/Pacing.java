@@ -1,5 +1,6 @@
 package dev.vexelray.framework.core;
 
+import dev.vexelray.framework.api.Stability;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,6 +11,7 @@ import java.util.List;
  * dependency graph rather than by whoever wrote the expression. See {@link DeadlineSource} for what goes wrong
  * when it is an expression.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class Pacing implements DeadlineSource {
 
     private final List<DeadlineSource> pending = new ArrayList<>();

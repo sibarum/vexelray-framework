@@ -2,6 +2,7 @@ package dev.vexelray.framework.core;
 
 import dev.vexelray.framework.api.RunMode;
 
+import dev.vexelray.framework.api.Stability;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +46,7 @@ import java.util.TreeSet;
  * {@code calculator-vexel-demo} does, with a zoom ladder and a shot of every rail panel — intercepts its own
  * flag before handing the rest here, and gets a clear "unknown option" if it forgets to.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public record Launch(RunMode mode, int frames, Map<String, String> overrides, List<String> rest) {
 
     /**

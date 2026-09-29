@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.core.DeadlineSource;
 import dev.vexelray.framework.core.Disposer;
 import dev.vexelray.framework.core.FrameHooks;
@@ -43,6 +44,7 @@ import sibarum.atchung.Atchung;
  * nothing is. A generated wiring calls them for a {@code @Provides} method returning that type, which is the whole
  * of <i>"overriding one is a {@code @Provides} method returning that type"</i>.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class Shell {
 
     private final Launch launch;

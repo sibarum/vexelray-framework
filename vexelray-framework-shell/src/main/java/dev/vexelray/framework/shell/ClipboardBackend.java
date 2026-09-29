@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.gui.core.Gui;
 
 /**
@@ -19,6 +20,7 @@ import dev.vexelray.gui.core.Gui;
  * out of a tab does."</i> A second window that forgets is a window where copy silently does nothing — which is
  * why {@link #installOn} takes the {@code Gui} rather than being called once at startup.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public interface ClipboardBackend extends AutoCloseable {
 
     /** The framework's clipboard, on tactroller, or its absence reported. Never throws, never returns null. */

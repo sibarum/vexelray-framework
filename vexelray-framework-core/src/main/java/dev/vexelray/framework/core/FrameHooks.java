@@ -2,6 +2,7 @@ package dev.vexelray.framework.core;
 
 import dev.vexelray.framework.api.FrameStage;
 
+import dev.vexelray.framework.api.Stability;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,6 +33,7 @@ import java.util.List;
  * {@code docs/architecture.md}; a placed component's work happens on {@link Lanes}, and what reaches a frame
  * from it is drained at {@code FrameStage.APP} rather than run here.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public final class FrameHooks {
 
     private final List<Entry> pending = new ArrayList<>();

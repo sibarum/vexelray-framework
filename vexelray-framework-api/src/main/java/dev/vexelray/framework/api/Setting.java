@@ -45,6 +45,7 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.CLASS)
+@Stability(Stability.Level.EXPERIMENTAL)
 public @interface Setting {
 
     /** The key, as it appears in the settings file and as {@code --key=} / {@code -Dkey=} accept it. */

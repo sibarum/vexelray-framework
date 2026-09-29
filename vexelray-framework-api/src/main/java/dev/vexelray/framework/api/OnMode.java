@@ -25,6 +25,7 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.CLASS)
+@Stability(Stability.Level.EXPERIMENTAL)
 public @interface OnMode {
 
     /** The modes this exists in. Empty means every mode, which is what leaving the annotation off means too. */

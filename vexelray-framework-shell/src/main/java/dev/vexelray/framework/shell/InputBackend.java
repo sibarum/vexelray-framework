@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.WindowInput;
 
@@ -19,6 +20,7 @@ import dev.vexelray.gui.core.app.WindowInput;
  * backend is always there to be had, reports {@link #present()} false when there is nothing underneath it, and
  * every method is a no-op in that state. No caller needs a null check, and CI keeps rendering.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public interface InputBackend extends AutoCloseable {
 
     /** The framework's backend, on tactroller, or its absence reported. Never throws, never returns null. */

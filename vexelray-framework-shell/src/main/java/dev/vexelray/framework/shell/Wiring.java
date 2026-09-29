@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.core.Phase;
 
 /**
@@ -37,6 +38,7 @@ import dev.vexelray.framework.core.Phase;
  * it wanted. And the phase defaults survive the change unaltered, because a {@code default} method and a
  * concrete one are the same empty body: <i>most applications have nothing in most phases</i> either way.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public abstract class Wiring {
 
     /** The facts from {@code @VexelApp}, as a constant. Nothing reads the annotation at runtime. */

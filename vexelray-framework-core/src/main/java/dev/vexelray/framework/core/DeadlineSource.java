@@ -1,5 +1,7 @@
 package dev.vexelray.framework.core;
 
+import dev.vexelray.framework.api.Stability;
+
 /**
  * Something that knows when it will next need a frame.
  *
@@ -24,6 +26,7 @@ package dev.vexelray.framework.core;
  * the time. It is the hardest class of bug on a render-on-demand loop to attribute after the fact. Being a
  * source rather than a term in somebody's {@code min} means a component brings its own deadline with it.
  */
+@Stability(Stability.Level.EXPERIMENTAL)
 public interface DeadlineSource {
 
     /**
