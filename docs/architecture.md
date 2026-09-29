@@ -823,6 +823,55 @@ Notably, the designer's witness is a flag and a GPU submission rather than an At
 shape is the same and the plumbing is not, which is the evidence that the mailbox half belongs with
 the component model rather than ahead of it.
 
+### A wedged component cannot freeze the window
+
+*Status: designed and ruled, not built. What exists is `Lanes` and `Placement`; supervision, the policy seam and the
+group are the work that makes the rest of this true. [v1.md](v1.md#the-liveness-guarantee) states it as the
+contract v1 freezes.*
+
+The point of running components off the main thread by default is that a component that loops forever, blocks or
+deadlocks takes only its own lane with it. The window keeps painting and taking input, the user can always close
+the application, and the application can end itself. Four layers, and each catches what the one above cannot:
+
+1. **Isolation.** Components without a `lane` share one default lane that is not the main thread; a component that
+   names one runs there. The main thread is never a lane and never waits on one, which is why main-thread code may
+   send only on channels that coalesce, drop or fail: a blocking send to a wedged lane's full mailbox is exactly how
+   a window freezes (the upstream-topics entry in TODO is a real instance).
+2. **Supervision.** The default lane is watched always on, as `Stalls` watches the main thread, and a lane that stops
+   draining is reported by name. What happens next is a **policy the application can override**, handed back to
+   `Shell` like the look and the input backend, told what happened and acting through a context object. The
+   default is not contractual: today it reports and then exits, and the target is a main-thread fallback offering
+   the user a restart. A future default may be better, and may not weaken the guarantee.
+3. **Reaching the threads.** A lane's thread runs inside its own `ThreadGroup`. Any thread the lane's code creates
+   joins that group without being told to, and `ThreadGroup.interrupt()` sweeps all of them at once, so there is no
+   tree of children to walk and no `ThreadLocal` to keep in step. Tested on the JDK this repo builds against
+   (25.0.3, HotSpot): a `new Thread` made inside the lane inherited the group, an executor created inside it ran its
+   workers in the group, and one `interrupt()` reached the lane thread, the child and the pool task, while an
+   executor created outside the lane was untouched. **Not tested: native-image.**
+4. **Ending the process.** A watchdog thread that belongs to no lane calls `Runtime.halt`, which the operating
+   system finishes whatever the threads are doing. This is the layer that does not depend on anything cooperating,
+   and it is why the other three can be best-effort. It is `halt` rather than `System.exit` because `exit` runs
+   shutdown hooks, which a wedged thread can deadlock.
+
+**What the interrupt can and cannot do.** `interrupt()` sets a flag and wakes a thread from an interruptible
+blocking call; a thread spinning in a loop that never checks it ignores it, and Java cannot safely stop such a
+thread (`Thread.stop` is gone), so it can be abandoned but not reclaimed, and a spinning one burns a core until the
+process ends. Components share no state, so an abandoned one can touch only its own. Killing the process is what
+reclaims everything, which is why relaunching it is the restart the target state uses and restarting components in
+place is left to an opt-in policy.
+
+**Where it does not reach:** threads created outside the group, such as a library's shared executor,
+`CompletableFuture`'s common pool, a `Timer`, or JDK ForkJoin workers; threads the operating system creates for a
+native callback; a thread blocked on a `synchronized` monitor or in a native call; and a wedged *main* thread,
+where the window is itself unresponsive and the way out is the watchdog ending the process once the stall
+threshold has passed, guaranteed and delayed. Work the framework itself runs (`Lanes.offload()`) is tied to the lane
+that submitted it by a cancellation token, not by thread identity, since the pool is shared.
+
+**Later, additively:** an opt-in build step that weaves an interrupt check into loop back-edges in component code,
+so that a lane is cancellable even from a loop that never asked. Native-image forbids weaving at run time and not at
+build time, so it is possible; it reaches only the classes it is applied to, and it is not needed for the guarantee,
+since the policy context takes new actions as new methods.
+
 ## The absorption boundary
 
 The decision taken for this repo is **absorb the app shell**: `GuiApp` shrinks to the render seam and

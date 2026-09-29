@@ -97,6 +97,19 @@ final class Editor {
 }
 ```
 
+## Never a frozen GUI
+
+Components run off the main thread by default, on a shared lane that is not the GUI thread. A component that
+loops forever or blocks takes only its lane with it: the window keeps painting and taking input, the user can
+always close the application, and the application can end itself, ultimately by the operating system ending its
+process. What the framework does about a stalled lane is a policy the application can override; the default
+today is to report and exit, and the target is to offer the user a restart.
+
+**This is designed and ruled, not built yet.** The lanes and mailboxes exist; supervision, the policy seam and the
+thread groups that make the sweep possible are still to do. [docs/v1.md](docs/v1.md#the-liveness-guarantee) is
+the guarantee, including what it does not promise, and
+[the design](docs/architecture.md#a-wedged-component-cannot-freeze-the-window) is the reasoning.
+
 ## What is built
 
 | Module | State |
