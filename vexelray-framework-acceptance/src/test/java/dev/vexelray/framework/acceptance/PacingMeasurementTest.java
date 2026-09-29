@@ -130,6 +130,16 @@ class PacingMeasurementTest {
         probed("1ms");
     }
 
+    /**
+     * As above, and also opting out of Windows 11's timer resolution throttling, which ignores the request from
+     * a process whose window is not visible and in front. A test window launched by a build usually is not.
+     */
+    @Test
+    @Order(5)
+    void theSameRunWithTheTimerRequestHonoured() throws Exception {
+        probed("optout");
+    }
+
     private void probed(String timer) throws Exception {
         assertTrue(project != null, "nothing was built");
         Path csv = root.resolve("probe-" + timer + ".csv");

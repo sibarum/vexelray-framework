@@ -448,13 +448,18 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       steady 6.94 ms, the first ~60 ms of a 600 ms pulse contains one gap of 20 to 30 ms at about 30 ms in and
       often a second at about 60 ms, three or four frames dropped each, every time, the third pulse included, so
       it is not first-run warm-up. It is the one place the measurements show the loop failing the goal that
-      nothing ever hiccups. **Cause unknown, with four explanations ruled out** (the timer, a JVM pause, the
-      uncommitted `GuiApp` draft, the wake path) and the shape pinned down: a 16 ms park that returns after
-      28 ms, 1 to 3 ms after the click, and a 14 to 19 ms `gpu wait fence` about 40 ms in; see the
-      architecture write-up. **Next:** kronometer's tick log against the probe's, to see whether the clock's first
-      tick is what arrives late, and a run with the GPU held busy first, to see whether B is an idle power state.
-      A per-frame assertion belongs in `vexelray-gui-harness` once it is understood, since a frame-gap ceiling is
-      the regression test for smoothness. **Not measured, and needs engine work:** input to glass. The engine
+      nothing ever hiccups. **Two stalls; one is explained.** **A (~29 ms at the click)** is the 60 Hz
+      ceiling parking the loop for 16.6 ms just as a `krono.ramp` waits for its first tick, plus **Windows 11
+      throttling the timer** for a window that is not in front, which stretches 16 ms to 28. The second half
+      is confirmed and has a cheap fix: at startup, `SetProcessInformation(ProcessPowerThrottling,
+      IGNORE_TIMER_RESOLUTION)` and `timeBeginPeriod(1)`, which takes A from ~29 ms to ~18 ms. It belongs in
+      `vexelray-os-windows`, at platform init, and is not built. (`timeBeginPeriod(1)` alone does nothing, which
+      is why it first looked ruled out.) The rest of A is the ceiling, so it goes with the `maxFrameRate`
+      decision. **B (~21 ms at 27 to 60 ms in) is not explained**: a 14 to 19 ms `gpu wait fence`, untouched by
+      the opt-out. Next is a run with the GPU held busy beforehand, and a look at the present queue after a
+      stall. Ruled out for both: a JVM pause, the uncommitted `GuiApp` draft, the wake path. A per-frame
+      assertion belongs in `vexelray-gui-harness` once it is understood, since a frame-gap ceiling is the
+      regression test for smoothness. **Not measured, and needs engine work:** input to glass. The engine
       enables only `VK_KHR_swapchain`, so `VK_KHR_present_wait` or `VK_GOOGLE_display_timing` means enabling the
       extension and its feature chain in `VulkanDevice` and adding the wait to `WindowedPresenter`, on a driver
       that may not offer either.

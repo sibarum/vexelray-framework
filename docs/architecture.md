@@ -1303,28 +1303,40 @@ loop is still what a consumer that calls `start()` gets; the framework is not on
 median of **6.94 ms**, which is 144 Hz and is steady. But **every pulse has one or two late frames, gaps of 20 to
 30 ms** (three or four frames dropped at that rate), and they are not scattered: they fall at about **30 ms and 60 ms
 after the animation starts**, and the remaining ~550 ms is clean. So the hiccup belongs to the transition from a
-parked loop into an animation, not to animating. **The cause is not known, and four explanations have been ruled
-out.** It repeats on the third pulse, so it is not first-run class loading or a cold JIT. A run with `atchung-probe`
-on (`-Dprobe=all -Dprobe.format=csv`, and `PacingMeasurementTest`'s probed runs) shows it has two shapes, both at
-fixed offsets:
+parked loop into an animation, not to animating. It repeats on the third pulse, so it is not first-run class
+loading or a cold JIT. A run with `atchung-probe` on (`-Dprobe=all -Dprobe.format=csv`, and
+`PacingMeasurementTest`'s probed runs) shows it has **two separate stalls at fixed offsets, and one is explained**:
 
-- **A, about 29 ms, 1 to 3 ms after the click's handler.** The loop parks with a 16 ms budget after the first
-  post-click frame, and `wait for events` returns after **28 ms**, not 16. Across 266 timed parks that ran to their
-  timeout, 264 were on time and these two were the only overshoots, both by about 12 ms.
-- **B, about 21 ms, 36 to 60 ms in.** The wait is instant this time; the frame then spends 14 to 19 ms in
-  `gpu wait fence`, waiting on the previous frame's GPU work.
+- **A, about 29 ms, 1 to 3 ms after the click's handler: explained, in two parts.**
+  1. **The 60 Hz ceiling, taken at the wrong moment.** The handler's `krono.ramp` posts to the timeline during
+     the frame that took the click, after that frame's CLOCK stage has passed, so nothing ticks it until the
+     *next* frame. That frame is then held back: `sleepTimeout()` says work is pending, which is a budget of zero,
+     and `maxFrameRate` replaces a zero budget with 16.6 ms, parked after the present, with no wake coming (the
+     post's wake was consumed by the frame already running). The kronometer tick log shows it: `time tick 1` on
+     the main thread happens at the start of the frame *after* the park, never before. The clock is not late; the
+     loop has not asked it yet. This is the design's documented 60 fps ceiling (`render-on-demand.md`) doing what
+     it says, at the one moment it costs an animation its start.
+  2. **Windows throttling the timer.** That 16 ms wait returned after **28 ms**. Windows 11 ignores a timer
+     resolution request from a process with no visible, foreground window unless it opts out, and a test window
+     launched by a build is such a process. Across 266 timed parks that ran to their timeout, 264 were on time and
+     these were the only overshoots, both by about 12 ms. **Confirmed by experiment:** with
+     `SetProcessInformation(ProcessPowerThrottling, IGNORE_TIMER_RESOLUTION)` plus `timeBeginPeriod(1)` at startup
+     the stall drops from ~29 ms to **~18 ms** in every pulse (18.1, 18.0, 17.7). The same run with
+     `timeBeginPeriod(1)` alone is unchanged, which is why it looked ruled out.
+- **B, about 21 ms, 27 to 60 ms in: not explained.** The wait is instant; the frame then spends 14 to 19 ms in
+  `gpu wait fence`, waiting on the previous frame's GPU work. The opt-out leaves it exactly where it was (21.5,
+  20.3, 21.2 ms).
 
-**Ruled out:** *the timer.* A standalone program shows a 16 ms `MsgWaitForMultipleObjectsEx` at the default
-resolution takes 16.3 ms (max 17.6), and the same run with `timeBeginPeriod(1)` applied at startup has the same
-stalls at the same places. *A JVM pause.* With `-Xlog:gc,safepoint`, the only pause of 3 ms or more in a whole run
+**Ruled out for both:** *a JVM pause.* With `-Xlog:gc,safepoint`, the only pause of 3 ms or more in a whole run
 is one 3 ms young collection at startup. *The uncommitted `GuiApp` re-park draft*, which was installed for the first
 measurements: the committed one reproduces it exactly. *The wake path*, which is about a millisecond.
 
-**What is left** is whatever puts the clock's first tick, and the GPU's first retirements, about 30 and 60 ms after
-the loop leaves a park. The kronometer kernel's first tick is one suspect: the wake that ends A arrives from
-`kron-kernel`, after the wait, and the two offsets look like a coarse cadence before the animation reaches frame
-rate. The GPU or DWM coming out of an idle power state is the other, and would explain B. Telling them apart wants
-kronometer's own tick log against the probe's, and a run with the GPU held busy beforehand.
+**Which leaves.** A's remaining ~18 ms is the ceiling, so it goes when the ceiling does (TODO, *`maxFrameRate`'s
+60 Hz is not in force*): the frame after a click would then start at once. B wants a run with the GPU held busy
+beforehand, to see whether it is an idle power state, and the present queue's depth looked at, since a burst after
+a stall can fill three FIFO images and then wait on vblanks. One caution on scope: the timer half is from a window
+that was not in front, and a focused window may not be throttled at all; the opt-out is cheap and harmless either
+way, but the size of A for a real user in front of the window is not measured.
 
 ## Modules
 
