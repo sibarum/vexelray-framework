@@ -21,6 +21,13 @@ final class Landmarks {
     static final String STORM_BUTTON = "button.storm";
     static final String STORM = "storm";
 
+    /**
+     * A click whose handler times the hop: from the frame that took the click, to the frame that draws what the
+     * handler wrote. The readout aggregates every click so far.
+     */
+    static final String TAP_BUTTON = "button.tap";
+    static final String TAP = "tap";
+
     /** Rewritten by the probes to make the wake; its text is the trial number and means nothing else. */
     static final String TICK = "tick";
 

@@ -83,6 +83,16 @@ class PacingMeasurementTest {
                 Thread.sleep(800);
             }
 
+            // The click path: twenty taps, each after the loop has had time to park, at a random phase of its
+            // idle refresh. Automation publishes on the bus, which is the same door Tactroller's snapshot feeds.
+            String tap = d.ref("button.tap");
+            for (int i = 1; i <= 20; i++) {
+                d.ok("click " + tap);
+                d.ok("await tap tap n=" + i + " ");
+                Thread.sleep(230 + (i * 7) % 60);
+            }
+            System.out.println("PACING " + landmarked(d, "tap"));
+
             d.ok("click " + d.ref("button.probe"));
             d.ok("await latency latency n=");
             System.out.println("PACING " + landmarked(d, "latency"));

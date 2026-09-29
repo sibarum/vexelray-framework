@@ -1289,10 +1289,24 @@ are from one machine, whose display appears to run at 144 Hz.
 reading that a wake storm would run the loop flat out. It would not. What the numbers leave open is the intent: a
 ceiling that worked would hold a 144 Hz display to 60, which is the opposite of the goal the design states.
 
-**What is still unmeasured.** The path a real click takes. Automation publishes straight onto the bus and skips
-Tactroller's 125 Hz polling thread, which adds up to 8 ms (about 4 on average) between the OS event and the
-publish. That is arithmetic on a `Thread.sleep` period and not a measurement, and it is the first suspect for any
-input latency that is felt and does not show up above.
+**The click path, and a theory that was wrong.** The first suspect for felt input latency was Tactroller's 125 Hz
+polling thread, which samples the pointer and keys with `GetCursorPos` and `GetAsyncKeyState` and would add up to
+8 ms between an OS event and its publish. **It is not in the framework's path.** Nothing calls `Tactroller.start()`:
+`TactrollerInputBridge` takes a `snapshot()` once per frame, at `FrameStage.INPUT`, and a real OS input message
+ends the parked wait. Measured through that path (twenty clicks, each after the loop had parked): the time from the
+frame that took the click to the frame that drew its result, through the handler lane and back, is a median
+**1.3 ms** (p95 2.6 ms), of which the hop to the handler is about 0.2 ms. The two-frame structure costs about a
+millisecond because a frame's CPU work is small and the loop is parked between them. (Tactroller's own 125 Hz
+loop is still what a consumer that calls `start()` gets; the framework is not one.)
+
+**Smoothness, which is the goal, and one hiccup.** Across three pulses (about 260 frames) the frame gap has a
+median of **6.94 ms**, which is 144 Hz and is steady. But **every pulse has one or two late frames, gaps of 20 to
+30 ms** (three or four frames dropped at that rate), and they are not scattered: they fall at about **30 ms and 60 ms
+after the animation starts**, and the remaining ~550 ms is clean. So the hiccup belongs to the transition from a
+parked loop into an animation, not to animating. The cause is not known. It repeats on the third pulse, so it is
+not first-run class loading or a cold JIT, and it is the same two places each time, which points at something the
+start of an animation does, whether that is the click's own state changes, the clock coming up, or a collection.
+`atchung-probe`'s FRAME lane records what each frame ran and is the way to see it.
 
 ## Modules
 

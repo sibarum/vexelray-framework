@@ -443,6 +443,17 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       runs a real `GuiApp`, so the pattern exists; the missing part is a node that declares
       `dragLocksPointer` and a synthesised press over it.
 
+- [ ] **Every animation starts with one or two frames 20 to 30 ms late.** Found by the pacing measurements
+      ([what they found](architecture.md#what-the-pacing-measurements-found)): on a loop whose frame gap is a
+      steady 6.94 ms, the first ~60 ms of a 600 ms pulse contains one gap of 20 to 30 ms at about 30 ms in and
+      often a second at about 60 ms, three or four frames dropped each, every time, the third pulse included, so
+      it is not first-run warm-up. It is the one place the measurements show the loop failing the goal that
+      nothing ever hiccups. **Cause unknown**; the next step is `atchung-probe`'s FRAME lane over a pulse, to see
+      what those frames ran. Candidates are what a click sets in motion (hover and press state, the handler hop,
+      `krono.ramp` coming up), a collection, and the park to animation transition in the pacing budget. A
+      per-frame assertion belongs in `vexelray-gui-harness` once it is understood, since a frame-gap ceiling is
+      the regression test for smoothness.
+
 - [ ] **A test for the second close gate.** `Shell.onClose` refuses a second registration because
       `GuiApp` holds one handler and the replaced one is as likely as not the one that knew about the
       unsaved documents. Only the before-`ATTACH` refusal is covered; the duplicate case needs a real
