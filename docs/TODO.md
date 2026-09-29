@@ -68,6 +68,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       threshold and where it is set, whether lanes an application names are supervised the same way (the
       mechanism is per-lane, so probably), and what a report looks like to an application that wants to react.
 
+      **Ruled: the liveness guarantee** ([v1.md](v1.md#the-liveness-guarantee)). A wedged component never
+      stops the window responding, the user always being able to close, or the application ending itself. That
+      turns three things into v1 items: main-thread code may not send on a blocking channel (a processor check,
+      and `Backpressure.BLOCK` from the main thread is the freeze the upstream-topics entry already found),
+      close has a total bound after which the process halts, and the watchdog is a thread on no lane with an
+      explicit `halt`. **To confirm:** the bound (a number and where it is set), and whether a user's close
+      halting the process after it is a default action. It is user-directed rather than autonomous, so
+      recommended yes. **Test it in W2:** a *wedge* button, then assert the window still repaints and takes
+      input, and that close exits within the bound.
+
 - [ ] **One overview of the component model.** Its requirements are in threading.md (the 32 rules),
       architecture.md (*The concurrency model*, from line 231) and four entries here, and nothing states what a
       component is owed, what exists, and what is decided. Written as the spec the declaration seam is built
