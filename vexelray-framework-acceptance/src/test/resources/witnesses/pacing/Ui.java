@@ -121,11 +121,17 @@ final class Ui {
     private void pulse() {
         long framesBefore = meter.frames();
         long start = System.nanoTime();
+        if (sibarum.probe.Probe.ON) {
+            sibarum.probe.Probe.mark(sibarum.probe.Lane.APP, "pulse.click", "#" + (pulses.get() + 1));
+        }
         Color ink = gui.theme().color(Role.INK);
         Color accent = gui.theme().color(Role.ACCENT);
         krono.ramp(PULSE, Ease.LINEAR,
                 p -> figure.textColor(Colors.OKLAB.between(ink, accent, (float) Math.sin(Math.PI * p))),
                 () -> {
+                    if (sibarum.probe.Probe.ON) {
+                        sibarum.probe.Probe.mark(sibarum.probe.Lane.APP, "pulse.done", "#" + (pulses.get() + 1));
+                    }
                     long frames = meter.frames() - framesBefore;
                     long millis = (System.nanoTime() - start) / 1_000_000L;
                     long[] gaps = meter.gapsSince(start);

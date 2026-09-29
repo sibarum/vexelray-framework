@@ -1303,10 +1303,28 @@ loop is still what a consumer that calls `start()` gets; the framework is not on
 median of **6.94 ms**, which is 144 Hz and is steady. But **every pulse has one or two late frames, gaps of 20 to
 30 ms** (three or four frames dropped at that rate), and they are not scattered: they fall at about **30 ms and 60 ms
 after the animation starts**, and the remaining ~550 ms is clean. So the hiccup belongs to the transition from a
-parked loop into an animation, not to animating. The cause is not known. It repeats on the third pulse, so it is
-not first-run class loading or a cold JIT, and it is the same two places each time, which points at something the
-start of an animation does, whether that is the click's own state changes, the clock coming up, or a collection.
-`atchung-probe`'s FRAME lane records what each frame ran and is the way to see it.
+parked loop into an animation, not to animating. **The cause is not known, and four explanations have been ruled
+out.** It repeats on the third pulse, so it is not first-run class loading or a cold JIT. A run with `atchung-probe`
+on (`-Dprobe=all -Dprobe.format=csv`, and `PacingMeasurementTest`'s probed runs) shows it has two shapes, both at
+fixed offsets:
+
+- **A, about 29 ms, 1 to 3 ms after the click's handler.** The loop parks with a 16 ms budget after the first
+  post-click frame, and `wait for events` returns after **28 ms**, not 16. Across 266 timed parks that ran to their
+  timeout, 264 were on time and these two were the only overshoots, both by about 12 ms.
+- **B, about 21 ms, 36 to 60 ms in.** The wait is instant this time; the frame then spends 14 to 19 ms in
+  `gpu wait fence`, waiting on the previous frame's GPU work.
+
+**Ruled out:** *the timer.* A standalone program shows a 16 ms `MsgWaitForMultipleObjectsEx` at the default
+resolution takes 16.3 ms (max 17.6), and the same run with `timeBeginPeriod(1)` applied at startup has the same
+stalls at the same places. *A JVM pause.* With `-Xlog:gc,safepoint`, the only pause of 3 ms or more in a whole run
+is one 3 ms young collection at startup. *The uncommitted `GuiApp` re-park draft*, which was installed for the first
+measurements: the committed one reproduces it exactly. *The wake path*, which is about a millisecond.
+
+**What is left** is whatever puts the clock's first tick, and the GPU's first retirements, about 30 and 60 ms after
+the loop leaves a park. The kronometer kernel's first tick is one suspect: the wake that ends A arrives from
+`kron-kernel`, after the wait, and the two offsets look like a coarse cadence before the animation reaches frame
+rate. The GPU or DWM coming out of an idle power state is the other, and would explain B. Telling them apart wants
+kronometer's own tick log against the probe's, and a run with the GPU held busy beforehand.
 
 ## Modules
 

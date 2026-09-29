@@ -448,11 +448,16 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       steady 6.94 ms, the first ~60 ms of a 600 ms pulse contains one gap of 20 to 30 ms at about 30 ms in and
       often a second at about 60 ms, three or four frames dropped each, every time, the third pulse included, so
       it is not first-run warm-up. It is the one place the measurements show the loop failing the goal that
-      nothing ever hiccups. **Cause unknown**; the next step is `atchung-probe`'s FRAME lane over a pulse, to see
-      what those frames ran. Candidates are what a click sets in motion (hover and press state, the handler hop,
-      `krono.ramp` coming up), a collection, and the park to animation transition in the pacing budget. A
-      per-frame assertion belongs in `vexelray-gui-harness` once it is understood, since a frame-gap ceiling is
-      the regression test for smoothness.
+      nothing ever hiccups. **Cause unknown, with four explanations ruled out** (the timer, a JVM pause, the
+      uncommitted `GuiApp` draft, the wake path) and the shape pinned down: a 16 ms park that returns after
+      28 ms, 1 to 3 ms after the click, and a 14 to 19 ms `gpu wait fence` about 40 ms in; see the
+      architecture write-up. **Next:** kronometer's tick log against the probe's, to see whether the clock's first
+      tick is what arrives late, and a run with the GPU held busy first, to see whether B is an idle power state.
+      A per-frame assertion belongs in `vexelray-gui-harness` once it is understood, since a frame-gap ceiling is
+      the regression test for smoothness. **Not measured, and needs engine work:** input to glass. The engine
+      enables only `VK_KHR_swapchain`, so `VK_KHR_present_wait` or `VK_GOOGLE_display_timing` means enabling the
+      extension and its feature chain in `VulkanDevice` and adding the wait to `WindowedPresenter`, on a driver
+      that may not offer either.
 
 - [ ] **A test for the second close gate.** `Shell.onClose` refuses a second registration because
       `GuiApp` holds one handler and the replaced one is as likely as not the one that knew about the

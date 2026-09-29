@@ -5,6 +5,32 @@ import dev.vexelray.framework.api.BeforeFrame;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
+ * Asks Windows for a 1 ms timer resolution for the life of the process when {@code pacing.timer} is {@code 1ms},
+ * and does nothing otherwise. An experiment's switch and not a proposal: it is here to find out whether the
+ * default resolution is what makes a 16 ms timed wait return late.
+ */
+final class TimerResolution {
+
+    TimerResolution(String mode) {
+        if (!mode.equals("1ms")) {
+            return;
+        }
+        try {
+            java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
+            java.lang.foreign.SymbolLookup winmm =
+                    java.lang.foreign.SymbolLookup.libraryLookup("winmm", java.lang.foreign.Arena.global());
+            java.lang.invoke.MethodHandle begin = linker.downcallHandle(winmm.find("timeBeginPeriod").orElseThrow(),
+                    java.lang.foreign.FunctionDescriptor.of(java.lang.foreign.ValueLayout.JAVA_INT,
+                            java.lang.foreign.ValueLayout.JAVA_INT));
+            int result = (int) begin.invokeExact(1);
+            System.out.println("pacing: timeBeginPeriod(1) -> " + result);
+        } catch (Throwable t) {
+            throw new IllegalStateException("timeBeginPeriod failed", t);
+        }
+    }
+}
+
+/**
  * A frame counter and a stopwatch that the frame itself stops.
  *
  * <p>The hook runs in {@code FrameStage.APP}, once per frame, on the main thread: it counts, and if a probe has

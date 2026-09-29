@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -106,6 +107,116 @@ class PacingMeasurementTest {
             session.out().println("quit");
         }
         live = null;
+    }
+
+    /**
+     * The same pulse with {@code atchung-probe}'s correlation log on, and every row that falls inside a late gap
+     * printed, so what the loop was doing while it did not draw is on the page. The probe costs something, so the
+     * gaps here are a picture of where time goes and not a second measurement of how long they are.
+     */
+    @Test
+    @Order(3)
+    void theLateFramesAtTheStartOfAnAnimationAreLookedAtThroughTheProbe() throws Exception {
+        probed("off");
+    }
+
+    /**
+     * The same run with the process asking Windows for a 1 ms timer at startup. If the late frames that follow a
+     * 16 ms timed wait are the timer rounding it up, they go; if they stay, the timer was never the cause.
+     */
+    @Test
+    @Order(4)
+    void theSameRunWithAOneMillisecondTimer() throws Exception {
+        probed("1ms");
+    }
+
+    private void probed(String timer) throws Exception {
+        assertTrue(project != null, "nothing was built");
+        Path csv = root.resolve("probe-" + timer + ".csv");
+        try (Session session = live = launch(project, root, ARTIFACT, "probe-" + timer,
+                "-Dprobe=all", "-Dprobe.format=csv", "-Dprobe.out=" + csv, "-Dpacing.timer=" + timer,
+                // Relative, because the option's own syntax uses a colon and so does a drive letter. The JVM's
+                // working directory is the project's, so the log lands beside the tree.
+                "-Xlog:gc,safepoint:file=gc-" + timer + ".log:uptime,tags")) {
+            Driver d = session.driver();
+            d.ok("settle");
+            for (int i = 1; i <= 3; i++) {
+                Thread.sleep(1_500);
+                d.ok("click " + d.ref("button.pulse"));
+                d.ok("await pulse pulse #" + i + " ");
+            }
+            session.out().println("quit");
+        }
+        live = null;
+        Thread.sleep(500);
+
+        // Every collection and every safepoint that held the JVM for 3 ms or more. A thread coming back from a
+        // native wait cannot run Java until a safepoint in progress ends, so one of these inside a late gap is
+        // the whole explanation for it.
+        Path gc = project.dir().resolve("gc-" + timer + ".log");
+        if (Files.isRegularFile(gc)) {
+            for (String line : Files.readAllLines(gc, java.nio.charset.StandardCharsets.UTF_8)) {
+                java.util.regex.Matcher m = java.util.regex.Pattern
+                        .compile("\\[(\\d+\\.\\d+)s\\].*?(Pause[^\\n]*?(\\d+\\.\\d+)ms|Total: (\\d+) ns)").matcher(line);
+                if (m.find()) {
+                    double ms = m.group(3) != null ? Double.parseDouble(m.group(3)) : Long.parseLong(m.group(4)) / 1e6;
+                    if (ms >= 3.0) {
+                        System.out.println("PROBE jvm-pause " + ms + "ms at uptime " + m.group(1) + "s :: "
+                                + line.replaceAll("\\s+", " "));
+                    }
+                }
+            }
+        } else {
+            System.out.println("PROBE no gc.log at " + gc);
+        }
+
+        List<String[]> rows = new java.util.ArrayList<>();
+        for (String line : java.nio.file.Files.readAllLines(csv, java.nio.charset.StandardCharsets.UTF_8)) {
+            String[] f = line.split(",", 7);
+            if (f.length == 7 && f[1].matches("\\d+")) {
+                rows.add(f);
+            }
+        }
+        rows.sort(java.util.Comparator.comparingLong(r -> Long.parseLong(r[1])));
+        System.out.println("PROBE timer=" + timer + " rows " + rows.size());
+
+        int pulse = 0;
+        long windowStart = -1;
+        for (int i = 0; i < rows.size(); i++) {
+            String kind = rows.get(i)[5];
+            if (kind.equals("pulse.click")) {
+                windowStart = Long.parseLong(rows.get(i)[1]);
+                pulse++;
+                System.out.println("PROBE ---- timer=" + timer + " pulse " + pulse);
+            } else if (kind.equals("pulse.done")) {
+                windowStart = -1;
+            }
+            if (windowStart < 0 || !kind.equals("frame.present")) {
+                continue;
+            }
+            // The previous frame.present in this window, and the gap to it.
+            int previous = -1;
+            for (int j = i - 1; j >= 0; j--) {
+                if (rows.get(j)[5].equals("frame.present")) {
+                    previous = j;
+                    break;
+                }
+            }
+            if (previous < 0) {
+                continue;
+            }
+            long gapMicros = (Long.parseLong(rows.get(i)[1]) - Long.parseLong(rows.get(previous)[1])) / 1_000;
+            if (gapMicros > 12_000 && Long.parseLong(rows.get(previous)[1]) >= windowStart) {
+                System.out.println("PROBE timer=" + timer + " gap " + gapMicros + "us before " + rows.get(i)[6]
+                        + ", " + (Long.parseLong(rows.get(previous)[1]) - windowStart) / 1_000_000L
+                        + "ms into the pulse");
+                for (int k = previous; k <= i; k++) {
+                    String[] r = rows.get(k);
+                    System.out.println("PROBE   +" + (Long.parseLong(r[1]) - Long.parseLong(rows.get(previous)[1])) / 1_000
+                            + "us " + r[3] + " " + r[4] + " " + r[5] + " " + r[6]);
+                }
+            }
+        }
     }
 
     private static String landmarked(Driver d, String landmark) throws IOException {
