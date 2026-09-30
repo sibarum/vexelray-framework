@@ -257,6 +257,23 @@ class GeneratedProjectTest {
             assertTrue(driver.ok("size").contains("dpi=2"));
             driver.ok("dpi 1");
 
+            // Being driven is what makes a run loud: the mode is AUTOMATION, so DEBUG on the console and TRACE in a
+            // file, and the probe on beside it -- without anyone having asked for any of it. The file lives under
+            // the application's home, which is where this test rig moved everything else.
+            String logging = driver.ok("log");
+            assertTrue(logging.contains("mode=AUTOMATION console=DEBUG file=TRACE"), logging);
+            assertTrue(logging.contains("probe=on"), "an automation run turns the probe on: " + logging);
+            Path logs = home.resolve("logs");
+            Path logFile = logs.resolve(ARTIFACT + ".log");
+            assertTrue(Files.isRegularFile(logFile), "no log file at " + logFile + "\n" + tail(log));
+            String written = Files.readString(logFile);
+            assertTrue(written.contains("starting " + ARTIFACT + ": mode=AUTOMATION"), "no startup banner:\n" + written);
+            assertTrue(written.contains("automation socket listening on localhost:" + port), written);
+            assertTrue(written.contains("phase ATTACH"), "TRACE and DEBUG reach the file in this mode:\n" + written);
+            assertTrue(Files.exists(logs.resolve(ARTIFACT + "-probe.csv")), "the probe's trace goes beside the log");
+            // And it can be made louder, or quieter, in the middle of a run.
+            assertTrue(driver.ok("log framework.shell info").contains("loggers={framework.shell=INFO}"));
+
             out.println("quit");
         } finally {
             stop(app);

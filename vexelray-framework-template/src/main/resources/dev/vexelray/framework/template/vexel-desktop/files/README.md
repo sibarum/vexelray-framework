@@ -106,6 +106,30 @@ ottermate --window settings shot settings.png --launch ...               # anoth
 the range this application allows is clamped as its own zoom control would clamp it, and the reply says so.
 `docs/framework-notes.md` is where a picture that needs something `ottermate` cannot do belongs.
 
+## Logging
+
+The framework configures logging for you, before anything else runs, and the defaults follow what kind of run it is:
+
+| Run | Console | File |
+| --- | --- | --- |
+| a test | warnings | none |
+| from your checkout (`mvn exec:exec`) | info | `target/logs/${appName}.log`, debug |
+| driven by `ottermate` or `-Dautomation` | debug | `…/${appName}.log`, **trace**, with a probe trace beside it |
+| a native image | warnings | `~/.${appName}/logs/${appName}.log`, info |
+
+Write to it from your own code with a logger, not `System.out`:
+
+```java
+private static final Log LOG = Log.of("myapp.save");     // sibarum.probe.Log
+LOG.info("saved {} to {}", name, path);
+LOG.warn("could not save {}", path, exception);          // the exception goes last; its stack reaches the file
+```
+
+`--log=debug` (or `off`) changes the level for one launch, `-Dlog.level.myapp.save=trace` raises one logger, and
+`ottermate log` shows what is in force and where the file is (`ottermate log myapp.save trace` changes it in a
+running window). Standard output is left for a program's own output, so nothing logs there. Levels, settings and
+the rules for what belongs at which level are in `atchung/docs/logging.md`.
+
 ## The two documents
 
 `docs/framework-notes.md` and `docs/TODO.md` start empty and are meant to be filled in as you go. See the note

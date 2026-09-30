@@ -185,6 +185,13 @@
                 <artifactId>atchung-core</artifactId>
                 <version>${atchung.version}</version>
             </dependency>
+            <!-- The stack's one logger and the profiler beside it. Used from -shell and above only: -api and
+                 -core stay JDK-only, which is where the dependency edges fall. -->
+            <dependency>
+                <groupId>sibarum.atchung</groupId>
+                <artifactId>atchung-probe</artifactId>
+                <version>${atchung.version}</version>
+            </dependency>
             <dependency>
                 <groupId>sibarum.kronometer</groupId>
                 <artifactId>kronometer</artifactId>

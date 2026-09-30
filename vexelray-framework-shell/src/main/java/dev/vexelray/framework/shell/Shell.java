@@ -18,6 +18,7 @@ import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.atchung.Atchung;
+import sibarum.probe.Log;
 
 import java.time.Duration;
 
@@ -48,6 +49,8 @@ import java.time.Duration;
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class Shell {
+
+    private static final Log LOG = Log.of("framework.shell");
 
     private final Launch launch;
     private final AppInfo info;
@@ -570,6 +573,7 @@ public final class Shell {
 
     void phase(Phase phase) {
         this.phase = phase;
+        LOG.debug("phase {}", phase);
     }
 
     /**

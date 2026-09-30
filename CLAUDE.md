@@ -50,7 +50,13 @@ invented rather than needed. The load-bearing ones:
   annotation reads. Retention is `CLASS`, deliberately, and `package-info.java` in `-api` explains why
   it is neither `RUNTIME` nor `SOURCE`.
 - **No allocation in `FrameHooks.run` or `Pacing.nanosUntilNextFrame`.** These are the only framework
-  code inside the frame budget. No iterators, no boxing, no lambdas created per call.
+  code inside the frame budget. No iterators, no boxing, no lambdas created per call. **They do not log
+  either**, at any level: a disabled call is still a branch on the hot path. Use `Probe` there.
+- **Log through `sibarum.probe.Log`, and keep stdout for protocol.** No `System.err.println` for a
+  diagnostic, and no `System.out` at all except a line another program parses (`automation: localhost:<port>`).
+  `-api` and `-core` stay JDK-only, so they do not log; it starts at `-shell`. The model, the levels, the
+  mode-dependent defaults and where the file goes are in `../atchung/docs/logging.md`. The framework configures
+  it for every application (`Logs.start`); an application never calls `Logging.configure` itself.
 - **A compile error beats a startup error beats a runtime error**, in that order, always. The whole
   reason the mechanism is a processor is to move failures leftward.
 - **Follow `vexelray-gui`'s style rules** — they apply here too. No sealed `switch`, no throwing

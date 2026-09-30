@@ -2,6 +2,8 @@ package dev.vexelray.framework.shell;
 
 import sibarum.atchung.Atchung;
 import sibarum.atchung.Fatal;
+import sibarum.probe.Log;
+import sibarum.probe.Logging;
 
 /**
  * What a VexelRay application does when the bus detects a fault it cannot honestly continue past.
@@ -34,6 +36,8 @@ import sibarum.atchung.Fatal;
  */
 final class Faults {
 
+    private static final Log LOG = Log.of("framework.faults");
+
     private Faults() {
     }
 
@@ -45,8 +49,9 @@ final class Faults {
      */
     static void install(AppInfo info) {
         Atchung.onFatal(cause -> {
-            System.err.println(report(info, cause));
-            System.err.flush();
+            // ERROR, which reaches the file and flushes at once: this is the last thing the process says.
+            LOG.error(report(info, cause));
+            Logging.flush();
             // Upstream's report and upstream's exit code, called rather than restated: 70 is a literal that
             // would otherwise have to agree across two repos, and this is the one place it could drift.
             Fatal.HALT.fault(cause);

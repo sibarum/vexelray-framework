@@ -119,7 +119,7 @@ final class LaunchTest {
 
         assertEquals(3, lines.length, Launch.usage("demo", KEYS));
         assertEquals("settings: theme, zoom", lines[1]);
-        assertEquals("framework: automation, profile", lines[2]);
+        assertEquals("framework: automation, log, profile", lines[2]);
     }
 
     /** An application with no settings of its own still gets told about the reserved keys, and gets no blank
@@ -129,6 +129,6 @@ final class LaunchTest {
         String[] lines = Launch.usage("demo", Set.of()).split("\\R");
 
         assertEquals(2, lines.length, Launch.usage("demo", Set.of()));
-        assertEquals("framework: automation, profile", lines[1]);
+        assertEquals("framework: automation, log, profile", lines[1]);
     }
 }

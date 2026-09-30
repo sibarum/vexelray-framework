@@ -52,12 +52,15 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
     /**
      * Keys the framework <em>reserves</em>, and so accepts without the application declaring them.
      *
-     * <p>{@code automation} asks for the driving socket; {@code profile} asks for the frame probe. Both are off
+     * <p>{@code automation} asks for the driving socket; {@code profile} asks for the frame probe; {@code log} sets how
+     * much is logged for this launch ({@code --log=debug}, or {@code off}) and, unlike the other two, <b>is</b> honoured
+     * here: {@code -shell} reads it before anything logs, which is what makes the mode and the level right from the
+     * first record. The first two are off
      * unless asked for, and both are deliberately settings rather than modes — profiling a windowed session and
      * profiling a fixed-frame run are both meaningful, so they are not alternatives to anything.
      *
      * <p><b>Reserved is not the same as honoured, and this is the one place in the framework where that gap is
-     * accepted rather than closed.</b> Neither key is consumed by {@code -core} or {@code -shell}. The socket
+     * accepted rather than closed.</b> Neither of those two keys is consumed by {@code -core} or {@code -shell}. The socket
      * is bound by {@code vexelray-framework-automation}'s {@code Driver} — a module of its own, because a
      * listening socket linked into every native binary is the wrong trade — and the probe is still the
      * application's own until there is a {@code -diagnostics} to move it into
@@ -78,7 +81,7 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
      * question rather than a quiet launch. {@link #usage} lists these separately from the application's own
      * keys in the meantime, so that at least the two categories are not presented as one.
      */
-    public static final Set<String> FRAMEWORK_KEYS = Set.of("profile", "automation");
+    public static final Set<String> FRAMEWORK_KEYS = Set.of("profile", "automation", "log");
 
     public Launch {
         overrides = Map.copyOf(overrides);

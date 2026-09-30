@@ -4,6 +4,7 @@ import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.automation.Windows;
+import sibarum.probe.Log;
 import dev.vexelray.gui.automation.AutomationServer;
 
 /**
@@ -26,6 +27,8 @@ import dev.vexelray.gui.automation.AutomationServer;
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class Driver implements AutoCloseable {
+
+    private static final Log LOG = Log.of("framework.automation");
 
     /**
      * The setting that turns it on: {@code off} (the default), {@code on} for the default port, or a port
@@ -67,7 +70,10 @@ public final class Driver implements AutoCloseable {
             // said ok. The sampled form, because the driver answers on a thread of its own.
             AutomationServer server = AutomationServer.start(new Windows(
                     shell.app()::windows, shell.krono()::quiescentAtLastTick), port);
+            // Standard output, and not the log: this line is protocol. ottermate --launch reads the port from it,
+            // and stdout is where a program puts what it produces. The log gets the same fact in its own words.
             System.out.println("automation: localhost:" + server.port());
+            LOG.info("automation socket listening on localhost:{}", server.port());
             return new Driver(server);
         } catch (java.io.IOException | NumberFormatException e) {
             // An application that will not start because a debugging port was busy is a worse outcome than one

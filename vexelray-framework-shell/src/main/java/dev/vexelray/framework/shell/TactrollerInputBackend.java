@@ -3,6 +3,7 @@ package dev.vexelray.framework.shell;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.WindowInput;
+import sibarum.probe.Log;
 import sibarum.tactroller.api.BackendException;
 import sibarum.tactroller.api.CoordinateSpace;
 import sibarum.tactroller.api.Tactroller;
@@ -18,6 +19,8 @@ import sibarum.tactroller.atchung.TactrollerInputBridge;
  */
 final class TactrollerInputBackend implements InputBackend {
 
+    private static final Log LOG = Log.of("framework.input");
+
     private final Tactroller input;
 
     private TactrollerInputBridge bridge;
@@ -31,7 +34,7 @@ final class TactrollerInputBackend implements InputBackend {
     static InputBackend open() {
         try {
             Tactroller t = Tactroller.open();
-            System.out.println("input: " + t.backendName());
+            LOG.info("input backend: {}", t.backendName());
             return new TactrollerInputBackend(t);
         } catch (BackendException e) {
             Diagnostics.dropped("InputBackend.open", "pointer and keyboard input for this application",

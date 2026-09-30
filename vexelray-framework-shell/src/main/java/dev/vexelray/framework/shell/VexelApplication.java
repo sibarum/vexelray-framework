@@ -36,6 +36,8 @@ import java.util.function.Function;
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class VexelApplication {
 
+    private static final sibarum.probe.Log LOG = sibarum.probe.Log.of("framework.app");
+
     /**
      * The key the main window is remembered under.
      *
@@ -94,6 +96,9 @@ public final class VexelApplication {
         // this answer and why it is still a halt.
         Faults.install(info);
         Launch launch = parseOrExit(args, info);
+        // First thing after the flags are known: the mode (an automation run is the loudest) and the level
+        // come from them, and the probe decides once, at class load, from the mode.
+        Logs.start(info, launch);
 
         Shell shell = new Shell(launch, info);
         try (Disposer disposer = shell.disposer()) {
@@ -137,7 +142,9 @@ public final class VexelApplication {
     public static Shell tree(Wiring wiring, String[] args) {
         AppInfo info = wiring.info();
         Faults.install(info);
-        Shell shell = new Shell(parseOrExit(args, info), info);
+        Launch launch = parseOrExit(args, info);
+        Logs.start(info, launch);
+        Shell shell = new Shell(launch, info);
         try {
             toTree(wiring, shell, shell.disposer(), info);
             // Components run here too. A tree built headlessly is still a running application as far as its
@@ -334,7 +341,9 @@ public final class VexelApplication {
         // A fixed-frame run deliberately does none of the above: it is a script's mode, and parking to save
         // power in a run that exists to finish as fast as it can would only make it take longer.
         try {
+            LOG.info("running: {} ({})", info.name(), launch.mode());
             app.run(gui, launch.frames(), shell.hooks()::run);
+            LOG.info("stopped: {}", info.name());
         } finally {
             // The debounce has no next frame to fire on once the loop is over, so the last move of the
             // session is written here or not at all.

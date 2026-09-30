@@ -79,6 +79,12 @@
             <groupId>dev.vexelray</groupId>
             <artifactId>vexelray-diagnostics</artifactId>
         </dependency>
+        <!-- The logger every record in this module goes through, and the configuration that decides where it
+             goes. Reached through -diagnostics already; named because this module calls it directly. -->
+        <dependency>
+            <groupId>sibarum.atchung</groupId>
+            <artifactId>atchung-probe</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>dev.vexelray</groupId>

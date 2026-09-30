@@ -42,5 +42,9 @@
             <groupId>dev.vexelray</groupId>
             <artifactId>vexelray-diagnostics</artifactId>
         </dependency>
+        <dependency>
+            <groupId>sibarum.atchung</groupId>
+            <artifactId>atchung-probe</artifactId>
+        </dependency>
     </dependencies>
 </project>
