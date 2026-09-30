@@ -257,7 +257,9 @@ final class Generator {
     void generate(TypeElement app, Set<ExecutableElement> hooks) {
         // Taken by the generated code itself: a field named like a phase method's parameter or its local would
         // be shadowed by it, and the call would read the wrong thing without a word from javac.
-        fieldNames.addAll(List.of("INFO", "shell", "mode"));
+        // "info" is the one zero-argument method Wiring declares, and each part now has an accessor named for
+        // its field; the phase methods take a Shell, so a part called "model" or "gui" only overloads them.
+        fieldNames.addAll(List.of("INFO", "shell", "mode", "info"));
         List<Graph.Provider> providers = graph.providersSeen();
         for (Graph.Provider p : providers) {
             Set<RunMode> wins = EnumSet.noneOf(RunMode.class);
@@ -647,6 +649,16 @@ final class Generator {
         }
         src.append("\n    @Override\n    public ").append(Framework.APP_INFO).append(" info() {\n")
                 .append("        return INFO;\n    }\n");
+
+        // What was built, readable by whoever holds the wiring: a test, or a capture that has just called
+        // VexelApplication.tree. Package-private like the class, typed, and checked by javac -- no lookup by
+        // class, so nothing here reflects. Null until the phase that builds it has run, and in a run mode that
+        // does not build it.
+        for (Slot s : slots) {
+            src.append("\n    /** The {@code ").append(s.field).append("} this wiring built; null before its phase, or in a mode that does not build it. */\n")
+                    .append("    ").append(s.type).append(' ').append(s.field).append("() {\n")
+                    .append("        return ").append(s.field).append(";\n    }\n");
+        }
 
         for (Phase phase : Phase.values()) {
             List<Binding> here = new ArrayList<>();

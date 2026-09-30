@@ -815,6 +815,26 @@ class VexelProcessorTest {
             }
             """};
 
+
+    /**
+     * What the wiring built is readable through an accessor named for the part, so a test or a capture that holds
+     * the wiring drives the objects a user does. Null until the phase that builds it, and for a part a mode does
+     * not build.
+     */
+    @Test
+    void whatWasBuiltCanBeReadBackFromTheWiring() throws Exception {
+        Compiled compiled = build(RECORDING_APP);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+
+        assertEquals(null, run.part("model"), "nothing is built before its phase");
+        run.phase("config");
+        assertEquals("app.Model", run.part("model").getClass().getName());
+        assertEquals(null, run.part("ui"), "the Ui is built in GUI, which has not run");
+        run.phase("model");
+        run.phase("gui");
+        assertEquals("app.Ui", run.part("ui").getClass().getName());
+    }
     @Test
     void eachPartIsBuiltInThePhaseItsParametersPutItIn() throws Exception {
         Compiled compiled = build(RECORDING_APP);
@@ -1128,6 +1148,13 @@ class VexelProcessorTest {
             var method = wiring.getClass().getSuperclass().getMethod(name, shellType);
             method.invoke(wiring, shell);
             return List.copyOf(log);
+        }
+
+        /** The part the wiring's accessor of that name returns. */
+        Object part(String name) throws Exception {
+            var accessor = wiring.getClass().getDeclaredMethod(name);
+            accessor.setAccessible(true);
+            return accessor.invoke(wiring);
         }
 
         String info() throws Exception {
