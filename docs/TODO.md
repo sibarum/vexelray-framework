@@ -360,6 +360,42 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
 
+- [ ] **There is no one way to put a 3D viewport in a window, and every application re-derives one.** The
+      pieces exist and none of them is *the* pattern. `GuiApp.viewport(w, h)` hands out a render target and
+      `Node.image(target)` shows it; the engine has `RenderTechnique` and `SampledTechniqueHost`; `vexelray-gui`'s
+      `CLAUDE.md` says the application "brings the technique". What is missing is the statement of how, so each
+      application chooses again, and they have chosen differently:
+      - `vexelray-designer`'s `Viewport` uses `target.pipelineFor` and `renderInto` directly, owns its orbit
+        camera (`gui-plot`'s `Camera`), resize policy (re-mint at a 1.35x growth threshold), input (drag, wheel
+        through the bus) and axis swap, and overlays a `Sketch`.
+      - `vexelray-sim-fluid`'s `DebugView` does the same by hand for a 2D field, with a fixed square target and its
+        own storage buffer, and does not resize at all.
+      - `SdfRaymarchTechnique` and `SampledTechniqueHost` are the *named* route and cannot be used by either,
+        because neither can bind an application's storage buffer (`SdfRaymarchTechnique` builds its pipeline with no
+        descriptor layouts). So an application that wants data in the march drops below the technique seam to
+        `SdfComposer.fragmentSpirv(...)` with a hand-written `sdf(vec3)`, as `ConeField` does, and then has
+        rebuilt the host.
+
+      Found when asking how to render the 3D fluid (48^3 MLS-MPM) with the SDF technique: the answer was a
+      survey of three repos rather than a call. What each application re-solves, and so what a pattern has to
+      say once: who owns the target and its resize; how an application's data (a storage buffer, a texture, push
+      constants) reaches a technique; the orbit camera and its input, including the y-up/z-up swap; overlays and
+      depth against the rest of the GUI; and which thread and frame stage drives it (`renderInto` blocks on its
+      own fence, so it is main-thread, `FrameStage.APP`). The fluid adds a case the pattern must not rule out: the
+      data lives on a *different device* (`ParticleSimulation3` owns its own `Accelerator`), so it arrives by host
+      readback each frame until the engine can share buffers, which belongs in `vexelray`.
+
+      **What would close it:** one `Viewport3D` component, or a template in the project builder, that owns the
+      target, resize, orbit and overlay, and takes a technique that can declare the buffers it binds; plus the
+      technique seam growing that declaration. Where it lives is the open question: the lifecycle is this
+      repo's (`Shell`, frame stage, disposer), the target and camera are `vexelray-gui`'s, and the binding is
+      `vexelray`'s `RenderTechnique`. Decide which repo owns the contract before any of them is written.
+
+      **Why after v1, not before:** a component that applications opt into breaks none that compiled without it.
+      It moves to **Blocks v1** if the answer to "where does the binding declaration live" turns out to change
+      `RenderTechnique`'s signature, since that is what an application's technique implements.
+
+
 - [ ] **`-diagnostics`, and move `FpsProbe` into it.** It is `text-editor-vexel-demo`'s, about 250
       lines, and generic apart from the one thing that makes it worth having: it deliberately pokes
       each wake path — a timeline post, a node mutated off the frame thread, a handler that changes
@@ -457,9 +493,18 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       now asserts it: no frame gap over 26 ms in the first 100 ms of a pulse. (`timeBeginPeriod(1)` alone does
       nothing, which is why it first looked ruled out.) A refusal by Windows is kept in
       `TimerResolution.problem()` and reported nowhere yet, because the os module has no `Diagnostics` to say it
-      with; the shell could ask. The rest of A is the ceiling, so it goes with the `maxFrameRate` decision. **B (~21 ms at 27 to 60 ms in) is not explained**: a 14 to 19 ms `gpu wait fence`, untouched by
-      the opt-out. Next is a run with the GPU held busy beforehand, and a look at the present queue after a
-      stall. Ruled out for both: a JVM pause, the uncommitted `GuiApp` draft, the wake path. A per-frame
+      with; the shell could ask. The rest of A is the ceiling, so it goes with the `maxFrameRate` decision. **B (~21 ms at 27 to 60 ms in) is explained, and it is not the GPU**
+      ([what the stall probes found](architecture.md#what-the-stall-probes-found)): the loop runs flat out for a
+      few frames after a park, because every clock tick's wake ends the ceiling's park, and the compositor's
+      present queue only pushes back once it is 3 to 5 frames deep. The wait is that queue draining. The fix that
+      works, and needs no platform feature, is a ceiling that holds: re-park with a timed sleep (not
+      `waitEvents`, which returns at once on an unread wake message), anchored at the frame start, set to the
+      display's refresh interval. Measured with 6.944 ms, every pulse after the first runs 5.4 to 8.5 ms a frame
+      from the first frame. What remains is where the interval comes from (the framework still passes 60 Hz), and it
+      is the `maxFrameRate` entry below. (`DwmFlush` also worked and is a flag, off:
+      `-Dvexelray.present.flush=true`.) **A0, new:** in the *first* pulse only, the first tick takes
+      4 to 6 ms to reach the animation (`kron.ramp`'s first spork), which is cold code and not a thread-hop cost
+      (each baton pass is 50 to 100 us). Ruled out for both: a JVM pause, the uncommitted `GuiApp` draft, the wake path. A per-frame
       assertion belongs in `vexelray-gui-harness` once it is understood, since a frame-gap ceiling is the
       regression test for smoothness. **Not measured, and needs engine work:** input to glass. The engine
       enables only `VK_KHR_swapchain`, so `VK_KHR_present_wait` or `VK_GOOGLE_display_timing` means enabling the

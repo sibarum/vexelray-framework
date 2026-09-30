@@ -1340,6 +1340,71 @@ a stall can fill three FIFO images and then wait on vblanks. One caution on scop
 that was not in front, and a focused window may not be throttled at all; the opt-out is cheap and harmless either
 way, but the size of A for a real user in front of the window is not measured.
 
+## What the stall probes found
+
+The pacing section left stall B unexplained (a 14 to 19 ms `gpu wait fence` 27 to 60 ms into every animation).
+Once the stack had one logger, the stall was instrumented rather than guessed at, and everything below reads out of
+one probe trace (`PacingMeasurementTest`'s probed run, `-Dprobe=all`). The instruments stay in, and are off unless a
+probe is recording: `vulkan.swapchain` and `vulkan.present` log what was built at `DEBUG`; the presenter marks
+`frame.image` and `frame.latency` (submit to fence, per frame) and `dwm.start` / `dwm.presented`; kronometer's
+baton marks `gate.open` and `gate.woke`, so a hand-off between threads has a latency that can be read.
+
+**B is the present queue filling, and the GPU is not involved.** The GPU finishes every frame in 0.1 to 0.4 ms. After
+the ceiling's 16 ms park the loop produces four to six frames about 1 ms apart, all inside *one* 6.94 ms refresh
+interval (the compositor's vblank phase, from `DwmGetCompositionTimingInfo`, runs 737, 1926, 3124, 4187, 5087 us
+across five consecutive frames), and then one frame waits 14 to 20 ms on its fence, which is three refreshes: the
+queue draining. The swapchain has three images and the queue is deeper than that, so the image count does not bound
+it (two images shrink the stall to 12 ms and do not remove it). The content cost is the visible part: the clock is
+sampled at the start of each frame, so the burst advances animation time about 1 ms a frame while the display shows the
+frames 6.94 ms apart, and the next frame then jumps by the whole wait. A slow stretch and a lurch, at a fixed offset
+from the start, every time.
+
+**Why the loop runs ahead at all.** The ceiling is a timed park and any wake ends it, and the krono clock wakes on every
+tick (the pacing section's first finding). So after the first frame of an animation nothing holds the loop until the
+present queue does, and the queue starts empty. In steady state it is always full, which is why the middle of a pulse
+is clean.
+
+**Confirmed by making it stop, twice over.** Holding the queue to one frame (`DwmFlush` after each present) removes the
+burst and B with it. With the flush *and* the 60 Hz ceiling off, the frame gaps of pulses two and three are 6.1 to 7.9 ms
+from the first frame to the last, with no stall. The flush alone removes B and leaves A's park (gaps of 20 to 28 ms at the start, a little
+longer than before because the park now ends on a vblank). The ceiling off on its own was not run.
+
+**The portable fix works: make the ceiling real, and set it to the refresh interval.** The loop decides when it draws, so
+it does not need the compositor to tell it how far ahead it is; it only has to not draw more often than the display
+shows. That is what `maxFrameRate` was for, and it failed for two reasons, both now shown by experiment:
+1. *A wake ends the park, and so does the next one.* `waitEvents` is `MsgWaitForMultipleObjects`, which returns at
+   once while a wake message sits unread in the queue, and only the next frame's pump removes it. So **re-parking with
+   `waitEvents` cannot hold anything**: the first attempt (the uncommitted `GuiApp` draft) still burst, at 1.0 to
+   1.5 ms a frame. A plain timed sleep for the rest of the gap (`LockSupport.parkNanos`) does hold it. The draft also
+   cleared its flag just before parking, discarding a wake posted during the frame; it is cleared at the start of the
+   frame now.
+2. *The value.* 60 Hz is slower than this 144 Hz display, and measured from the end of a frame it stretches to frame
+   time plus the gap (8 ms, 125 fps). Anchored at the frame's start and set to 6.944 ms, pulses two and three run
+   5.4 to 8.5 ms a frame from the first frame to the last, centred on 6.6, with no burst, no 20 ms wait and no
+   ceiling park. Pulse one keeps a 13 ms first gap, which is A0 below.
+
+With that, neither `DwmFlush` nor `VK_KHR_present_wait` is needed to stop the burst. `DwmFlush` remains a flag, off, as
+the experiment that showed the burst *was* queue depth. `present_wait` is still the way to *measure* input to glass.
+
+**What is left, and is a decision.**
+- *Where the ceiling's value comes from.* The framework still passes a constant 60 Hz (`VexelApplication.MAX_FRAME_NANOS`).
+  Fixing the loop without changing the value leaves a 60 Hz cap on a 144 Hz display, so the refresh interval has to
+  come from the window or monitor. Not Windows-specific in principle; not written.
+- *Jitter.* `waitEvents` and `parkNanos` are millisecond-grained and a timed park is not locked to the vblank, so gaps
+  scatter by about 1.5 ms around the interval. Bounded, and invisible against a 20 ms lurch, but it is not vsync.
+- *Sample time at the display, not at the frame start.* Still the exact answer, and only worth building if the jitter
+  is ever seen.
+
+**A0, first pulse only.** The first tick after the first click takes 4 to 6 ms to reach the animation, and later
+pulses take 0.6 ms. The baton passes between threads cost 50 to 100 us each (`gate.open` to `gate.woke`), so it is
+not thread scheduling. The time is between the kernel waking and `kron.ramp`'s shred starting: cold code on the first
+spork. Not a steady-state cost, and worth a warm-up only if a first animation is ever measured to matter.
+
+**What this did not settle.** Whether the lurch is *visible* on the glass is inferred, not measured: DWM's own
+per-window frame counters are not available to a Vulkan swapchain (`DwmGetCompositionTimingInfo` with a window returns
+`0x88980090`; with none it gives global timing, whose frame counts only follow the application's own presents). Input
+to glass needs `VK_KHR_present_wait` or `VK_GOOGLE_display_timing`, as the TODO entry says.
+
 ## Modules
 
 ```
