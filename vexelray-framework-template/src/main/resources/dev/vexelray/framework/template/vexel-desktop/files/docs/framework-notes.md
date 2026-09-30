@@ -33,14 +33,3 @@ The markers are a filter, not decoration:
 
 *(none yet)*
 
-## One that comes with the template
-
-### FN-0 · There is no button component 🔬💡
-
-`vexelray-gui-widget` has `TextField`, `Toggle`, `Slider`, `Segment`, `Tabs`, `Rail`, `TitleBar` and a dozen
-more — and no button. `Ui.button` in this project is the hand-rolled shape the reference implementation also
-uses: a text node, made focusable, given a pointer cursor, a click handler and a hover wash. Four ordinary
-calls, none of them wrong, all of them written again in every project on this framework.
-
-Carried in the template rather than left to be rediscovered, because a finding that every project makes
-independently is the clearest possible case for a component. Delete this section once there is one.

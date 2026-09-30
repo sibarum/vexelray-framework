@@ -486,9 +486,97 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       deliberate case should stay as it is: `InputBackend.perWindow` spells both `NativeWindow` types
       out in full because *"importing either shadows the other."*
 
+### Found by Vexplore
+
+The first application built on the generated template by someone other than its authors: a file explorer
+(`../vexplore`, with [its own notes](../../vexplore/docs/framework-notes.md)). Generating it, building it,
+reaching a screenshot and driving it with `ottermate` all worked, and the layout came out close to the design on
+the first build — so what follows is friction, not failure. Ordered by how early a newcomer meets it. None
+of it would break an application compiled before it lands, which is why it is here and not above; **the first
+two are the ones a new project meets before it has written a line**, and would be the first things to do if
+onboarding is the goal.
+
+- [x] **There is no route from the README to a project.** The README says what a project looks like and never how
+      to get one. `new vexel-desktop` is in `mainframe`, whose `mainframe-dist` jar on disk fails with
+      `NoClassDefFoundError: dev/mainframe/gui/desktop/Desktop$Apps`. What worked was a short Java program
+      against `-template`'s `Catalogue.bundled()`, `Answers`, `Scaffold.of` and `Blueprint.Writing` — what
+      `-acceptance`'s `Support.generate` already does. Fix: a `main` in `-template` (or a script beside it) taking
+      `--in`, `--name`, `--group`, and a paragraph in the README. The `mainframe` route then becomes a second
+      way to run the same thing rather than the only documented one.
+      **Done:** `Generate` in `-template` (`GenerateTest`), and *Starting a project* in the README.
+
+- [x] **The template's `Model` hands every application a race.** `Model.onChange` is `state.onCommit(...)`, which
+      delivers on the committing thread *after* the compare-and-set, and the template says every handler commits from
+      a worker pool. Two handlers finishing together deliver as version 6 then 5, or concurrently, so a `Ui.show(Doc)`
+      written exactly as the template says can finish on a stale document, or run twice at once. Vexplore hit it as a
+      rail with the wrong contents and rebuilt panels that lost their landmarks. Its `Model.onChange` now takes a
+      lock and drops any document older than the last it delivered (tested with eight threads). Fix in the
+      template's `Model` at least; better an ordered variant on atchung's `State` (`onCommitLatest`), since the
+      shape is not specific to this framework. **Also in atchung:** `State.commit` counts a function that returned
+      the same value as a new version, so re-announcing an unchanged selection wakes every listener; a
+      `commitIfChanged` would remove a check every caller writes.
+      **Done:** atchung's `State` gained `onCommitLatest` and `commitIfChanged` (tested there), and the template's
+      `Model.onChange` is one line over `onCommitLatest`, with an eight-thread test in the generated `ModelTest`.
+      A generated project now needs an atchung installed with those two methods.
+
+- [x] **A `Wiring` keeps its parts private, so a capture or a test cannot reach the model.** `<App>Wiring` holds
+      each part in a private field with no accessor. To put Vexplore in a known state for a screenshot it reads
+      four system properties in `Startup`, applied after the first listing. A generated, test-visible
+      `parts()` (or `Wiring.get(Class)`), returning what the `Recipes` built, would let `Capture` and a unit test
+      drive the same objects a user does. Additive.
+      **Done:** the generated wiring has a package-private accessor per part, named for its field (`wiring.model()`, `wiring.ui()`), typed and null before its phase; `VexelApplication.tree(new XWiring(), args)` leaves the caller holding the wiring. Not `parts()` or `get(Class)`: a lookup by class would be the reflection-shaped route this repo avoids.
+
+- [ ] **`Recipes` can only say "after" by taking a parameter it does not use.** `Ui` needs the `Previewer`'s
+      listener registered before it seeds the model, and the only way to say so is `ui(..., Previewer previewer, ...)`
+      with the parameter unread. It works, and it is the right instinct that order comes from dependency — but a
+      part that must come after another for *timing* and not for *data* has no name for that. `@Provides(after = ...)`
+      would say it in the place a reader looks. Additive.
+
+- [x] **The template ships `Capture.java` and the docs retire it.** `vexelray-gui/docs/reference/automation-cli.md`
+      §2 and §7 call per-application `--capture` "correct about the chrome and silently wrong about the content"
+      and list `mainframe-template`'s copy for removal; `-template`'s `files/Capture.java` is still generated and
+      the README teaches `--capture out.png`. Vexplore has no viewport so it was right, and it was the fastest way
+      to see a layout, but `ottermate`'s `shot` (the replacement) worked immediately once used. Decide: delete
+      `Capture.java` and `--capture` from the template and teach `ottermate --launch ... shot`, or keep it and say
+      when it lies. A POSIX-style path (`/c/Users/...`, from Git Bash) passed to `--capture` also ends in
+      Maven's bare `Exit value: 1` with no message from the application.
+      **Done, 2026-09-30: deleted.** Screenshots are `ottermate`'s only, now that it can set what a picture is of
+      (`--zoom`, `--dpi`, `--size` in px or em, `--window`, and `windows` / `window` for several windows). The
+      template's README has a *Taking a screenshot* section; `GeneratedProjectTest` drives the new verbs against
+      a real window and checks the PNG is the size asked for.
+
+- [x] **The generated `.gitignore` ignores every PNG.** `*.png` is meant for captures and also hides a project's
+      `docs/` screenshots — silently, and this project began *from* a folder of them. Ignore `capture*.png` and
+      `target/` instead, or add `!docs/**/*.png`.
+      **Done:** the template ignores `capture*.png` and `target/`.
+
+- [x] **Everything the template writes is one package of package-private classes.** Right for a counter and wrong
+      for anything with a file system layer, so Vexplore's `files/` and `suggest/` are sub-packages with public
+      types, testable with no window. Worth a paragraph in the README, *How it is put together*, on where a real
+      application's non-GUI code goes and that it should be testable without a `Gui`; and possibly a second
+      template that starts there.
+      **Done (the paragraph):** in the README's *Starting a project*. A second template is still open.
+
+- [x] **Widgets that a second application wrote in an afternoon.** `Button` (with a toggle form), `Breadcrumb`,
+      `StatusBar` and `SplitPane` were added to `vexelray-gui-widget` while building Vexplore, with tests, and
+      `ListView.marked/looks`, `Table.headers` and `Table.onSort` extended existing ones; `Ui.button` and
+      `docs/framework-notes.md` FN-0 in the template describe the world before them. **Do:** delete FN-0 from the
+      template's `framework-notes.md` and replace the template's hand-rolled `Ui.button` with `Button`, so a new
+      project starts on the component. The `-template` acceptance run will show whether the template still builds.
+      **Done:** `Ui` uses `Button`; FN-0 is gone. The acceptance run builds and drives it.
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
+
+- [ ] **The layout has no wrapping row, and the palette has one accent** (`vexelray-gui-core`). Found by
+      Vexplore ([FN-5, FN-6](../../vexplore/docs/framework-notes.md)). Chips that flow onto the next line are
+      counted two to a row by hand, which is right at one zoom and wrong at another; the design wants teal for
+      *selected* and amber for *the application is speaking*, and gets the second by borrowing `Palette.action`,
+      whose documented meaning is the fill of a filled control. `Role` being an open functional interface made the
+      application-level wash colours easy; a documented pattern or a third anchor would make it a decision.
+      Also, the resize cursor (`vexelray-gui/docs/plans/todo.md` §4.2) now has two consumers, `Table`'s grip
+      and `SplitPane`'s divider, and neither can say what it is.
 
 - [x] **`Modals` never receives the application's theme** (`vexelray-gui-widget`) — **fixed upstream and
       taken here.** It built its own `new Gui()`, which defaults to `Theme.DARK`, so every dialog the
@@ -534,6 +622,14 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       not go quiet*, so a script that settles before a photograph of an animating window photographs it
       mid-change. Either the framework offers a way for an application to declare it is busy, which
       `settle` waits on, or the documentation says loudly that a photograph wants a landmark to wait on.
+
+      **A second witness, and a different cause: an application that goes quiet but is not done.** Vexplore lists a
+      folder on `Gui.offload()` and rebuilds a panel on a handler thread, so `settle` returns while the answer is
+      still on its way and a scripted click-settle-shot photographed the state *before* the click, every time. The
+      loop was quiet and the application was not. The workaround is to write one status slot last and
+      `await <landmark> <text>` on it. `Lanes` already knows how deep the offload and handler queues are, so `settle`
+      could wait for both to be empty as well; and `await` cannot wait for a landmark to *exist* without text,
+      which is the form a script wants for "the dialog appeared".
 
 - [ ] **The pointer lock is asked for on the press, not on a drag** (`vexelray-gui-core`).
       `InputDispatcher` calls `requestPointerLock(dragLocks.contains(...))` inside its `ButtonPressed`

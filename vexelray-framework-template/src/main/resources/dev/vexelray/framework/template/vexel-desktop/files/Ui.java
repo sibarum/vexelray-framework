@@ -3,8 +3,6 @@ package ${packageName};
 import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
-import dev.vexelray.gui.core.input.CursorShape;
-import dev.vexelray.gui.core.input.InteractionState;
 import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
 import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
 import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
@@ -12,6 +10,7 @@ import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.krono.Colors;
 import dev.vexelray.gui.krono.KronoGui;
+import dev.vexelray.gui.widget.Button;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.kronometer.Dur;
 import sibarum.kronometer.anim.Ease;
@@ -106,31 +105,16 @@ final class Ui {
     }
 
     /**
-     * An outline button.
+     * A button, from {@code vexelray-gui-widget}.
      *
-     * <p>There is no button component in {@code vexelray-gui-widget} yet, so this is the hand-rolled shape the
-     * reference implementation uses: a text node made focusable, given a pointer cursor, a click handler and a
-     * hover wash. Four ordinary calls rather than a widget -- and worth noting in {@code docs/framework-notes.md}
-     * as an opportunity, because every project on this framework writes these four calls again.
+     * <p>The component rather than a text node with a click handler, because the handler alone leaves out the
+     * keyboard: Enter and Space press it when it has focus, and a disabled one leaves the focus order instead of
+     * merely ignoring clicks. The handler still runs on a worker, so everything it touches goes through Model.
      */
     private Node button(String landmark, String label, Runnable action) {
-        Node button = gui.text(label)
-                .font(Type.UI)
-                .textSize(Type.LABEL)
-                .textColor(gui.theme().color(Role.INK))
-                .padding(Type.TIGHT, Type.WIDE)
-                .corner(Type.CORNER)
-                .border(Type.RULE, gui.theme().color(Role.LINE))
-                .role("button");
-        gui.focusable(button, true);
-        gui.cursor(button, CursorShape.POINTER);
-        // The handler runs on a worker, not on the GUI thread. Everything it touches goes through Model.
-        gui.onClick(button, action);
-        gui.onState(button, state -> button.background(state == InteractionState.HOVER
-                ? gui.theme().color(Role.ACCENT, InteractionState.HOVER)
-                : gui.theme().color(Role.NONE)));
-        gui.landmark(landmark, button);
-        return button;
+        Node node = new Button(gui, label).onPress(action).node();
+        gui.landmark(landmark, node);
+        return node;
     }
 
     /**
@@ -143,7 +127,7 @@ final class Ui {
      *
      * <p>Started from a click handler, on a worker, through {@link KronoGui#ramp} — which routes it onto the
      * timeline and is safe from any thread. The progress lands on the timeline, once per frame; nothing here is
-     * read by the model, and the pulse is not triggered by {@link #show}, so the tree a capture photographs is at
+     * read by the model, and the pulse is not triggered by {@link #show}, so the tree a screenshot catches is at
      * rest.
      */
     private void pulse() {
