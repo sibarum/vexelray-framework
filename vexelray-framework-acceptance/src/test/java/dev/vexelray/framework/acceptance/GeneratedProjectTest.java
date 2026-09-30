@@ -229,11 +229,51 @@ class GeneratedProjectTest {
             driver.ok("shot " + shot);
             assertTrue(Files.size(shot) > 0, "the photograph is empty");
 
+            // What a photograph is OF is ottermate's to choose: the window, its size, its zoom and its density.
+            // Against a real window, because a fake one cannot say whether setBounds lands on the drawable size
+            // the picture is then taken at -- which is the whole claim of `resize`.
+            String listing = driver.ok("windows");
+            assertTrue(listing.startsWith("ok 1\n1 main "), "a one-window application lists one window: " + listing);
+            assertTrue(driver.ok("size").contains("zoom=1 dpi=1"), "the view starts unscaled");
+
+            driver.ok("resize 900x640");
+            driver.ok("settle");
+            assertTrue(driver.ok("size").startsWith("ok 900x640 "), "the window did not reach the size asked for");
+            Path sized = root.resolve("sized.png");
+            driver.ok("shot " + sized);
+            assertEquals("900x640", pngSize(sized), "the photograph is not of the window that was sized");
+
+            // Em from outside, resolved at the zoom in force: 40em at zoom 1.5 is 1.5x the pixels of 40em at 1.
+            driver.ok("zoom 1.5");
+            String emSized = driver.ok("resize 50em 30em");
+            assertTrue(emSized.matches("ok \\d+x\\d+"), "the window would not go to the em size asked for: " + emSized);
+            driver.ok("shot " + root.resolve("zoomed.png"));
+            driver.ok("await count 1");
+
+            String clamped = driver.ok("zoom 999");
+            assertTrue(clamped.contains("asked for 999"), "a zoom past the application's range must say so: " + clamped);
+            driver.ok("zoom 1");
+            driver.ok("dpi 2");
+            assertTrue(driver.ok("size").contains("dpi=2"));
+            driver.ok("dpi 1");
+
             out.println("quit");
         } finally {
             stop(app);
             app = null;
         }
+    }
+
+    /** {@code width}x{@code height} of a PNG, read from its IHDR chunk. */
+    private static String pngSize(Path png) throws IOException {
+        byte[] head = new byte[24];
+        try (java.io.InputStream in = Files.newInputStream(png)) {
+            if (in.readNBytes(head, 0, 24) < 24) {
+                throw new AssertionError(png + " is too short to be a PNG");
+            }
+        }
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.wrap(head);
+        return b.getInt(16) + "x" + b.getInt(20);
     }
 
 }

@@ -3,7 +3,7 @@ package dev.vexelray.framework.automation;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.shell.Shell;
-import dev.vexelray.gui.automation.Automation;
+import dev.vexelray.gui.automation.Windows;
 import dev.vexelray.gui.automation.AutomationServer;
 
 /**
@@ -65,8 +65,8 @@ public final class Driver implements AutoCloseable {
             // The clock goes with the Gui, so settle waits out a transition as well as the frame loop: without it,
             // a click that starts a fade and a settle straight after photographed the fade part-way through and
             // said ok. The sampled form, because the driver answers on a thread of its own.
-            AutomationServer server = AutomationServer.start(new Automation(
-                    shell.gui(), shell.app().controls(), shell.krono()::quiescentAtLastTick), port);
+            AutomationServer server = AutomationServer.start(new Windows(
+                    shell.app()::windows, shell.krono()::quiescentAtLastTick), port);
             System.out.println("automation: localhost:" + server.port());
             return new Driver(server);
         } catch (java.io.IOException | NumberFormatException e) {

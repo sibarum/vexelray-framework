@@ -27,8 +27,7 @@
 
         <!--
           Program args for exec:exec, split on whitespace by the commandlineArgs form below. Empty is the
-          interactive run; a multi-word value is several arguments rather than one, which is what lets
-          an app.args of "capture out.png" mean what it says.
+          interactive run; a multi-word value is several arguments rather than one.
         -->
         <app.args></app.args>
 

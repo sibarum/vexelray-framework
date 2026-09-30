@@ -17,7 +17,7 @@ you last left it, at ${width}x${height} the first time.
 
 ```
 mvn compile exec:exec -Dapp.args=120                      # 120 frames and quit
-mvn compile exec:exec -Dapp.args="--capture out.png"      # a PNG, with no window
+mvn compile exec:exec -Dautomation=0                        # a driving socket on a free port (see Taking a screenshot)
 mvn compile exec:exec -Dautomation=on                     # a driving socket on the default port
 mvn test                                                  # the state model and the palette
 ```
@@ -65,7 +65,7 @@ makes the constraints structural instead of remembered:
 | `CONFIG` | the settings store and the look — values, before there is a `Gui` to apply them to |
 | `MODEL` | what the application knows, before there is anything to draw it with |
 | `GUI` | the `Gui` and the clock; the theme applied and the zoom range set, before the first widget |
-| `TREE` | the widgets. Buildable with no window, which is what makes a headless capture possible |
+| `TREE` | the widgets. Buildable with no window, which is what lets a test or a tool build it with no GPU |
 | `WINDOW` | the device and the window handle. Main-thread from here on |
 | `ATTACH` | anything that needed the handle: chrome controls, the close gate, the driving socket |
 
@@ -82,6 +82,29 @@ application. A listener registered with `Model.onChange` fires on the committing
 worker; writing a node's props from there is correct and is the framework's own idiom, because a prop written
 off the GUI thread is queued and applied by the next drain. What is not allowed is the other direction:
 nothing inside the frame loop reads the model.
+
+To drive the same objects a user does from a test, hold the wiring: `VexelApplication.tree(new ${className}Wiring(), args)` builds as far as the tree with no window, and `wiring.model()` and `wiring.ui()` return what `Recipes` built.
+
+## Taking a screenshot
+
+Screenshots are `ottermate`'s, and only its: it photographs the running window on the application's own device,
+so the picture is right about content as well as chrome. There is no `--capture` flag in this project on purpose.
+
+```
+ottermate shot out.png --launch mvn compile exec:exec -Dautomation=0
+```
+
+Say what the picture is *of* with options, and `ottermate` sets it first and stops if it cannot. Everything before `--launch` is ottermate's; everything after it is the application's command line:
+
+```
+ottermate --zoom 1.5 --dpi 2 --size 1600x900 shot big.png --launch ...   # pixels
+ottermate --size 24emx16em shot smallest.png --launch ...                # em, at the current zoom and density
+ottermate --window settings shot settings.png --launch ...               # another window of this application
+```
+
+`ottermate windows` lists the windows the application has open; `ottermate help` lists every verb. A zoom outside
+the range this application allows is clamped as its own zoom control would clamp it, and the reply says so.
+`docs/framework-notes.md` is where a picture that needs something `ottermate` cannot do belongs.
 
 ## The two documents
 

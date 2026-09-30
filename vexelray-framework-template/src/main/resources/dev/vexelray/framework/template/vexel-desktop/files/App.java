@@ -4,7 +4,6 @@ import dev.vexelray.framework.api.VexelApp;
 import dev.vexelray.framework.automation.AutomationStarter;
 import dev.vexelray.framework.shell.VexelApplication;
 
-import java.io.IOException;
 
 /**
  * ${summary}
@@ -29,7 +28,6 @@ import java.io.IOException;
  * ${className}                     the window, interactively
  * ${className} &lt;frames&gt;            run a fixed number of frames and quit (a script, not a session)
  * ${className} --key=value         override a setting for this launch
- * ${className} --capture out.png   headless PNG; see {@link Capture}
  * </pre>
  *
  * <p>A misspelled flag is refused by name with the alternatives listed, rather than a stack trace before any
@@ -59,8 +57,8 @@ public final class ${className} {
      * The smallest this UI is still coherent at, in root ems — a floor, not the design size.
      *
      * <p>Named here rather than written at each use because it is read from two places that have to agree:
-     * {@link Recipes#look} declares it to the framework, and a capture of the tree at exactly the
-     * minimum is the picture that shows a panel outgrowing it.
+     * {@link Recipes#look} declares it to the framework, and a screenshot at exactly the
+     * minimum (ottermate --size 24emx16em shot) is the picture that shows a panel outgrowing it.
      */
     static final float MIN_W_EM = 24;
     static final float MIN_H_EM = 16;
@@ -68,17 +66,12 @@ public final class ${className} {
     /**
      * Entry point.
      *
-     * <p>{@code --capture} is handled before the framework sees the arguments, deliberately: {@link Capture} is
-     * an application-specific instrument with its own scenes and its own output paths, and routing it through
-     * the framework would read the scene name as something else. An application with its own capture tooling
-     * intercepts its own flag first.
+     * <p>There is no screenshot flag here on purpose. A picture of a running window, at a chosen size, zoom and
+     * density, is {@code ottermate}'s, because it photographs the application's own device and so is correct
+     * about content as well as chrome. See the README, <i>Taking a screenshot</i>.
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         String[] cleaned = java.util.Arrays.stream(args).filter(s -> !s.isBlank()).toArray(String[]::new);
-        if (cleaned.length >= 1 && cleaned[0].equals("--capture")) {
-            Capture.run(cleaned);
-            return;
-        }
         VexelApplication.run(new ${className}Wiring(), cleaned);
     }
 

@@ -67,8 +67,8 @@ final class Recipes {
      * transition the tree has — see {@code Ui.pulse}.
      *
      * <p>That last part is a claim worth keeping true as this grows: a tree that can be built without a window is
-     * a tree {@link Capture} can photograph headlessly. It is also why the initial {@code show} is here rather than
-     * later — the tree a capture gets should be the tree a user gets, already carrying the document rather than
+     * a tree a test can build and read headlessly. It is also why the initial {@code show} is here rather than
+     * later — the tree a test gets should be the tree a user gets, already carrying the document rather than
      * whatever a node was constructed with.
      *
      * <p>The title bar is the framework's. Chrome placement belongs to whoever owns the window, so that the

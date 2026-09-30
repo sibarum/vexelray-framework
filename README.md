@@ -159,6 +159,25 @@ wait, because refusing what the vocabulary already calls wrong freezes nothing.
 | `@ConditionalOnType` | contribute only if a type is on the compile classpath |
 | `@Setting` | bind one configuration value, by key |
 
+## Starting a project
+
+`vexelray-framework-template` writes a working `vexel-desktop` project. With the module built (`mvn install`,
+or `mvn -pl vexelray-framework-template package`) and nothing else:
+
+```bash
+java -cp vexelray-framework-template/target/classes dev.vexelray.framework.template.Generate \
+     --in ../ --name my-app --group dev.example
+```
+
+`--in` is the folder the project folder goes inside. Any other slot is `--<slot> value` (`--title`,
+`--packageName`, `--width`, …); `--help` lists them all. The project then builds against the installed siblings
+(see *Building*) with `cd my-app && mvn compile exec:exec`. `new vexel-desktop` in `mainframe` runs the same
+builder behind a terminal form; it is a second way in, not the only one.
+
+Non-GUI code — a file-system layer, parsing, anything with logic worth testing — goes in sub-packages of the
+generated one with public types, and should be testable without a `Gui`; the generated classes are
+package-private because a counter needs nothing more.
+
 ## Building
 
 The siblings install to the local Maven repo first, in dependency order

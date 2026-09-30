@@ -71,14 +71,19 @@ final class Model {
     }
 
     /**
-     * React to every change, on the committing thread.
+     * React to every change, in order, one at a time.
      *
-     * <p>Inline delivery, deliberately: the listener redraws what is derived from the document, and that is
-     * already off the GUI thread because handlers are. Handing it to another executor would add a hop and an
-     * ordering question for no gain.
+     * <p>{@code State.onCommit} delivers on the committing thread <em>after</em> its compare-and-set, and
+     * handlers commit from a pool -- so two finishing together reach a listener as version 6 then 5, or at the
+     * same instant, and a listener that redraws from the document would end on a stale one. {@code
+     * onCommitLatest} serialises delivery and drops a snapshot older than the last delivered, so the listener
+     * always finishes on the newest. Nothing is lost by the drop: the newer document is the whole state.
+     *
+     * <p>Still the committing thread, deliberately: the redraw is off the GUI thread because handlers are,
+     * and another executor would add a hop for no gain.
      */
     void onChange(Consumer<Doc> listener) {
-        state.onCommit(v -> listener.accept(v.value()));
+        state.onCommitLatest(v -> listener.accept(v.value()));
     }
 
     /** The version counter -- what a test or an automation driver waits on to know a change landed. */

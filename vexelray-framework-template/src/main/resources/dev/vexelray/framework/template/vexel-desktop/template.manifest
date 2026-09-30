@@ -157,7 +157,6 @@ file src/main/java/${packagePath}/Doc.java           from Doc.java
 file src/main/java/${packagePath}/Look.java          from Look.java
 file src/main/java/${packagePath}/Type.java          from Type.java
 file src/main/java/${packagePath}/Landmarks.java     from Landmarks.java
-file src/main/java/${packagePath}/Capture.java       from Capture.java
 
 file src/test/java/${packagePath}/ModelTest.java     from ModelTest.java  when tests
 file src/test/java/${packagePath}/LookTest.java      from LookTest.java   when tests

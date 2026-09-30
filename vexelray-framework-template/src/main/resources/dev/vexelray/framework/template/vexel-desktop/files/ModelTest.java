@@ -85,4 +85,46 @@ class ModelTest {
         }
         assertEquals(threads * each, model.doc().count());
     }
+
+    /**
+     * Delivery is single-file and ordered: however the commits interleave, the listener never runs twice at
+     * once and never goes backwards, so it finishes on the newest document.
+     */
+    @Test
+    void theListenerNeverOverlapsNorGoesBackwards() throws InterruptedException {
+        Model model = new Model();
+        AtomicInteger inside = new AtomicInteger();
+        AtomicInteger overlapped = new AtomicInteger();
+        AtomicInteger backwards = new AtomicInteger();
+        AtomicInteger last = new AtomicInteger();
+        model.onChange(doc -> {
+            if (inside.incrementAndGet() > 1) overlapped.incrementAndGet();
+            if (doc.count() < last.get()) backwards.incrementAndGet();
+            last.set(doc.count());
+            inside.decrementAndGet();
+        });
+        int threads = 8;
+        int each = 200;
+        CountDownLatch go = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        try (ExecutorService pool = Executors.newFixedThreadPool(threads)) {
+            for (int t = 0; t < threads; t++) {
+                pool.execute(() -> {
+                    try {
+                        go.await();
+                        for (int i = 0; i < each; i++) model.bump();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            go.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS), "the counting threads should finish");
+        }
+        assertEquals(0, overlapped.get());
+        assertEquals(0, backwards.get());
+        assertEquals(threads * each, last.get());
+    }
 }

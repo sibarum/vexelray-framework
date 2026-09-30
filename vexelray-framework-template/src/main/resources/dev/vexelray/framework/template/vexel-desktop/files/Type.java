@@ -17,7 +17,7 @@ import dev.vexelray.gui.core.layout.Length;
  * <p>The framework's text atlas is baked at build time from the fonts in {@code vexelray-text}, so face 0 and
  * face 1 are whatever it shipped -- a sans and a mono. Shadowing it with a design's own typefaces needs the
  * font files and an {@code msdf} plugin run. Worth knowing before a design review, because it is the one part
- * of a look that a capture will not match.
+ * of a look that a screenshot will not match.
  */
 final class Type {
 
