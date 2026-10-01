@@ -70,7 +70,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       is the case that made the observer more than optional: one slow component holds up every other on it.
       **What supervision does is still only report**, and that is frozen: a component's failure never stops
       the others, a stalled lane is named and not killed by the framework on its own, and richer policies are
-      additive (superseded below: the default action is now not contractual). **Open:** the stall
+      additive (superseded below: the default action is now not contractual). **Corrected 2026-10-01:**
+      *a component's failure never stops the others* is true of a failure and false of falling behind, because a
+      full FAIL mailbox halts the process on purpose ([components.md](components.md), ruling 5). **Open:** the stall
       threshold and where it is set, whether lanes an application names are supervised the same way (the
       mechanism is per-lane, so probably), and what a report looks like to an application that wants to react.
 
@@ -99,11 +101,53 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       A default of *exit* on a stall also throws away unsaved work, so the threshold has to be long and the
       policy needs a bounded chance to save first.
 
-- [ ] **One overview of the component model.** Its requirements are in threading.md (the 32 rules),
-      architecture.md (*The concurrency model*, from line 231) and four entries here, and nothing states what a
-      component is owed, what exists, and what is decided. Written as the spec the declaration seam is built
-      against, and it is where the eight rulings are recorded.
+- [ ] **The component model's nine rulings were taken on 2026-10-01, and what they ordered is not built.**
+      [components.md](components.md) records them. Open from them, in order: remove the imperative path
+      (rulings 1 and 2, with the inventory and seven-step order in that section; a component taking a
+      `Placement` is a third path that has to go too, and `superseded()` needs a home); build the mailbox dump
+      (below; ruling 5 was checked and ruled: a full FAIL mailbox halts the process, deliberately); spike the
+      tree as an optional `parent` (ruling 8, in *Spike the extension test*); then the declared graph, the
+      copier and the capture rule.
 
+
+- [ ] **A FAIL overflow halts the process, and leaves nothing to debug it with: a mailbox dump.** Ruled
+      2026-10-01 ([components.md](components.md), ruling 5): a missed edge is potential data corruption, so a full
+      FAIL mailbox ends the process, and the process writes a record of why before it does. Today `Faults` logs
+      one sentence and calls `Fatal.HALT`, so the reader has the topic name and a stack trace of the *publisher*,
+      which is the thread that is fine. The cause is on the consumer's side. **Why this blocks v1:** the halt is
+      contract, and an application nobody can diagnose is not shippable; the dump's existence and where it goes
+      are part of that contract, its format is not.
+
+      **Sketch, unbuilt.** *What it records:* the application, pid, time and mode; the overflowing mailbox (topic,
+      capacity, policy, how many it had delivered, what was queued, and the event that did not fit); every other
+      mailbox on the bus (topic, owner lane, depth against capacity, delivered, how long the oldest queued event
+      has waited); each lane's busy gauge (inside a delivery, since when, on which topic); and **every thread's
+      stack, grouped by lane**. The stack is the "why": the consumer is usually parked in the call that is
+      holding it up. *Where it goes:* the logging model's directory ([logging.md](../../atchung/docs/logging.md)),
+      as `<app>-fault-<time>.txt`, the last five kept, and the **path is the last line logged**. It may hold user
+      data (queued payloads), so it is written with the log file's permissions and nothing uploads it.
+      *How, given the constraints:*
+      - The overflow is detected on the publisher's thread **holding the mailbox's lock** (atchung says why it
+        must), so the queued references are copied there, with no application code run, and rendered
+        afterwards. `toString` on a payload is application code and may hang.
+      - Rendering and writing happen on a separate thread joined with a deadline (about 2 s), then the process
+        halts regardless. **The dump may never delay or prevent the halt**: a full disk, a hanging `toString` or
+        a locked neighbour mailbox yields a shorter dump and a note saying so, not a hang. Other mailboxes are
+        read with a try-lock, and reported as locked when they cannot be.
+      - The file is forced to disk before `halt`, which flushes nothing.
+      - Atchung owns mailboxes, so the snapshot (`MailboxOverflow` carrying one, plus a bus-wide best-effort
+        snapshot) and a writer for it live there and serve every repo; the framework adds the lane sections and
+        the thread stacks. **A cross-repo change.**
+      - **The same facility serves the other two halts**: the watchdog's `Runtime.halt` on a stalled lane and the
+        shutdown bound's. Both end the process today with no record. One writer, three triggers.
+      - *Optional, later, and mode-dependent:* a ring of the last N publishes per topic, which would show the
+        burst and not just the queue. It costs the hot path, so on in `DEV` and `AUTOMATION` and off otherwise,
+        per the logging model.
+
+      **Tested with no GPU**, in the pattern of atchung's `FailFastTest`: a stuck consumer, a tiny mailbox, an
+      injected halter; assert the file exists, names the topic, lists the queued events, shows the consumer's
+      stack frame; and that the halter runs within the deadline when `toString` hangs and when the directory is
+      unwritable. Also W2: its *wedge* button should now end in a dump that names the wedged component.
 
 - [ ] **One seam carries three of the four differentiators, and it is the one not built.** A
       `@Subscribe` that generates its `Pump` registration in `ATTACH` and its teardown in the
