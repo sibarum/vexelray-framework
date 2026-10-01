@@ -503,7 +503,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       from the first frame. The interval now comes from the window (`maxFrameRateToDisplay`);
       what remains is a per-monitor read, and the Linux and macOS sources. (`DwmFlush` also worked and is a flag, off:
       `-Dvexelray.present.flush=true`.) **A0, new:** in the *first* pulse only, the first tick takes
-      4 to 6 ms to reach the animation (`kron.ramp`'s first spork), which is cold code and not a thread-hop cost
+      4 to 6 ms to reach the animation (`kron.ramp`'s first spork), which is most likely cold code and is not a thread-hop cost
       (each baton pass is 50 to 100 us). Ruled out for both: a JVM pause, the uncommitted `GuiApp` draft, the wake path. A per-frame
       assertion belongs in `vexelray-gui-harness` once it is understood, since a frame-gap ceiling is the
       regression test for smoothness. **Not measured, and needs engine work:** input to glass. The engine
@@ -610,6 +610,30 @@ onboarding is the goal.
       project starts on the component. The `-template` acceptance run will show whether the template still builds.
       **Done:** `Ui` uses `Button`; FN-0 is gone. The acceptance run builds and drives it.
 
+**Second round (actions and modifier keys)** — [FN-12 to FN-15](../../vexplore/docs/framework-notes.md). Nothing here
+blocks v1, and one thing worked better than expected: the processor's compile errors (a record behind `@Provides`;
+`GuiApp` injected into something that is not `@MainThread`) were each right and each named the fix.
+
+- [ ] **A part that needs the window later has no direct way to say so.** A folder dialog needs the window handle,
+      which exists only from `WINDOW`, and a part taking `GuiApp` is itself `@MainThread` and pulls everything that
+      takes it into the window's phase, so a headless capture can no longer build the tree. The way through is the
+      README's clipboard shape: a tree-phase object, plus a `@MainThread @Provides AutoCloseable` that binds it to
+      the window and un-binds on close (Vexplore's `Chooser` and `chooserBinding`). It is right and roundabout for
+      something every application with a dialog needs; a provider that runs *when the window exists* and returns
+      nothing the container needs to hold would say it in one line.
+
+- [ ] **A held modifier cannot be driven from outside.** `ottermate key` is press-and-release (`vexelray-gui-automation`).
+      An application that treats Shift and Control as intent signals, which is what a keyboard-first file explorer
+      is for, can only test the behaviour at the engine and with a flag that sets the state. `keydown <KEY>` and
+      `keyup <KEY>`, released at `quit`, would let a scene hold Shift, click, and photograph what the application
+      proposed. `Gui.modifiers()` itself needed nothing.
+
+- [ ] **`await` waits on text, and a scene wants to wait on existence and on lanes.** `await <landmark> <text>` and
+      `click <landmark>` are what made Vexplore's three scenes deterministic and independent of layout, and both
+      needed the application to make each state change visible as text. `await <landmark>` alone ("it exists"), and
+      `settle` also waiting for the handler and offload lanes to drain (see the `settle` entry under **Upstream**),
+      would make that the default instead of a habit.
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
@@ -647,18 +671,28 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       rest on the loop thread, and a dialog is modal, which was enough to leave no thread able to tear them
       all down.
 
-- [ ] **`GuiApp.maxFrameRate`'s 60 Hz is not in force, and it is not clear it should be** (`vexelray-gui-core`,
-      `VexelApplication.MAX_FRAME_NANOS`). The ceiling is a timed park and any wake ends it early: a
-      component's, and also the krono clock's, which fires every tick. So nothing that wakes the loop is held
-      to it. Measured on this machine ([pacing](architecture.md#what-the-pacing-measurements-found)): an
-      ordinary 600 ms pulse runs **~143 frames a second**, and a component ticking at 100 Hz drove 104. **What
-      does throttle is the presenter**: 35 million writes in 3 s, with a wake behind each, plateau at ~145
-      frames a second, so there is no runaway (an earlier version of this entry said there would be, and was
-      wrong). **The open question is which of the two is the intent.** Enforcing the ceiling would hold a
-      144 Hz display to 60, the opposite of *animate at vsync speed*; leaving it means the constant is dead.
-      Either the ceiling goes (the presenter already paces, and is the display's own answer), or it becomes an
-      opt-in power saver below the display's rate. A Win32 wake object would make the loop able to *honour* a
-      ceiling, but that is only worth building if the answer is to keep one.
+- [ ] **The frame ceiling holds and follows the display; what is left is its input latency and its reach**
+      (`vexelray-gui-core` `GuiApp`, `VexelApplication.MAX_FRAME_NANOS`). *The entry this replaces asked whether a
+      ceiling was the intent; it is, and it is built.* The ceiling was a timed park that any wake ended, and the krono
+      clock wakes the loop every tick, so nothing was held to it: after a park the loop drew frames about 1 ms
+      apart until the present queue pushed back ([what the stall probes
+      found](architecture.md#what-the-stall-probes-found)), and an animation crawled and then lurched at its start.
+      It now sleeps out the rest of the gap after a wake (`LockSupport.parkNanos`, anchored at the frame's start), at
+      one display refresh read from the window (`maxFrameRateToDisplay`, 60 Hz where the window cannot say).
+      **Open, in order of weight:**
+      - *Input that lands in that sleep waits for it*, at most one refresh interval (6.9 ms at 144 Hz, 16.7 at 60),
+        and only when a wake and not input ended the park. A Win32 event waited on beside the message queue, so a
+        wake never leaves a message behind, would let the re-park be `waitEvents` again and restore *costs nothing
+        in input latency*. In `vexelray-os-windows`. Not measured: how often a click lands in the sleep.
+      - *The rate is the compositor's, not the window's monitor's.* Right with one display or displays of one rate; a
+        per-monitor read (`MonitorFromWindow` and the display's current mode) is exact. Linux and macOS report no
+        interval and keep 60 Hz.
+      - *Timed parks are millisecond-grained and not locked to the vblank*, so gaps scatter by about 1.5 ms around the
+        interval (5.4 to 8.5 ms at 144 Hz). Bounded and invisible beside a 20 ms lurch; it is not vsync, and
+        stamping each frame with when it will be shown is the exact answer if it is ever seen.
+      - *A test.* `PacingMeasurementTest` asserts no gap over 26 ms in the first 100 ms of a pulse. The old
+        behaviour (21 ms) passes that too, so **nothing guards the ceiling**. A ceiling near 12 ms would, and wants the
+        first pulse's cold-start gap (13 to 17 ms) excluded, or warmed.
 
 - [ ] **`settle` says `ok` for an application that never goes quiet** (`vexelray-gui-automation`, and this
       repo's `Driver` if it grows a verb). The long-running witness's metronome ticks to itself, and `settle`

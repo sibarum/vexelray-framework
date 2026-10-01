@@ -1374,7 +1374,7 @@ it does not need the compositor to tell it how far ahead it is; it only has to n
 shows. That is what `maxFrameRate` was for, and it failed for two reasons, both now shown by experiment:
 1. *A wake ends the park, and so does the next one.* `waitEvents` is `MsgWaitForMultipleObjects`, which returns at
    once while a wake message sits unread in the queue, and only the next frame's pump removes it. So **re-parking with
-   `waitEvents` cannot hold anything**: the first attempt (the uncommitted `GuiApp` draft) still burst, at 1.0 to
+   `waitEvents` cannot hold anything**: the first attempt (the `GuiApp` draft, since rewritten) still burst, at 1.0 to
    1.5 ms a frame. A plain timed sleep for the rest of the gap (`LockSupport.parkNanos`) does hold it. The draft also
    cleared its flag just before parking, discarding a wake posted during the frame; it is cleared at the start of the
    frame now.
@@ -1393,6 +1393,11 @@ the experiment that showed the burst *was* queue depth. `present_wait` is still 
   *compositor's* rate, not the window's monitor: on displays of different rates it is whichever the compositor runs at.
   A per-monitor read (`MonitorFromWindow` and the display's current mode) would be exact, and is not written. Linux and
   macOS have no implementation, so they keep the 60 Hz fallback.
+- *Input that lands in the sleep waits for it.* The re-park is a timed sleep, and a sleep is not ended by OS input as
+  `waitEvents` is. So a click during an animation can be as late as one refresh interval (6.9 ms at 144 Hz, 16.7 at 60),
+  and only when a wake and not input ended the park; a click on an idle window is unaffected. Not measured: how often one
+  lands there. A Win32 event waited on beside the queue would let the re-park be `waitEvents` again (TODO, *the frame
+  ceiling holds and follows the display*).
 - *Jitter.* `waitEvents` and `parkNanos` are millisecond-grained and a timed park is not locked to the vblank, so gaps
   scatter by about 1.5 ms around the interval. Bounded, and invisible against a 20 ms lurch, but it is not vsync.
 - *Sample time at the display, not at the frame start.* Still the exact answer, and only worth building if the jitter
@@ -1400,8 +1405,8 @@ the experiment that showed the burst *was* queue depth. `present_wait` is still 
 
 **A0, first pulse only.** The first tick after the first click takes 4 to 6 ms to reach the animation, and later
 pulses take 0.6 ms. The baton passes between threads cost 50 to 100 us each (`gate.open` to `gate.woke`), so it is
-not thread scheduling. The time is between the kernel waking and `kron.ramp`'s shred starting: cold code on the first
-spork. Not a steady-state cost, and worth a warm-up only if a first animation is ever measured to matter.
+not thread scheduling. The time is between the kernel waking and `kron.ramp`'s shred starting, in the first pulse only,
+which is most likely cold code on the first spork (not proven: no mark sits inside it). Not a steady-state cost, and worth a warm-up only if a first animation is ever measured to matter.
 
 **What this did not settle.** Whether the lurch is *visible* on the glass is inferred, not measured: DWM's own
 per-window frame counters are not available to a Vulkan swapchain (`DwmGetCompositionTimingInfo` with a window returns
