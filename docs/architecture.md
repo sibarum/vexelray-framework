@@ -1387,9 +1387,12 @@ With that, neither `DwmFlush` nor `VK_KHR_present_wait` is needed to stop the bu
 the experiment that showed the burst *was* queue depth. `present_wait` is still the way to *measure* input to glass.
 
 **What is left, and is a decision.**
-- *Where the ceiling's value comes from.* The framework still passes a constant 60 Hz (`VexelApplication.MAX_FRAME_NANOS`).
-  Fixing the loop without changing the value leaves a 60 Hz cap on a 144 Hz display, so the refresh interval has to
-  come from the window or monitor. Not Windows-specific in principle; not written.
+- *Where the ceiling's value comes from: built.* `NativeWindow.refreshIntervalNanos()` (0 where a platform cannot say),
+  implemented on Windows from the compositor's `rateRefresh`, and `GuiApp.maxFrameRateToDisplay(fallback)` makes the
+  ceiling follow it, re-read about once a second. The framework uses it, with 60 Hz as the fallback. It is the
+  *compositor's* rate, not the window's monitor: on displays of different rates it is whichever the compositor runs at.
+  A per-monitor read (`MonitorFromWindow` and the display's current mode) would be exact, and is not written. Linux and
+  macOS have no implementation, so they keep the 60 Hz fallback.
 - *Jitter.* `waitEvents` and `parkNanos` are millisecond-grained and a timed park is not locked to the vblank, so gaps
   scatter by about 1.5 ms around the interval. Bounded, and invisible against a 20 ms lurch, but it is not vsync.
 - *Sample time at the display, not at the frame start.* Still the exact answer, and only worth building if the jitter

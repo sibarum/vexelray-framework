@@ -500,8 +500,8 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       works, and needs no platform feature, is a ceiling that holds: re-park with a timed sleep (not
       `waitEvents`, which returns at once on an unread wake message), anchored at the frame start, set to the
       display's refresh interval. Measured with 6.944 ms, every pulse after the first runs 5.4 to 8.5 ms a frame
-      from the first frame. What remains is where the interval comes from (the framework still passes 60 Hz), and it
-      is the `maxFrameRate` entry below. (`DwmFlush` also worked and is a flag, off:
+      from the first frame. The interval now comes from the window (`maxFrameRateToDisplay`);
+      what remains is a per-monitor read, and the Linux and macOS sources. (`DwmFlush` also worked and is a flag, off:
       `-Dvexelray.present.flush=true`.) **A0, new:** in the *first* pulse only, the first tick takes
       4 to 6 ms to reach the animation (`kron.ramp`'s first spork), which is cold code and not a thread-hop cost
       (each baton pass is 50 to 100 us). Ruled out for both: a JVM pause, the uncommitted `GuiApp` draft, the wake path. A per-frame

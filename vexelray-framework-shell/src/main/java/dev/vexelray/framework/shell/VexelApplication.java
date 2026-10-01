@@ -50,7 +50,7 @@ public final class VexelApplication {
     /** 5 Hz floor while focused: a missed wake is late, never lost. */
     private static final long IDLE_REFRESH_NANOS = 200_000_000L;
 
-    /** 60 Hz ceiling while animating. */
+    /** The ceiling while animating, until the window says what its display runs at; and where it cannot, for good. */
     private static final long MAX_FRAME_NANOS = 16_666_666L;
 
     /** Usage error. Distinct from 1 so a script can tell "you typed it wrong" from "it went wrong". */
@@ -336,7 +336,7 @@ public final class VexelApplication {
             // Render on demand: park until something says a frame is due.
             app.pacing(shell.pacing()::nanosUntilNextFrame)
                     .idleRefresh(IDLE_REFRESH_NANOS)
-                    .maxFrameRate(MAX_FRAME_NANOS);
+                    .maxFrameRateToDisplay(MAX_FRAME_NANOS);
         }
         // A fixed-frame run deliberately does none of the above: it is a script's mode, and parking to save
         // power in a run that exists to finish as fast as it can would only make it take longer.
