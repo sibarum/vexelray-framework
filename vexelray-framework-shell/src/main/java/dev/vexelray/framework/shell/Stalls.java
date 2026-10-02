@@ -73,6 +73,6 @@ final class Stalls {
                 TimeUnit.NANOSECONDS.toMillis(nanos) + " ms on the main thread, so the window did not draw"
                         + " and took no input for that long — " + stage.whenSlow() + ". Blocking work belongs"
                         + " on the offload lane (GuiApp.offload, which hands the result back here) or in a"
-                        + " component of its own (Shell.place)");
+                        + " component of its own (a @Component)");
     }
 }

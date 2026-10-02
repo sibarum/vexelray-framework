@@ -92,12 +92,12 @@ on it by hand. `Component`'s Javadoc (line 53) documents it, and the processor t
 deleting `Shell.place` alone leaves it open. **Ruling 1 therefore has to cover it:** an application component
 takes no `Placement` for subscribing, and the injectable-root table loses the entry or narrows it.
 
-*What `Placement` is for besides subscribing, which must still have a home:* `superseded()` (`Placement:176`),
-which a component calls to ask whether newer mail is waiting. It is real, component-facing, and not
-`@Subscribe`'s to replace. It is also the open item in the TODO (it reads the lane's shared pump, so on a shared
-lane it also sees a neighbour's mail). So the deletion does not end with `Placement` gone from components: either
-`superseded()` moves somewhere that is correct per mailbox, which fixes the open item at the same time, or it
-stays and `Placement` stays injectable for that one method. Prefer the first.
+*What `Placement` was for besides subscribing: `superseded()`, now deleted (ruled 2026-10-01).* It asked "is my
+current message obsolete?" and answered "is anything queued on this lane?", which agree only when every message
+replaces the last outright and the lane carries nothing else, and nothing said or checked either. **The framework
+does not pretend to know more than it does:** what a message means to the next one is the component's to handle
+while it drains, by draining more often and by raising `@Subscribe(capacity)`. Its one caller was the untracked
+designer (`Viewport:331`). With it gone nothing component-facing is left on `Placement`, so (c) is unblocked.
 
 *Test seams in the public surface* (a legacy-sweep entry in its own right):
 - `new Placement(name, bus, lanes)` is public so the designer's `TheLastEditIsTheOneOnScreenTest` (lines 101
@@ -118,8 +118,16 @@ stays and `Placement` stays injectable for that one method. Prefer the first.
 `Component` (18 to 20 and 52 to 55), `Subscribe` (13), `Channels` (29), `Generator` (542), and threading.md
 T1.3 and §5.3.
 
+*Progress, 2026-10-01:* **(a) done.** The residual entry point is `Placements` in `-shell` (`of(shell, lane)`
+and `mailbox(placement, topic, subscriber, capacity, policy)`), public because the generated wiring lives in the
+application's package, and said in its Javadoc to be generated code's. The generator emits it, the processor
+test's fakes and the two witness assertions follow, and `Shell.place` is now package-private, which is ruling 2.
+Unit tests pass (278); the acceptance run is the check that a generated project compiles against it.
+**Still to do:** (b) to (g) below. `Placement.subscribe`, the constructor, `start` and `onWake` stay public until
+(b) and (c), because a component taking a `Placement` and the designer's tests still call them.
+
 *Order, smallest first:* (a) move the generated call and the two witness assertions to the residual entry
-point; (b) decide `superseded()`'s home; (c) stop injecting `Placement` into components and drop the
+point; (b) delete `superseded()` (**done**); (c) stop injecting `Placement` into components and drop the
 processor's root entry; (d) make `Placement`'s constructor, `start`, `onWake` and the `subscribe` overloads
 non-public to an application; (e) port or drop the designer; (f) move `PlacementTest` and `LivenessTest`;
 (g) rewrite the prose, then flip T1.3 to held in threading.md.
@@ -152,16 +160,20 @@ compile error.
 installs `Fatal.HALT` (exit 70, no shutdown hooks, no save), from the publisher's thread, before the 10 s
 watchdog threshold could matter. On the shared default lane it is reachable from a *neighbour*: a slow component
 holds the lane and a fast one's mailbox on it overflows. Ruled: **it should fail and it should halt**, because a
-single missed message is potential data corruption and must never happen silently, and it is not overridable by
-a lane policy (the alternative, routing overflow to `LivenessPolicy`, would make losing an edge a policy choice).
-So the sentence in TODO.md, *"a component's failure never stops the others"*, is corrected: **a component that
+single missed message is potential data corruption and must never happen silently. A developer who knows a channel can lose a message
+says so per mailbox, with `overflow = DROP_OLDEST`, `DROP_NEWEST` or `COALESCE_LATEST`. So the sentence in
+TODO.md, *"a component's failure never stops the others"*, is corrected: **a component that
 cannot keep up with an edge channel ends the application.** What stays true is that a wedged component never
 freezes the window, since this is a halt and not a hang. The default lane's cost is stated as exactly this.
 
-**What a halt owes the person debugging it: a mailbox dump.** A halt that says only *a mailbox overflowed* sends
-the reader to guess. The process writes a record of what it was doing, in the spirit of a heap dump, before it
-ends. Designed in [the TODO entry](TODO.md); the contract is that **a FAIL overflow always leaves a dump and
-the path of it is the last line logged**, and the format is a diagnostic and not frozen.
+**Scope, decided 2026-10-01: nothing more is built for this.** Two things are wanted and both exist. *It crashes
+when a mailbox overflows*: a full FAIL mailbox halts the process (above). *Depth can be increased*:
+`@Subscribe(capacity = ...)` sets it per mailbox, and the generator passes it through. A mailbox dump and a
+per-mailbox overflow handler were designed and **dropped as more engineering than this is worth**; the dump is
+kept as a post-v1 TODO entry because it is additive and its format would not be frozen, and the handler is not
+kept, since a developer who can tolerate loss already has `DROP_OLDEST`, `DROP_NEWEST` and `COALESCE_LATEST` on
+the same attribute. The advice that survives is the cheap half: a sample belongs on `COALESCE_LATEST` (T4.1),
+and a bound that is simply too small should be raised.
 
 ### 6. Supervision
 

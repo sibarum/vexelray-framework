@@ -78,7 +78,7 @@ class LongRunWitnessTest {
         project = generate(root, ARTIFACT, "/witnesses/longrun", OVERLAY);
         build(project, root.resolve("build.log"));
         String generated = Files.readString(project.wiring());
-        assertTrue(generated.contains("shell.place(\"metronome\")"), "no placement for the metronome\n" + generated);
+        assertTrue(generated.contains("Placements.of(shell, \"metronome\")"), "no placement for the metronome\n" + generated);
         assertTrue(generated.contains("shell.hooks().add(dev.vexelray.framework.api.FrameStage.APP, meter::frame)"),
                 "the frame hook on the meter was not added to the frame array\n" + generated);
     }

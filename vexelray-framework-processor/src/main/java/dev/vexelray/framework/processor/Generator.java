@@ -710,7 +710,7 @@ final class Generator {
             if (a instanceof LaneArg lane) {
                 String laneName = laneOf(lane.field());
                 src.append(indent).append("if (").append(lane.field()).append(" == null) {\n")
-                        .append(indent).append("    ").append(lane.field()).append(" = shell.place(")
+                        .append(indent).append("    ").append(lane.field()).append(" = ").append(Framework.PLACEMENTS).append(".of(shell, ")
                         .append(literal(laneName)).append(");\n")
                         .append(indent).append("}\n");
             }
@@ -750,9 +750,11 @@ final class Generator {
         for (Channels.Mailbox m : b.mailboxes) {
             String lane = lanes.get(declarations.lane(b.component));
             after.add("if (" + lane + " == null) {");
-            after.add("    " + lane + " = shell.place(" + literal(declarations.lane(b.component)) + ");");
+            after.add("    " + lane + " = " + Framework.PLACEMENTS + ".of(shell, "
+                    + literal(declarations.lane(b.component)) + ");");
             after.add("}");
-            after.add(lane + ".subscribe(sibarum.atchung.Topic.of(" + literal(m.topic()) + ", "
+            after.add(Framework.PLACEMENTS + ".mailbox(" + lane + ", sibarum.atchung.Topic.of("
+                    + literal(m.topic()) + ", "
                     + Mirrors.element(m.payload()).getQualifiedName() + ".class), " + field + "::"
                     + Mirrors.simple(m.method()) + ", " + m.capacity() + ", sibarum.atchung.Backpressure."
                     + m.overflow().name() + ");");

@@ -166,34 +166,29 @@ public final class Shell {
     }
 
     /**
-     * <b>Place a component on a thread of its own</b>, with its mailboxes and its wake — the seam the whole
-     * concurrency model is for.
+     * A component's thread, mailboxes and wake, registered for start and shutdown. <b>Not public</b>: the
+     * generated wiring reaches it through {@link Placements}, and an application does not call it, because
+     * placement is decided on the declaration ({@code @Component(lane = ...)}) where the processor can check it
+     * and never at a later moment in a method body (T1.3, and {@code docs/components.md}, ruling 2).
      *
-     * <p>Returns a {@link Placement} with nothing running on it: give it its mailboxes, and the framework
+     * <p>Returns a {@link Placement} with nothing running on it: it is given its mailboxes, and the framework
      * starts it once every component is constructed. Start order is distinct from construction order because a
      * mailbox must not pump before its publishers exist, and that is a rule the container keeps rather than one
-     * a wiring is trusted to remember:
+     * a wiring is trusted to remember.
      *
-     * {@snippet :
-     * Placement compose = shell.place("compose")
-     *         .subscribe(EDITS, this::composeNow, 1, Backpressure.COALESCE_LATEST);
-     * }
-     *
-     * <p><b>Available in every phase</b>, like the bus and the lanes it is built from. A component in
-     * {@link Phase#MODEL} — what the application knows, before there is anything to draw it with — is the case
-     * this is most obviously for, and it exists two phases before there is a {@code Gui}.
+     * <p><b>Available in every phase</b>, like the bus and the lanes it is built from, so a component in
+     * {@link Phase#MODEL}, two phases before there is a {@code Gui}, can be placed.
      *
      * <p><b>The wake comes with it, and there is nothing to call.</b> Every placement is registered as a
      * {@code WakeSource} when it starts, and wakes the loop itself after any drain that delivered something.
      * A wake an application has to remember is a window which is responsive except for the interactions that
-     * happened to arrive that way — a bug this stack has already paid for twice, the second time through a
-     * method on this very seam that was there to be called and could therefore be missed.
+     * happened to arrive that way, a bug this stack has already paid for twice.
      *
      * <p>Closed in reverse placement order at shutdown, drain then stop, before the lanes themselves go.
      *
      * @param name what the component is called — on its thread and in whatever reports on it later
      */
-    public Placement place(String name) {
+    Placement place(String name) {
         Placement placement = new Placement(name, bus, lanes);
         placements.add(placement);
         disposer.register(placement);

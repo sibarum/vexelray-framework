@@ -61,8 +61,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       which is one shared placement, so one thread. It is reserved by construction: the processor requires an
       explicit lane to be a name (`[A-Za-z][A-Za-z0-9._-]*`), which the default is not. Nothing to bound: the
       lane is one thread and each mailbox already has a capacity. Default-lane components may hold each other
-      and not a named-lane one (T2.3). **Still open:** `Placement.superseded()` reads the lane's shared pump,
-      so on a lane with several components it also sees a neighbour's mail.
+      and not a named-lane one (T2.3).
 
       **Ruled: the default lane is under supervision.** The framework watches it always on, as `Stalls` does
       the main thread, and a lane that has stopped draining is reported by name. That puts the per-lane
@@ -104,50 +103,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 - [ ] **The component model's nine rulings were taken on 2026-10-01, and what they ordered is not built.**
       [components.md](components.md) records them. Open from them, in order: remove the imperative path
       (rulings 1 and 2, with the inventory and seven-step order in that section; a component taking a
-      `Placement` is a third path that has to go too, and `superseded()` needs a home); build the mailbox dump
-      (below; ruling 5 was checked and ruled: a full FAIL mailbox halts the process, deliberately); spike the
+      `Placement` is a third path that has to go too; `superseded()` is already deleted); spike the
       tree as an optional `parent` (ruling 8, in *Spike the extension test*); then the declared graph, the
       copier and the capture rule.
 
-
-- [ ] **A FAIL overflow halts the process, and leaves nothing to debug it with: a mailbox dump.** Ruled
-      2026-10-01 ([components.md](components.md), ruling 5): a missed edge is potential data corruption, so a full
-      FAIL mailbox ends the process, and the process writes a record of why before it does. Today `Faults` logs
-      one sentence and calls `Fatal.HALT`, so the reader has the topic name and a stack trace of the *publisher*,
-      which is the thread that is fine. The cause is on the consumer's side. **Why this blocks v1:** the halt is
-      contract, and an application nobody can diagnose is not shippable; the dump's existence and where it goes
-      are part of that contract, its format is not.
-
-      **Sketch, unbuilt.** *What it records:* the application, pid, time and mode; the overflowing mailbox (topic,
-      capacity, policy, how many it had delivered, what was queued, and the event that did not fit); every other
-      mailbox on the bus (topic, owner lane, depth against capacity, delivered, how long the oldest queued event
-      has waited); each lane's busy gauge (inside a delivery, since when, on which topic); and **every thread's
-      stack, grouped by lane**. The stack is the "why": the consumer is usually parked in the call that is
-      holding it up. *Where it goes:* the logging model's directory ([logging.md](../../atchung/docs/logging.md)),
-      as `<app>-fault-<time>.txt`, the last five kept, and the **path is the last line logged**. It may hold user
-      data (queued payloads), so it is written with the log file's permissions and nothing uploads it.
-      *How, given the constraints:*
-      - The overflow is detected on the publisher's thread **holding the mailbox's lock** (atchung says why it
-        must), so the queued references are copied there, with no application code run, and rendered
-        afterwards. `toString` on a payload is application code and may hang.
-      - Rendering and writing happen on a separate thread joined with a deadline (about 2 s), then the process
-        halts regardless. **The dump may never delay or prevent the halt**: a full disk, a hanging `toString` or
-        a locked neighbour mailbox yields a shorter dump and a note saying so, not a hang. Other mailboxes are
-        read with a try-lock, and reported as locked when they cannot be.
-      - The file is forced to disk before `halt`, which flushes nothing.
-      - Atchung owns mailboxes, so the snapshot (`MailboxOverflow` carrying one, plus a bus-wide best-effort
-        snapshot) and a writer for it live there and serve every repo; the framework adds the lane sections and
-        the thread stacks. **A cross-repo change.**
-      - **The same facility serves the other two halts**: the watchdog's `Runtime.halt` on a stalled lane and the
-        shutdown bound's. Both end the process today with no record. One writer, three triggers.
-      - *Optional, later, and mode-dependent:* a ring of the last N publishes per topic, which would show the
-        burst and not just the queue. It costs the hot path, so on in `DEV` and `AUTOMATION` and off otherwise,
-        per the logging model.
-
-      **Tested with no GPU**, in the pattern of atchung's `FailFastTest`: a stuck consumer, a tiny mailbox, an
-      injected halter; assert the file exists, names the topic, lists the queued events, shows the consumer's
-      stack frame; and that the halter runs within the deadline when `toString` hangs and when the directory is
-      unwritable. Also W2: its *wedge* button should now end in a dump that names the wedged component.
 
 - [ ] **One seam carries three of the four differentiators, and it is the one not built.** A
       `@Subscribe` that generates its `Pump` registration in `ATTACH` and its teardown in the
@@ -403,6 +362,20 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
+
+- [ ] **The full mailbox dump on a FAIL overflow, beyond the report that now exists.** A full FAIL mailbox halts
+      the process on purpose ([components.md](components.md), ruling 5). **Done 2026-10-01, in atchung:**
+      `MailboxOverflow`'s message now says who published the event that did not fit (thread name and the
+      calling frame), when, and when the consumer last took a batch (or that it never has, and for how long since
+      it subscribed), with no payload; `Faults` already writes that message to the log file and flushes before
+      halting, so a framework change was not needed. The two readings it separates: drained a moment ago means the
+      mailbox is too small, not drained for seconds or ever means the consumer is stuck. **Not done, and parked
+      deliberately:** a separate file with every other mailbox's depth, each lane's busy state and every thread's
+      stack grouped by lane (the consumer's stack is the "why"). If it is built: the overflow is detected on the
+      publisher's thread holding the mailbox lock, so the writer has a deadline (about 2 s) and the process halts
+      regardless, other mailboxes are read with a try-lock, and the file is forced to disk first. The watchdog's
+      and the shutdown bound's halts leave no record either and could share it. A per-mailbox overflow handler
+      was designed and dropped; see ruling 5. **A generated project needs the new atchung installed to see it.**
 
 - [ ] **There is no one way to put a 3D viewport in a window, and every application re-derives one.** The
       pieces exist and none of them is *the* pattern. `GuiApp.viewport(w, h)` hands out a render target and

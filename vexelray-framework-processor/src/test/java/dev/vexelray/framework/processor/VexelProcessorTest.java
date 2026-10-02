@@ -90,7 +90,7 @@ class VexelProcessorTest {
                     public Shell input(InputBackend i) { LOG.add("input handed back"); return this; }
                     public Shell clipboard(ClipboardBackend c) { LOG.add("clipboard handed back"); return this; }
                     public Shell liveness(LivenessPolicy p) { LOG.add("liveness handed back"); return this; }
-                    public Placement place(String name) { LOG.add("placed " + name); return new Placement(name); }
+                    Placement place(String name) { LOG.add("placed " + name); return new Placement(name); }
                     public dev.vexelray.gui.core.Gui gui() { return new dev.vexelray.gui.core.Gui(); }
                     public dev.vexelray.gui.core.app.GuiApp app() { return new dev.vexelray.gui.core.app.GuiApp(); }
                     public dev.vexelray.gui.widget.TitleBar titleBar() { return new dev.vexelray.gui.widget.TitleBar(); }
@@ -129,6 +129,17 @@ class VexelProcessorTest {
                         Shell.LOG.add("subscribed " + topic.name() + " " + topic.payloadType().getSimpleName() + " "
                                 + capacity + " " + policy);
                         return this;
+                    }
+                }
+                """),
+            Map.entry("dev.vexelray.framework.shell.Placements", """
+                package dev.vexelray.framework.shell;
+                public final class Placements {
+                    public static Placement of(Shell shell, String lane) { return shell.place(lane); }
+                    public static <T> void mailbox(Placement placement, sibarum.atchung.Topic<T> topic,
+                                                   java.util.function.Consumer<T> on, int capacity,
+                                                   sibarum.atchung.Backpressure policy) {
+                        placement.subscribe(topic, on, capacity, policy);
                     }
                 }
                 """),

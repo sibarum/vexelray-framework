@@ -527,10 +527,12 @@ Four things the hand-written version turned up that the model above does not say
 - **Drain-then-stop is an edge rule, not a universal one.** It exists so nothing downstream loses what
   it cannot reconstruct. A coalescing mailbox holds a *sample* by construction, and the sample it holds
   at shutdown is a picture nobody will see — so this one stops.
-- **Coalescing cannot cancel work already started, and the useful move is to not *apply* it.** Nothing
-  here interrupts a compose in flight; what a component can do is ask whether it has been superseded
-  before publishing, and stay quiet if it has. That makes *superseded* a third outcome beside composed
-  and refused, and it is the difference between a stale picture flashing on screen and never appearing.
+- **Coalescing cannot cancel work already started, and the framework does not say whether a message is
+  obsolete.** Nothing here interrupts a compose in flight. This note used to describe a `superseded()` a
+  component could ask before publishing; it was deleted because it answered "is anything queued on this lane?"
+  to the question "is my message obsolete?", and the two agree only for a lane with one mailbox of full
+  replacements. What one message means to the next is the component's to settle while it drains: drain more
+  often, and raise the mailbox's `capacity`.
 
 ### Three mismatches this leaves for the processor
 

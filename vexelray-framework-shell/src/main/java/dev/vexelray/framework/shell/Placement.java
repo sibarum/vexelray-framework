@@ -31,7 +31,7 @@ import java.util.List;
  * the component-to-thread mapping as generated code with no scheduler in the binary.
  *
  * <p><b>Construction and start are separate, and the framework keeps them apart.</b> A mailbox must not pump
- * before its publishers exist, so {@link Shell#place} builds this and nothing runs on it; every placement is
+ * before its publishers exist, so the container builds this ({@code Shell#place}, through {@link Placements}) and nothing runs on it; every placement is
  * started together, after the wiring's {@code ATTACH} has returned and before the loop begins. The designer's
  * hand-written component had to say this for itself — <i>"last, so nothing the component touches is still
  * half-built when its thread starts"</i> — which is a real ordering rule enforced by where one line happened to
@@ -54,8 +54,8 @@ import java.util.List;
  * line:
  *
  * {@snippet :
- * shell.place("compose")
- *         .subscribe(EDITS, this::composeNow, 1, Backpressure.COALESCE_LATEST);
+ * Placements.of(shell, "compose")
+ *         .subscribe(EDITS, this::composeNow, 1, Backpressure.COALESCE_LATEST);   // what generated code does for @Subscribe
  * }
  */
 @Stability(Stability.Level.EXPERIMENTAL)
@@ -89,7 +89,7 @@ public final class Placement implements WakeSource, AutoCloseable {
      * precisely so it does not have to be paid here. The designer's compose component is tested this way, with
      * a real bus, a real thread and no window.
      *
-     * <p>An application does not call this. {@link Shell#place} is the same object with the container keeping
+     * <p>An application does not call this. A container-made placement is the same object with the container keeping
      * the ordering rules that make it correct — registered for shutdown, started when every publisher exists,
      * and connected to the loop's wake.
      */
@@ -162,22 +162,6 @@ public final class Placement implements WakeSource, AutoCloseable {
     }
 
     /**
-     * Whether something is already queued for this component — in a word, <em>have I been superseded?</em>
-     *
-     * <p>For the case coalescing alone cannot answer. A {@code COALESCE_LATEST} mailbox drops the message
-     * that was waiting, but it cannot cancel work already started: an expensive job that began before a newer
-     * request arrived will finish, and the useful move is then not to <em>apply</em> it. Asking this before
-     * publishing makes <i>superseded</i> a third outcome beside done and refused, and it is the difference
-     * between a stale picture flashing on screen and one that never appears.
-     *
-     * <p>Only meaningful on the component's own thread, and only between a delivery and its result. Anywhere
-     * else it is a race dressed up as a question.
-     */
-    public boolean superseded() {
-        return pump.hasPending();
-    }
-
-    /**
      * {@code WakeSource}: the framework connects this to the loop when the component starts.
      *
      * <p>Not called by an application. A placement is registered as a wake source by whoever started it, which
@@ -191,7 +175,7 @@ public final class Placement implements WakeSource, AutoCloseable {
     /**
      * Start the thread, once every publisher this component might hear from exists.
      *
-     * <p><b>An application does not call this.</b> For a placement from {@link Shell#place}, the container
+     * <p><b>An application does not call this.</b> For a container-made placement, the container
      * calls it — after the wiring's {@code ATTACH} has returned, for every component together — and calling it
      * from a wiring would start a mailbox pumping before the wiring has finished making the things that
      * publish to it. It is public for a component constructed standalone, which has no container to do it.

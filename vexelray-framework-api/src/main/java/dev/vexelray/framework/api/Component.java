@@ -15,7 +15,7 @@ import java.lang.annotation.Target;
  * anything</i>). A worker that allocates resources and takes no mailbox is not a component, and neither is
  * anything built per window.
  *
- * <p><b>Its lane is declared, because a processor reads declarations.</b> {@code shell.place("compose")} decides a
+ * <p><b>Its lane is declared, because a processor reads declarations.</b> a hand-written {@code shell.place("compose")} decided a
  * placement once and never changes it afterwards, but it is a call in a method body, and the colour rule cannot be
  * checked against a body. So the lane is on the declaration, and it is the thread the component runs on —
  * {@code vexel-component-<lane>} in a thread dump. <b>Components sharing a lane are the only ones that may hold
@@ -51,7 +51,7 @@ import java.lang.annotation.Target;
  * <p><b>Checked and generated.</b> {@code vexelray-framework-processor} holds every rule above that a
  * declaration can decide, and the generated wiring constructs each component in its inferred phase. A constructor
  * parameter of type {@code Placement} is handed the placement of the component's own lane — one per lane, from
- * {@code shell.place(lane)} — which is where it subscribes its mailboxes; the framework starts it once everything is
+ * the generated wiring — which is where it subscribes its mailboxes; the framework starts it once everything is
  * built. See {@link dev.vexelray.framework.api} for which half is built.
  */
 @Target(ElementType.TYPE)

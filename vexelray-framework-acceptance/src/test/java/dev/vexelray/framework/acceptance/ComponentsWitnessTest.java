@@ -76,8 +76,8 @@ class ComponentsWitnessTest {
         Path wiring = project.wiring();
         assertTrue(Files.isRegularFile(wiring), "the processor did not generate " + wiring);
         String generated = Files.readString(wiring);
-        assertTrue(generated.contains("shell.place(\"worker\")"), "no placement for the worker lane\n" + generated);
-        assertTrue(generated.contains("shell.place(\"<default>\")"), "no placement for the default lane\n" + generated);
+        assertTrue(generated.contains("Placements.of(shell, \"worker\")"), "no placement for the worker lane\n" + generated);
+        assertTrue(generated.contains("Placements.of(shell, \"<default>\")"), "no placement for the default lane\n" + generated);
         // Four components, three lanes: Echo and Wedger name none, so they share the one default placement.
         assertEquals(3, generated.split("private dev\\.vexelray\\.framework\\.shell\\.Placement ", -1).length - 1,
                 "four components on three lanes should be three placements\n" + generated);

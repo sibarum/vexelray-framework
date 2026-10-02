@@ -3,6 +3,7 @@ package dev.vexelray.framework.processor;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.framework.shell.AppInfo;
+import dev.vexelray.framework.shell.Placements;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.Wiring;
 import org.junit.jupiter.api.Test;
@@ -127,12 +128,13 @@ class FrameworkTableTest {
         assertEquals(Wiring.class.getName(), Framework.WIRING);
         assertEquals(dev.vexelray.framework.shell.AppInfo.class.getName(), Framework.APP_INFO);
         assertEquals(dev.vexelray.framework.shell.Placement.class.getName(), Framework.PLACEMENT);
+        assertEquals(dev.vexelray.framework.shell.Placements.class.getName(), Framework.PLACEMENTS);
         assertEquals(dev.vexelray.framework.shell.Appearance.class.getName(), Framework.APPEARANCE);
         assertEquals(dev.vexelray.framework.shell.InputBackend.class.getName(), Framework.INPUT);
         assertEquals(dev.vexelray.framework.shell.ClipboardBackend.class.getName(), Framework.CLIPBOARD);
         assertEquals(dev.vexelray.framework.shell.LivenessPolicy.class.getName(), Framework.LIVENESS);
-        assertTrue(Shell.class.getMethod("place", String.class).getReturnType()
-                .getName().equals(Framework.PLACEMENT));
+        assertEquals(Framework.PLACEMENT, Placements.class.getMethod("of", Shell.class, String.class)
+                .getReturnType().getName());
         Shell.class.getMethod("appearance", dev.vexelray.framework.shell.Appearance.class);
         for (Class<?> type : new Class<?>[]{String.class, int.class, long.class, float.class, boolean.class}) {
             Shell.class.getMethod("setting", String.class, type);

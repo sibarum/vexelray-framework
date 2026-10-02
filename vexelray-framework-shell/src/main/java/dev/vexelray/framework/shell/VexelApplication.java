@@ -329,7 +329,7 @@ public final class VexelApplication {
         // Every component's thread starts here and not in its constructor: a mailbox must not pump before its
         // publishers exist, and the wiring has only just finished making them. Each gets its wake connected on
         // the way, so a component that publishes a result nudges the loop without the wiring saying so. See
-        // Shell.place.
+        // Shell.place, which the generated wiring reaches through Placements.
         shell.startComponents();
 
         if (launch.mode() == RunMode.WINDOWED) {
