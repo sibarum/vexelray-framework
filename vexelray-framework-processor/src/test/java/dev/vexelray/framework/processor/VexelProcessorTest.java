@@ -820,9 +820,8 @@ class VexelProcessorTest {
             """
             @Component(lane = "work")
             public final class Worker {
-                public Worker(dev.vexelray.framework.shell.Placement placement, Model model) {
-                    dev.vexelray.framework.shell.Shell.LOG.add("worker on " + placement.name);
-                }
+                public Worker(Model model) { dev.vexelray.framework.shell.Shell.LOG.add("worker"); }
+                @Subscribe(topic = "jobs") public void job(String job) {}
             }
             """};
 
@@ -853,8 +852,9 @@ class VexelProcessorTest {
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
 
         // CONFIG: the look is applied the moment it exists; the model takes only a setting; the worker takes the
-        // model and its lane's placement, both CONFIG values.
-        assertEquals(List.of("look", "appearance applied", "model 4", "preview", "placed work", "worker on work"),
+        // model, a CONFIG value, and its lane is placed and its mailbox registered as it is built.
+        assertEquals(List.of("look", "appearance applied", "model 4", "preview", "worker", "placed work",
+                "subscribed jobs String 64 FAIL"),
                 run.phase("config"));
         assertEquals(List.of(), run.phase("model"));
         assertEquals(List.of("ui"), run.phase("gui"), "the Gui exists from GUI");
@@ -1061,6 +1061,16 @@ class VexelProcessorTest {
                     @Provides public Store store(dev.vexelray.framework.shell.Placement p) { return null; }
                 }
                 """), "takes a Placement, which is a component's thread and mailboxes");
+    }
+
+    @Test
+    void aComponentIsNotHandedAPlacementEither() {
+        onlyError(app("""
+                @Component(lane = "work")
+                public final class Worker {
+                    public Worker(dev.vexelray.framework.shell.Placement placement) {}
+                }
+                """), "Worker takes a Placement, which is the container's");
     }
 
     @Test

@@ -123,12 +123,13 @@ and `mailbox(placement, topic, subscriber, capacity, policy)`), public because t
 application's package, and said in its Javadoc to be generated code's. The generator emits it, the processor
 test's fakes and the two witness assertions follow, and `Shell.place` is now package-private, which is ruling 2.
 Unit tests pass (278); the acceptance run is the check that a generated project compiles against it.
-**Still to do:** (b) to (g) below. `Placement.subscribe`, the constructor, `start` and `onWake` stay public until
-(b) and (c), because a component taking a `Placement` and the designer's tests still call them.
+**(b) and (c) done.** `superseded()` is deleted, and a component constructor taking a `Placement` is now a compile
+error (`Graph.componentParameter`), the generator no longer resolves one, and the processor test's `Worker` declares
+a `@Subscribe` instead. **Still to do:** (d) to (g) below. `Placement.subscribe`, the constructor, `start` and
+`onWake` are still public, and only the designer's tests and `Placements` call them from outside the package.
 
 *Order, smallest first:* (a) move the generated call and the two witness assertions to the residual entry
-point; (b) delete `superseded()` (**done**); (c) stop injecting `Placement` into components and drop the
-processor's root entry; (d) make `Placement`'s constructor, `start`, `onWake` and the `subscribe` overloads
+point; (b) delete `superseded()` (**done**); (c) stop injecting `Placement` into components (**done**); (d) make `Placement`'s constructor, `start`, `onWake` and the `subscribe` overloads
 non-public to an application; (e) port or drop the designer; (f) move `PlacementTest` and `LivenessTest`;
 (g) rewrite the prose, then flip T1.3 to held in threading.md.
 

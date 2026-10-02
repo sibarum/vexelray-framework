@@ -212,6 +212,13 @@ final class Graph {
             return;
         }
         String name = Mirrors.simple(component);
+        TypeElement placement = Mirrors.element(parameter.asType());
+        if (placement != null && placement.getQualifiedName().contentEquals(Framework.PLACEMENT)) {
+            error(parameter, name + " takes a Placement, which is the container's. A component does not make or"
+                    + " hold its own: declare its mailboxes with @Subscribe and its lane with @Component(lane = ...),"
+                    + " and the generated wiring places it");
+            return;
+        }
         String main = whyOnMain(parameter.asType(), providers);
         if (main != null) {
             error(parameter, "T2.2: " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
@@ -256,8 +263,9 @@ final class Graph {
                     + " value holding a component would carry it to whoever asks for that value");
         }
         if (other != null && other.getQualifiedName().contentEquals(Framework.PLACEMENT)) {
-            error(parameter, where + " takes a Placement, which is a component's thread and mailboxes. Only a"
-                    + " @Component's constructor is handed one — the placement of the lane it is declared on");
+            error(parameter, where + " takes a Placement, which is a component's thread and mailboxes, and the"
+                    + " container's. Nothing is handed one: declare mailboxes with @Subscribe and the lane with"
+                    + " @Component(lane = ...)");
         }
     }
 

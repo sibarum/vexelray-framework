@@ -198,20 +198,6 @@ final class Generator {
         }
     }
 
-    private record LaneArg(String field) implements Arg {
-        public String expression() {
-            return field;
-        }
-
-        public Phase phase() {
-            return Phase.CONFIG;
-        }
-
-        public Set<RunMode> modes() {
-            return EVERY_MODE;
-        }
-    }
-
     private static final class SlotArg implements Arg {
         final Slot slot;
 
@@ -341,11 +327,6 @@ final class Generator {
         }
         TypeMirror type = parameter.asType();
         TypeElement element = Mirrors.element(type);
-        if (element != null && b.component != null
-                && element.getQualifiedName().contentEquals(Framework.PLACEMENT)) {
-            String lane = declarations.lane(b.component);
-            return new LaneArg(lanes.computeIfAbsent(lane, l -> field("lane" + capitalize(identifier(l)))));
-        }
         if (element != null) {
             Framework.Root root = Framework.root(element.getQualifiedName().toString());
             if (root != null) {
@@ -538,8 +519,8 @@ final class Generator {
 
     /**
      * Each component's {@code @Subscribe} methods become mailboxes on its lane's placement, registered where the
-     * component is constructed. The lane's placement is made here too, so a component that declares mailboxes and
-     * never asks for its {@code Placement} still gets a thread: the mailbox is the declaration that it needs one.
+     * component is constructed. The lane's placement is made here too: a mailbox is the declaration that a component needs
+     * a thread, and nothing else asks for one.
      */
     private void claimMailboxes(TypeElement app) {
         for (Binding b : bindings) {
@@ -706,15 +687,6 @@ final class Generator {
             src.append(") {\n");
             indent += "    ";
         }
-        for (Arg a : b.args) {
-            if (a instanceof LaneArg lane) {
-                String laneName = laneOf(lane.field());
-                src.append(indent).append("if (").append(lane.field()).append(" == null) {\n")
-                        .append(indent).append("    ").append(lane.field()).append(" = ").append(Framework.PLACEMENTS).append(".of(shell, ")
-                        .append(literal(laneName)).append(");\n")
-                        .append(indent).append("}\n");
-            }
-        }
         StringBuilder args = new StringBuilder();
         String sep = "";
         for (Arg a : b.args) {
@@ -769,15 +741,6 @@ final class Generator {
         if (guard) {
             src.append("        }\n");
         }
-    }
-
-    private String laneOf(String field) {
-        for (Map.Entry<String, String> e : lanes.entrySet()) {
-            if (e.getValue().equals(field)) {
-                return e.getKey();
-            }
-        }
-        return field;
     }
 
     // --- names and literals ----------------------------------------------------------------------------------
