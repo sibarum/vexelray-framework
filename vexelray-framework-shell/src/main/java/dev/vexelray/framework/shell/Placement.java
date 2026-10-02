@@ -81,19 +81,14 @@ public final class Placement implements WakeSource, AutoCloseable {
     private Thread thread;
 
     /**
-     * A placement outside a container — one component, a bus and somewhere to get a thread.
+     * A placement: one component, a bus and somewhere to get a thread.
      *
-     * <p>For a test that wants to exercise a component rather than an application, and it is public for the
-     * same reason {@code -core} is JDK-only: a seam that could only be reached through {@code VexelApplication}
-     * would make every component test an application test, which is the cost this framework charges elsewhere
-     * precisely so it does not have to be paid here. The designer's compose component is tested this way, with
-     * a real bus, a real thread and no window.
-     *
-     * <p>An application does not call this. A container-made placement is the same object with the container keeping
-     * the ordering rules that make it correct — registered for shutdown, started when every publisher exists,
-     * and connected to the loop's wake.
+     * <p><b>Package-private.</b> The container makes placements, through {@code Shell#place}, because it keeps the
+     * ordering rules that make one correct: registered for shutdown, started when every publisher exists, and
+     * connected to the loop's wake. A test in this package builds one directly to exercise a mailbox with no
+     * application around it.
      */
-    public Placement(String name, Atchung bus, Lanes lanes) {
+    Placement(String name, Atchung bus, Lanes lanes) {
         this.name = name;
         this.lanes = lanes;
         this.pump = bus.pump();
@@ -121,8 +116,8 @@ public final class Placement implements WakeSource, AutoCloseable {
      * <p>Before {@link #start} only. A mailbox added to a running component would begin delivering on a thread
      * already in a drain, which is the ordering this class exists to make structural.
      */
-    public <T> Placement subscribe(Topic<T> topic, Subscriber<T> subscriber, int capacity,
-                                   Backpressure policy) {
+    <T> Placement subscribe(Topic<T> topic, Subscriber<T> subscriber, int capacity,
+                            Backpressure policy) {
         return subscribe(topic, subscriber, capacity, policy, null);
     }
 
@@ -134,8 +129,8 @@ public final class Placement implements WakeSource, AutoCloseable {
      * <p>Read {@code Fold} before reaching for this. It carries a condition on the consumer that makes folding
      * lossless, and a channel that does not meet it must not fold.
      */
-    public <T> Placement subscribe(Topic<T> topic, Subscriber<T> subscriber, int capacity,
-                                   Backpressure policy, Fold<T> fold) {
+    <T> Placement subscribe(Topic<T> topic, Subscriber<T> subscriber, int capacity,
+                            Backpressure policy, Fold<T> fold) {
         if (running) {
             throw new IllegalStateException(
                     "component " + name + " is already running; a mailbox is added before it starts, not after");
@@ -178,11 +173,11 @@ public final class Placement implements WakeSource, AutoCloseable {
      * <p><b>An application does not call this.</b> For a container-made placement, the container
      * calls it — after the wiring's {@code ATTACH} has returned, for every component together — and calling it
      * from a wiring would start a mailbox pumping before the wiring has finished making the things that
-     * publish to it. It is public for a component constructed standalone, which has no container to do it.
+     * publish to it. Package-private for that reason: only the container starts one.
      *
-     * <p>Idempotent, and returns {@code this} so a standalone component reads as one expression.
+     * <p>Idempotent, and returns {@code this}.
      */
-    public Placement start() {
+    Placement start() {
         if (running) {
             return this;
         }

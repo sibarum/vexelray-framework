@@ -125,12 +125,13 @@ test's fakes and the two witness assertions follow, and `Shell.place` is now pac
 Unit tests pass (278); the acceptance run is the check that a generated project compiles against it.
 **(b) and (c) done.** `superseded()` is deleted, and a component constructor taking a `Placement` is now a compile
 error (`Graph.componentParameter`), the generator no longer resolves one, and the processor test's `Worker` declares
-a `@Subscribe` instead. **Still to do:** (d) to (g) below. `Placement.subscribe`, the constructor, `start` and
-`onWake` are still public, and only the designer's tests and `Placements` call them from outside the package.
+a `@Subscribe` instead. **Still to do:** (e) to (g) below. (d) is done: `Placement`'s constructor, `start` and both `subscribe` overloads are package-private, so only
+`Shell`, `Placements` and the in-package tests reach them. `onWake` stays public because `WakeSource` requires it, and
+`name()` and `close()` are public as before.
 
 *Order, smallest first:* (a) move the generated call and the two witness assertions to the residual entry
-point; (b) delete `superseded()` (**done**); (c) stop injecting `Placement` into components (**done**); (d) make `Placement`'s constructor, `start`, `onWake` and the `subscribe` overloads
-non-public to an application; (e) port or drop the designer; (f) move `PlacementTest` and `LivenessTest`;
+point; (b) delete `superseded()` (**done**); (c) stop injecting `Placement` into components (**done**); (d) make `Placement`'s constructor, `start` and the `subscribe` overloads
+non-public to an application (**done**); (e) the designer (**not ported, ruled 2026-10-01**: the up-to-date witnesses are MainFrame, Vexplore and the fluid simulator, and none of them uses `Placement`, `Shell.place` or `superseded()`); (f) move `PlacementTest` and `LivenessTest` (**nothing to move**: they are in the package and pass);
 (g) rewrite the prose, then flip T1.3 to held in threading.md.
 
 ### 3. `lane`
