@@ -609,8 +609,8 @@
         mailbox</b>, with the mapping decided in the wiring and never at runtime — but it is no longer
         only a plan. <code>Lanes</code> in <code>-core</code> owns the application's handler, offload
         and component threads; <code>Placement</code> in <code>-shell</code> owns a component's thread,
-        its mailboxes and the drain-then-stop around it; <code>Shell.place(name)</code> is how a wiring
-        reaches both. The grep this page prints as its own check used to return <b>zero</b> and now
+        its mailboxes and the drain-then-stop around it; the generated wiring places each <code>@Component</code> on both, and
+        no application code can. The grep this page prints as its own check used to return <b>zero</b> and now
         returns <b>39 hits across six files</b> — which is the intended shape rather than a leak: 29
         are <code>Lanes</code>, 5 are <code>Placement</code>, three are a <code>TimeUnit</code> import,
         one <code>volatile</code> flag and a sentence of Javadoc, and the last two are words in the
@@ -665,7 +665,7 @@
         <span class="stage">In the framework</span>
       </div>
       <div class="row s3">
-        <span class="what">One component: a thread, a mailbox, a wake <span>— <code>Shell.place(name)</code>, drain then stop on a timer</span></span>
+        <span class="what">One component: a thread, a mailbox, a wake <span>— <code>@Component</code> and <code>@Subscribe</code>, placed by the generated wiring; drain then stop on a timer</span></span>
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
@@ -1105,7 +1105,7 @@
             <td class="repo">atchung</td>
             <td class="note">The typed bus</td>
             <td><span class="pill p-part">Fabric and mailboxes</span></td>
-            <td class="note"><code>Shell.bus()</code> is the application's own, and <code>Shell.place()</code> puts a component on it with a <code>Pump</code> for an inbox. A second <code>Gui</code> still may not join it — see dimension 02.</td>
+            <td class="note"><code>Shell.bus()</code> is the application's own, and a <code>@Component</code> is placed on it by the generated wiring, with a <code>Pump</code> for an inbox. A second <code>Gui</code> still may not join it — see dimension 02.</td>
           </tr>
           <tr>
             <td class="repo">elektroq</td>
@@ -1174,8 +1174,8 @@
         <div>
           <h3>The component seam: the thread, not the mailbox <span class="landed">landed</span></h3>
           <p>
-            <code>Lanes</code> owns the application's threads and <code>Shell.place(name)</code> puts a
-            component on one with its mailboxes, its wake and its drain-then-stop; upstream,
+            <code>Lanes</code> owns the application's threads and the generated wiring puts each
+            <code>@Component</code> on one with its mailboxes, its wake and its drain-then-stop; upstream,
             <code>Gui</code> takes both lanes rather than minting a pool per tree. A component's
             concurrency is now a property of what the wiring placed rather than of how many windows an
             application happens to hold.

@@ -367,7 +367,7 @@ four modules' main sources.
 > **Both of it have since been built**, and the paragraphs below are struck through where they have
 > stopped being true. The container owns the application's bus — `Shell.bus()`, handed to the framework's
 > `Gui` — and now its threads as well: `Shell.lanes()` is the handler lane, the offload lane and the
-> component threads, and `Shell.place(name)` puts a component on one of the last with its mailboxes and
+> component threads, and the generated wiring puts each `@Component` on one of the last with its mailboxes and
 > its wake. The two constructor arguments named at the end of this section are both taken. **This section
 > is now a record of where the model started rather than an inventory of the present**, which is what it
 > was written to become.
@@ -481,7 +481,7 @@ problem rather than two.
 
 So the distance between this section and the model above is no longer the substrate *or* the seam.
 `Pump`, `State`, `Fold`, `Backpressure`, `Rate` and `KronBridge` were all built and none of them was
-reached from here; `Shell.place` reaches the first four now. The container owns **the bus a component
+reached from here; a placed component reaches the first four now. The container owns **the bus a component
 publishes on** and **the threads it runs on**, which is where the model starts. What remains is the
 colour rule — which is the processor's, and is the one thing on this list that a runtime object cannot
 be made to hold.
@@ -611,9 +611,9 @@ The three are one test applied three times, which is why they are worth stating 
 **One correction this forces, and it is to the table above.** The second mismatch argues the colour
 rule is decidable because *"placement is static… the colour of a value **is** the thread it was placed
 on — known while compiling."* Static it is, in the sense that it is decided once and never changes
-afterwards. *Known while compiling* it is not. A placement is a call in a wiring method body —
+afterwards. *Known while compiling* it is not. A placement was a call in a wiring method body —
 `shell.place("compose")`, in the designer's `tree` — returning a `Placement` at runtime, and a
-processor reads declarations rather than bodies. The two senses of *static* carrying that sentence are
+processor reads declarations rather than bodies. That call is no longer public (see T1.3). The two senses of *static* carrying that sentence are
 not the same sense, and the check it promises cannot be run against the code as written.
 
 Three ways out, and one of them is in keeping with the rest of this document. Reading wiring bodies

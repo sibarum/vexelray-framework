@@ -40,6 +40,31 @@ final class PlacementTest {
         return new Shell(Launch.parse(new String[0], "demo", Set.of()), DEMO);
     }
 
+    /**
+     * T1.3: placement is decided in the wiring and never at a later moment in a method body. What makes that true
+     * is visibility: the only public door is {@link Placements}, which the generated wiring calls, so an
+     * application part holding the {@code Shell} cannot place a component, and nothing outside this package can
+     * add a mailbox, start one or build one. Loosening any of these is how the rule stops being held.
+     */
+    @Test
+    void anApplicationCannotPlaceAComponentOrAddAMailboxByHand() throws Exception {
+        assertFalse(java.lang.reflect.Modifier.isPublic(
+                Shell.class.getDeclaredMethod("place", String.class).getModifiers()), "Shell.place is the container's");
+        assertFalse(java.lang.reflect.Modifier.isPublic(Placement.class.getDeclaredConstructors()[0].getModifiers()),
+                "a placement is made by the container");
+        assertFalse(java.lang.reflect.Modifier.isPublic(Placement.class.getDeclaredMethod("start").getModifiers()),
+                "only the container starts one");
+        for (java.lang.reflect.Method m : Placement.class.getDeclaredMethods()) {
+            if (m.getName().equals("subscribe")) {
+                assertFalse(java.lang.reflect.Modifier.isPublic(m.getModifiers()),
+                        "a mailbox is declared with @Subscribe, not added by hand: " + m);
+            }
+        }
+        assertEquals(1, Placement.class.getDeclaredConstructors().length);
+        assertTrue(java.lang.reflect.Modifier.isPublic(Placements.class.getDeclaredMethod(
+                "of", Shell.class, String.class).getModifiers()), "the one door generated code uses");
+    }
+
     @Test
     void aComponentDrainsOnItsOwnThreadRatherThanThePublishersOrAPools() throws Exception {
         Shell shell = shell();

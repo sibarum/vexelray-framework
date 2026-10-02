@@ -132,7 +132,8 @@ a `@Subscribe` instead. **Still to do:** (e) to (g) below. (d) is done: `Placeme
 *Order, smallest first:* (a) move the generated call and the two witness assertions to the residual entry
 point; (b) delete `superseded()` (**done**); (c) stop injecting `Placement` into components (**done**); (d) make `Placement`'s constructor, `start` and the `subscribe` overloads
 non-public to an application (**done**); (e) the designer (**not ported, ruled 2026-10-01**: the up-to-date witnesses are MainFrame, Vexplore and the fluid simulator, and none of them uses `Placement`, `Shell.place` or `superseded()`); (f) move `PlacementTest` and `LivenessTest` (**nothing to move**: they are in the package and pass);
-(g) rewrite the prose, then flip T1.3 to held in threading.md.
+(g) rewrite the prose, then flip T1.3 to held in threading.md (**done**, held by
+`PlacementTest.anApplicationCannotPlaceAComponentOrAddAMailboxByHand`). **Rulings 1 and 2 are complete.**
 
 ### 3. `lane`
 

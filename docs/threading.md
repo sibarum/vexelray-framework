@@ -43,11 +43,12 @@ load-bearing in the thread dump somebody reaches for when one lane is the proble
 **T1.3 — Placement is decided in the wiring and never at runtime.** No work stealing, no placement
 decision, nothing to tune while running. This is the restriction the rest of the model is bought with:
 static assignment is what lets the processor emit thread construction, the component-to-thread mapping
-and barrier participation as generated code, with no scheduler in the binary. *(processor — half of it
-generated now: a `@Component`'s lane is on its declaration, and the generated wiring places each lane once and
-hands the placement to the components declared on it. What keeps it `processor` is that `Shell.place` is still a
-public call any part taking the `Shell` can make, so placement decided later than the wiring is refused by
-nothing but convention; barrier participation is not built at all)*
+and barrier participation as generated code, with no scheduler in the binary. *(held, by `PlacementTest.anApplicationCannotPlaceAComponentOrAddAMailboxByHand`. A `@Component`'s lane is on its
+declaration, the generated wiring places each lane once, and `Shell.place`, `Placement`'s constructor, `start` and
+`subscribe` are package-private, so a part holding the `Shell` cannot place a component later or add a mailbox by
+hand. The one public door is `Placements`, which the generated wiring calls; it is guarded by its Javadoc and not by
+the compiler, because Java has no visibility between a package and everyone. Barrier participation is not built,
+and is something the rule makes possible rather than part of what it enforces)*
 
 **T1.4 — Component and offload threads are platform threads, never virtual.** Not stylistic:
 `jdk.virtualThreadScheduler.parallelism` is a global JVM property and JDK 25 has *"no public per-thread
@@ -93,7 +94,7 @@ and into a provider whose value is not main-thread, with the colour read off the
 **T2.3 — A direct reference between two components is permitted only where they share a thread.**
 Decidable because placement is static: the colour of a value *is* the thread it was placed on, and
 dynamic placement would have made this check undecidable. **Static is not yet the same as visible**, and
-this rule as written assumed it was. `shell.place("compose")` is a call in a wiring method body, which a
+this rule as written assumed it was. a hand-written `shell.place("compose")` was a call in a wiring method body, which a
 processor — reading declarations, not bodies — cannot see. So placement moved onto the declaration:
 `@Component(lane = "compose")`, optional since 2026-09-29: a component naming none shares the reserved default
 lane, one thread that is not the main thread. The lane is a string, and that is safe here
@@ -258,7 +259,7 @@ fault of the component model. *(read)*
 ## 6. Lifecycle
 
 **T6.1 — Start order is distinct from construction order.** A mailbox must not pump before its publishers
-exist. `Shell.place` builds a component with nothing running on it and the container starts every
+exist. The container builds a component with nothing running on it and starts every
 placement together, after the wiring's `ATTACH` has returned — so the rule is a moment in the framework
 rather than a line a wiring is trusted to put last. The hand-written first component had to say it for
 itself: *"last, so nothing the component touches is still half-built when its thread starts"*, which is
@@ -297,16 +298,16 @@ The point of the column is that the unenforced rules are a list rather than an i
 
 | | held | processor | upstream | open | read |
 | --- | --- | --- | --- | --- | --- |
-| **1 Lanes** | T1.2, T1.4, T1.5 | T1.3 | | | T1.1 |
+| **1 Lanes** | T1.2, T1.3, T1.4, T1.5 | | | | T1.1 |
 | **2 Colour** | T2.1, T2.2, T2.3 | T2.4, T2.5 | | | |
 | **3 Ownership** | T3.1, T3.7 | T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
 | **4 Channels** | T4.1, T4.2, T4.3, T4.7 | T4.4, T4.5 | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4 | | | T6.3, T6.5 | |
 
-Three readings worth taking from it. **Seven of the thirty-three rules still say `processor`**, down from
-fourteen, and what the remaining seven have in common is the useful thing to know about them: none can be
-decided from a declaration alone. T1.3 is half generated and half a convention, T3.6 waits on the component
+Three readings worth taking from it. **Six of the thirty-three rules still say `processor`**, down from
+fourteen, and what the remaining six have in common is the useful thing to know about them: none can be
+decided from a declaration alone. T3.6 waits on the component
 tree (§3.4), T2.4 and T4.4/T4.5 want the rest of the message graph (`@Subscribe` and `@Publishes` declare the
 two ends of a channel now, which is what T4.1, T4.3 and T4.7 needed; the cycle check and the *declared in the
 wiring* rule are what is left), T2.5 wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
@@ -317,8 +318,8 @@ component seam and its supervision, which is where the remaining design work act
 things this repo could not fix, and both turned out to be one change in `vexelray-gui` — the worker pool
 ceasing to be a field initializer — rather than two problems.
 
-**What moved, and what made it move.** Sixteen rules are held (the last three, T4.1, T4.3 and T4.7, when
-`@Subscribe` put a channel on a declaration); thirteen were before it. The first eight were paid for by two
+**What moved, and what made it move.** Seventeen rules are held (T4.1, T4.3 and T4.7 when `@Subscribe` put a channel on a declaration, and T1.3 when
+placement left the public surface); thirteen were before those. The first eight were paid for by two
 objects: `Lanes`, which owns the application's threads instead of a `Gui` owning one set per tree, and
 `Placement`, which owns a component's thread and the drain-then-stop around it. None of those needed the
 processor — they needed something to *be* the rule, which is available a long way before the compile error

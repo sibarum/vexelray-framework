@@ -19,7 +19,7 @@ Landing any of these after v1 would break an application that compiled before, o
 application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) orders the work.
 
 - [ ] **The container now gives a component a thread and a mailbox; what is left is the colour rule.**
-      `Shell.lanes()` owns the application's threads and `Shell.place(name)` puts a component on one of
+      `Shell.lanes()` owns the application's threads and the generated wiring puts each `@Component` on one of
       them with its mailboxes, its wake and its drain-then-stop — `Lanes` in `-core` (pure JDK, so the
       container stays testable with no GPU) and `Placement` in `-shell` (a mailbox is atchung's, and that
       edge already falls there). The upstream half landed with it: `Gui` takes both lanes rather than
@@ -27,9 +27,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **Why this blocks v1:** a rule that rejects code v1 accepted is a breaking change, so the copier and capture halves, the message-graph checks and supervision land before v1 or behind an opt-in. They also decide what a component owes the rest of the application, which is how every component is written.
 
-      **Thirteen of [threading.md](threading.md)'s rules are now held.** Eight came from these two objects, and
-      none of those promotions needed the processor — they needed something to *be* the rule; the other five
-      are the processor's. The `upstream` column is
+      **Seventeen of [threading.md](threading.md)'s rules are now held.** Eight came from these two objects, and
+      none of those promotions needed the processor — they needed something to *be* the rule; six remain the
+      processor's (2026-10-01; T1.3 was the last that was a matter of visibility). The `upstream` column is
       down to one entry, because T1.2 and T1.5 turned out to be the same change.
 
       **What is actually left**, and it is the part a runtime object cannot hold: the colour rule's copier
@@ -101,9 +101,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       policy needs a bounded chance to save first.
 
 - [ ] **The component model's nine rulings were taken on 2026-10-01, and what they ordered is not built.**
-      [components.md](components.md) records them. Open from them, in order: remove the imperative path
-      (rulings 1 and 2, with the inventory and seven-step order in that section; a component taking a
-      `Placement` is a third path that has to go too; `superseded()` is already deleted); spike the
+      [components.md](components.md) records them. The imperative path is removed (rulings 1 and 2, done; T1.3 is held). Open from them, in order: spike the
       tree as an optional `parent` (ruling 8, in *Spike the extension test*); then the declared graph, the
       copier and the capture rule.
 
@@ -347,11 +345,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `install`, documented as a library default; the stale `sealed ... permits` in vexelray-gui's
       architecture.md §6; and the *deliberately not bounded yet* handler lane.
 
-      **It changes one threading ruling.** Keeping `Placement.subscribe` supported *forever* beside
-      `@Subscribe` is a second way to do one thing, which this condition rules out. So the choice is now
-      either the imperative path is the supported, checked route and `@Subscribe` is sugar over it, or it is
-      removed before v1 and the declaration seam has to exist first. It can no longer be "keep both".
-      Wants doing after the component model and before the freeze pass, and binds the siblings `Shell` exposes.
+      **The imperative path is gone (ruled and done 2026-10-01, [components.md](components.md) rulings 1 and 2):**
+      `@Subscribe` is the one way, `Shell.place`, `Placement`'s constructor, `start` and `subscribe` are package-private,
+      and `Placement.superseded()` is deleted. What is left of the sweep is the list above, and it binds the siblings
+      `Shell` exposes.
 
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
