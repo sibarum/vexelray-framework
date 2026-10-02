@@ -27,9 +27,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **Why this blocks v1:** a rule that rejects code v1 accepted is a breaking change, so the copier and capture halves, the message-graph checks and supervision land before v1 or behind an opt-in. They also decide what a component owes the rest of the application, which is how every component is written.
 
-      **Seventeen of [threading.md](threading.md)'s rules are now held.** Eight came from these two objects, and
-      none of those promotions needed the processor — they needed something to *be* the rule; six remain the
-      processor's (2026-10-01; T1.3 was the last that was a matter of visibility). The `upstream` column is
+      **Eighteen of [threading.md](threading.md)'s rules are now held.**  Eight came from these two objects, and
+      none of those promotions needed the processor — they needed something to *be* the rule; five remain the
+      processor's (2026-10-02). The `upstream` column is
       down to one entry, because T1.2 and T1.5 turned out to be the same change.
 
       **What is actually left**, and it is the part a runtime object cannot hold: the colour rule's copier
@@ -125,7 +125,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       and T4.7 (main-thread code declaring a send on a `BLOCK` topic). **Not built:** the rest of the seam. A
       `@Subscribe` that is not on a component (an extension or a macro, which is the whole point of the entry),
       registration in `ATTACH` and teardown through the `Disposer` for something that is not a placement, `Fold`,
-      the blocking-cycle check (T4.4), and the graph being *declared in the wiring* (T4.5). The three
+      and the graph exposed as generated data (T4.5's additive half; the blocking-cycle check, T4.4, is built). The three
       `@Subscribe` defaults (FAIL, 64, registered at construction and started with the lane) are unruled; they
       are the ones a v1 freeze would make contract.
 

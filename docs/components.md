@@ -34,7 +34,7 @@ component is never `@MainThread`.
 | A stall report naming its lane, and a policy the application can override | `Watchdog`, `LivenessPolicy` | T6.5 |
 | That no other lane holds a reference to it, and no provider does | processor | T2.3, T3.7 |
 | That a value crossing into it shares nothing with the sender's heap | **not built** | T2.4, T2.5 |
-| That no blocking cycle runs through it | **not built** | T4.4, T4.5 |
+| That no blocking cycle runs through it | processor, for declared sends | T4.4 |
 
 And what it owes the application: it never blocks the main thread, never touches the timeline (T3.2), and
 returns work through one of the two doors (T5.1). A wedged component loses its own lane and nothing else.
@@ -46,7 +46,7 @@ returns work through one of the two doors (T5.1). A wedged component loses its o
 | Threads | `Lanes`, `Placement`, default lane, platform-only, bounded offload | handler lane bound (waits on a census) | |
 | Declaration | `@Component(lane)`, `@Subscribe`, `@Publishes` | | the eight rulings below |
 | Colour | T2.1 to T2.3, T3.1, T3.7 | the copier's pattern (annotate a record, processor emits the copy) | its annotation's name; the capture check's mechanism |
-| Channels | T4.1, T4.3, T4.7 for declared sends | the graph is declared | T4.4, T4.5 mechanics |
+| Channels | T4.1, T4.3, T4.4, T4.7 for declared sends | | the graph as generated data (additive) |
 | Completion | `Lanes.offload()`, `app.post` | two doors | `kronometer` `offload` and the timeline door unbuilt |
 | Liveness | watchdog, busy gauge, shutdown bound, policy seam | main-thread heartbeat that knows a dialog is up | |
 | Tree | | T3.5: the tree does not restrict messaging | **T3.4, T3.6, T6.3** |
@@ -227,10 +227,10 @@ additive. Say so, so the two are not built as one seam.
 Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) orders the whole.
 
 1. **Remove the imperative path** (rulings 1 and 2), and make T1.3 held. A deletion, so it comes first.
-2. **The graph, declared** (T4.5). `@Subscribe` and `@Publishes` already put the ends on declarations; the
-   generated wiring should expose the whole graph, components and topics with their loss classes. The cycle
-   check (T4.4) is then a walk over it and inspection and rendering come free. **Its stated limit:** only a
-   *declared* send is in the graph, and Java cannot stop an undeclared one. Say so on `@Publishes`.
+2. **The cycle check (T4.4) is done, 2026-10-02**, on the data `Channels` already had: nodes are components, an edge
+   is a declared send to a mailbox, and a cycle with a blocking edge is a compile error. **Exposing the graph as
+   generated data (the rest of T4.5) is parked as additive**, until something consumes it. The stated limit stands
+   and is on `@Publishes`: only a *declared* send is in the graph.
 3. **The copier** (T2.4). The pattern is elektroq's: annotate a record, the processor emits the copy, and a
    deeply immutable record elides it. The annotation's name is undecided and is a Maven-level public name, so
    decide it here.

@@ -610,6 +610,87 @@ class VexelProcessorTest {
                 + " BLOCK mailbox");
     }
 
+    // --- T4.4: no blocking edge on a cycle ---------------------------------------------------------------------
+
+    @Test
+    void twoComponentsThatBlockOnEachOtherAreAnError() {
+        onlyError(app("""
+                public record Order(int id) {}
+                """, """
+                @Component(lane = "a") @Publishes("orders")
+                public final class Orders {
+                    @Subscribe(topic = "acks", overflow = Overflow.BLOCK) public void acked(Order o) {}
+                }
+                """, """
+                @Component(lane = "b") @Publishes("acks")
+                public final class Billing {
+                    @Subscribe(topic = "orders", overflow = Overflow.BLOCK) public void billed(Order o) {}
+                }
+                """), "T4.4: a blocking cycle in the message graph: Orders -[orders, BLOCK]-> Billing -[acks, BLOCK]->"
+                + " Orders");
+    }
+
+    @Test
+    void aComponentThatBlocksOnItsOwnMailboxIsAnError() {
+        onlyError(app("""
+                public record Tick(int n) {}
+                """, """
+                @Component(lane = "a") @Publishes("ticks")
+                public final class Counter {
+                    @Subscribe(topic = "ticks", overflow = Overflow.BLOCK) public void tick(Tick t) {}
+                }
+                """), "T4.4: a blocking cycle in the message graph: Counter -[ticks, BLOCK]-> Counter");
+    }
+
+    @Test
+    void aSendFromAMethodOfTheComponentIsOnTheCycleToo() {
+        onlyError(app("""
+                public record Order(int id) {}
+                """, """
+                @Component(lane = "a")
+                public final class Orders {
+                    @Publishes("orders") @Subscribe(topic = "acks") public void acked(Order o) {}
+                }
+                """, """
+                @Component(lane = "b")
+                public final class Billing {
+                    @Publishes("acks") @Subscribe(topic = "orders", overflow = Overflow.BLOCK) public void billed(Order o) {}
+                }
+                """), "T4.4: a blocking cycle in the message graph");
+    }
+
+    @Test
+    void requestAndResponseOnFailMailboxesIsACycleAndIsFine() {
+        assertEquals(List.of(), app("""
+                public record Order(int id) {}
+                """, """
+                @Component(lane = "a") @Publishes("orders")
+                public final class Orders {
+                    @Subscribe(topic = "acks") public void acked(Order o) {}
+                }
+                """, """
+                @Component(lane = "b") @Publishes("acks")
+                public final class Billing {
+                    @Subscribe(topic = "orders") public void billed(Order o) {}
+                }
+                """));
+    }
+
+    @Test
+    void aBlockingSendThatNothingAnswersIsNotACycle() {
+        assertEquals(List.of(), app("""
+                public record Order(int id) {}
+                """, """
+                @Component(lane = "a") @Publishes("orders")
+                public final class Orders {}
+                """, """
+                @Component(lane = "b")
+                public final class Billing {
+                    @Subscribe(topic = "orders", overflow = Overflow.BLOCK) public void billed(Order o) {}
+                }
+                """));
+    }
+
     @Test
     void aFrameHookIsMainThreadCodeForTheBlockingSendRule() {
         onlyError(app("""

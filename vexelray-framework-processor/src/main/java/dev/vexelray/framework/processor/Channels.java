@@ -36,6 +36,7 @@ import java.util.Set;
  *   <li><b>T4.1</b> — a topic subscribed both as an edge ({@code FAIL}, {@code BLOCK}) and as a sample (anything
  *       that loses) has no correct policy, and a topic name carrying two payload types is two channels one
  *       spelling apart.</li>
+ *   <li><b>T4.4</b> — a cycle of declared sends between components that contains a blocking edge.</li>
  *   <li><b>T4.7</b> — main-thread code that declares a send on a topic any mailbox {@code BLOCK}s.</li>
  * </ul>
  * Both cover the compilation and what it declares. A subscriber in another module is not seen, and a send nobody
@@ -106,6 +107,7 @@ final class Channels {
         for (Element publisher : publishers) {
             mainThreadSends(publisher, byTopic);
         }
+        blockingCycles(new LinkedHashSet<>(graph.componentsSeen()), byTopic);
     }
 
     /** T4.1. */
@@ -125,6 +127,114 @@ final class Channels {
                         + " choice is wrong for half the traffic: split the channel");
             }
         }
+    }
+
+    /** One declared send from a component to another's mailbox: the sender, the topic, and the mailbox it reaches. */
+    private record Edge(TypeElement from, String topic, Mailbox to) {
+        boolean blocks() {
+            return to.overflow().blocks();
+        }
+    }
+
+    /**
+     * T4.4: no cycle in the message graph may contain a blocking edge.
+     *
+     * <p>Nodes are components; an edge is a component's declared send ({@code @Publishes} on the type or on one of
+     * its methods) to a component's mailbox on that topic. A cycle is not the hazard, since request and response is
+     * one and is ordinary with asynchronous mailboxes. A cycle with a {@link Overflow#BLOCK} edge is: the sender
+     * waits for room in a mailbox whose owner cannot drain because it is waiting too. A self-send is the smallest
+     * case, a component blocking on its own full mailbox, which no one else can ever drain.
+     *
+     * <p>This is the rule as threading.md states it, which is wider than the strict deadlock condition (every edge
+     * on the cycle blocking). A cycle with a non-blocking hop does not deadlock; it fails when the mailbox on that
+     * hop fills, which ends the process. It is rejected anyway, because the blocking hop is what turns a full
+     * mailbox into a stall instead of an immediate, named failure. Sends nobody declared are not in the graph.
+     */
+    private void blockingCycles(Set<TypeElement> components, Map<String, List<Mailbox>> byTopic) {
+        Map<TypeElement, List<Edge>> out = new LinkedHashMap<>();
+        for (Element publisher : publishers) {
+            TypeElement from = owner(publisher, components);
+            if (from == null) {
+                continue;
+            }
+            for (String topic : mirrors.strings(mirrors.find(publisher, Publishes.class), "value")) {
+                for (Mailbox m : byTopic.getOrDefault(topic, List.of())) {
+                    out.computeIfAbsent(from, c -> new ArrayList<>()).add(new Edge(from, topic, m));
+                }
+            }
+        }
+        Set<String> reported = new LinkedHashSet<>();
+        for (List<Edge> edges : out.values()) {
+            for (Edge blocking : edges) {
+                if (!blocking.blocks()) {
+                    continue;
+                }
+                List<Edge> back = path(out, blocking.to().component(), blocking.from());
+                if (back == null) {
+                    continue;
+                }
+                List<Edge> cycle = new ArrayList<>();
+                cycle.add(blocking);
+                cycle.addAll(back);
+                Set<String> members = new java.util.TreeSet<>();
+                cycle.forEach(e -> members.add(Mirrors.simple(e.from())));
+                if (reported.add(String.join(",", members))) {
+                    error(blocking.to().method(), "T4.4: " + describe(cycle) + ". " + blocking.to().where() + " has a "
+                            + blocking.to().overflow() + " mailbox, so a sender on this cycle waits for room in a"
+                            + " mailbox whose owner may be waiting on the next one: nothing drains and nothing fails."
+                            + " Make that mailbox FAIL, so a full one is an immediate, named failure, or break the"
+                            + " cycle");
+                }
+            }
+        }
+    }
+
+    /** The shortest declared path from one component to another, or null; an empty path when they are the same. */
+    private static List<Edge> path(Map<TypeElement, List<Edge>> out, TypeElement start, TypeElement goal) {
+        if (start.equals(goal)) {
+            return new ArrayList<>();
+        }
+        Map<TypeElement, Edge> reached = new LinkedHashMap<>();
+        java.util.ArrayDeque<TypeElement> queue = new java.util.ArrayDeque<>();
+        queue.add(start);
+        reached.put(start, null);
+        while (!queue.isEmpty()) {
+            TypeElement at = queue.poll();
+            for (Edge e : out.getOrDefault(at, List.of())) {
+                TypeElement next = e.to().component();
+                if (reached.containsKey(next)) {
+                    continue;
+                }
+                reached.put(next, e);
+                if (next.equals(goal)) {
+                    java.util.LinkedList<Edge> found = new java.util.LinkedList<>();
+                    for (Edge step = e; step != null; step = reached.get(step.from())) {
+                        found.addFirst(step);
+                    }
+                    return found;
+                }
+                queue.add(next);
+            }
+        }
+        return null;
+    }
+
+    private static String describe(List<Edge> cycle) {
+        StringBuilder sb = new StringBuilder("a blocking cycle in the message graph: ");
+        for (Edge e : cycle) {
+            sb.append(Mirrors.simple(e.from())).append(" -[").append(e.topic()).append(e.blocks() ? ", BLOCK" : "")
+                    .append("]-> ");
+        }
+        return sb.append(Mirrors.simple(cycle.get(0).from())).toString();
+    }
+
+    /** The component a send is declared on: the type itself, or the type a declaring method belongs to. */
+    private static TypeElement owner(Element publisher, Set<TypeElement> components) {
+        Element e = publisher;
+        while (e != null && !(e instanceof TypeElement)) {
+            e = e.getEnclosingElement();
+        }
+        return e instanceof TypeElement type && components.contains(type) ? type : null;
     }
 
     /** T4.7. */

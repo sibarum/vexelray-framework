@@ -199,11 +199,18 @@ request/response *is* a cycle, and with asynchronous mailboxes it is ordinary. A
 `BLOCK` edge is a deadlock, and it is not hypothetical: a mailbox bounded at 65,536 with `BLOCK`, filling
 because nobody drained it, is the freeze this repo shipped for three commits. Because placement is static
 and the wiring is compile-time, the processor sees the entire graph — every channel, its loss class and
-its policy — and can reject the loop. *(processor — and this is the rule that pays for §4.5)*
+its policy — and can reject the loop. *(held for declared sends, by `VexelProcessorTest`'s T4.4 cases: two
+components blocking on each other, a component blocking on its own mailbox, a send declared on a method of the
+component, and the cycles that are fine. It is the rule as written, which is wider than the strict deadlock
+condition: a cycle with a non-blocking hop does not deadlock, it fails when that hop's mailbox fills, and is
+rejected anyway because the blocking hop turns a full mailbox into a stall instead of a named failure. A send nobody
+declared with `@Publishes` is not in the graph)*
 
 **T4.5 — The message graph is declared in the wiring.** An emergent graph cannot be checked, rendered,
 or reasoned about; a declared one can. This, rather than any restriction on the graph's shape, is what
-keeps the design from being cornered: §4.4 catches the blocking cycle that a topology rule would miss.
+keeps the design from being cornered: §4.4 catches the blocking cycle that a topology rule would miss. *(processor —
+the declarations are the graph and `Channels` reads them to run T4.1, T4.4 and T4.7; exposing the graph as
+generated data, for inspection and rendering, is additive and not built)*
 *(processor)*
 
 **T4.6 — Two `Gui` trees may not share a bus.** `Gui`'s topics are `static final` class-level names, so
@@ -301,16 +308,15 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **1 Lanes** | T1.2, T1.3, T1.4, T1.5 | | | | T1.1 |
 | **2 Colour** | T2.1, T2.2, T2.3 | T2.4, T2.5 | | | |
 | **3 Ownership** | T3.1, T3.7 | T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
-| **4 Channels** | T4.1, T4.2, T4.3, T4.7 | T4.4, T4.5 | T4.6 | | |
+| **4 Channels** | T4.1, T4.2, T4.3, T4.4, T4.7 | T4.5 | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4 | | | T6.3, T6.5 | |
 
-Three readings worth taking from it. **Six of the thirty-three rules still say `processor`**, down from
-fourteen, and what the remaining six have in common is the useful thing to know about them: none can be
+Three readings worth taking from it. **Five of the thirty-three rules still say `processor`**, down from
+fourteen, and what the remaining five have in common is the useful thing to know about them: none can be
 decided from a declaration alone. T3.6 waits on the component
-tree (§3.4), T2.4 and T4.4/T4.5 want the rest of the message graph (`@Subscribe` and `@Publishes` declare the
-two ends of a channel now, which is what T4.1, T4.3 and T4.7 needed; the cycle check and the *declared in the
-wiring* rule are what is left), T2.5 wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
+tree (§3.4), T2.4 wants the copier, T4.5 is held in all but exposing the graph (`@Subscribe` and `@Publishes` declare the
+two ends of a channel, which is what T4.1, T4.3, T4.4 and T4.7 needed), T2.5 wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
 and §2 is now empty of them** — the colour section was the one place where an unanswered question would
 have been classified into every application type by the processor, and T2.4 is answered. What is left open is the
 component seam and its supervision, which is where the remaining design work actually is. And
@@ -318,8 +324,8 @@ component seam and its supervision, which is where the remaining design work act
 things this repo could not fix, and both turned out to be one change in `vexelray-gui` — the worker pool
 ceasing to be a field initializer — rather than two problems.
 
-**What moved, and what made it move.** Seventeen rules are held (T4.1, T4.3 and T4.7 when `@Subscribe` put a channel on a declaration, and T1.3 when
-placement left the public surface); thirteen were before those. The first eight were paid for by two
+**What moved, and what made it move.** Eighteen rules are held (T4.1, T4.3 and T4.7 when `@Subscribe` put a channel on a declaration, T4.4 when the
+processor joined senders to mailboxes, and T1.3 when placement left the public surface); thirteen were before those. The first eight were paid for by two
 objects: `Lanes`, which owns the application's threads instead of a `Gui` owning one set per tree, and
 `Placement`, which owns a component's thread and the drain-then-stop around it. None of those needed the
 processor — they needed something to *be* the rule, which is available a long way before the compile error
