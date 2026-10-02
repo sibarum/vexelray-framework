@@ -130,6 +130,35 @@
                 </configuration>
             </plugin>
             <!--
+              LWJGL is not part of this stack, and an application that pulls it in is incompatible with the
+              framework: the stack owns its windowing and Vulkan through Panama, and LWJGL brings a second
+              copy of both. The only module that still uses it, supirvast's vastir-preview, is a dev tool that
+              is never installed. So nothing here should reach it, and if something does, this fails the build.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>no-lwjgl</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>org.lwjgl</exclude>
+                                    </excludes>
+                                    <message>LWJGL is not part of the VexelRay stack: find which dependency brings it with mvn dependency:tree and remove that edge.</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
               Run in a fresh JVM: mvn compile exec:exec
               exec:exec rather than exec:java so native access can be enabled for Panama FFM.
 

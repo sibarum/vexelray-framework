@@ -245,5 +245,33 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+
+        <plugins>
+            <!-- LWJGL is not part of this stack, and nothing here may reach it, however indirectly: the
+                 generated project carries the same rule for the applications built on this. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>no-lwjgl</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>org.lwjgl</exclude>
+                                    </excludes>
+                                    <message>LWJGL is not part of the VexelRay stack: find which dependency brings it with mvn dependency:tree and remove that edge.</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
 </project>
