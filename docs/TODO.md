@@ -13,6 +13,18 @@ ticking it. An entry whose fix belongs in a sibling repo says which one; the one
 cannot be fixed from here at all. An entry moves between sections when the answer to *would landing it
 later break an app?* changes, and says why.
 
+**A ruling carries its reason.** Anything recorded as ruled here, in [components.md](components.md), in
+[threading.md](threading.md) or in [v1.md](v1.md) says *why* in the same place: the constraint it comes from, the
+evidence that decided it, or the cost it knowingly accepted. A ruling with no stated reason is an idea that sounded
+good at the time, and a later reader cannot tell the two apart, so it has not been ruled yet. When the reason stops
+being true the ruling is re-argued, not kept for being old. A ruling that turns out to have been wrong is corrected
+in place and says what corrected it, as the capture rule's entry does for components.md.
+
+Two labels keep the difference visible. **Ruled** means the user weighed it and gave, or accepted, a reason.
+**Accepted as recommended** means a recommendation was adopted without discussion: it is sound as far as its stated
+reason goes, and has not been examined beyond that. Neither is permanent, and the second is the one to re-check
+first when something depends on it.
+
 ## Blocks v1
 
 Landing any of these after v1 would break an application that compiled before, or change what an
@@ -27,8 +39,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **Why this blocks v1:** a rule that rejects code v1 accepted is a breaking change, so the copier and capture halves, the message-graph checks and supervision land before v1 or behind an opt-in. They also decide what a component owes the rest of the application, which is how every component is written.
 
-      **Eighteen of [threading.md](threading.md)'s rules are now held.**  Eight came from these two objects, and
-      none of those promotions needed the processor — they needed something to *be* the rule; five remain the
+      **Nineteen of [threading.md](threading.md)'s rules are now held.**  Eight came from these two objects, and
+      none of those promotions needed the processor — they needed something to *be* the rule; four remain the
       processor's (2026-10-02). The `upstream` column is
       down to one entry, because T1.2 and T1.5 turned out to be the same change.
 
@@ -100,10 +112,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       A default of *exit* on a stall also throws away unsaved work, so the threshold has to be long and the
       policy needs a bounded chance to save first.
 
-- [ ] **The component model's nine rulings were taken on 2026-10-01, and what they ordered is not built.**
-      [components.md](components.md) records them. The imperative path is removed (rulings 1 and 2, done; T1.3 is held). Open from them, in order: spike the
-      tree as an optional `parent` (ruling 8, in *Spike the extension test*); then the declared graph, the
-      copier and the capture rule.
+- [ ] **The component model's nine rulings were accepted on 2026-10-01 (mostly as recommended), and part of what they ordered is not built.**
+      [components.md](components.md) records them. The imperative path is removed (rulings 1 and 2, done; T1.3 is held). The tree spike is done (ruling 8: zero existing signatures change).
+      The copier's check half is done (2026-10-02: a `@Subscribe` payload must be deeply immutable; the generated
+      copier is parked as additive). Open from them: the capture rule, which needs a decision (see its entry below).
 
 
 - [ ] **One seam carries three of the four differentiators, and it is the one not built.** A
@@ -178,6 +190,23 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       yet route completions into the timeline — the second door (a `Topic` folded into a `Cell` by
       `KronBridge`) is unused, and everything that lands today takes the first one.
 
+      **Found 2026-10-02, reading what `work` may do** (the callback that runs on the offload lane in
+      `GuiApp.offload(work, landed, failed)`). Two are defects and the rest are gaps in what is checked:
+      - **An `Error` loses the request.** `GuiApp.offload` (`vexelray-gui`, `GuiApp.java`) catches `Exception` around `work`. An
+        `Error` (out of memory, a failed assertion) escapes the wrapper, neither `landed` nor `failed` runs, and a
+        UI waiting on the result waits forever. A defect in the sibling repo, independent of the capture rule.
+      - **A send from `work` is invisible to T4.4.** `@Publishes` goes on a type or a method and a lambda has no
+        declaration, so the cycle check cannot see that `work` blocks sending to a mailbox whose owner is waiting on
+        this very job. A blocking cycle through an offloaded task is a deadlock nothing reports.
+      - **The result `T` crosses a lane and is not run through T2.4**, and `landed` and `failed` always return to
+        the main thread rather than to the caller's own lane, so a callback written on the handler lane that
+        captures handler state races. Delivering completion to the owner's lane, or as a message to a component's
+        own `@Subscribe`, would remove the capture question for those two. Only `work` would be left with it.
+      - **Cancellation and interrupt do not reach it** (already listed under *Build the liveness guarantee*): the
+        offload pool is not in a `ThreadGroup`.
+      - **Unverified:** whether `work` mutating a `Node` directly is legal. `Gui.async`'s Javadoc says a result
+        can come back "through a node mutation"; this entry says `work` must never touch the tree in place.
+
 - [ ] **The wiring is generated; what it does not do yet.** The processor writes `<App>Wiring` from
       `@VexelApp`, `@Provides`, `@Component`, `@Setting`, `@BeforeFrame`, `@OnMode` and `@ConditionalOnType`,
       the `vexel-desktop` template ships a `Recipes` configuration instead of a hand-written wiring, and
@@ -204,7 +233,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         rule, are both about what code *does* rather than what it declares. The Trees API can read them;
         doing so is a decision, since *the processor reads declarations* is load-bearing in
         architecture.md's argument about placement.
-      - **Before v1, with the component model.** **The copier (T2.4)** and the message-graph checks (§4) wait on the seam that declares a channel.
+        **Found 2026-10-02 while scoping T2.5, and it corrects components.md:** capture cannot be made impossible by
+        construction. Offload is an `Executor` (`Lanes.offload()`, `Gui.offload()`) and `GuiApp.offload(Callable, Consumer,
+        Consumer)`, and Java has no type that refuses a lambda that closes over something. So the choices are a check
+        that reads the lambda through the Trees API with attribution, from a javac task listener (accurate: it resolves
+        each name to a local, a field or `this`, and runs `Shareable` on what it finds; and the heaviest piece in the
+        processor, which has never run outside the annotation rounds), or leaving T2.5 as a rule the reader keeps. A
+        syntactic check without attribution is not an option: it cannot tell a captured local from a class name.
+        **Not decided.**
+      - **Before v1, with the component model.** **Done 2026-10-02:** the copier's check half (a `@Subscribe` payload must be deeply immutable) and the blocking-cycle
+        check (T4.4). **Additive, not built:** the generated copier, and the graph exposed as data.
 
 - [ ] **`vexelray-engine` is a second composition root, and `GuiApp` is the first.** The new module (in
       `../vexelray`) exists because *"six demos each carry a copy of eighty lines of
@@ -314,6 +352,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       signatures it forces to change recorded here. Candidates: the second window, a Linux backend,
       `@Subscribe`, supervision, a second starter. Zero is the target; anything else is fixed before the
       freeze. Do it with the witnesses, since both need the same applications.
+
+      **Done 2026-10-02: the tree, 0.** A throwaway `@Component(parent = ...)` (an attribute defaulting to none; a child
+      shares its parent's lane unless it names one; the parent is built first; a non-component parent or a parent
+      cycle is an error) changed no existing signature and none of the 67 existing processor tests; `Shell`,
+      `Placements`, `Lanes` and the runtime were not touched, since a lane is a string. Not spiked: child-before-
+      parent shutdown, which falls out of reverse construction order but was not run, and supervision naming a
+      subtree. The other rows (second window, Linux backend, supervision, second starter) are still to do.
 
 - [ ] **Build the liveness guarantee.** Designed in
       [architecture.md](architecture.md#a-wedged-component-cannot-freeze-the-window), contract in
@@ -647,6 +692,11 @@ blocks v1, and one thing worked better than expected: the processor's compile er
       needed the application to make each state change visible as text. `await <landmark>` alone ("it exists"), and
       `settle` also waiting for the handler and offload lanes to drain (see the `settle` entry under **Upstream**),
       would make that the default instead of a habit.
+
+      **A witness hit this as a flake, 2026-10-02.** `ComponentsWitnessTest.theDefaultPolicyExitsAnApplicationWhoseLaneIsWedgedThroughItsOwnCloseRoute`
+      calls `settle`, gets `ok v0`, and looks up `button.wedge.default` at once; the tree was not built yet, `find`
+      said nothing matched, and the test failed (once in four runs; it passed on a rerun with no change). The fix is the
+      same `await <landmark>` with no text, in `Support.Driver`, not a longer wait.
 
 ## Upstream
 

@@ -36,6 +36,7 @@ import java.util.Set;
  *   <li><b>T4.1</b> — a topic subscribed both as an edge ({@code FAIL}, {@code BLOCK}) and as a sample (anything
  *       that loses) has no correct policy, and a topic name carrying two payload types is two channels one
  *       spelling apart.</li>
+ *   <li><b>T2.4</b> — a mailbox payload that is not deeply immutable (the check half; the copier is not built).</li>
  *   <li><b>T4.4</b> — a cycle of declared sends between components that contains a blocking edge.</li>
  *   <li><b>T4.7</b> — main-thread code that declares a send on a topic any mailbox {@code BLOCK}s.</li>
  * </ul>
@@ -97,6 +98,9 @@ final class Channels {
         for (TypeElement component : graph.componentsSeen()) {
             all.addAll(mailboxes(component));
         }
+        for (Mailbox m : all) {
+            crossing(m);
+        }
         Map<String, List<Mailbox>> byTopic = new LinkedHashMap<>();
         for (Mailbox m : all) {
             byTopic.computeIfAbsent(m.topic(), t -> new ArrayList<>()).add(m);
@@ -126,6 +130,29 @@ final class Channels {
                         + "). A channel carrying both classes cannot be given a correct policy, because every"
                         + " choice is wrong for half the traffic: split the channel");
             }
+        }
+    }
+
+    /**
+     * T2.4, the check half: a value crossing a lane must be one that can cross as itself.
+     *
+     * <p>Every mailbox is a crossing in principle: a publisher on another lane, or on the main thread, hands it a
+     * value, and which publishers there are is not something declarations can bound. So the payload has to be
+     * deeply immutable ({@link Shareable}). The copier that would let a mutable payload cross as a copy is not
+     * built, so for now it is refused here, at the receiving method, naming the first thing that stops it.
+     */
+    private void crossing(Mailbox m) {
+        // A payload that is not a plain class or interface is already an error where @Subscribe is declared.
+        if (!(m.payload() instanceof javax.lang.model.type.DeclaredType d) || !d.getTypeArguments().isEmpty()) {
+            return;
+        }
+        String why = Shareable.why(m.payload());
+        if (why != null) {
+            error(m.method(), "T2.4: " + m.where() + " receives " + m.payload() + " on \"" + m.topic() + "\", and"
+                    + " it cannot cross a lane as itself: " + why + ". A value crossing a lane must share nothing"
+                    + " with its sender, and the copier that would make a mutable one safe is not built, so the"
+                    + " payload has to be deeply immutable: primitives, strings, enums, records and final classes"
+                    + " of those. Send a record of the values instead of the object that holds them");
         }
     }
 

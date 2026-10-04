@@ -610,6 +610,152 @@ class VexelProcessorTest {
                 + " BLOCK mailbox");
     }
 
+    // --- T2.4: a payload must be able to cross a lane as itself --------------------------------------------------
+
+    private static String sink(String payload) {
+        return """
+                @Component(lane = "a")
+                public final class Sink {
+                    @Subscribe(topic = "t") public void on(%s p) {}
+                }
+                """.formatted(payload);
+    }
+
+    @Test
+    void aRecordOfValuesCanCrossALane() {
+        assertEquals(List.of(), app("""
+                public record Range(int from, int to) {}
+                """, """
+                public record Edit(Range range, String text, java.time.Instant at, java.util.Optional<String> note,
+                                   java.util.UUID id) {}
+                """, sink("Edit")));
+    }
+
+    @Test
+    void aFinalClassOfFinalValuesCanCrossALane() {
+        assertEquals(List.of(), app("""
+                public final class Point {
+                    private final int x;
+                    private final int y;
+                    public Point(int x, int y) { this.x = x; this.y = y; }
+                }
+                """, sink("Point")));
+    }
+
+    @Test
+    void aSealedInterfaceOfRecordsCanCrossALane() {
+        assertEquals(List.of(), app("""
+                public sealed interface Shape permits Circle, Square {}
+                """, """
+                public record Circle(int r) implements Shape {}
+                """, """
+                public record Square(int side) implements Shape {}
+                """, sink("Shape")));
+    }
+
+    @Test
+    void aCollectionInAPayloadIsRefusedAndTheMessageNamesThePath() {
+        onlyError(app("""
+                public record Edit(java.util.List<String> lines) {}
+                """, sink("Edit")), "T2.4: Sink.on receives app.Edit on \"t\", and it cannot cross a lane as itself:"
+                + " Edit.lines: java.util.List<java.lang.String> has type arguments");
+    }
+
+    @Test
+    void anArrayInANestedRecordIsRefused() {
+        onlyError(app("""
+                public record Cells(int[] values) {}
+                """, """
+                public record Edit(Cells cells) {}
+                """, sink("Edit")), "Edit.cells -> Cells.values: int[] is an array");
+    }
+
+    @Test
+    void aClassWithAMutableFieldIsRefused() {
+        onlyError(app("""
+                public final class Cursor {
+                    private int at;
+                    public void move() { at++; }
+                }
+                """, sink("Cursor")), "Cursor.at: is not final");
+    }
+
+    @Test
+    void aClassThatIsNotFinalIsRefused() {
+        onlyError(app("""
+                public class Open {}
+                """, sink("Open")), "Open is neither final nor sealed, so a subclass could add mutable state");
+    }
+
+    @Test
+    void aFinalClassOverAnAbstractClassOfFinalValuesCanCrossALane() {
+        assertEquals(List.of(), app("""
+                public abstract class Base { private final int x = 0; }
+                """, """
+                public final class Derived extends Base { private final String y = ""; }
+                """, sink("Derived")));
+    }
+
+    @Test
+    void aMutableFieldInASuperclassIsRefused() {
+        onlyError(app("""
+                public abstract class Base { protected int x; }
+                """, """
+                public final class Derived extends Base {}
+                """, sink("Derived")), "Base.x: is not final");
+    }
+
+    @Test
+    void anInnerClassIsRefusedBecauseItHoldsItsEnclosingInstance() {
+        onlyError(app("""
+                @Component(lane = "a")
+                public final class Sink {
+                    int mutable;
+                    public final class Ping {}
+                    @Subscribe(topic = "t") public void on(Ping p) {}
+                }
+                """), "Ping: is an inner class, so it holds a reference to the instance that made it");
+    }
+
+    @Test
+    void aStaticNestedClassCanCrossALane() {
+        assertEquals(List.of(), app("""
+                @Component(lane = "a")
+                public final class Sink {
+                    int mutable;
+                    public static final class Ping {}
+                    @Subscribe(topic = "t") public void on(Ping p) {}
+                }
+                """));
+    }
+
+    @Test
+    void aSealedClassOfFinalSubclassesCanCrossALane() {
+        assertEquals(List.of(), app("""
+                public sealed abstract class Shape permits Circle {
+                    private final int id = 0;
+                }
+                """, """
+                public final class Circle extends Shape { private final int r = 0; }
+                """, sink("Shape")));
+    }
+
+    @Test
+    void aSealedClassWithAMutablePermittedSubclassIsRefused() {
+        onlyError(app("""
+                public sealed abstract class Shape permits Blob {}
+                """, """
+                public final class Blob extends Shape { int[] cells; }
+                """, sink("Shape")), "Shape -> Blob.cells: is not final");
+    }
+
+    @Test
+    void anInterfaceThatIsNotSealedIsRefused() {
+        onlyError(app("""
+                public interface Message {}
+                """, sink("Message")), "Message is an interface that is not sealed");
+    }
+
     // --- T4.4: no blocking edge on a cycle ---------------------------------------------------------------------
 
     @Test

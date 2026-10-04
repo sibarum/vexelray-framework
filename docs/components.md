@@ -9,9 +9,12 @@ spec the declaration seam is built against. It does not repeat the other three d
 
 Where this page and one of those disagree, that is a bug in one of them; say which in the commit.
 
-**Status of this page: all nine rulings taken on 2026-10-01, each as recommended** (the recommendation is kept
-under each, now marked *Ruled*). Rulings 1 and 2 are being built (see the inventory under them); ruling 5 carries
-one check that must pass before the freeze.
+**Status of this page, 2026-10-02.** The nine rulings below were put to the user together on 2026-10-01 and
+accepted as a batch, so most are labelled *Accepted as recommended*: adopted from a recommendation without
+discussion, valid but unexamined, to be re-checked when one matters. *Ruled* is kept for what the user decided
+with a reason of their own: that a full FAIL mailbox halts the process (ruling 5), that `superseded()` is deleted,
+and that the designer is not ported. Every ruling states its reason, and a new one must; see TODO.md, *A ruling
+carries its reason*. Rulings 1 and 2 are complete.
 
 ## What a component is
 
@@ -65,7 +68,7 @@ declaration can say. Kept beside them, the imperative form is a second way to do
 at any time, which is exactly what T1.3 (*placement is decided in the wiring and never at runtime*) says
 nothing may do. T1.3 is half held for that reason alone.
 
-**Ruled 2026-10-01: remove both from the surface an application sees.** `@Subscribe` is the one way. The generated
+**Accepted as recommended 2026-10-01, and carried out at the user's direction (steps a to g): remove both from the surface an application sees.** `@Subscribe` is the one way. The generated
 wiring still has to call something, so what survives is one entry point that generated code uses and
 application code has no reason to; Java has no friend visibility, so say so in its Javadoc and keep it off
 `Shell`. This makes T1.3 held rather than half held, and it deletes the cheapest way to build a cross-lane
@@ -138,14 +141,14 @@ non-public to an application (**done**); (e) the designer (**not ported, ruled 2
 ### 3. `lane`
 
 Ruled already: an optional string, defaulting to `Component.DEFAULT_LANE`, whose grammar
-(`[A-Za-z][A-Za-z0-9._-]*`) excludes the default by construction. **Ruled 2026-10-01: confirm and freeze, and
+(`[A-Za-z][A-Za-z0-9._-]*`) excludes the default by construction. **Accepted as recommended 2026-10-01: confirm and freeze, and
 the grammar is contract**, because a lane's name is also its thread's name and what a stall report calls
 it. The main thread stays a separate colour for the reason architecture.md gives. Changes nothing.
 
 ### 4. Group = lane
 
 T3.6 says a subtree is the default thread grouping, so that *which grouping is late* is answerable. With no
-tree (ruling 8) there is nothing else for a group to be. **Ruled 2026-10-01: for v1 a group is a lane, and
+tree (ruling 8) there is nothing else for a group to be. **Accepted as recommended 2026-10-01: for v1 a group is a lane, and
 supervision, `Overrun` and reports are per lane.** A separate group concept, if a tree later wants one, is an
 optional attribute with a default, which is additive. Changes nothing today; it stops T3.6 being read as a
 promise of a second axis.
@@ -153,7 +156,7 @@ promise of a second axis.
 ### 5. The `@Subscribe` defaults
 
 `overflow = FAIL`, `capacity = 64`, registered at construction and started with the lane. FAIL is T4.2, held,
-and the stack's own precedent. **Ruled 2026-10-01: freeze all three, and write capacity into the contract.**
+and the stack's own precedent. **Accepted as recommended 2026-10-01: freeze all three, and write capacity into the contract.**
 Capacity looks arbitrary, but a full FAIL mailbox resolves through `Fatal` (T6.2's note says exactly that),
 which ends the process, so changing 64 later changes whether an application dies under a burst, with no
 compile error.
@@ -181,7 +184,7 @@ and a bound that is simply too small should be raised.
 ### 6. Supervision
 
 Ruled: report only, and a policy the application can override. The three open points have answers in code
-already. **Ruled 2026-10-01: record them.** The threshold lives in `LivenessPolicy` (10 s by default, the policy's
+already. **Accepted as recommended 2026-10-01: record them.** The threshold lives in `LivenessPolicy` (10 s by default, the policy's
 to override). Lanes an application names are supervised the same way as the default lane, because the
 mechanism is per lane. A report is what `Context` is handed (`exit`, `interrupt`, later `restart`) and never an
 enum return. What is *not* done and is not a ruling: the main thread's heartbeat, and surfacing `Overrun` per
@@ -190,7 +193,7 @@ lane. Both are build items.
 ### 7. The landing rule for processor checks
 
 [v1.md](v1.md#what-counts-as-breaking) already says a new compile error is breaking, and may land after v1
-only if it rejects something that was already a bug. **Ruled 2026-10-01: confirmed, and made operational
+only if it rejects something that was already a bug. **Accepted as recommended 2026-10-01: confirmed, and made operational
 in two sentences.** *Before v1, every planned check lands enabled* (T2.4 and T2.5's, T4.4, T4.5), which is the
 reason to build them first. *After v1, a check lands without an opt-in only if what it rejects is a race, a
 deadlock or a dropped message at runtime; anything stricter than that is behind a processor option and listed
@@ -202,20 +205,19 @@ T3.4 (*components form a tree*) is still `open`, and T3.6 and T6.3 hang off it. 
 supervision needs a structure to live in. Lanes turned out to be that structure: the watchdog supervises a
 lane and names it, and nothing in the built model needed a parent.
 
-**Ruled 2026-10-01: v1 ships a flat set of components under an implicit root, and the tree is additive.** The
+**Accepted as recommended 2026-10-01: v1 ships a flat set of components under an implicit root, and the tree is additive.** The
 extension test passes if the tree arrives as an optional attribute (`parent`, defaulting to the root) with
 two consequences that apply only where it is used: a child shares its parent's lane unless it names one, and
 shutdown is child before parent (T6.3). A flat application's behaviour under that default is today's, so
-nothing that compiled changes. **This is the ruling most worth spiking** (add it to *Spike the extension
-test*): write the throwaway `parent` and count the existing signatures it forces to change. If the count is
-not zero, the tree is a v1 item. If the recommendation is taken, threading.md's own note says to re-argue
-§3.4 rather than keep it, and T3.4, T3.6 and T6.3 move to *after v1*.
+nothing that compiled changes. **Spiked 2026-10-02, and the count is zero** (TODO, *Spike the extension test*): a throwaway `parent` changed no
+existing signature and none of the existing processor tests, so the tree stays additive. With the recommendation accepted, threading.md's own note applies: re-argue
+§3.4 rather than keep it, and move T3.4, T3.6 and T6.3 to *after v1*. **Not done yet:** threading.md still lists them as before.
 
 ### 9. Is a `@Subscribe` off a component a thing?
 
 The TODO lists *"a `@Subscribe` that is not on a component (an extension or a macro, which is the whole point
 of the entry)"* as unbuilt. It has an unanswered question under it: a mailbox is drained on a lane, and an
-extension declares none. **Ruled 2026-10-01: it is not a thing.** An extension is a `@Component`, with a lane like
+extension declares none. **Accepted as recommended 2026-10-01: it is not a thing.** An extension is a `@Component`, with a lane like
 any other, and the extension API is `@Subscribe` on it. That keeps *the container is the only source of a
 reference* (T3.7) true for extensions as well, and it removes an item from the build list rather than adding
 one. Reactive *automation* (a user script that reacts rather than drives) is a different shape, because that
@@ -231,15 +233,15 @@ Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) ord
    is a declared send to a mailbox, and a cycle with a blocking edge is a compile error. **Exposing the graph as
    generated data (the rest of T4.5) is parked as additive**, until something consumes it. The stated limit stands
    and is on `@Publishes`: only a *declared* send is in the graph.
-3. **The copier** (T2.4). The pattern is elektroq's: annotate a record, the processor emits the copy, and a
-   deeply immutable record elides it. The annotation's name is undecided and is a Maven-level public name, so
-   decide it here.
-4. **The capture rule** (T2.5), which is the only one that wants a method body. Per
-   the rule that an object which *is* the rule beats a check (T5.3 was held twice for that reason), prefer
-   making capture impossible by construction: an offload API that takes its inputs as an argument and a function that cannot close over
-   anything. If that is not available, the processor check should read only the lambda passed directly to the
-   offload call, not method bodies in general. *Unverified; the choice belongs in the same entry as TODO's
-   "two promises need a method body".*
+3. **The copier** (T2.4). **The check half is done, 2026-10-02** (`Shareable`): a `@Subscribe` payload must be
+   deeply immutable, and anything else is refused, naming the first thing that stops it. **The generated copier is
+   parked as additive.** It would annotate a record and have the processor emit the copy, so collections and
+   mutable classes could cross; its annotation's name is a Maven-level public name and is undecided.
+4. **The capture rule** (T2.5), which is the only one that wants a method body. **Not decided.** This page first
+   said to make capture impossible by construction, with an offload API whose function cannot close over
+   anything. That is wrong: offload is an `Executor` and a `Callable`, and Java has no type that refuses a capturing
+   lambda. What is left is a Trees-based check that resolves each captured name (accurate, and the heaviest
+   piece in the processor) or a rule the reader keeps. See TODO, *Decide now. Two promises need a method body*.
 5. **Supervision's missing halves:** the main-thread heartbeat that knows a dialog is up, and `Overrun` per
    lane.
 6. **The completion path:** route offload completions into the timeline through `KronBridge`.

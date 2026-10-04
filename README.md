@@ -137,6 +137,8 @@ that cost a tax on every framework change, in three separate house styles, and t
 make them cohere made no progress. The witness is [a generated
 project](docs/architecture.md#the-witness-is-the-project-builder-not-an-application) now — it has no
 conventions of its own to defend, and rebuilding a real application from it costs about a day.
+`calculator-vexel-demo` was rebuilt exactly that way: it is a new application generated from the template,
+not the old hand-wired one restored.
 
 `-api` and `-core` are JDK-only, so the container's decisions are testable on a machine with no GPU.
 `-shell` is the only Vulkan-aware module.

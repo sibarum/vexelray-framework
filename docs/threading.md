@@ -116,7 +116,12 @@ survive a crossing**: `a == b` is false afterwards.
 wrappers, shareable only as far as* `T` *is, and* `State`*'s own Javadoc says what* `T` *must be in a
 parenthesis — "should be immutable". The reasoning is in*
 [architecture.md](architecture.md#what-may-cross-a-lane-and-what-crossing-does-to-it)*, including why
-`Serializable` is the semantics here and never the mechanism.* *(processor)*
+`Serializable` is the semantics here and never the mechanism.* *(held for `@Subscribe` payloads, the check half, by
+`VexelProcessorTest`'s T2.4 cases: a payload must be primitives, strings, enums, records, final classes of those (not inner ones), or
+a sealed interface or class of them, and the first thing that stops it is named with its path. **The copier is not built**:
+rather than copy a mutable payload the processor refuses it, so every collection, array and mutable class is
+refused until it is. That accepts less than the ruled design and building the copier later only accepts more. Only
+a declared mailbox is a checked crossing; a send nobody declared is not)*
 
 **T2.5 — A lambda that crosses a lane may capture only what T2.4 lets cross.** This is what makes the
 offload lane a policed edge of the model rather than a hole in it: an offloaded task that captures a
@@ -142,8 +147,9 @@ design does not permit."* *(read)*
 
 **T3.3 — A component's state is its own thread's.** Nothing else reads it, writes it, or holds a
 reference to it. *(processor, via §2.3 and §2.4 — the first is held, so the container can no longer hand a
-component's object across a lane; what it cannot yet stop is a component publishing a reference into its own
-state, which is the copier's to answer)*
+component's object across a lane, and T2.4's check half means a message can no longer carry a mutable
+reference out of a component's state through a declared mailbox; what it cannot stop is the same thing through a
+send nobody declared)*
 
 **T3.4 — Components form a tree.** A component may own child components; the application is the root.
 *(open — new to this stack, see the note below)*
@@ -306,17 +312,17 @@ The point of the column is that the unenforced rules are a list rather than an i
 | | held | processor | upstream | open | read |
 | --- | --- | --- | --- | --- | --- |
 | **1 Lanes** | T1.2, T1.3, T1.4, T1.5 | | | | T1.1 |
-| **2 Colour** | T2.1, T2.2, T2.3 | T2.4, T2.5 | | | |
+| **2 Colour** | T2.1, T2.2, T2.3, T2.4 | T2.5 | | | |
 | **3 Ownership** | T3.1, T3.7 | T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
 | **4 Channels** | T4.1, T4.2, T4.3, T4.4, T4.7 | T4.5 | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4 | | | T6.3, T6.5 | |
 
-Three readings worth taking from it. **Five of the thirty-three rules still say `processor`**, down from
-fourteen, and what the remaining five have in common is the useful thing to know about them: none can be
+Three readings worth taking from it. **Four of the thirty-three rules still say `processor`**, down from
+fourteen, and what the remaining four have in common is the useful thing to know about them: none can be
 decided from a declaration alone. T3.6 waits on the component
-tree (§3.4), T2.4 wants the copier, T4.5 is held in all but exposing the graph (`@Subscribe` and `@Publishes` declare the
-two ends of a channel, which is what T4.1, T4.3, T4.4 and T4.7 needed), T2.5 wants a method body, and T3.3 waits on T2.4. **`open` is three rules,
+tree (§3.4), T4.5 is held in all but exposing the graph (`@Subscribe` and `@Publishes` declare the
+two ends of a channel, which is what T4.1, T4.3, T4.4 and T4.7 needed), T2.5 wants a method body, and what is left of T3.3 is a send nobody declared, which no declaration shows. **`open` is three rules,
 and §2 is now empty of them** — the colour section was the one place where an unanswered question would
 have been classified into every application type by the processor, and T2.4 is answered. What is left open is the
 component seam and its supervision, which is where the remaining design work actually is. And
@@ -324,8 +330,9 @@ component seam and its supervision, which is where the remaining design work act
 things this repo could not fix, and both turned out to be one change in `vexelray-gui` — the worker pool
 ceasing to be a field initializer — rather than two problems.
 
-**What moved, and what made it move.** Eighteen rules are held (T4.1, T4.3 and T4.7 when `@Subscribe` put a channel on a declaration, T4.4 when the
-processor joined senders to mailboxes, and T1.3 when placement left the public surface); thirteen were before those. The first eight were paid for by two
+**What moved, and what made it move.** Nineteen rules are held (T4.1, T4.3 and T4.7 when `@Subscribe` put a channel on a declaration, T4.4 when the
+processor joined senders to mailboxes, T2.4's check half when it learned what is immutable, and T1.3 when placement
+left the public surface); thirteen were before those. The first eight were paid for by two
 objects: `Lanes`, which owns the application's threads instead of a `Gui` owning one set per tree, and
 `Placement`, which owns a component's thread and the drain-then-stop around it. None of those needed the
 processor — they needed something to *be* the rule, which is available a long way before the compile error
