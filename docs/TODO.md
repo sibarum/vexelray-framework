@@ -30,6 +30,14 @@ first when something depends on it.
 Landing any of these after v1 would break an application that compiled before, or change what an
 application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) orders the work.
 
+- [ ] **Geometry is written in `Length` and read back in four kinds of px** (mostly upstream, `vexelray-gui`).
+      Audited in [units.md](units.md) (2026-10-05), from the text editor's FN-20. There is no public em basis,
+      so eleven sites convert by hand and three of them are wrong (`SplitPane.size`, `SplitPane`'s drag
+      limits, `Tooltip`'s gap). Every one is hidden while `dpi` is pinned to 1, and surfaces when E4 lands.
+      **Why this blocks v1:** `SplitPane.sizeDp`/`onResize(Consumer<Float>)`, `Table.columnWidth` and the
+      `NodeLayout` record's components are public, and what em means (it is rem today) changes every
+      application's pixels if it changes later. The recommendation (U1–U9) is **not yet ruled**.
+
 - [ ] **The container now gives a component a thread and a mailbox; what is left is the colour rule.**
       `Shell.lanes()` owns the application's threads and the generated wiring puts each `@Component` on one of
       them with its mailboxes, its wake and its drain-then-stop — `Lanes` in `-core` (pure JDK, so the
@@ -344,8 +352,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       framework-owned `Window` handle, `shell.window()` for the main one and `shell.window("log")` for a named
       one, operations safe from any thread and posted to the main thread, with `Driver` using the same seam so
       `app()` can go. **Unbuilt and unwitnessed**: let W1 (two windows, in the witness specs) shape it rather
-      than designing it first, then delete `memory()` and `app()` under the legacy sweep. Also the natural home
-      for automation's missing `resize` and `zoom` verbs. `Shell.dialogs()` is already deleted.
+      than designing it first, then delete `memory()` and `app()` under the legacy sweep. `Shell.dialogs()` is
+      already deleted, and automation's `resize` and `zoom` verbs landed without it (on `WindowControls`).
 
 - [ ] **Spike the extension test.** [v1.md](v1.md#how-future-proofness-is-measured): for each row of the
       extension table, a throwaway prototype against the API as it stands, and the number of existing
@@ -404,6 +412,34 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
+
+- [ ] **Settings and the session are one file per application, written whole, and nothing stops two processes
+      overwriting each other** (`vexelray-gui-core`: `Settings`, `AppHome`, `WindowMemory`). Found 2026-10-05
+      planning the vexelray suite (the editor, vexplore and mainframe in one install, each spawning the
+      others, one new window per spawn). `Settings.save()` writes every key it holds, from memory, to
+      `~/.{app}/settings.properties`: atomic and thread-safe, but only within one process. `WindowMemory`
+      keeps window placement and zoom in that same store, and an application keeps its open files there too.
+      So two windows of one app each save their own stale view of every key and the last to close wins, and
+      both write the same fixed `settings.properties.tmp`, so concurrent saves can clobber each other's temp
+      file as well.
+      - **Ruled 2026-10-05:** only an instance launched without arguments reads or writes the session
+        (window, folder, open files). One started with paths, as a spawn from another app is, starts clean
+        and saves nothing, or two windows overwrite each other and a one-file window drags the last project's
+        tabs in. Wants an *ephemeral* switch (a `Shell` option, defaulting to today's behaviour) that
+        `WindowMemory` and the session keys honour. The editor's side is in its own `docs/TODO.md`.
+      - **Not ruled, recommended:** split general settings (theme, font, keybindings: shared by every window,
+        wanted by every app) from the session (per instance). Save the settings by taking an OS lock
+        (`FileChannel.tryLock` on a sidecar `.lock`: a created-if-absent lockfile goes stale when a JVM dies,
+        and locking the file itself blocks the rename on Windows), re-reading, applying only the keys this
+        process changed, writing a uniquely named temp file and moving it into place. The lock is short and
+        never held across a dialog. Other windows may pick a change up from a `WatchService` or on focus;
+        optional. Shared settings want a home shared across applications, where `AppHome` today is per
+        application (`~/.{name}`), e.g. `~/.vexelray/`.
+
+      **Why after v1:** `Settings`' accessors and `save()` keep their signatures, the lock and merge are inside
+      them, and the ephemeral switch is a new option with a default. **It moves to Blocks v1** if the *`Window`
+      seam* entry changes `shell.memory()` into a per-window handle, since the session then belongs to the
+      window and not to the store, or if a shared home changes `AppHome.of`'s contract.
 
 - [ ] **The full mailbox dump on a FAIL overflow, beyond the report that now exists.** A full FAIL mailbox halts
       the process on purpose ([components.md](components.md), ruling 5). **Done 2026-10-01, in atchung:**

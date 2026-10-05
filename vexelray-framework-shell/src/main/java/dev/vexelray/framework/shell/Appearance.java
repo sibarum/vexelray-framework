@@ -95,10 +95,11 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
         /**
          * 0.5 to 3, a step of 1.25 — the numbers all five hand-written call sites chose.
          *
-         * <p>Narrower than {@code Gui}'s own 0.25 to 4, deliberately and not by accident of copying: this is
-         * the range the applications settled on with a live UI in front of them, and it is the one being taken
-         * as the framework's answer. An application that wants {@code Gui}'s wider bounds says so, the same way
-         * one that wants the OS frame says so.
+         * <p>The range the applications settled on with a live UI in front of them, and the one taken as the
+         * framework's answer. {@code Gui} has since adopted the same default (vexelray-gui's todo §6.3), so the
+         * two now agree; this one is still stated here so the framework's choice does not silently follow a
+         * change upstream. {@code Gui.zoomRange} accepts anything down to 0.01, and an application that wants
+         * wider bounds says so, the same way one that wants the OS frame says so.
          */
         public static final ZoomRange DEFAULT = new ZoomRange(0.5f, 3f, 1.25f);
 
