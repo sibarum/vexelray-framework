@@ -704,13 +704,14 @@ blocks v1, and one thing worked better than expected: the processor's compile er
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
 
-- [ ] **A modal dialog on the GUI thread is reported as a stall** (`vexelray-gui-core` `GuiApp.reportStall`).
-      The screenshot button now opens a native save dialog (`vexelray-gui-nfd`'s `SaveScreenshot`), and a native
-      dialog has to block the thread that owns the window. That is the point of a modal dialog. The first one in a
-      process takes more than 250 ms, so `GuiApp` warns once that a task posted by `SaveScreenshot` stalled the
-      window, and advises moving it to the offload lane, where it cannot run. Vexplore's folder `Chooser` hits the
-      same warning. **Ask:** a way to post work that is modal by design (`GuiApp.postModal`, say), which the
-      stall check leaves alone, so the warning stays reliable for work that should not block.
+- [ ] **On macOS, a modal dialog on the GUI thread is reported as a stall** (`vexelray-gui-core`
+      `GuiApp.reportStall`). The screenshot button opens a native save dialog (`vexelray-gui-nfd`'s
+      `SaveScreenshot`, through `FileDialog.saveAsync`). On Windows that runs on the module's own dialog thread
+      and the window keeps drawing, so nothing is reported. On macOS AppKit requires the window's thread, the
+      dialog blocks it, and the first one in a process takes more than 250 ms. So `GuiApp` warns once that a task
+      stalled the window, and advises the offload lane, where the dialog cannot run. **Ask:** a way to post work
+      that is modal by design (`GuiApp.postModal`, say), which the stall check leaves alone, so the warning stays
+      reliable for work that should not block.
 
 - [ ] **The layout has no wrapping row, and the palette has one accent** (`vexelray-gui-core`). Found by
       Vexplore ([FN-5, FN-6](../../vexplore/docs/framework-notes.md)). Chips that flow onto the next line are
