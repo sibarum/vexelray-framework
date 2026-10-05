@@ -711,6 +711,35 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       Also, the resize cursor (`vexelray-gui/docs/plans/todo.md` §4.2) now has two consumers, `Table`'s grip
       and `SplitPane`'s divider, and neither can say what it is.
 
+- [x] **A texture can be made and not safely let go** (`vexelray-gui-core` `GuiApp`) — **fixed upstream.**
+      Found planning Vexplore's image preview, which is `Imagelib.decode` → `GuiApp.texture` → `Node.image`, a new texture per selection.
+      `texture`'s Javadoc says content that changes *"closes the old one after a frame that no longer names it"*,
+      and that puts the duty on the one party that cannot see it: the device and the present fences are private on
+      purpose, so an application can only guess when no frame in flight still samples a texture. Too early is a
+      use-after-free on the GPU; never is a leak until exit, which is all *"closed with the application"* offers.
+      Right for icons loaded at startup, wrong for anything that browses. **Ask:** `GuiApp.release(texture)`, which
+      queues the texture and closes it once a presented frame no longer draws it (or a retire queue keyed on the
+      frame counter, which comes to the same thing). It is the invariant an application cannot be trusted to
+      re-derive, so it is the framework's.
+
+      `GuiApp.release(texture)` is what it got, and the split it draws is the one the ask implies: the tree is
+      the application's half (release after the last node showing it has another image), the GPU is the
+      framework's. A released texture is held one whole loop iteration, so an edit posted just before the call has
+      been drained by every window, then closed after one `waitIdle` at the top of the next — which, with one
+      frame in flight, is what the next frame's fence wait would have cost. A frame counter alone would not have
+      done: windows draw only on change, so an idle window's last submit is never fenced by a later one. A texture
+      some window's tree still names is not closed but kept and warned about once, since a dangling descriptor is
+      worse than a leak; one the application did not make is refused at the call. `TextureReleaseTest` in
+      `vexelray-gui-harness` drives both orders on a real device. `viewport`'s replaced targets have the same
+      shape and were left alone, having no consumer that browses.
+
+      **The cache on top stays in the application for now.** The policy is LRU (a browser goes back to what it saw
+      recently), bounded by bytes, keyed by what the application knows (Vexplore: path, size, mtime, and the box
+      for an SVG), with eviction calling `release`. Decoded `Frames` and GPU textures want different budgets, which
+      is one more reason not to fold them into one framework buffer. If a second consumer appears (Vexplore's row
+      thumbnails count only as a second use, not a second application), an LRU texture cache over `release` is the
+      candidate to extract.
+
 - [x] **`Modals` never receives the application's theme** (`vexelray-gui-widget`) — **fixed upstream and
       taken here.** It built its own `new Gui()`, which defaults to `Theme.DARK`, so every dialog the
       framework installed drew dark whatever `Appearance.theme()` said — against a class whose own Javadoc
