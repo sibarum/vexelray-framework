@@ -2,6 +2,7 @@ package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
 import sibarum.atchung.Backpressure;
+import sibarum.atchung.Fold;
 import sibarum.atchung.Subscriber;
 import sibarum.atchung.Topic;
 
@@ -31,5 +32,19 @@ public final class Placements {
     public static <T> void mailbox(Placement placement, Topic<T> topic, Subscriber<T> subscriber, int capacity,
                                    Backpressure policy) {
         placement.subscribe(topic, subscriber, capacity, policy);
+    }
+
+    /**
+     * As {@link #mailbox(Placement, Topic, Subscriber, int, Backpressure)}, with a {@link Fold}: the mailbox holds
+     * cells, so a write supersedes the queued write to the same cell instead of queueing beside it.
+     *
+     * <p>For a host whose events declare their own loss class rather than a Java annotation per method - the
+     * Pontif runtime, where a sort says it is a sample and one lane's single mailbox then folds those and leaves
+     * every edge alone, keeping arrival order across both. Read {@code Fold} before using it: folding is lossless
+     * only where nothing can observe the consumer's state between a publish and its drain.
+     */
+    public static <T> void mailbox(Placement placement, Topic<T> topic, Subscriber<T> subscriber, int capacity,
+                                   Backpressure policy, Fold<T> fold) {
+        placement.subscribe(topic, subscriber, capacity, policy, fold);
     }
 }
