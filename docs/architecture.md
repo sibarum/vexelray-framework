@@ -208,8 +208,12 @@ including a `Theme` of its own construction with its own nine-anchor `Palette`, 
 `Relief`; the chrome reads that same theme rather than one of its own. An application that wants to
 draw things differently is not fighting a default — it is supplying the only value there is.
 
-Instruments follow §7's rule: the framework supplies `WindowInstrument.standard()` and a window may
-take fewer or none. Free to *enable*, not present unconditionally.
+Instruments follow §7's rule: the framework supplies a default set and a window may take fewer or
+none. Free to *enable*, not present unconditionally. The default is `WindowInstrument.standard()` with
+one substitution: the screenshot is `vexelray-gui-nfd`'s `SaveScreenshot`, which opens a native save
+dialog parented to the clicked window, rather than core's, which files a timestamped PNG in the working
+directory. A desktop application's working directory is wherever it was launched from, and nothing on
+screen names it, so a person clicking the camera could not find the picture. Core's stays for a script.
 
 Two knobs an application will want are **not yet expressible**, and neither gap is the framework's to
 close:

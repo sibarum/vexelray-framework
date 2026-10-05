@@ -5,6 +5,7 @@ import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Theme;
+import dev.vexelray.gui.nfd.SaveScreenshot;
 import dev.vexelray.os.Decorations;
 
 import java.util.List;
@@ -43,8 +44,9 @@ import java.util.List;
  * @param minHeight   the shortest, on the same terms
  * @param decorations whether the application draws its own frame ({@link Decorations#CLIENT}, and then it gets
  *                    a framework title bar) or the OS draws it ({@link Decorations#SYSTEM})
- * @param instruments the framework tools in the title bar. {@link WindowInstrument#standard()} by default,
- *                    and reducible to fewer or none — the doc's rule is that the framework supplies a default
+ * @param instruments the framework tools in the title bar. By default a screenshot button that asks where to
+ *                    save the picture ({@link SaveScreenshot}); {@link WindowInstrument#screenshot()} is the one
+ *                    that files it in the working directory without asking. Reducible to fewer or none — the doc's rule is that the framework supplies a default
  *                    set and a window may take less, so the utility is free to <em>enable</em> rather than
  *                    present unconditionally
  * @param zoom        how far the UI zoom goes and what one press moves it by. {@link ZoomRange#DEFAULT} when
@@ -144,7 +146,9 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
         if (decorations == null) {
             decorations = Decorations.CLIENT;
         }
-        instruments = instruments == null ? WindowInstrument.standard() : List.copyOf(instruments);
+        // The screenshot that asks where to put the picture, rather than core's, which files it in the working
+        // directory: right for a script, and for a person a file in a folder nothing on screen names.
+        instruments = instruments == null ? List.of(SaveScreenshot.instrument()) : List.copyOf(instruments);
         if (zoom == null) {
             zoom = ZoomRange.DEFAULT;
         }

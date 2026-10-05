@@ -126,6 +126,9 @@ final class ShellTest {
         assertTrue(appearance.drawsOwnFrame());
         assertEquals(dev.vexelray.gui.core.WindowInstrument.standard().size(),
                 appearance.instruments().size());
+        // The same button, by role, but the one that asks where the picture goes.
+        assertEquals(dev.vexelray.gui.nfd.SaveScreenshot.instrument().tooltip(),
+                appearance.instruments().get(0).tooltip());
     }
 
     @Test

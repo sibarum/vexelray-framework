@@ -49,6 +49,12 @@
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-widget</artifactId>
         </dependency>
+        <!-- The save dialog the screenshot instrument asks through. A desktop application's working directory
+             is wherever it was launched from, so a picture filed there is a picture nobody can find. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-nfd</artifactId>
+        </dependency>
 
         <!-- Input, and the bridge that puts it on the bus. -->
         <dependency>
