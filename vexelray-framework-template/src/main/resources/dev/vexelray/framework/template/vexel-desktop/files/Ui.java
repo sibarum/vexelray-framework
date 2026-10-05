@@ -1,157 +1,106 @@
 package ${packageName};
 
+import ${packageName}.text.Markdown;
 import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.Gui;
-import dev.vexelray.gui.core.Node;
-import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
 import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
-import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
-import dev.vexelray.gui.krono.Colors;
-import dev.vexelray.gui.krono.KronoGui;
-import dev.vexelray.gui.widget.Button;
+import dev.vexelray.gui.widget.Cue;
+import dev.vexelray.gui.widget.SplitPane;
+import dev.vexelray.gui.widget.StatusBar;
 import dev.vexelray.gui.widget.TitleBar;
-import sibarum.kronometer.Dur;
-import sibarum.kronometer.anim.Ease;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The tree. Builds it, holds the handles the application needs afterwards, and owns nothing else.
+ * The window: the framework's title bar, the navigator beside the open files, and a status line under both.
  *
  * <h2>It holds no state</h2>
  *
- * <p>{@link #show} takes a whole {@link Doc} and writes everything derived from it, which is the rule worth
- * keeping as this grows: a view that remembers a value can disagree with the document, and a label that
- * disagrees with the state is not a cosmetic bug -- it is the application lying about what it is doing.
+ * <p>{@link #show} takes a whole {@link Doc} and writes everything derived from it — the window title, the tab
+ * headers, the status line — which is the rule worth keeping as this grows: a label that remembers a value can
+ * disagree with the session, and a header that says a file is saved when it is not is the application lying.
  *
- * <p>{@code show} is called from the committing thread, which is a worker. That is correct and is the
- * framework's own idiom: a prop written off the GUI thread is queued and applied by the next drain, so the
- * frame that presents a value is the frame that reconciled it. What is <em>not</em> allowed is the other
- * direction -- reading the model from inside the frame loop.
+ * <p>{@code show} is called from the committing thread, which is a worker. That is correct and is the framework's
+ * own idiom: a prop written off the GUI thread is queued and applied by the next drain. What is <em>not</em>
+ * allowed is the other direction — reading the model from inside the frame loop.
  *
- * <p>The one thing it does hold is whether the count is mid-{@linkplain #pulse pulse}, which is motion rather than
- * state: nothing is derived from it, and it is gone the moment the pulse lands.
+ * <p>The title bar is the framework's. Chrome placement belongs to whoever owns the window, so that the screenshot
+ * instrument in it means the same thing in every window on the desk; this application places the node and
+ * supplies every colour in it through {@link Look}.
  */
 final class Ui {
 
-    /**
-     * How long the count glows after a press: long enough to see, and a transition the automation socket's
-     * {@code settle} has to wait out rather than photograph half-way through.
-     */
-    static final Dur PULSE = Dur.ms(600);
+    /** The navigator's width on a first run. Type-relative, so it grows with the zoom like the text in it. */
+    private static final Length NAVIGATOR = Length.rem(16);
 
-    private final Gui gui;
-    private final KronoGui krono;
     private final TitleBar titleBar;
-    private final Node count;
-    private final Node note;
-    private final AtomicBoolean pulsing = new AtomicBoolean();
+    private final StatusBar status;
+    private final Workspace workspace;
+    private final Navigator navigator;
+    private final Motion motion;
+    private final Color danger;
 
-    Ui(Gui gui, KronoGui krono, Model model, TitleBar titleBar) {
-        this.gui = gui;
-        this.krono = krono;
-        // The bar is the framework's: chrome placement belongs to whoever owns the window, so the instruments
-        // in it mean the same thing in every window on the desk. This application places the node, below, and
-        // supplies every colour in it through Look. It is already pointed at real window controls by the time
-        // a frame is drawn -- the framework hands those down at ATTACH, once the window exists.
+    Ui(Gui gui, Motion motion, Model model, TitleBar titleBar) {
         this.titleBar = titleBar;
+        this.motion = motion;
+        this.danger = gui.theme().color(Role.DANGER);
 
-        Node heading = gui.text(${className}.TITLE)
-                .font(Type.UI)
-                .textSize(Type.HEADING)
-                .textColor(gui.theme().color(Role.INK));
+        status = new StatusBar(gui)
+                .slot(Landmarks.STATUS_FILE, StatusBar.Side.LEFT, "")
+                .slot(Landmarks.STATUS_MESSAGE, StatusBar.Side.LEFT, "")
+                .slot(Landmarks.STATUS_POSITION, StatusBar.Side.RIGHT, "")
+                .minWidth(Landmarks.STATUS_POSITION, Length.rem(7));
+        gui.landmark(Landmarks.STATUS, status.node());
+        for (String slot : new String[] {Landmarks.STATUS_FILE, Landmarks.STATUS_MESSAGE, Landmarks.STATUS_POSITION}) {
+            gui.landmark(slot, status.slot(slot));
+        }
 
-        count = gui.text("0")
-                .font(Type.MONO)
-                .textSize(Type.FIGURE)
-                .textColor(gui.theme().color(Role.INK));
-        gui.landmark(Landmarks.COUNT, count);
+        // Markdown's colours are the theme's roles, and one of this application's own (Look.EMPHASIS). Resolved
+        // once, here, because a role resolves at the moment it is asked and the theme does not change under us.
+        Markdown.Style markup = new Markdown.Style(
+                gui.theme().color(Role.ACCENT),
+                gui.theme().color(Role.FAINT),
+                Look.EMPHASIS,
+                gui.theme().color(Role.ACCENT),
+                gui.theme().color(Role.DIM),
+                gui.theme().color(Role.INK),
+                gui.theme().color(Role.PANEL));
 
-        note = gui.text("")
-                .font(Type.UI)
-                .textSize(Type.SMALL)
-                .textColor(gui.theme().color(Role.DIM));
-        gui.landmark(Landmarks.NOTE, note);
+        workspace = new Workspace(gui, model, motion, markup,
+                p -> status.text(Landmarks.STATUS_POSITION, "Ln " + p.line() + ", Col " + p.column()));
+        navigator = new Navigator(gui, motion);
 
-        Node buttons = gui.row().gap(Type.GAP).alignItems(AlignItems.CENTER).children(
-                button(Landmarks.COUNT_BUTTON, "Count", () -> {
-                    model.bump();
-                    pulse();
-                }),
-                button(Landmarks.RESET_BUTTON, "Reset", model::reset));
-
-        Node card = gui.column()
-                .width(Length.AUTO).height(Length.AUTO)
-                .gap(Type.GAP)
-                .padding(Type.WIDE, Type.WIDE)
-                .corner(Type.CORNER)
-                .background(gui.theme().color(Role.PANEL))
-                .alignItems(AlignItems.CENTER)
-                .children(heading, count, note, buttons);
-        gui.landmark(Landmarks.CARD, card);
-
-        Node body = gui.row()
-                .width(Length.FILL).height(Length.grow(1f))
-                .justify(Justify.CENTER)
-                .alignItems(AlignItems.CENTER)
-                .background(gui.theme().color(Role.PAGE))
-                .children(card);
+        SplitPane split = new SplitPane(gui, SplitPane.Orientation.SIDE_BY_SIDE, navigator.node(), workspace.node())
+                .size(NAVIGATOR);
+        split.node().width(Length.FILL).height(Length.grow(1f));
 
         gui.root().direction(Direction.COLUMN)
                 .background(gui.theme().color(Role.PAGE))
-                .children(titleBar.node(), body);
+                .children(titleBar.node(), split.node(), status.node());
     }
 
-    /**
-     * A button, from {@code vexelray-gui-widget}.
-     *
-     * <p>The component rather than a text node with a click handler, because the handler alone leaves out the
-     * keyboard: Enter and Space press it when it has focus, and a disabled one leaves the focus order instead of
-     * merely ignoring clicks. The handler still runs on a worker, so everything it touches goes through Model.
-     */
-    private Node button(String landmark, String label, Runnable action) {
-        Node node = new Button(gui, label).onPress(action).node();
-        gui.landmark(landmark, node);
-        return node;
+    Workspace workspace() {
+        return workspace;
     }
 
-    /**
-     * The count glows towards the accent and back, once, in answer to a press.
-     *
-     * <p><b>Out and back in one ramp</b>, so both ends are the colour the figure already is. A figure that jumped
-     * to the accent and faded back would flash, and a sudden change of pixels is the one kind of feedback this
-     * application does not give. For the same reason <b>a press during a pulse does not restart it</b>: a second
-     * ramp would begin at the ink wherever the first had got to, which is a jump by another route.
-     *
-     * <p>Started from a click handler, on a worker, through {@link KronoGui#ramp} — which routes it onto the
-     * timeline and is safe from any thread. The progress lands on the timeline, once per frame; nothing here is
-     * read by the model, and the pulse is not triggered by {@link #show}, so the tree a screenshot catches is at
-     * rest.
-     */
-    private void pulse() {
-        if (!pulsing.compareAndSet(false, true)) {
-            return;
-        }
-        Color ink = gui.theme().color(Role.INK);
-        Color accent = gui.theme().color(Role.ACCENT);
-        krono.ramp(PULSE, Ease.LINEAR,
-                p -> count.textColor(Colors.OKLAB.between(ink, accent, (float) Math.sin(Math.PI * p))),
-                () -> {
-                    count.textColor(ink);
-                    pulsing.set(false);
-                });
+    Navigator navigator() {
+        return navigator;
     }
 
-    /**
-     * Write everything derived from the document.
-     *
-     * <p>One method taking the whole value, rather than a setter per field: two setters can be called with
-     * values from two different versions, and this cannot.
-     */
+    /** Draw the eye to the status line: something was refused or failed, and the message there says what. */
+    void alert() {
+        motion.cues.play(status.node(), Cue.ring(danger, 2));
+    }
+
+    /** Write everything derived from the session. One method taking the whole value, so no two fields can disagree. */
     void show(Doc doc) {
-        count.text(String.valueOf(doc.count()));
-        note.text(doc.note());
+        Doc.Entry front = doc.front();
+        titleBar.title(front == null ? ${className}.TITLE : front.title() + " — " + ${className}.TITLE);
+        status.text(Landmarks.STATUS_FILE, front == null ? "" : front.title());
+        status.text(Landmarks.STATUS_MESSAGE, doc.status());
+        if (front == null) {
+            status.text(Landmarks.STATUS_POSITION, "");
+        }
+        workspace.retitle(doc);
     }
 }

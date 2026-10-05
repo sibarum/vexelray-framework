@@ -158,8 +158,13 @@ class VexelDesktopTest {
         for (Blueprint.Entry entry : blueprint.entries()) {
             if (!entry.path().endsWith(".java")) continue;
             String text = blueprint.text(entry.path());
-            assertTrue(text.startsWith("package dev.example.plotviewer;"),
-                    entry.path() + " should declare its package, and starts: "
+            // The package is the folder the file lands in, so a sub-package's file declares the sub-package.
+            String folder = entry.path().substring(0, entry.path().lastIndexOf('/'))
+                    .replaceFirst("^src/(main|test)/java/", "");
+            String expected = "package " + folder.replace('/', '.') + ";";
+            assertTrue(folder.startsWith("dev/example/plotviewer"), entry.path() + " is outside the project's package");
+            assertTrue(text.startsWith(expected),
+                    entry.path() + " should declare " + expected + ", and starts: "
                             + text.substring(0, Math.min(60, text.length())));
         }
     }

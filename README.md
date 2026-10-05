@@ -177,8 +177,9 @@ java -cp vexelray-framework-template/target/classes dev.vexelray.framework.templ
 builder behind a terminal form; it is a second way in, not the only one.
 
 Non-GUI code — a file-system layer, parsing, anything with logic worth testing — goes in sub-packages of the
-generated one with public types, and should be testable without a `Gui`; the generated classes are
-package-private because a counter needs nothing more.
+generated one with public types, and should be testable without a `Gui`. The template does this itself: what it
+writes is a small text editor, and its file policy and its Markdown highlighter are public classes in `text/`,
+tested with no window, while the classes the wiring builds stay package-private.
 
 ## Building
 

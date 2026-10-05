@@ -2,9 +2,10 @@
 
 ${summary}
 
-A VexelRay desktop application. Generated from the `vexel-desktop` template, which is the reference
-implementation of this stack: every seam the framework offers is already wired in the tree you are
-reading.
+A VexelRay desktop application, generated from the `vexel-desktop` template: a small text editor with tabs, a file
+navigator and Markdown in colour. It is the reference implementation of this stack, so every seam the framework
+offers is wired in the tree you are reading — and it is a working editor, so it is also something to change into
+whatever you are actually building.
 
 ## Run it
 
@@ -12,99 +13,130 @@ reading.
 mvn compile exec:exec
 ```
 
-`exec:exec` rather than `exec:java`, so native access can be enabled for Panama FFM. The window comes up where
-you last left it, at ${width}x${height} the first time.
+`exec:exec` rather than `exec:java`, so native access can be enabled for Panama FFM. The window comes up where you
+last left it, at ${width}x${height} the first time, with the folder and the files you last had open. The first time,
+the navigator shows the working directory.
 
 ```
+mvn compile exec:exec "-Dapp.args=C:/notes"               # open a folder (or files) named on the command line
 mvn compile exec:exec -Dapp.args=120                      # 120 frames and quit
-mvn compile exec:exec -Dautomation=0                        # a driving socket on a free port (see Taking a screenshot)
-mvn compile exec:exec -Dautomation=on                     # a driving socket on the default port
-mvn test                                                  # the state model and the palette
+mvn compile exec:exec -Dautomation=0                      # a driving socket on a free port (see Taking a screenshot)
+mvn test                                                  # the model, the file policy, Markdown, the real tree headless
 ```
 
-## The stack
+## Using it
 
-Everything below is installed locally rather than downloaded, so `mvn install` in each of those projects has to
-have happened at least once. If the build cannot resolve them, that is why.
-
-| what | why it is here |
+| Keys | Does |
 | --- | --- |
-| `vexelray-gui-widget` | the widget shelf, and the framework core and draw modules behind it |
-| `vexelray-gui-krono` | the clock: animations, transitions, timed events |
-| `vexelray-gui-automation` | driving the running app the way a person does — a debugging instrument |
-| `tactroller-atchung` | keyboard and pointer input onto an atchung bus (brings `atchung-core`) |
-| `tactroller-clipboard` | the OS clipboard, with no input-subsystem coupling |
-| `vexelray-os-*`, `tactroller-*` | picked by an OS-activated profile; exactly one activates |
+| Ctrl+L | the path bar: type a folder to show it, a file to open it, a new name to create it; Enter goes |
+| Ctrl+S | save |
+| Ctrl+W | close the tab (asks if it is unsaved) |
+| Ctrl+Tab, Ctrl+PageDown / Ctrl+Shift+Tab, Ctrl+PageUp | next / previous tab |
+| Ctrl+Shift+E | put the keyboard in the navigator |
+| Ctrl+F | find in the file (Enter / Shift+Enter step, Escape closes) |
+| Ctrl+Z / Ctrl+Y | undo / redo |
+| Ctrl+= / Ctrl+- / Ctrl+0 | zoom |
+
+Selecting a file in the navigator opens it — a click, or walking the tree with the arrow keys, which keep the
+keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and Reveal in navigator. A bullet in
+front of a tab's name means unsaved changes; closing anything unsaved asks first, and so does quitting.
+
+There is no native file dialog, on purpose: this project uses nothing native beyond what the framework brings, so it
+builds wherever the framework does. The path bar is the whole of "open".
 
 ## How it is put together
 
-Four files carry the whole shape, and it is worth reading them in this order.
+Read these in this order.
 
-| file | what belongs in it |
+| File | What belongs in it |
 | --- | --- |
 | `Recipes.java` | **what this application builds.** One `@Provides` method per part; `${className}Wiring`, which builds them in order, is generated from it while the project compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. New parts go here. |
-| `Model.java` | the one authoritative state, and the only way to change it. Every edit is a function of the current value, committed through atchung's `State`. |
-| `Doc.java` | what the application knows, as one immutable record. Add fields here rather than adding state elsewhere. |
-| `Ui.java` | the tree. Holds no state; `show(Doc)` writes everything derived from the document. |
+| `Doc.java`, `Model.java` | the shape of the session — which files, which in front, which unsaved, which folder — as one immutable value, changed only by functions of the current value, committed through atchung's `State`. |
+| `Ui.java` | the window. Holds no state; `show(Doc)` writes everything derived from the session. |
+| `Workspace.java`, `Buffer.java` | the tab bar and one `Buffer` per tab: a `TextField`, its spans, its save bookkeeping. |
+| `Navigator.java`, `FolderSource.java` | the path bar and the file tree, over the disk, read lazily off the frame loop. |
+| `Actions.java` | every command, the questions some of them ask, and the close gate. |
+| `Session.java` | what comes back next time, in the framework's one settings store. |
+| `Motion.java` | the one tempo every widget moves at, on the framework's clock. |
+| `text/TextFile.java`, `text/Markdown.java` | **code with no `Gui` in it**, in a sub-package with public types: the policy between bytes and text, and Markdown as spans. Testable in milliseconds; this is where a real application's non-GUI code goes. |
 
-`${className}.java` is the entry point and the constants, and nothing else. What used to be there — the
-**application edge**: input, the clipboard, window memory, the clock, the frame loop with its wakes and its
-pacing, the dialogs, the command line and the shutdown order — is `vexelray-framework`'s. It was three hundred
-lines, and it was very nearly the same three hundred lines in every application on this stack.
-
-`Look.java`, `Type.java` and `Landmarks.java` are the three vocabularies: colour, size, and the names an
-automation script is allowed to depend on.
+`${className}.java` is the entry point and the constants, and nothing else. The application edge — input, the
+clipboard, window memory, the clock, the frame loop with its wakes and its pacing, the dialogs, the command line and
+the shutdown order — is `vexelray-framework`'s. `Look.java`, `Type.java` and `Landmarks.java` are the three
+vocabularies: colour, size, and the names an automation script is allowed to depend on.
 
 ### Phases
 
-A phase is a **correctness** constraint rather than a scheduling detail, and having them as a type is what
-makes the constraints structural instead of remembered:
+A phase is a **correctness** constraint rather than a scheduling detail, and having them as a type is what makes the
+constraints structural instead of remembered:
 
 | phase | what exists by then |
 | --- | --- |
 | `CONFIG` | the settings store and the look — values, before there is a `Gui` to apply them to |
 | `MODEL` | what the application knows, before there is anything to draw it with |
 | `GUI` | the `Gui` and the clock; the theme applied and the zoom range set, before the first widget |
-| `TREE` | the widgets. Buildable with no window, which is what lets a test or a tool build it with no GPU |
+| `TREE` | the widgets. Buildable with no window, which is what lets a test build it with no GPU |
 | `WINDOW` | the device and the window handle. Main-thread from here on |
 | `ATTACH` | anything that needed the handle: chrome controls, the close gate, the driving socket |
 
-A component's phase is decided by **what it needs** — the latest phase of anything it depends on — so it is a
-consequence of the code rather than a second thing to keep in agreement with it. `Shell`'s accessors refuse to
-hand over what does not exist yet, so asking too early is a message naming the phase rather than a null three
-frames later.
+Open `target/generated-sources/annotations/.../${className}Wiring.java` after a build to see which part landed where.
 
 ### Threading, in one paragraph
 
-The GUI loop runs on its own thread. Every handler — a click, a text change — runs on a worker. They meet at
-`Model`, whose compare-and-set puts concurrent edits in an order, and that is the only synchronisation in the
-application. A listener registered with `Model.onChange` fires on the committing thread, which is also a
-worker; writing a node's props from there is correct and is the framework's own idiom, because a prop written
-off the GUI thread is queued and applied by the next drain. What is not allowed is the other direction:
-nothing inside the frame loop reads the model.
+The GUI loop runs on its own thread. Every handler — a click, a key, a submitted path — runs on a worker, and every
+read and write of a file runs on the offload lane, so a slow disk is never a frozen window. Workers meet at `Model`,
+whose compare-and-set puts concurrent changes in an order. A listener registered with `Model.onChange` fires on the
+committing thread; writing a node's props from there is correct, because a prop written off the GUI thread is applied
+by the next drain. Two rules keep it deadlock-free, and both are written on `Workspace`: nothing commits to the model
+while holding the workspace's lock, and nothing a model listener reaches takes it. Nothing inside the frame loop
+reads the model.
 
-To drive the same objects a user does from a test, hold the wiring: `VexelApplication.tree(new ${className}Wiring(), args)` builds as far as the tree with no window, and `wiring.model()` and `wiring.ui()` return what `Recipes` built.
+### Spans
+
+`Markdown.spans` is a pure function from text to `Span`s — foreground, background, underline — and `Buffer` runs it
+on a worker after each edit and hands the result to the field. The text is never changed; the field draws the
+colours and moves each span with its text as you type. A `.txt` file gets none.
+
+### Motion
+
+The widgets animate only when handed a ramp, and without one they cut — so leaving the clock out costs no error,
+only a stiffer window. `Motion` makes the ramps from the framework's clock: the tabs slide, folders open, and a cue
+rings a tab you asked to open that was already open, or the status line when something was refused.
+
+## The stack
+
+Everything below is installed locally rather than downloaded, so `mvn install` in each of those projects has to have
+happened at least once. If the build cannot resolve them, that is why.
+
+| what | why it is here |
+| --- | --- |
+| `vexelray-framework-shell`, `-automation`, `-processor` | the application edge, the driving socket, and the processor that writes the wiring |
+| `vexelray-gui-widget` | the widgets: `Tabs`, `TreeView`, `TextField`, `SplitPane`, `StatusBar`, `Cues` |
+| `vexelray-gui-krono` | the clock: every transition and cue |
+| `vexelray-gui-automation` | driving the running app the way a person does — a debugging instrument |
+| `tactroller-atchung` | keyboard and pointer input onto an atchung bus (brings `atchung-core`) |
+| `tactroller-clipboard` | the OS clipboard, with no input-subsystem coupling |
+| `vexelray-os-*`, `tactroller-*` | picked by an OS-activated profile; exactly one activates |
 
 ## Taking a screenshot
 
-Screenshots are `ottermate`'s, and only its: it photographs the running window on the application's own device,
-so the picture is right about content as well as chrome. There is no `--capture` flag in this project on purpose.
+Screenshots are `ottermate`'s, and only its: it photographs the running window on the application's own device, so
+the picture is right about content as well as chrome. There is no `--capture` flag in this project on purpose.
 
 ```
 ottermate shot out.png --launch mvn compile exec:exec -Dautomation=0
 ```
 
-Say what the picture is *of* with options, and `ottermate` sets it first and stops if it cannot. Everything before `--launch` is ottermate's; everything after it is the application's command line:
+Say what the picture is *of* with options, and `ottermate` sets it first and stops if it cannot. Everything before
+`--launch` is ottermate's; everything after it is the application's command line (on Windows, `mvn.cmd`):
 
 ```
 ottermate --zoom 1.5 --dpi 2 --size 1600x900 shot big.png --launch ...   # pixels
-ottermate --size 24emx16em shot smallest.png --launch ...                # em, at the current zoom and density
-ottermate --window settings shot settings.png --launch ...               # another window of this application
+ottermate --size 36emx20em shot smallest.png --launch ...                # the minimum, in em
 ```
 
-`ottermate windows` lists the windows the application has open; `ottermate help` lists every verb. A zoom outside
-the range this application allows is clamped as its own zoom control would clamp it, and the reply says so.
-`docs/framework-notes.md` is where a picture that needs something `ottermate` cannot do belongs.
+The landmarks in `Landmarks.java` are the names a script uses: `await status.file notes.md` waits for a file to be in
+front, and `await path <folder>` for the navigator to be showing one. `ottermate help` lists every verb.
 
 ## Logging
 
@@ -117,20 +149,17 @@ The framework configures logging for you, before anything else runs, and the def
 | driven by `ottermate` or `-Dautomation` | debug | `…/${appName}.log`, **trace**, with a probe trace beside it |
 | a native image | warnings | `~/.${appName}/logs/${appName}.log`, info |
 
-Write to it from your own code with a logger, not `System.out`:
+Write to it with a logger, not `System.out` — `Actions` does, as `${appName}.files`:
 
 ```java
-private static final Log LOG = Log.of("myapp.save");     // sibarum.probe.Log
-LOG.info("saved {} to {}", name, path);
-LOG.warn("could not save {}", path, exception);          // the exception goes last; its stack reaches the file
+private static final Log LOG = Log.of("${appName}.files");   // sibarum.probe.Log
+LOG.warn("could not save {}", path, exception);               // the exception goes last; its stack reaches the file
 ```
 
-`--log=debug` (or `off`) changes the level for one launch, `-Dlog.level.myapp.save=trace` raises one logger, and
-`ottermate log` shows what is in force and where the file is (`ottermate log myapp.save trace` changes it in a
-running window). Standard output is left for a program's own output, so nothing logs there. Levels, settings and
-the rules for what belongs at which level are in `atchung/docs/logging.md`.
+`--log=debug` (or `off`) changes the level for one launch, and `-Dlog.level.${appName}.files=trace` raises one
+logger. Levels, settings and the rules for what belongs at which level are in `atchung/docs/logging.md`.
 
 ## The two documents
 
-`docs/framework-notes.md` and `docs/TODO.md` start empty and are meant to be filled in as you go. See the note
+`docs/framework-notes.md` and `docs/TODO.md` start nearly empty and are meant to be filled in as you go. See the note
 at the top of the first one — it is the more important of the two.

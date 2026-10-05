@@ -7,9 +7,15 @@
 # is no longer copied from anywhere. It is stated here, and this tree is what the
 # framework is verified against rather than a sketch of something else.
 #
-# What a new project draws is a heading and a counter, because the point of the
-# starting tree is that every seam is already wired and none of them is pretending
-# to be an application somebody else wrote.
+# What a new project is, is a small text editor: tabs over the files it has open, a
+# navigator over a folder, and Markdown shown in colour. An editor because it is the
+# smallest real application that reaches every seam a real one does -- the clock
+# (every widget here moves), spans, work off the frame loop (every read and write),
+# a close gate (unsaved files), the settings store (the session comes back), and a
+# tree that can be built and tested with no window. It uses nothing native beyond
+# what the framework brings, so it builds wherever the framework does. It replaced a
+# counter, which reached almost none of those, and made the framework look like it
+# was for counters.
 #
 # Every file this writes is listed below. That is not tidiness -- a bundled
 # template's files are classpath resources, and a classpath directory cannot be
@@ -19,7 +25,7 @@
 
 template  vexel-desktop
 title     VexelRay desktop application
-summary   a window on vexelray-gui, wired the way the reference implementation is
+summary   a tabbed text editor with a file navigator, wired the way the reference implementation is
 folder    ${artifactId}
 next      cd ${artifactId} && mvn compile exec:exec
 
@@ -123,7 +129,7 @@ slot tests
     kind      flag
     required  no
     preset    yes
-    help      unit tests for the state model and the palette
+    help      unit tests for the model, the file policy, the Markdown spans, the navigator and the real tree headless
 
 # ---- worked out rather than asked for ------------------------------------------------
 
@@ -157,9 +163,26 @@ file src/main/java/${packagePath}/Doc.java           from Doc.java
 file src/main/java/${packagePath}/Look.java          from Look.java
 file src/main/java/${packagePath}/Type.java          from Type.java
 file src/main/java/${packagePath}/Landmarks.java     from Landmarks.java
+file src/main/java/${packagePath}/Motion.java        from Motion.java
+file src/main/java/${packagePath}/Workspace.java     from Workspace.java
+file src/main/java/${packagePath}/Buffer.java        from Buffer.java
+file src/main/java/${packagePath}/Navigator.java     from Navigator.java
+file src/main/java/${packagePath}/FolderSource.java  from FolderSource.java
+file src/main/java/${packagePath}/Actions.java       from Actions.java
+file src/main/java/${packagePath}/Session.java       from Session.java
+
+# Code with no Gui in it goes in a sub-package with public types, so it can be tested
+# without a window and grown without the view. See TextFile's note.
+
+file src/main/java/${packagePath}/text/TextFile.java  from TextFile.java
+file src/main/java/${packagePath}/text/Markdown.java  from Markdown.java
 
 file src/test/java/${packagePath}/ModelTest.java     from ModelTest.java  when tests
 file src/test/java/${packagePath}/LookTest.java      from LookTest.java   when tests
+file src/test/java/${packagePath}/FolderSourceTest.java from FolderSourceTest.java when tests
+file src/test/java/${packagePath}/EditorTest.java    from EditorTest.java when tests
+file src/test/java/${packagePath}/text/TextFileTest.java from TextFileTest.java when tests
+file src/test/java/${packagePath}/text/MarkdownTest.java from MarkdownTest.java when tests
 
 # ---- what it will not build without ---------------------------------------------------
 #

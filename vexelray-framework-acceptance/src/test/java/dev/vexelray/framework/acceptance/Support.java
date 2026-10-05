@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -143,12 +144,19 @@ final class Support {
         }
     }
 
+    /** Where the counter every witness is built on lives in the test resources. */
+    static final String SHARED_DIR = "/witnesses/shared";
+
+    /** The counter every witness is built on: its state, and the type scale its views use. */
+    static final List<String> SHARED = List.of("Doc", "Model", "Type");
+
     /**
-     * The builder's {@code vexel-desktop} tree, written under {@code root} and then overlaid: each name in
-     * {@code overlay} is read from the test resources at {@code overlayDir}, has {@code ${packageName}} and
-     * {@code ${className}} filled in, and replaces (or adds) that file in the application's package. What is not
-     * overlaid is the builder's own, which is the point: a real generated application, changed only where the
-     * witness is testing something.
+     * The builder's {@code vexel-desktop} tree, written under {@code root}, with its application swapped for the
+     * witness's: the builder's sources are removed except the entry class and the look, the counter in
+     * {@link #SHARED_DIR} goes in, and then each name in {@code overlay}, read from the test resources at
+     * {@code overlayDir}. Each has {@code ${packageName}} and {@code ${className}} filled in. What is left of the
+     * builder's is the part every application on it shares — the entry, the look, the pom and the build — which is
+     * the point: a real generated project, running an application chosen to test something.
      */
     static Project generate(Path root, String artifact, String overlayDir, List<String> overlay) throws Exception {
         Template template = Catalogue.bundled().get("vexel-desktop");
@@ -175,8 +183,40 @@ final class Support {
                 .filter(p -> p.startsWith(main + "/") && blueprint.text(p).contains("@VexelApp"))
                 .map(p -> p.substring(p.lastIndexOf('/') + 1, p.length() - ".java".length()))
                 .findFirst().orElseThrow(() -> new AssertionError("no @VexelApp class in " + blueprint.paths()));
+        // A witness is a counter on real lanes, not an editor, so the editor the builder wrote is taken out and the
+        // witness's own application put in. What is kept of the builder's is what every application on it shares:
+        // the entry class, the look, the pom and the build. The counter's state model lives in /witnesses/shared,
+        // the one every witness drives, and each witness then overlays its own view and recipes.
+        Set<String> kept = Set.of(className + ".java", "Look.java", "LookTest.java");
+        for (String tree : List.of(main, main.replace("src/main/java", "src/test/java"))) {
+            Path folder = dir.resolve(tree);
+            if (!Files.isDirectory(folder)) {
+                continue;
+            }
+            try (Stream<Path> walk = Files.walk(folder)) {
+                for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
+                    if (Files.isRegularFile(p) && !kept.contains(p.getFileName().toString())) {
+                        Files.delete(p);
+                    } else if (Files.isDirectory(p) && !p.equals(folder)) {
+                        try (Stream<Path> left = Files.list(p)) {
+                            if (left.findAny().isEmpty()) {
+                                Files.delete(p);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        List<String> sources = new ArrayList<>();
+        for (String name : SHARED) {
+            sources.add(SHARED_DIR + "/" + name);
+        }
         for (String name : overlay) {
-            String source = resource(overlayDir + "/" + name + ".java")
+            sources.add(overlayDir + "/" + name);
+        }
+        for (String from : sources) {
+            String name = from.substring(from.lastIndexOf('/') + 1);
+            String source = resource(from + ".java")
                     .replace("${packageName}", packageName)
                     .replace("${className}", className);
             Files.writeString(dir.resolve(main).resolve(name + ".java"), source, StandardCharsets.UTF_8);

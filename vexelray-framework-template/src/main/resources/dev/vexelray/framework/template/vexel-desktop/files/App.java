@@ -11,21 +11,18 @@ import dev.vexelray.framework.shell.VexelApplication;
  * <h2>What this class is</h2>
  *
  * <p>The entry point, and the constants the rest of this package reads. That is all it is, and the reason is
- * worth knowing before anything else here: <b>the application edge is the framework's now.</b> Opening an
- * input backend and settling its coordinate space, installing a clipboard, remembering where the window was,
- * attaching a clock, wiring the frame loop with its wakes and its pacing, installing the dialogs, parsing the
- * command line and closing everything in the right order — this file used to be three hundred lines of exactly
- * that, near-identically to every other application on this stack.
+ * worth knowing before anything else here: <b>the application edge is the framework's.</b> Opening an input
+ * backend, installing a clipboard, remembering where the window was, attaching a clock, wiring the frame loop with
+ * its wakes and its pacing, installing the dialogs, parsing the command line and closing everything in the right
+ * order are all done for you.
  *
- * <p>What this application actually builds is in {@link Recipes}, one method per part. {@code ${className}Wiring},
- * which builds those parts in order, is generated from them and from the annotation on this class while the project
- * compiles — so the facts below are stated once, here, and the wiring reads them. Everything above that is in
- * {@link Ui}; everything the application <em>knows</em> is in {@link Model}. This class holds no state of its own,
- * and that is a rule worth keeping: the moment the edge starts remembering things, there are two places a value can
- * live.
+ * <p>What this application builds — a text editor with tabs and a file navigator — is in {@link Recipes}, one
+ * method per part. {@code ${className}Wiring}, which builds those parts in order, is generated from them and from
+ * the annotation on this class while the project compiles.
  *
  * <pre>
- * ${className}                     the window, interactively
+ * ${className}                     the editor, on the folder it was last showing (or the working directory)
+ * ${className} &lt;path&gt;...          open these: a folder becomes the navigator's root, a file a tab
  * ${className} &lt;frames&gt;            run a fixed number of frames and quit (a script, not a session)
  * ${className} --key=value         override a setting for this launch
  * </pre>
@@ -54,14 +51,15 @@ public final class ${className} {
     static final int H = ${height};
 
     /**
-     * The smallest this UI is still coherent at, in root ems — a floor, not the design size.
+     * The smallest this UI is still coherent at, in root ems — a floor, not the design size: a navigator and a
+     * document side by side, each still wide enough to read.
      *
      * <p>Named here rather than written at each use because it is read from two places that have to agree:
-     * {@link Recipes#look} declares it to the framework, and a screenshot at exactly the
-     * minimum (ottermate --size 24emx16em shot) is the picture that shows a panel outgrowing it.
+     * {@link Recipes#look} declares it to the framework, and a screenshot at exactly the minimum
+     * ({@code ottermate --size 36emx20em shot}) is the picture that shows a panel outgrowing it.
      */
-    static final float MIN_W_EM = 24;
-    static final float MIN_H_EM = 16;
+    static final float MIN_W_EM = 36;
+    static final float MIN_H_EM = 20;
 
     /**
      * Entry point.

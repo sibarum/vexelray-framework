@@ -167,14 +167,20 @@ class GeneratedProjectTest {
 
     @Test
     @Order(4)
-    void theRunningApplicationCountsResetsAndPhotographs() throws Exception {
+    void theRunningEditorOpensEditsSavesAndPhotographs() throws Exception {
         assertTrue(built, "nothing was built");
         int port = freePort();
         Path log = root.resolve("run.log");
         Path home = root.resolve("home");
+        // A folder of the editor's own to open, named on the command line, so the run does not depend on what the
+        // working directory happens to hold. The home is moved too, so no session is restored from a previous run.
+        Path work = Files.createDirectories(root.resolve("work"));
+        Files.writeString(work.resolve("notes.md"), "# Notes\n\nSome *emphasis* and `code`.\n");
+        Files.writeString(work.resolve("todo.txt"), "first\n");
         app = maven(project, log, "compile", "exec:exec",
                 "-Dautomation=" + port,
-                "-Dapp.jvmArgs=-D" + ARTIFACT + ".home=" + home).start();
+                "-Dapp.jvmArgs=-D" + ARTIFACT + ".home=" + home,
+                "-Dapp.args=" + work).start();
 
         try (Socket socket = connect(app, port, log);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
@@ -183,47 +189,45 @@ class GeneratedProjectTest {
             Driver driver = new Driver(out, in, log);
 
             driver.ok("settle");
-            driver.ok("await count 0");
+            // The path bar's name is the folder it shows, so this waits for the navigator to have listed it.
+            driver.ok("await path " + work.getFileName());
 
-            String count = driver.ref("button.count");
-            driver.ok("click " + count);
-            driver.ok("await count 1");
-            driver.ok("click " + count);
-            driver.ok("await count 2");
-            driver.ok("await note counted 2");
+            // Selecting a row opens it; the status line's file slot is named for the tab in front.
+            driver.ok("click " + refOf(driver, "treeitem", "notes.md"));
+            driver.ok("await status.file notes.md");
+            driver.ok("click " + refOf(driver, "treeitem", "todo.txt"));
+            driver.ok("await status.file todo.txt");
 
-            // The reset shortcut is a GLOBAL claim, so it goes through the keyboard path rather than the button.
-            driver.ok("key R");
-            driver.ok("await count 0");
-
-            driver.ok("click " + count);
-            driver.ok("await count 1");
-            driver.ok("click " + driver.ref("button.reset"));
-            driver.ok("await count 0");
-
-            // A press starts a 600 ms pulse on the count and publishes nothing else a frame loop would owe for,
-            // so settle has to wait out the clock rather than answer as soon as the count has redrawn. It used
-            // to answer within a frame or two, and a photograph taken then showed the pulse half-way through.
-            //
-            // Two measurements, because the pulse starts inside the click: the handler fires on the release, and
-            // the click's reply arrives a couple of hundred milliseconds after that. So the whole pulse fits
-            // between sending the click and settle's answer -- that is the claim -- and settle on its own still
-            // took a real share of it, which is what tells this from a click that was merely slow.
-            //
-            // From rest: the press two commands up may still be pulsing, and a press during a pulse does not
-            // restart it -- so without this, what is measured is the tail of that one.
+            // Selecting a file that is already open fronts its tab: the tabs slide (160 ms) and the header is ringed
+            // (a 240 ms cue). Neither publishes anything a frame loop would owe for once it has started, so settle
+            // has to wait out the clock rather than answer as soon as the tab has redrawn — and a photograph taken
+            // after a settle that did not would show the slide half-way. `key` answers at once, unlike `click`,
+            // which travels the pointer first, so the time to settle's answer is nearly all motion. The keyboard
+            // is in the tree, because opening from the tree leaves it there.
             driver.ok("settle");
-            long pressed = System.nanoTime();
-            driver.ok("click " + count);
-            long clicked = System.nanoTime();
+            driver.ok("key UP");
+            long keyed = System.nanoTime();
             driver.ok("settle");
-            long settled = System.nanoTime();
-            long wholeMs = (settled - pressed) / 1_000_000L;
-            long settleMs = (settled - clicked) / 1_000_000L;
-            assertTrue(wholeMs >= 600, "the click and settle took " + wholeMs + " ms, less than the 600 ms pulse"
-                    + " the click started, so settle answered before it finished\n" + tail(log));
-            assertTrue(settleMs >= 150, "settle answered in " + settleMs + " ms with a pulse in flight, so it did"
-                    + " not wait for the clock\n" + tail(log));
+            long settleMs = (System.nanoTime() - keyed) / 1_000_000L;
+            driver.ok("await status.file notes.md");
+            assertTrue(settleMs >= 150, "settle answered in " + settleMs + " ms with a 240 ms cue in flight, so it"
+                    + " did not wait for the clock\n" + tail(log));
+
+            // Edit todo.txt, see it go unsaved, and save it from its tab's menu — Ctrl+S is a chord, and the
+            // driver's `key` presses one key with no modifiers.
+            driver.ok("click " + refOf(driver, "treeitem", "todo.txt"));
+            driver.ok("await status.file todo.txt");
+            // The middle of the tab area is the page in front, which is the field being edited.
+            driver.ok("click " + driver.ref("tabs"));
+            driver.ok("key END");
+            driver.ok("type added");
+            driver.ok("await status.file • todo.txt");
+            driver.ok("rightclick " + refOf(driver, "tab", "todo.txt"));
+            driver.ok("click " + refOf(driver, "menuitem", "Save"));
+            driver.ok("await status.message Saved todo.txt");
+            driver.ok("await status.file todo.txt");
+            String saved = Files.readString(work.resolve("todo.txt"));
+            assertTrue(saved.contains("added"), "the save did not reach the disk: " + saved);
 
             Path shot = root.resolve("shot.png");
             driver.ok("shot " + shot);
@@ -248,7 +252,7 @@ class GeneratedProjectTest {
             String emSized = driver.ok("resize 50em 30em");
             assertTrue(emSized.matches("ok \\d+x\\d+"), "the window would not go to the em size asked for: " + emSized);
             driver.ok("shot " + root.resolve("zoomed.png"));
-            driver.ok("await count 1");
+            driver.ok("await status.file todo.txt");
 
             String clamped = driver.ok("zoom 999");
             assertTrue(clamped.contains("asked for 999"), "a zoom past the application's range must say so: " + clamped);
@@ -278,6 +282,28 @@ class GeneratedProjectTest {
         } finally {
             stop(app);
             app = null;
+        }
+    }
+
+    /**
+     * The ref of the first node of {@code role} whose listing line mentions {@code text}, asked again until it
+     * appears: a menu is built on a worker after the click that opened it, and a tree lists a folder off the
+     * frame loop, so the first look can be early.
+     */
+    private static String refOf(Driver driver, String role, String text) throws IOException, InterruptedException {
+        long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (true) {
+            String listing = driver.ok(text.isEmpty() ? "find " + role : "find " + text);
+            for (String line : listing.lines().skip(1).toList()) {
+                String trimmed = line.strip();
+                if (trimmed.matches("\\d+ " + role + "( .*)?") && trimmed.contains(text)) {
+                    return trimmed.substring(0, trimmed.indexOf(' '));
+                }
+            }
+            if (System.nanoTime() > until) {
+                return fail("no " + role + " mentioning '" + text + "' in:\n" + listing);
+            }
+            driver.ok("settle");
         }
     }
 

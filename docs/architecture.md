@@ -1185,8 +1185,10 @@ The counter every earlier acceptance run drives has one thread of its own and no
 model had only ever been checked by an application that does not use it. W2 is a generated application with the
 parts the model is for — a worker on a lane of its own, two components sharing the default lane, another lane
 with a wedge on it, a `BLOCK` mailbox published to from the handler lane — and a button that wedges a component.
-It is the builder's `vexel-desktop` tree with five files overlaid (`vexelray-framework-acceptance`, *test
-resources*, `witnesses/components`), and no wiring anywhere: the components are annotated and the processor writes
+It is the builder's `vexel-desktop` tree with its application swapped (`vexelray-framework-acceptance`, *test
+resources*, `witnesses/components`), and no wiring anywhere. Since October 2026 the builder writes a text editor
+rather than a counter, so every witness keeps only the parts of the builder's tree that every application shares —
+the entry class, the look, the pom — and takes its counter from `witnesses/shared` (`Support.generate`): the components are annotated and the processor writes
 the rest. Two launches of one build, driven through the socket.
 
 **What it confirmed, on the first run.** This is the honest headline: nothing broke.

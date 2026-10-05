@@ -659,7 +659,9 @@ onboarding is the goal.
       types, testable with no window. Worth a paragraph in the README, *How it is put together*, on where a real
       application's non-GUI code goes and that it should be testable without a `Gui`; and possibly a second
       template that starts there.
-      **Done (the paragraph):** in the README's *Starting a project*. A second template is still open.
+      **Done (the paragraph):** in the README's *Starting a project*. **Done (the template):** `vexel-desktop` now
+      writes a text editor, whose `TextFile` and `Markdown` are public classes in a `text` sub-package, tested
+      without a `Gui`.
 
 - [x] **Widgets that a second application wrote in an afternoon.** `Button` (with a toggle form), `Breadcrumb`,
       `StatusBar` and `SplitPane` were added to `vexelray-gui-widget` while building Vexplore, with tests, and
