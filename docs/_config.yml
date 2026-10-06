@@ -1,0 +1,18 @@
+title: vexelray-framework
+description: >-
+  Compile-time DI, typed configuration and a frame-aware lifecycle for GraalVM
+  native-image desktop applications on the VexelRay stack.
+
+# The documents carry no front matter; these plugins (all on by default under
+# GitHub Pages) render them anyway, title each page from its first heading, and
+# rewrite links between .md files to the .html pages they become.
+plugins:
+  - jekyll-optional-front-matter
+  - jekyll-titles-from-headings
+  - jekyll-relative-links
+
+relative_links:
+  enabled: true
+
+titles_from_headings:
+  strip_title: false

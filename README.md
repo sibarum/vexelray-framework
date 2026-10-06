@@ -13,6 +13,7 @@ which on this stack is the whole reason for being on native-image at all.
 - Wires the sibling stack: [vexelray](../vexelray) (Vulkan engine),
   [vexelray-gui](../vexelray-gui) (retained-mode GUI), [tactroller](../tactroller) (input),
   [atchung](../atchung) (bus), [kronometer](../kronometer) (time)
+- The documents below are also published as a site, at <https://sibarum.github.io/vexelray-framework/>
 - [docs/architecture.md](docs/architecture.md) is the deep version of this document
 - [docs/v1.md](docs/v1.md) is what v1 means: an application needs no major refactor afterwards, so the bar is
   whether the abstractions are final rather than whether the features are all there
