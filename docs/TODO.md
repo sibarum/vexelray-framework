@@ -503,37 +503,6 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       *a starter that depends on the build* changes `@VexelApp`'s contract (a conditional `starters`), since that
       annotation is the first thing every application writes.
 
-- [ ] **There is no way for one application to start another** (`vexelray-framework-shell`, or its own small
-      module). Wanted 2026-10-05 for the suite (vexplore opens a source file in the text editor, mainframe
-      opens "a terminal here", each as a **new process and a new window**, which is ruled: the editor usually
-      opens a folder, so a one-file launch is its own window, and handing off to a running instance is more
-      complicated and not always wanted). The apps are independent installs (`vexelray-installer`), each in its
-      own folder, so there is no sibling executable next to the running one to find.
-      - **Ruled 2026-10-06: what the suite shares is a file written at install time, in a location every
-        executable can read.** The installer writes whatever metadata the apps need to share, and each app reads
-        it at run time. **Why:** only the install knows where each app went. The apps ship as native `.exe`s with
-        no launcher in between (the installer writes a `.cmd` only for a jar), and a classpath resource in a
-        native image is fixed when the exe is built, so neither can carry an install location. The obvious place
-        is the installer's registry directory (default `%LOCALAPPDATA%\vexelray-installer\installs`), which
-        already holds one record per install with `commands.<name>.path`, the absolute path of each executable.
-      - **Ruled 2026-10-06: the arguments one app passes another are the apps' own business, not the
-        framework's.** **Why:** the suite is built in lock-step, so each app already knows how the others take
-        their input; a framework convention would only restate what the apps agree on, and freeze it. The
-        framework's job ends at finding and starting the executable. (What each app accepts is in its own TODO:
-        vexplore's start folder, mainframe's working directory.) A spawn is still ephemeral: it neither restores
-        nor writes the saved session, see the *settings and the session* entry above.
-      - **Ruled 2026-10-06: the shared file is the per-install records that already exist,**
-        `<registryDir>\<id>.json`, one per app, each carrying its own install-time metadata. **Why:** they
-        are already written at install time to a place every app can read, and one file per install means no
-        file is written by more than one installer. Metadata beyond `commands` is added to an app's own record.
-      - **Ruled 2026-10-06, the goal:** one helper over those records. `Apps.find(id)` returns the path (empty
-        when not installed: the caller decides what to say), and `Apps.spawn(id, args...)` starts it detached
-        with `ProcessBuilder` directly, since a native `.exe` needs no `cmd.exe` quoting. It takes the directory
-        as a parameter with the default, because the installer's `INSTALL_REGISTRY_DIR` override exists for
-        tests. **Why:** finding and starting an executable is all the framework owes the suite (the ruling
-        above), and every app would otherwise copy the same few lines.
-      **Why after v1:** a new module behind no existing signature, and the records need no installer change.
-
 - [ ] **The full mailbox dump on a FAIL overflow, beyond the report that now exists.** A full FAIL mailbox halts
       the process on purpose ([components.md](components.md), ruling 5). **Done 2026-10-01, in atchung:**
       `MailboxOverflow`'s message now says who published the event that did not fit (thread name and the
