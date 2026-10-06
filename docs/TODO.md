@@ -329,8 +329,11 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       change to an existing application.** That makes where the metadata lives a v1 decision. It must be
       carried by each backend's jar (GraalVM merges `META-INF/native-image` from every jar on the classpath)
       or by a starter, never by a file in the application, or every new OS is an edit to every app. The
-      per-OS backend selection in a starter has to meet the same test. Also missing, and first in line: no
-      generated application has ever been built as a native image, so acceptance stops at a JVM build.
+      per-OS backend selection in a starter has to meet the same test. **Corrected 2026-10-05:** this said no
+      generated application had ever been built as a native image. The text editor, vexplore and mainframe now
+      all are (Windows, GraalVM 25, `-Pnative` in each app), which is exactly the case the rule above warns
+      about: each carries its own metadata and flags, see the next entry. `-acceptance` itself still stops at a
+      JVM build.
       **Refined 2026-09-29: Windows is the v1 requirement; macOS is wanted but not required; Linux is in scope
       and will become load-bearing, but is not a priority until a distro is chosen and gives it a real build target.** The additivity test above applies to all of them, so what
       v1 must get right is where the metadata lives and how a backend is selected, not the number of backends.
@@ -342,6 +345,35 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       unverified:** which native pieces have no facade today. The reachability report names FFM bindings in
       `vexelray-os-windows`, `tactroller-clipboard` and `tactroller-linux`, a native-file-dialog loader that
       extracts a library from a jar, and bundled `natives/` for image decoding.
+
+- [ ] **Three applications carry their own native-image metadata and flags; it belongs upstream.** Found
+      2026-10-05, building `text-editor-vexel-demo`, `vexplore` and `mainframe` as native executables (about
+      30 to 40 s each, one 27 to 43 MB `.exe`, and each ran). Every one needed the same things written into
+      the *application*: a `reachability-metadata.json` recorded by running the app on a JVM under the tracing
+      agent, `-H:+ForeignAPISupport`, `--enable-native-access=ALL-UNNAMED`, and (mainframe, for
+      `Arena.ofShared`) `-H:+SharedArenaSupport`. The first build of two of them failed at runtime, not at
+      build time, on a missing FFM descriptor (`MissingForeignRegistrationError` in `User32.<clinit>`) or on
+      `Arena.ofShared`, so what is missing shows only when the path runs. What the agents say belongs where:
+      - **`vexelray-os-windows`:** the `Win32Window.wndProc` and `WindowsPlatform` reflection, the FFM downcall
+        and upcall descriptors it binds, and the `NativePlatform` `META-INF/services` entry.
+      - **`tactroller-windows`:** `WindowsInputBackend` and `WindowsRawInputHub` reflection, the `InputBackend`
+        service entry, their descriptors. **`tactroller-clipboard`:** its descriptors.
+      - **`vexelray-gui-nfd`:** the `natives/windows-x64/nfd.dll` resource and its downcalls. Whether its
+        loader, which extracts a library from a jar, works in a native image is **not known**: the dialogs were
+        never opened (`ottermate` cannot click a native dialog).
+      - **The jars that own them:** the shader `.spv` and text-atlas resources (`vexelray-gui-draw`,
+        `vexelray-text`, `supirvast`), and the joni `tables/*.bin`, TM4E reflection and signed-jar workaround
+        (a text-highlighting module or the editor's own starter, not each app).
+      - **A starter or the BOM:** the `-H` flags and `--enable-native-access`, the `native` profile itself, and
+        the generic `java.awt`, `java2d`, ImageIO, `sun.security.provider.*` and `awt_en` entries.
+      - **Already duplicated:** `vexelray-gui-demo` carries nearly identical metadata. Consolidate it into
+        the same place rather than a fourth copy.
+      **Why this blocks v1:** it is the ruling in the entry above, now with evidence: the metadata is carried by
+      each backend's jar or a starter, never a file in the application, or every new OS or backend is an edit to
+      every app. Today it is the other way round. **Unverified, for whoever moves it:** the metadata was
+      traced from limited runs, so a path nobody exercised (the dialogs, the clipboard, mainframe's other
+      shells) may still fail at runtime, and tracing is per application, so upstream metadata wants a trace of
+      each backend's own test or demo rather than of an app.
 
 - [ ] **A `Window` seam instead of `memory()`, `app()` and one-off dialogs.** Each is a singleton accessor in a
       world where a window is not: the designer already needs two, and every one of them has to say *which
@@ -440,6 +472,67 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       them, and the ephemeral switch is a new option with a default. **It moves to Blocks v1** if the *`Window`
       seam* entry changes `shell.memory()` into a per-window handle, since the session then belongs to the
       window and not to the store, or if a shared home changes `AppHome.of`'s contract.
+
+- [ ] **A shipped application and a drivable one are two builds, and each app now copies the arrangement.** Found
+      2026-10-05, removing the console window from the native executables. The automation facility (`ottermate`)
+      announces its port on stdout, so the first native builds were console-subsystem programs and a desktop
+      shortcut flashed a console window; it also meant a shipped binary could open a driving socket. All three
+      apps (text editor, vexplore, mainframe) now build two editions, each with the same shape:
+      - **`-Pnative-release`:** `target/<name>.exe`, linked `/SUBSYSTEM:WINDOWS` with `/ENTRY:mainCRTStartup`
+        (the image's entry is the C `main`, not `WinMain`; the PE header reads Subsystem 2), and the automation
+        dependencies set to `test` scope through an `automation.scope` property, so the generated wiring does
+        not contain them. Checked: with `--automation=0` there is no listening socket for the process, and the
+        strings `AutomationServer` and `AutomationStarter` are in none of the release exes and in each debug one.
+      - **`-Pnative`:** `target/<name>-debug.exe`, console subsystem, automation present, driven with `ottermate`
+        and a screenshot taken for each app (the replies and byte counts were checked, not the pictures).
+      - **What it cost each app:** a second source root per edition (`src/edition-debug`, `src/edition-release`)
+        added by a build-helper property. Because the framework names starters in the `@VexelApp` annotation on
+        the main class, vexplore and the editor each moved that annotation into a small class
+        (`VexploreApp`, `TextEditorApp`) of which each edition has its own copy, differing only in `starters`;
+        mainframe moved its socket code into a package-private `Driving` class that is empty in the release
+        edition. The generated wiring was renamed with it.
+      - **Not ruled, recommended upstream:** a parent-pom or BOM profile pair carrying the linker flags and the
+        scope switch (the flags are now written three times); reachability metadata in the backend jars (see the
+        *native-image metadata* entry, which also removes the trap vexplore fell into, a missing
+        `-H:+SharedArenaSupport`); and a way to name a starter that depends on the build, so an application
+        does not need two copies of its `@VexelApp` class. Substituting a source root from Maven is the
+        awkward part of today's arrangement.
+      - **Unverified:** that no console window appears for an instant. Only child `conhost` processes were
+        looked for, not the window list. And `exec:exec` was not run after the change; `mvn test` passes.
+      **Why after v1:** the profiles are build files, not an API. **It moves to Blocks v1** if the answer to
+      *a starter that depends on the build* changes `@VexelApp`'s contract (a conditional `starters`), since that
+      annotation is the first thing every application writes.
+
+- [ ] **There is no way for one application to start another** (`vexelray-framework-shell`, or its own small
+      module). Wanted 2026-10-05 for the suite (vexplore opens a source file in the text editor, mainframe
+      opens "a terminal here", each as a **new process and a new window**, which is ruled: the editor usually
+      opens a folder, so a one-file launch is its own window, and handing off to a running instance is more
+      complicated and not always wanted). The apps are independent installs (`vexelray-installer`), each in its
+      own folder, so there is no sibling executable next to the running one to find.
+      - **Ruled 2026-10-06: what the suite shares is a file written at install time, in a location every
+        executable can read.** The installer writes whatever metadata the apps need to share, and each app reads
+        it at run time. **Why:** only the install knows where each app went. The apps ship as native `.exe`s with
+        no launcher in between (the installer writes a `.cmd` only for a jar), and a classpath resource in a
+        native image is fixed when the exe is built, so neither can carry an install location. The obvious place
+        is the installer's registry directory (default `%LOCALAPPDATA%\vexelray-installer\installs`), which
+        already holds one record per install with `commands.<name>.path`, the absolute path of each executable.
+      - **Ruled 2026-10-06: the arguments one app passes another are the apps' own business, not the
+        framework's.** **Why:** the suite is built in lock-step, so each app already knows how the others take
+        their input; a framework convention would only restate what the apps agree on, and freeze it. The
+        framework's job ends at finding and starting the executable. (What each app accepts is in its own TODO:
+        vexplore's start folder, mainframe's working directory.) A spawn is still ephemeral: it neither restores
+        nor writes the saved session, see the *settings and the session* entry above.
+      - **Ruled 2026-10-06: the shared file is the per-install records that already exist,**
+        `<registryDir>\<id>.json`, one per app, each carrying its own install-time metadata. **Why:** they
+        are already written at install time to a place every app can read, and one file per install means no
+        file is written by more than one installer. Metadata beyond `commands` is added to an app's own record.
+      - **Ruled 2026-10-06, the goal:** one helper over those records. `Apps.find(id)` returns the path (empty
+        when not installed: the caller decides what to say), and `Apps.spawn(id, args...)` starts it detached
+        with `ProcessBuilder` directly, since a native `.exe` needs no `cmd.exe` quoting. It takes the directory
+        as a parameter with the default, because the installer's `INSTALL_REGISTRY_DIR` override exists for
+        tests. **Why:** finding and starting an executable is all the framework owes the suite (the ruling
+        above), and every app would otherwise copy the same few lines.
+      **Why after v1:** a new module behind no existing signature, and the records need no installer change.
 
 - [ ] **The full mailbox dump on a FAIL overflow, beyond the report that now exists.** A full FAIL mailbox halts
       the process on purpose ([components.md](components.md), ruling 5). **Done 2026-10-01, in atchung:**
