@@ -13,7 +13,12 @@ which on this stack is the whole reason for being on native-image at all.
 - Wires the sibling stack: [vexelray](../vexelray) (Vulkan engine),
   [vexelray-gui](../vexelray-gui) (retained-mode GUI), [tactroller](../tactroller) (input),
   [atchung](../atchung) (bus), [kronometer](../kronometer) (time)
-- The documents below are also published as a site, at <https://sibarum.github.io/vexelray-framework/>
+- The documents below are also published as a site, at <https://sibarum.github.io/vexelray-framework/>, which
+  is also the suite's home: a page per application under `docs/apps/`, and one set of install instructions for
+  all of them in `docs/install/`. The install page and its script are written by `vexelray-installer` from
+  [installer-suite.json](installer-suite.json), which names each application's own `installer.json`; regenerate
+  them when one of those changes, from this folder with the sibling checkouts beside it:
+  `java -jar ../vexelray-installer/installer-core/target/installer-core-0.1.0-SNAPSHOT-cli.jar --suite installer-suite.json --out docs/install`
 - [docs/architecture.md](docs/architecture.md) is the deep version of this document
 - [docs/v1.md](docs/v1.md) is what v1 means: an application needs no major refactor afterwards, so the bar is
   whether the abstractions are final rather than whether the features are all there
