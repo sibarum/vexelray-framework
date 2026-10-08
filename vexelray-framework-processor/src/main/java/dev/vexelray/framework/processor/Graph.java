@@ -100,12 +100,24 @@ final class Graph {
         List<Provider> providers = providers();
         live = providers;
         conflicts(providers);
+        VariableElement lentTo = null;
         for (TypeElement component : components) {
             if (live(component)) {
                 ExecutableElement constructor = constructor(component);
                 if (constructor != null) {
                     for (VariableElement p : constructor.getParameters()) {
                         componentParameter(component, p, providers);
+                        if (isComputeQueue(p)) {
+                            if (lentTo != null) {
+                                error(p, "T3.1: " + Mirrors.simple(component) + " takes the ComputeQueue, and so does "
+                                        + Mirrors.simple(lentTo.getEnclosingElement().getEnclosingElement()) + ". The"
+                                        + " queue is lent to one component, whose lane alone submits to it; a queue two"
+                                        + " lanes submit to is a race the driver does not forgive. Give it to one, and"
+                                        + " reach that one by publishing");
+                            } else {
+                                lentTo = p;
+                            }
+                        }
                     }
                 }
             }
@@ -256,6 +268,11 @@ final class Graph {
                     + " only into something that is itself main-thread: mark " + where + " @MainThread if its"
                     + " value lives there too");
         }
+        if (isComputeQueue(parameter)) {
+            error(parameter, "T3.1: " + where + " takes the ComputeQueue, which is lent to one @Component and to"
+                    + " nothing else: a provided value can be injected anywhere, and the queue would go with it to"
+                    + " whatever thread asked. Take it in the component that submits to it");
+        }
         TypeElement other = Mirrors.element(parameter.asType());
         if (other != null && mirrors.has(other, Component.class)) {
             error(parameter, "T3.7: " + where + " takes the component " + Mirrors.simple(other) + ". The"
@@ -267,6 +284,12 @@ final class Graph {
                     + " container's. Nothing is handed one: declare mailboxes with @Subscribe and the lane with"
                     + " @Component(lane = ...)");
         }
+    }
+
+    /** Whether {@code parameter} is the compute queue a component is lent (T3.1). */
+    private static boolean isComputeQueue(VariableElement parameter) {
+        TypeElement type = Mirrors.element(parameter.asType());
+        return type != null && type.getQualifiedName().contentEquals(Framework.COMPUTE_QUEUE);
     }
 
     /** Why a value of this type is main-thread, or {@code null} when it is not. */

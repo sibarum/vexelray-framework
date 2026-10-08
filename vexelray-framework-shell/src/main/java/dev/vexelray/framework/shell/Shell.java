@@ -12,6 +12,7 @@ import dev.vexelray.framework.core.WakeSource;
 import dev.vexelray.framework.core.Watchdog;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.CloseRequest;
+import dev.vexelray.gui.core.app.ComputeQueue;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
@@ -532,6 +533,27 @@ public final class Shell {
      */
     public GuiApp app() {
         return require(Phase.WINDOW, "the window", app);
+    }
+
+    /** The queue lent by {@link #computeQueue}, once it has been asked for. */
+    private ComputeQueue computeQueue;
+
+    /**
+     * The application device's compute queue of its own, for the one component that submits to it from its lane.
+     * Exists from {@link Phase#WINDOW}. Not {@linkplain ComputeQueue#available() available} unless the wiring asked
+     * for it ({@link Wiring#computeQueue}) and the device has a compute-only queue family; {@link ComputeQueue#why}
+     * says which it lacked.
+     *
+     * <p><b>Not the main thread's</b>, though it is the device's: T3.1 keeps the window, present and the queue that
+     * draws there, and this queue is the one part of Vulkan that is not. The processor lets one component take it and
+     * nothing else, so one lane submits to it.
+     */
+    public ComputeQueue computeQueue() {
+        GuiApp lender = require(Phase.WINDOW, "the compute queue", app);
+        if (computeQueue == null) {
+            computeQueue = lender.lendComputeQueue();
+        }
+        return computeQueue;
     }
 
     /**

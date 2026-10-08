@@ -45,6 +45,16 @@ public abstract class Wiring {
     public abstract AppInfo info();
 
     /**
+     * Whether the device is made with a compute queue of its own, to be lent to one component
+     * ({@link Shell#computeQueue}). Asked before the device exists, because a queue is taken when the device is made
+     * and never after. The generated wiring says yes exactly when a component takes a {@code ComputeQueue}; every
+     * other application gets the device it always had.
+     */
+    public boolean computeQueue() {
+        return false;
+    }
+
+    /**
      * {@link Phase#CONFIG} — settings-derived values, and the look.
      *
      * <p>The one phase with something an application almost always wants to say: {@link Shell#appearance} is

@@ -138,6 +138,19 @@ framework's invention — `vexelray-gui/CLAUDE.md` files it under constraints *n
 the framework hands out — `Framework`, held against `Shell` by `FrameworkTableTest` — which is where the
 generated wiring gets the `GuiApp` from as well)*
 
+**The one exception, ruled 2026-10-08: a compute queue lent to one component.** A device made with a compute-only
+queue beside the one that draws lends that queue, as a `ComputeQueue` (`Shell.computeQueue`), to the one
+`@Component` that takes it, and that component's lane alone submits to it. A `VkQueue` must be externally
+synchronised, and a queue nothing on the main thread submits to needs no lock to be another thread's: this is what
+lets a simulation run its steps back to back, however long each takes, without a frame ever waiting for one
+(vexelray-sim-rigid's `docs/physics-timing.md`). The queue that draws, the window and present stay here. The
+generated wiring asks for the queue (`Wiring.computeQueue`) exactly when a component takes it, so every other
+application gets the device it always had. Ordering what the lane computes against what a frame reads is the two
+queues' business, by what they signal and wait for: a buffer one writes while the other reads is a torn picture,
+and settling who may do which is not this rule's. *(held for the exception by
+`VexelProcessorTest.theComputeQueueIsLentToOneComponent` and `aProviderIsNotLentTheComputeQueue`, and by
+`GuiApp.lendComputeQueue` lending once)*
+
 **T3.2 — The timeline graph is the baton's.** A component thread never holds the baton and never reads
 or writes a `Signal`, `Cell` or `Effect`. `KronBridge` exists because the two systems have incompatible
 threading models: the bus publishes on whatever thread published, *"while the timeline is

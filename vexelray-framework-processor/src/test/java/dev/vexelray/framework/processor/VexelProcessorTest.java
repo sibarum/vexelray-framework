@@ -93,6 +93,7 @@ class VexelProcessorTest {
                     Placement place(String name) { LOG.add("placed " + name); return new Placement(name); }
                     public dev.vexelray.gui.core.Gui gui() { return new dev.vexelray.gui.core.Gui(); }
                     public dev.vexelray.gui.core.app.GuiApp app() { return new dev.vexelray.gui.core.app.GuiApp(); }
+                    public dev.vexelray.gui.core.app.ComputeQueue computeQueue() { LOG.add("compute queue lent"); return new dev.vexelray.gui.core.app.ComputeQueue(); }
                     public dev.vexelray.gui.widget.TitleBar titleBar() { return new dev.vexelray.gui.widget.TitleBar(); }
                     public String setting(String k, String d) { return file.getOrDefault(k, d); }
                     public int setting(String k, int d) { return file.containsKey(k) ? Integer.parseInt(file.get(k)) : d; }
@@ -106,6 +107,7 @@ class VexelProcessorTest {
                 package dev.vexelray.framework.shell;
                 public abstract class Wiring {
                     public abstract AppInfo info();
+                    public boolean computeQueue() { return false; }
                     public void config(Shell shell) {}
                     public void model(Shell shell) {}
                     public void gui(Shell shell) {}
@@ -176,6 +178,10 @@ class VexelProcessorTest {
             Map.entry("dev.vexelray.gui.core.app.GuiApp", """
                 package dev.vexelray.gui.core.app;
                 public final class GuiApp {}
+                """),
+            Map.entry("dev.vexelray.gui.core.app.ComputeQueue", """
+                package dev.vexelray.gui.core.app;
+                public final class ComputeQueue {}
                 """),
             Map.entry("dev.vexelray.gui.widget.TitleBar", """
                 package dev.vexelray.gui.widget;
@@ -280,6 +286,55 @@ class VexelProcessorTest {
                 @Component(lane = "compose")
                 public final class Composer { public Composer(dev.vexelray.gui.core.app.GuiApp app) {} }
                 """), "T2.2: Composer takes app, a main-thread value (GuiApp is the main thread's");
+    }
+
+    @Test
+    void aComponentIsLentTheComputeQueueAndTheDeviceIsMadeWithOne() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Component(lane = "physics")
+                public final class Physics { public Physics(dev.vexelray.gui.core.app.ComputeQueue queue) {} }
+                """);
+        assertEquals(List.of(), compiled.errors(), "T3.1 keeps the queue that draws on the main thread, not this one");
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        assertEquals(true, run.computeQueue(), "the device is asked for a queue to lend");
+        assertEquals(List.of(), run.phase("config"));
+        assertEquals(List.of("compute queue lent"), run.phase("window"), "built when the device exists");
+    }
+
+    @Test
+    void anApplicationThatLendsNoQueueAsksForNone() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.errors());
+        assertEquals(false, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).computeQueue());
+    }
+
+    @Test
+    void theComputeQueueIsLentToOneComponent() {
+        onlyError(app("""
+                @Component(lane = "physics")
+                public final class Physics { public Physics(dev.vexelray.gui.core.app.ComputeQueue queue) {} }
+                """, """
+                @Component(lane = "fluid")
+                public final class Fluid { public Fluid(dev.vexelray.gui.core.app.ComputeQueue queue) {} }
+                """), "T3.1: Fluid takes the ComputeQueue, and so does Physics");
+    }
+
+    @Test
+    void aProviderIsNotLentTheComputeQueue() {
+        onlyError(app("""
+                public interface Solver {}
+                """, """
+                @Configuration
+                public final class AppConfig {
+                    @Provides public Solver solver(dev.vexelray.gui.core.app.ComputeQueue queue) { return null; }
+                }
+                """), "T3.1: AppConfig.solver takes the ComputeQueue");
     }
 
     @Test
@@ -1403,6 +1458,11 @@ class VexelProcessorTest {
             var accessor = wiring.getClass().getDeclaredMethod(name);
             accessor.setAccessible(true);
             return accessor.invoke(wiring);
+        }
+
+        /** What the wiring answers {@code Wiring.computeQueue}: whether the device is made with a queue to lend. */
+        boolean computeQueue() throws Exception {
+            return (boolean) wiring.getClass().getSuperclass().getMethod("computeQueue").invoke(wiring);
         }
 
         String info() throws Exception {

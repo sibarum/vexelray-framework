@@ -25,6 +25,12 @@ final class Framework {
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";
     static final String LIVENESS = "dev.vexelray.framework.shell.LivenessPolicy";
+    /**
+     * The one framework value that is a component's and not the main thread's, though it is Vulkan: the device's
+     * compute queue of its own, lent to the one component that takes it (T3.1). The generated wiring asks for it
+     * ({@code Wiring.computeQueue}) exactly when a component does.
+     */
+    static final String COMPUTE_QUEUE = "dev.vexelray.gui.core.app.ComputeQueue";
 
     /**
      * A value the framework owns and hands out through a {@code Shell} accessor, from the phase that accessor
@@ -63,6 +69,8 @@ final class Framework {
             new Root("dev.vexelray.gui.core.app.WindowMemory", "memory", Phase.WINDOW, false),
             // "Vulkan, the window and present stay on the main thread" -- vexelray-gui/CLAUDE.md.
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),
+            // The exception to it, and the only one: a queue nothing on the main thread submits to.
+            new Root(COMPUTE_QUEUE, "computeQueue", Phase.WINDOW, false),
             new Root(CLIPBOARD, "clipboard", Phase.ATTACH, false));
 
     /**

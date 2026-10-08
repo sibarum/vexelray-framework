@@ -630,6 +630,12 @@ final class Generator {
         }
         src.append("\n    @Override\n    public ").append(Framework.APP_INFO).append(" info() {\n")
                 .append("        return INFO;\n    }\n");
+        // A component takes the compute queue, so the device is made with one to lend it (T3.1). Graph has made sure
+        // it is one component and no provider.
+        if (order.stream().anyMatch(b -> b.args.stream().anyMatch(a -> a instanceof RootArg r
+                && r.root().type().equals(Framework.COMPUTE_QUEUE)))) {
+            src.append("\n    @Override\n    public boolean computeQueue() {\n        return true;\n    }\n");
+        }
 
         // What was built, readable by whoever holds the wiring: a test, or a capture that has just called
         // VexelApplication.tree. Package-private like the class, typed, and checked by javac -- no lookup by

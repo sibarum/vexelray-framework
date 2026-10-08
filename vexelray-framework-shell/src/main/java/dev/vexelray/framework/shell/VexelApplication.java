@@ -253,7 +253,8 @@ public final class VexelApplication {
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
         WindowConfig main = mainWindow(memory, info, appearance);
-        GuiApp app = disposer.register(windows == null ? new GuiApp(main) : new GuiApp(main, windows));
+        GuiApp app = disposer.register(new GuiApp(main, windows,
+                wiring.computeQueue() ? GuiApp.Compute.OWN_QUEUE : GuiApp.Compute.SHARED));
         shell.app(app);
         wiring.window(shell);
 
