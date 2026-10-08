@@ -351,8 +351,8 @@ final class Declarations {
         }
         if (!method.getThrownTypes().isEmpty()) {
             error(method, "@BeforeFrame " + where + " declares " + method.getThrownTypes() + ". A hook that"
-                    + " throws takes the frame loop down with it, and the loop is the application: drop this"
-                    + " frame's work rather than tear the loop down");
+                    + " throws is stopped for the rest of the run and never called again: drop this frame's"
+                    + " work rather than throw");
         }
         if (method.getModifiers().contains(Modifier.PRIVATE)) {
             error(method, "@BeforeFrame " + where + " is private, so the generated frame array cannot call it");

@@ -169,6 +169,34 @@ before somebody reads it as the stack's general answer to "when does my work run
 that with a Kronometer `Rate`, and the two do not compete: see [the frame is the main thread's, and a
 `Rate` is everyone else's](#the-frame-is-the-main-threads-and-a-rate-is-everyone-elses).
 
+**A hook that throws is stopped, not fatal** (ruled 2026-10-08). The first ruling let a throwing hook take
+the loop down. The reasoning was that a loop that keeps presenting while part of the application has stopped
+is subtly wrong, while a program that has stopped is at least honest, and that hooks are the application's
+own code, documented not to throw. The calculator disproved that assumption. Closing its settings window left
+`WindowMemory.poll`, which is *framework* code, reading the bounds of a destroyed window. `GetWindowRect`
+failed, and the application went down with the user's tape in it. The loop is the one place where one part
+failing takes every other part with it, so `FrameHooks` now catches a `RuntimeException` per hook, replaces
+that hook with a no-op for the rest of the run, and hands it to the shell. The shell logs it once at `ERROR`
+with the stack and records it through `Diagnostics`. An `Error` still propagates. A bare `FrameHooks` with no
+listener still rethrows, because swallowing an exception with nobody to tell is silence. The `try` is free on
+the path that does not throw, so the no-allocation rule holds.
+
+That one crash had three causes, and each is now closed where it lives. That matters more than the ruling
+itself:
+
+- **The lifetime was the application's to pair.** `WindowMemory.watch` held the window, and `forget` let go
+  of it, but nothing anywhere called `forget`. Every earlier watch was on a main window, which only closes
+  when the application does. `WindowMemory.remember(key, spec, w, h)` now wires both ends from the spec's
+  `onCreated` and `onClosed`. It is the same move `TitleBar.commands` made for a bar's controls ("forgetting
+  either is silent") and `GuiApp.release` made for textures: a lifetime only the framework can see is the
+  framework's to end.
+- **A dead window threw.** `Win32Window` already knew it had been destroyed, but its geometry did not ask.
+  Every query now answers with what the window last was, every command does nothing, a second `close` is a
+  no-op, and only `createVulkanSurface` refuses. `NativeWindow`'s class comment states this as the contract.
+- **Nothing exercised it.** The component witness (W2) now opens a remembered tool window, closes it with
+  the control its title bar's X uses, and does that twice. It then checks that the run's log holds no
+  contained hook and no uncaught exception.
+
 ### 4. Deadlines and wakes are contributed, not enumerated
 
 Render-on-demand means the loop parks, and parking correctly requires knowing every deadline the

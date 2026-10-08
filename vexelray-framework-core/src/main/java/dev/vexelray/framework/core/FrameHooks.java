@@ -48,6 +48,10 @@ public final class FrameHooks {
 
     private long overrunNanos;
     private StageOverrun overrun;
+    private HookFailure failure;
+
+    /** What a hook that threw is replaced with: it has stopped, and the rest of the frame has not. */
+    private static final Runnable QUARANTINED = () -> { };
 
     private record Entry(FrameStage stage, Runnable hook) {
     }
@@ -151,21 +155,54 @@ public final class FrameHooks {
     }
 
     /**
+     * Be told when a hook throws, and keep the frame loop running without it.
+     *
+     * <p>With a listener, a hook that throws a {@link RuntimeException} is <b>quarantined</b>: replaced for good
+     * by a no-op, so it fails once rather than once a frame, and reported. Without one, it propagates and takes
+     * the loop down, which is what a bare container under test should see. An {@link Error} always propagates;
+     * that is the VM in trouble, not a hook.
+     *
+     * <p>Measured here and reported elsewhere, as {@link #onOverrun} is, for the same layering reason.
+     */
+    public FrameHooks onFailure(HookFailure listener) {
+        this.failure = listener;
+        return this;
+    }
+
+    /**
+     * Told that the hook at {@code index} in walk order, in {@code stage}, threw {@code thrown} and will not run
+     * again. On the main thread, inside the frame; called once per hook, so it may allocate and log.
+     */
+    @FunctionalInterface
+    public interface HookFailure {
+        void failed(FrameStage stage, int index, RuntimeException thrown);
+    }
+
+    /**
      * Run every hook, in order. Called once per frame, before the tree is reconciled.
      *
-     * <p>No try/catch. A hook that throws takes the loop down, and that is the honest outcome: the alternative
-     * is a frame loop that keeps presenting while some part of the application has stopped updating, which
-     * shows up as a display that is subtly wrong rather than a program that has stopped. Hooks are documented
-     * as not throwing ({@code @BeforeFrame}), and the places on this stack where a per-frame operation can fail
-     * transiently already swallow it at the source, where there is enough context to know that dropping one
-     * frame's input is the right answer.
+     * <p><b>A hook that throws is contained, not fatal</b>, once {@link #onFailure} is set, which the shell
+     * always does. This reverses an earlier ruling, which let a throwing hook take the loop down on the ground
+     * that a loop presenting while part of the application has stopped is a display subtly wrong rather than a
+     * program visibly stopped. What that ruling assumed was that hooks are the application's own code, documented
+     * not to throw. The hook that disproved it was the framework's: {@code WindowMemory.poll} read the bounds of a
+     * settings window the user had just closed, and the calculator went down with the user's tape in it. A frame
+     * loop is the one place where one part failing takes every other part with it, so the failure is reported
+     * loudly, once, with its stack, and the part that failed stops. The display is not subtly wrong; it is
+     * missing one behaviour, and the log says which.
+     *
+     * <p>The {@code try} costs nothing on the path that does not throw: no allocation, no extra branch per hook.
      */
     public void run() {
         Runnable[] local = hooks;
         long threshold = overrunNanos;
         if (threshold <= 0) {
             for (int i = 0; i < local.length; i++) {
-                local[i].run();
+                try {
+                    local[i].run();
+                } catch (RuntimeException e) {
+                    contain(i, e);
+                }
             }
             return;
         }
@@ -180,7 +217,11 @@ public final class FrameHooks {
             long started = System.nanoTime();
             int end = runEnd[r];
             for (int i = from; i < end; i++) {
-                local[i].run();
+                try {
+                    local[i].run();
+                } catch (RuntimeException e) {
+                    contain(i, e);
+                }
             }
             long took = System.nanoTime() - started;
             if (took > threshold) {
@@ -188,6 +229,16 @@ public final class FrameHooks {
             }
             from = end;
         }
+    }
+
+    /** Quarantine the hook at {@code index} and report it, or rethrow if nobody is listening. Off the hot path. */
+    private void contain(int index, RuntimeException thrown) {
+        HookFailure listener = failure;
+        if (listener == null) {
+            throw thrown;
+        }
+        hooks[index] = QUARANTINED;
+        listener.failed(stages[index], index, thrown);
     }
 
     /** How many hooks are registered — for diagnostics, and for the tests. */

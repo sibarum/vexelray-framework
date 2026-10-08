@@ -324,6 +324,9 @@ public final class VexelApplication {
         // names does not throw and writes nothing to a log -- the window simply stops, which reads as "the
         // application is slow" and sends nobody to the right file. See Stalls for what it deliberately is not.
         shell.hooks().onOverrun(Stalls.thresholdNanos(), Stalls::stalled);
+        // A hook that throws is stopped and reported rather than taking the loop -- and the application, and
+        // whatever the user had not saved -- down with it. See FrameHooks.run for the ruling and why.
+        shell.hooks().onFailure(HookFailures::failed);
         shell.hooks().seal();
         shell.pacing().seal();
         // Every component's thread starts here and not in its constructor: a mailbox must not pump before its

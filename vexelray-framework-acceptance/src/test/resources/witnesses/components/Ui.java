@@ -38,6 +38,7 @@ final class Ui {
     private final Node isolated;
     private final Node standard;
     private final Node stall;
+    private volatile Runnable tool = () -> { };
 
     Ui(Gui gui, Model model, Bench bench, Atchung bus, TitleBar titleBar) {
         this.gui = gui;
@@ -63,7 +64,8 @@ final class Ui {
                 button(Landmarks.WEDGE_DEFAULT_BUTTON, "Wedge default",
                         () -> bus.publish(WEDGE_DEFAULT, new Wedge(jobs.next()))),
                 button(Landmarks.WEDGE_ISOLATED_BUTTON, "Wedge isolated",
-                        () -> bus.publish(WEDGE_ISOLATED, new Wedge(jobs.next()))));
+                        () -> bus.publish(WEDGE_ISOLATED, new Wedge(jobs.next()))),
+                button(Landmarks.TOOL_BUTTON, "Tool", () -> tool.run()));
 
         Node card = gui.column()
                 .width(Length.AUTO).height(Length.AUTO)
@@ -110,6 +112,11 @@ final class Ui {
                 : gui.theme().color(Role.NONE)));
         gui.landmark(landmark, button);
         return button;
+    }
+
+    /** What the tool button does: handed in, since the window is claimed a phase after this tree is built. */
+    void onTool(Runnable action) {
+        tool = action == null ? () -> { } : action;
     }
 
     /** Everything derived from the document and from the bench, written whole. */

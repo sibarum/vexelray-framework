@@ -18,6 +18,11 @@ final class Landmarks {
     /** Wedges a component on a lane of its own, which nothing else shares. */
     static final String WEDGE_ISOLATED_BUTTON = "button.wedge.isolated";
 
+    /** Opens the tool window, a second window that closes while the application runs on. */
+    static final String TOOL_BUTTON = "button.tool";
+    /** In the tool window: closes it the way its title bar's X does. */
+    static final String TOOL_CLOSE_BUTTON = "button.tool.close";
+
     static final String RESULT = "result";
     static final String ECHO = "echo";
     static final String ISOLATED = "isolated";

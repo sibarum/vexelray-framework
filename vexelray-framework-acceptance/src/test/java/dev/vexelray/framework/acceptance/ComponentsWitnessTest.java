@@ -46,7 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ComponentsWitnessTest {
 
     private static final String ARTIFACT = "vexel-witness-components";
-    private static final List<String> OVERLAY = List.of("Landmarks", "Bench", "Components", "Ui", "Recipes");
+    private static final List<String> OVERLAY = List.of("Landmarks", "Bench", "Components", "Ui", "Recipes",
+            "ToolWindow");
 
     private static Path root;
     private static Project project;
@@ -101,6 +102,24 @@ class ComponentsWitnessTest {
             d.ok("click " + d.ref("button.echo"));
             d.ok("await echo echoed 1");
 
+            // A second window, remembered, closed by its own close control while the application runs on --
+            // twice, so the reopen is covered too. The calculator's settings window crashed here: the placement
+            // hook read the closed window on the next frame. Everything after this step is the proof the loop
+            // survived; the log is the proof nothing was contained along the way either.
+            for (int round = 1; round <= 2; round++) {
+                d.ok("click " + d.ref("button.tool"));
+                awaitWindows(d, 2);
+                d.ok("window tool");
+                d.ok("settle");
+                d.ok("click " + d.ref("button.tool.close"));
+                awaitWindows(d, 1);
+                d.ok("window 1");
+                d.ok("settle");
+            }
+            String run = Files.readString(session.log());
+            assertFalse(run.contains("a frame hook threw") || run.contains("uncaught exception"),
+                    "closing the tool window cost a frame hook\n" + tail(session.log()));
+
             // A component on a lane of its own wedges. The window still takes input, and so does every other lane.
             d.ok("click " + d.ref("button.wedge.isolated"));
             d.ok("await isolated isolated wedged");
@@ -137,6 +156,20 @@ class ComponentsWitnessTest {
             session.out().println("quit");
         }
         live = null;
+    }
+
+    /** Wait for {@code count} windows to be open. Opening and closing are posted, so they land a frame or so later. */
+    private static void awaitWindows(Driver d, int count) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        String reply = "";
+        while (System.nanoTime() < deadline) {
+            reply = d.ok("windows");
+            if (reply.startsWith("ok " + count + "\n") || reply.equals("ok " + count)) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("expected " + count + " windows open, the driver says\n" + reply);
     }
 
     // --- exit: the default policy ends the application ------------------------------------------------------

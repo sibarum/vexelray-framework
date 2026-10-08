@@ -1,6 +1,11 @@
 package ${packageName};
 
 import dev.vexelray.framework.api.Configuration;
+import dev.vexelray.framework.api.MainThread;
+import dev.vexelray.framework.core.Lanes;
+import dev.vexelray.gui.core.app.AppWindow;
+import dev.vexelray.gui.core.app.GuiApp;
+import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.shell.Appearance;
@@ -69,6 +74,21 @@ final class Recipes {
                 context.interrupt(stall.lane());
             }
         };
+    }
+
+    /** The tool window's tree: a second window that can close before the application does. */
+    @Provides
+    ToolWindow toolWindow(Appearance look, Lanes lanes) {
+        return new ToolWindow(look, lanes);
+    }
+
+    /** Its window, claimed once the GuiApp exists, and the button that opens it. */
+    @Provides
+    @MainThread
+    AppWindow toolHost(GuiApp app, WindowMemory memory, ToolWindow tool, Ui ui) {
+        AppWindow window = tool.claim(app, memory);
+        ui.onTool(window::show);
+        return window;
     }
 
     @Provides

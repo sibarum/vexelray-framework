@@ -13,8 +13,10 @@ import java.lang.annotation.Target;
  * hook and a Spring application event: an event published sixty times a second through a reflective multicaster
  * would be the most expensive thing in the loop.
  *
- * <p><b>The method must not throw.</b> A hook that throws takes the frame loop down with it, and the loop is
- * the application. Where the stack's own operations can fail transiently the hand-written edge already answers
+ * <p><b>The method must not throw.</b> A hook that throws is stopped for the rest of the run: reported once,
+ * with its stack, and never called again, so whatever it kept up to date is stale from then on. That is containment
+ * rather than permission. The loop is the application, and one hook failing no longer takes it down, but the hook
+ * is still gone. Where the stack's own operations can fail transiently the hand-written edge already answers
  * this way — a failed input poll <i>"drops this frame's input rather than tears down the loop"</i> — and a
  * per-frame hook is the last place a stack trace does anyone any good, because it will arrive sixty times
  * before it is read.

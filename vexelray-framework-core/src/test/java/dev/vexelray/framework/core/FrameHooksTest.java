@@ -88,4 +88,62 @@ final class FrameHooksTest {
     void noHooksIsNotAnError() {
         new FrameHooks().seal().run();
     }
+
+    /**
+     * The calculator's settings window: a SETTLE hook read a window the user had just closed, threw, and took
+     * every other hook -- and the application -- down with it. Now the one that threw stops, once, and is
+     * reported; the rest keep running, frame after frame.
+     */
+    @Test
+    void aHookThatThrowsIsQuarantinedAndTheRestKeepRunning() {
+        List<String> log = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+        int[] calls = {0};
+        FrameHooks hooks = new FrameHooks()
+                .add(FrameStage.INPUT, () -> log.add("input"))
+                .add(FrameStage.SETTLE, () -> {
+                    calls[0]++;
+                    throw new IllegalStateException("read a closed window");
+                })
+                .add(FrameStage.SETTLE, () -> log.add("settle"))
+                .onFailure((stage, index, thrown) -> failures.add(stage + "#" + index + ": " + thrown.getMessage()))
+                .seal();
+
+        hooks.run();
+        hooks.run();
+
+        assertEquals(List.of("input", "settle", "input", "settle"), log);
+        assertEquals(1, calls[0], "it failed once, not once a frame");
+        assertEquals(List.of("SETTLE#1: read a closed window"), failures);
+    }
+
+    /** With no one to tell, swallowing would be silence: a bare container lets it propagate. */
+    @Test
+    void withNoListenerAThrowingHookPropagates() {
+        FrameHooks hooks = new FrameHooks().add(FrameStage.APP, () -> {
+            throw new IllegalStateException("boom");
+        }).seal();
+        assertThrows(IllegalStateException.class, hooks::run);
+    }
+
+    /** The timed walk the shell uses contains a failure the same way. */
+    @Test
+    void theTimedWalkContainsAFailureToo() {
+        List<String> log = new ArrayList<>();
+        List<FrameStage> failed = new ArrayList<>();
+        FrameHooks hooks = new FrameHooks()
+                .add(FrameStage.CLOCK, () -> {
+                    throw new IllegalStateException("boom");
+                })
+                .add(FrameStage.APP, () -> log.add("app"))
+                .onOverrun(Long.MAX_VALUE, (stage, nanos) -> { })
+                .onFailure((stage, index, thrown) -> failed.add(stage))
+                .seal();
+
+        hooks.run();
+        hooks.run();
+
+        assertEquals(List.of("app", "app"), log);
+        assertEquals(List.of(FrameStage.CLOCK), failed);
+    }
 }
