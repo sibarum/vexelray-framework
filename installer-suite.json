@@ -12,6 +12,6 @@
     { "config": "../text-editor-vexel-demo/installer.json", "page": "../apps/text-editor.md" },
     { "config": "../Pix/installer.json", "page": "../apps/pix.md" },
     { "config": "../mainframe/installer.json", "page": "../apps/mainframe.md" },
-    { "config": "../calculator-vexel-demo/installer.json" }
+    { "config": "../calculator-vexel-demo/installer.json", "page": "../apps/calculator.md" }
   ]
 }

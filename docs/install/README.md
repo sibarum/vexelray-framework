@@ -21,7 +21,7 @@ and keep the others. Running the same line again updates each of them to its lat
 | [Vex](../apps/text-editor.md) | A tabbed text editor with a file navigator, on the VexelRay stack. | `text-editor` | `%LOCALAPPDATA%\Programs\Vex` |
 | [Pix](../apps/pix.md) | An image viewer: one picture, as large as the window allows, and the rest of its folder a key press away. | `pix` | `%LOCALAPPDATA%\Programs\Pix` |
 | [MainFrame](../apps/mainframe.md) | A terminal window that wraps the native Windows shell over ConPTY, built on the VexelRay stack. | `mainframe` | `%LOCALAPPDATA%\Programs\MainFrame` |
-| Calculator | A small calculator window onto cott-engine. | `calculator` | `%LOCALAPPDATA%\Programs\Calculator` |
+| [Calculator](../apps/calculator.md) | A small calculator window onto cott-engine. | `calculator` | `%LOCALAPPDATA%\Programs\Calculator` |
 
 Each application is installed by its own installer, the same one its own install command runs. This
 script downloads that installer, checks it against the SHA-256 in the application's published manifest,

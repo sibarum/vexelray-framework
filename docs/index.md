@@ -7,11 +7,13 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | | |
 | --- | --- |
 | [**Vexplore**](apps/vexplore.md) | A file explorer that suggests instead of asking, and where every action can be undone |
-| [**Text Editor**](apps/text-editor.md) | A tabbed text editor with a file navigator, which comes back where you left it |
+| [**Vex**](apps/text-editor.md) | A tabbed text editor with a file navigator, which comes back where you left it |
+| [**Pix**](apps/pix.md) | An image viewer: one picture, as large as the window allows, and the rest of its folder a key press away |
 | [**MainFrame**](apps/mainframe.md) | A terminal window for the shell you already have |
+| [**Calculator**](apps/calculator.md) | An ordinary-looking calculator that divides by zero |
 
-They are separate programs that know about each other: a text file in Vexplore opens in the editor, and the
-editor can show any file in Vexplore.
+They are separate programs that know about each other: a text file in Vexplore opens in Vex and a picture in
+Pix, and Vex can show any file in Vexplore.
 
 **[Install them](install/)** with one line of PowerShell, on Windows, for your user only. None of them has been
 released yet.
