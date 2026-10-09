@@ -445,6 +445,12 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
 
+- [ ] **Automation from the environment, and a session file** (`vexelray-framework-automation`: `Driver`). Part
+      of the stack's environment plan, mainframe `docs/stack-env.md` §1: `automation` resolved from the flag, the
+      property, then `VEXELRAY_AUTOMATION`, so an agent's shell opens every application's socket without a flag;
+      and `~/.vexelray/automation/<app>-<pid>.port` written while the socket is bound, so `ottermate` can attach
+      with no port. The hint under the `automation:` line, naming `ottermate`, is already in.
+
 - [ ] **Settings and the session are one file per application, written whole, and nothing stops two processes
       overwriting each other** (`vexelray-gui-core`: `Settings`, `AppHome`, `WindowMemory`). Found 2026-10-05
       planning the vexelray suite (the editor, vexplore and mainframe in one install, each spawning the

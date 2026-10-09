@@ -73,6 +73,12 @@ public final class Driver implements AutoCloseable {
             // Standard output, and not the log: this line is protocol. ottermate --launch reads the port from it,
             // and stdout is where a program puts what it produces. The log gets the same fact in its own words.
             System.out.println("automation: localhost:" + server.port());
+            // And who reads it. Whoever is looking at this line wants to drive the application, and the client is
+            // in a sibling checkout, usually not on PATH: without a pointer, the next step is writing a socket
+            // client from scratch, which has happened. Not a second "automation:" line, so --launch's match
+            // stays the one above.
+            System.out.println("  drive it with ottermate --port " + server.port() + "  (vexelray-gui/"
+                    + "vexelray-gui-automation-cli; build it there with: mvn -pl vexelray-gui-automation-cli install)");
             LOG.info("automation socket listening on localhost:{}", server.port());
             return new Driver(server);
         } catch (java.io.IOException | NumberFormatException e) {
