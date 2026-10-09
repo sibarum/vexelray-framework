@@ -8,7 +8,7 @@
 # install.ps1, checks it against the SHA-256 the manifest records, and runs it.
 #
 # Options (set as environment variables before running the line above):
-#   INSTALL_ONLY=a,b           install only these applications (vexplore, text-editor, pix, mainframe)
+#   INSTALL_ONLY=a,b           install only these applications (vexplore, text-editor, pix, mainframe, calculator)
 #   INSTALL_NO_SHORTCUTS=1     passed on to every application's installer
 #   INSTALL_NO_PATH=1          "
 #   INSTALL_NO_ASSOCIATIONS=1  "
@@ -16,7 +16,7 @@
 # INSTALL_VERSION and INSTALL_DIR name one application's version and folder, so they are not passed
 # on: run that application's own installer to use them.
 
-$SuiteCfg = '{"name":"VexelRay","members":[{"id":"vexplore","name":"Vexplore","manifestUrl":"https://raw.githubusercontent.com/sibarum/vexplore/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"},{"id":"text-editor","name":"Vex","manifestUrl":"https://raw.githubusercontent.com/sibarum/text-editor-vexel-demo/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"},{"id":"pix","name":"Pix","manifestUrl":"https://raw.githubusercontent.com/sibarum/Pix/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"},{"id":"mainframe","name":"MainFrame","manifestUrl":"https://raw.githubusercontent.com/sibarum/mainframe/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"}]}' | ConvertFrom-Json
+$SuiteCfg = '{"name":"VexelRay","members":[{"id":"vexplore","name":"Vexplore","manifestUrl":"https://raw.githubusercontent.com/sibarum/vexplore/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"},{"id":"text-editor","name":"Vex","manifestUrl":"https://raw.githubusercontent.com/sibarum/text-editor-vexel-demo/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"},{"id":"pix","name":"Pix","manifestUrl":"https://raw.githubusercontent.com/sibarum/Pix/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"},{"id":"mainframe","name":"MainFrame","manifestUrl":"https://raw.githubusercontent.com/sibarum/mainframe/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"},{"id":"calculator","name":"Calculator","manifestUrl":"https://raw.githubusercontent.com/sibarum/calculator-vexel-demo/main/manifest.json","registryDir":"%LOCALAPPDATA%\\vexelray-installer\\installs"}]}' | ConvertFrom-Json
 
 function SuiteSha([string]$p) { (Get-FileHash -Algorithm SHA256 -LiteralPath $p).Hash.ToLowerInvariant() }
 
