@@ -33,9 +33,10 @@ of.
 
 ## With the rest of the suite
 
-Open a text or source file and it goes to the [Text Editor](text-editor.md) in a new window. Anything else
-goes to whatever Windows normally opens it with. `vexplore <folder>` opens a folder, and `vexplore <file>`
-opens the folder it is in with that file selected. That is how the editor's *Open in Vexplore* works.
+Open a text or source file and it goes to the [Text Editor](text-editor.md) in a new window, and a picture goes to
+[Pix](pix.md). Anything else goes to whatever Windows normally opens it with. `vexplore <folder>` opens a
+folder, and `vexplore <file>` opens the folder it is in with that file selected. That is how
+the editor's *Open in Vexplore* works.
 
 ## Status
 

@@ -1,7 +1,7 @@
 {
   "id": "vexelray",
   "name": "VexelRay",
-  "description": "Desktop applications built on the VexelRay stack: a file explorer, a text editor and a terminal. They are separate programs that know about each other, so a file in the explorer opens in the editor and the editor can show a file in the explorer.",
+  "description": "Desktop applications built on the VexelRay stack: a file explorer, a text editor, an image viewer and a terminal. They are separate programs that know about each other, so a file in the explorer opens in the editor or the viewer, and the editor can show a file in the explorer.",
 
   "repo": "sibarum/vexelray-framework",
   "branch": "main",
@@ -10,6 +10,7 @@
   "members": [
     { "config": "../vexplore/installer.json", "page": "../apps/vexplore.md" },
     { "config": "../text-editor-vexel-demo/installer.json", "page": "../apps/text-editor.md" },
+    { "config": "../Pix/installer.json", "page": "../apps/pix.md" },
     { "config": "../mainframe/installer.json", "page": "../apps/mainframe.md" }
   ]
 }
