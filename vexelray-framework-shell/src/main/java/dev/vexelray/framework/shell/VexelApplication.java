@@ -248,11 +248,13 @@ public final class VexelApplication {
         InputBackend input = shell.openInput();
         // The mark goes on the process before the first window exists, so every window this application opens
         // is shown wearing it rather than corrected into it a frame later. See AppInfo.icon for why the same
-        // mark is then named on the window's own config as well.
-        installMark(info.icon());
+        // mark is then named on the window's own config as well. The application's if it named one, the
+        // framework's if not: see Mark.
+        Icon mark = Mark.of(wiring, info);
+        installMark(mark);
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
-        WindowConfig main = mainWindow(memory, info, appearance);
+        WindowConfig main = mainWindow(memory, info, appearance, mark);
         GuiApp app = disposer.register(new GuiApp(main, windows,
                 wiring.computeQueue() ? GuiApp.Compute.OWN_QUEUE : GuiApp.Compute.SHARED));
         shell.app(app);
@@ -356,12 +358,12 @@ public final class VexelApplication {
     }
 
     /** The main window's config: where it was left, how it is decorated, and the mark it wears. */
-    private static WindowConfig mainWindow(WindowMemory memory, AppInfo info, Appearance appearance) {
+    private static WindowConfig mainWindow(WindowMemory memory, AppInfo info, Appearance appearance, Icon mark) {
         WindowConfig config = memory.config(MAIN, info.title(), info.width(), info.height())
                 .decorations(appearance.decorations());
         // Named on the window as well as on the process. Redundant for exactly as long as this application is
         // the process; see AppInfo.icon for the arrangement where it stops being.
-        return info.icon() == null ? config : config.icon(info.icon());
+        return mark == null ? config : config.icon(mark);
     }
 
     /**

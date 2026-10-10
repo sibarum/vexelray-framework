@@ -21,15 +21,15 @@ import java.util.List;
  *
  * <h2>The wiring is generated from this</h2>
  *
- * <p>{@code ${className}Wiring} is written by {@code vexelray-framework-processor} while this project compiles, and
+ * <p>{@code ${className}AppWiring} is written by {@code vexelray-framework-processor} while this project compiles, and
  * lands in {@code target/generated-sources/annotations}. It calls each method below once, in the phase its
  * parameters put it in: <b>a part's phase is the latest phase of anything it takes.</b> So the look, the model and
  * the session store exist before the {@code Gui} does; the window's contents wait for the {@code Gui}, its clock and
  * its title bar; and the restore, which takes the {@code Shell}, comes last, when the window and the dialogs exist.
  * There is no phase to declare and none to get wrong. Open the generated file after a build to see the order.
  *
- * <p>The driving socket is not here. It comes from {@code AutomationStarter}, which {@link ${className}} names in
- * its {@code @VexelApp}.
+ * <p>The driving socket is not here. It comes from {@code AutomationStarter}, which the debug edition of
+ * {@code ${className}App} names in its {@code @VexelApp} (see {@link ${className}}).
  *
  * <h2>What is not here is the point</h2>
  *

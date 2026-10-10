@@ -7,6 +7,7 @@ import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.api.Subscribe;
 
+import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
@@ -14,12 +15,17 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.NestingKind;
+import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
+import javax.tools.StandardLocation;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Locale;
 
 /**
  * The checks that need one declaration and nothing else: its kind, its modifiers, its parameters, its return
@@ -419,6 +425,53 @@ final class Declarations {
                 error(app, "@VexelApp " + Mirrors.simple(app) + " names " + starter + " as a starter, and it is"
                         + " not a @Configuration class. A starter is a configuration, named rather than found");
             }
+        }
+    }
+
+    /**
+     * The mark is an {@code .ico} or a {@code .png}, and it is there. Found where javac can look: the class output,
+     * which Maven has copied {@code src/main/resources} into before compiling, and the class path, for a mark that
+     * ships in a library. What the bytes hold is checked at startup, by the decoder that will read them.
+     */
+    void icon(TypeElement app, AnnotationMirror vexelApp, Filer filer) {
+        String icon = mirrors.string(vexelApp, "icon");
+        if (icon.isEmpty()) {
+            return;
+        }
+        String lower = icon.toLowerCase(Locale.ROOT);
+        if (!lower.endsWith(".ico") && !lower.endsWith(".png")) {
+            error(app, "@VexelApp " + Mirrors.simple(app) + " names \"" + icon + "\" as its icon, and an icon is an"
+                    + " .ico or a .png: the two forms the framework decodes without AWT. Prefer the .ico the"
+                    + " executable links, so the window and the .exe wear the same file");
+            return;
+        }
+        String path = iconPath(app, icon);
+        if (!found(filer, StandardLocation.CLASS_OUTPUT, path) && !found(filer, StandardLocation.CLASS_PATH, path)) {
+            error(app, "@VexelApp " + Mirrors.simple(app) + " names \"" + icon + "\" as its icon, and there is no"
+                    + " resource " + path + " on the class output or the class path. The name is resolved as"
+                    + " Class.getResource resolves one: relative to " + Mirrors.simple(app) + "'s package, or"
+                    + " absolute with a leading /. A file in src/main/resources/" + path + " is one it finds");
+        }
+    }
+
+    /** The classpath path of a resource named as {@code Class.getResource} names one, from {@code app}'s class. */
+    static String iconPath(TypeElement app, String name) {
+        if (name.startsWith("/")) {
+            return name.substring(1);
+        }
+        Element pkg = app.getEnclosingElement();
+        while (pkg.getKind() != ElementKind.PACKAGE) {
+            pkg = pkg.getEnclosingElement();
+        }
+        String qualified = ((PackageElement) pkg).getQualifiedName().toString();
+        return qualified.isEmpty() ? name : qualified.replace('.', '/') + "/" + name;
+    }
+
+    private static boolean found(Filer filer, StandardLocation where, String path) {
+        try (InputStream in = filer.getResource(where, "", path).openInputStream()) {
+            return in != null;
+        } catch (IOException | IllegalArgumentException e) {
+            return false;
         }
     }
 

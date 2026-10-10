@@ -24,6 +24,41 @@ mvn compile exec:exec -Dautomation=0                      # a driving socket on 
 mvn test                                                  # the model, the file policy, Markdown, the real tree headless
 ```
 
+## A native executable
+
+Two editions, built with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and a Visual Studio developer prompt,
+which native-image needs for `link.exe` and the icon step needs for `rc.exe`):
+
+```
+mvn -Pnative-release package -DskipTests      # target/${artifactId}.exe        what ships: no console, no driving socket
+mvn -Pnative package -DskipTests              # target/${artifactId}-debug.exe  a console, and ottermate can drive it
+```
+
+`${className}App`, the class the processor reads, is written twice — `src/edition-debug` names `AutomationStarter`
+and `src/edition-release` does not — and the pom compiles one. Keep the two annotations identical apart from
+`starters`. Everything else is shared; an ordinary build, `exec:exec` and the tests are the debug edition.
+
+This program's own native-image metadata is `src/main/resources/META-INF/native-image/.../reachability-metadata.json`,
+and it is short because almost nothing is this program's: the libraries register their own, and the processor
+registers the icon. If a native run fails on something the JVM run did not (a `Missing...RegistrationError`), run the
+debug edition on a JVM under `-agentlib:native-image-agent=config-output-dir=...`, do the thing that failed, and add
+only the entries that name this program.
+
+## The icon
+
+`src/main/rc/${artifactId}.ico` is the application's mark, and it is one file read three ways: the window and its
+taskbar button wear it (`@VexelApp(icon = ${className}.ICON)`; the pom puts it on the class path), the `.exe` links it
+(`src/main/rc/${artifactId}.rc`), and so Explorer, a shortcut and a pinned button show it too. It starts as the
+framework's "new app" mark, whose source is `${artifactId}.svg` beside it.
+
+To make it yours, draw a 64x64 SVG and render it at every size Windows asks for, 16 to 256 px, into that `.ico` —
+`vex-suite-common`'s `tools/Ico.java` does exactly this, from each size's own rasterisation rather than shrinking the
+largest. Replace the file, and the window and the executable change together. An `.ico` or `.png` that is missing is
+a compile error; one that does not decode costs the window its mark, logged, and nothing else.
+
+Run from `mvn exec:exec`, the process is `java.exe`, so the window and its taskbar button wear the mark but Windows
+groups the button with other Java programs, and pinning it pins Java. The native executable has neither problem.
+
 ## Using it
 
 | Keys | Does |
@@ -50,7 +85,7 @@ Read these in this order.
 
 | File | What belongs in it |
 | --- | --- |
-| `Recipes.java` | **what this application builds.** One `@Provides` method per part; `${className}Wiring`, which builds them in order, is generated from it while the project compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. New parts go here. |
+| `Recipes.java` | **what this application builds.** One `@Provides` method per part; `${className}AppWiring`, which builds them in order, is generated from it while the project compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. New parts go here. |
 | `Doc.java`, `Model.java` | the shape of the session — which files, which in front, which unsaved, which folder — as one immutable value, changed only by functions of the current value, committed through atchung's `State`. |
 | `Ui.java` | the window. Holds no state; `show(Doc)` writes everything derived from the session. |
 | `Workspace.java`, `Buffer.java` | the tab bar and one `Buffer` per tab: a `TextField`, its spans, its save bookkeeping. |
@@ -79,7 +114,7 @@ constraints structural instead of remembered:
 | `WINDOW` | the device and the window handle. Main-thread from here on |
 | `ATTACH` | anything that needed the handle: chrome controls, the close gate, the driving socket |
 
-Open `target/generated-sources/annotations/.../${className}Wiring.java` after a build to see which part landed where.
+Open `target/generated-sources/annotations/.../${className}AppWiring.java` after a build to see which part landed where.
 
 ### Threading, in one paragraph
 

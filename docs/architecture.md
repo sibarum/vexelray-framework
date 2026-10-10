@@ -1449,6 +1449,38 @@ per-window frame counters are not available to a Vulkan swapchain (`DwmGetCompos
 `0x88980090`; with none it gives global timing, whose frame counts only follow the application's own presents). Input
 to glass needs `VK_KHR_present_wait` or `VK_GOOGLE_display_timing`, as the TODO entry says.
 
+## The application's mark
+
+The text editor's port gave `AppInfo` an icon, and the framework put it on the process and the main window. Nothing
+generated could set it: `@VexelApp` had no member for it and the processor built `INFO` without one, so every
+framework application's running window wore the OS default, while four of them linked a mark into their `.exe`.
+On Windows that default is not even the executable's icon, because the window class is registered without one.
+
+**Ruled 2026-10-09: `@VexelApp(icon = "...")` names the mark, and an application that names none wears the
+framework's.** *Why:* an icon is identity, which `automation.md` §7 gives the application to say. But the template's
+projects should look like something before anyone draws a mark, and a window under the OS default can't be told
+apart from any other program that forgot. The fallback is the template's own "new app" mark
+(`-shell/src/main/rc/new-app.svg`), so a project that never replaces its icon looks the same as one that names none.
+
+- **A resource name, not a decoded icon.** Decoding reads bytes and can fail, and the framework is the party that
+  can report a failure and carry on. So the wiring returns the name (`Wiring.icon()`), and `Mark` decodes it at
+  `WINDOW`, the first moment a mark has anywhere to go. The order is a decoded `AppInfo.icon`, then the named
+  resource, then the framework's, and each failure is reported once and falls to the next.
+- **Checked at compile time, as far as a processor can see.** The processor refuses a name that is not `.ico` or
+  `.png`, and one with no resource on the class output or the class path. Maven copies `src/main/resources` there
+  before javac runs. Whether the bytes decode is a startup question.
+- **Registered by the processor.** The generated wiring opens a resource, so the processor writes its native-image
+  registration as well (`META-INF/native-image/dev.vexelray.framework.generated/<wiring>/`), keeping elektroq's rule:
+  what a processor makes the program reach, the processor also declares.
+- **Decoded without AWT.** `Icon.fromBytes` was ImageIO, which is `java.desktop` in a native image.
+  `vexelray-os-api` gained `Icon.fromIco` and `fromPng`, which read the formats with `java.base` alone.
+- **One file for the window and the executable.** The template's `src/main/rc/<name>.ico` is both what the `.rc`
+  links into the `.exe` and what the pom puts on the class path for `@VexelApp(icon)`, so they cannot drift apart.
+
+Under `exec:exec` the process is `java.exe`, so Windows groups the taskbar button with other Java programs and
+pinning pins Java. That needs a per-process AppUserModelID, which is a `shell32` binding
+`vexelray/docs/window-icons.md` §5 records as missing.
+
 ## Modules
 
 ```

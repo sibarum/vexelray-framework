@@ -1,7 +1,5 @@
 package ${packageName};
 
-import dev.vexelray.framework.api.VexelApp;
-import dev.vexelray.framework.automation.AutomationStarter;
 import dev.vexelray.framework.shell.VexelApplication;
 
 
@@ -17,8 +15,9 @@ import dev.vexelray.framework.shell.VexelApplication;
  * order are all done for you.
  *
  * <p>What this application builds — a text editor with tabs and a file navigator — is in {@link Recipes}, one
- * method per part. {@code ${className}Wiring}, which builds those parts in order, is generated from them and from
- * the annotation on this class while the project compiles.
+ * method per part. {@code ${className}AppWiring}, which builds those parts in order, is generated from them and from
+ * the {@code @VexelApp} on {@code ${className}App} while the project compiles — so the facts below are stated once,
+ * here, and the wiring reads them.
  *
  * <pre>
  * ${className}                     the editor, on the folder it was last showing (or the working directory)
@@ -30,14 +29,13 @@ import dev.vexelray.framework.shell.VexelApplication;
  * <p>A misspelled flag is refused by name with the alternatives listed, rather than a stack trace before any
  * window. Needs {@code --enable-native-access=ALL-UNNAMED}.
  *
- * <p><b>{@code starters} is everything configuring this application beyond {@link Recipes}</b>, listed rather
- * than discovered. {@link AutomationStarter} is the driving socket — off unless {@code --automation} or
- * {@code -Dautomation} asks, and loopback-only when it is, because it hands whoever reaches it full control of the
- * application's input. Delete it here, and the {@code vexelray-framework-automation} dependency in the pom, and the
- * binary links no socket at all.
+ * <p><b>Two editions declare the application.</b> {@code ${className}App} is in {@code src/edition-debug} and
+ * {@code src/edition-release}, and the pom compiles one of them. Its {@code starters} is everything configuring this
+ * application beyond {@link Recipes}, listed rather than discovered. The debug edition's names
+ * {@code AutomationStarter}, the driving socket; the release edition names none, and {@code -Pnative-release} drops
+ * the automation modules from the class path, so the shipped binary links no socket at all. Everything else — a
+ * plain build, {@code exec:exec}, the tests, {@code -Pnative} — is the debug edition.
  */
-@VexelApp(name = ${className}.APP, title = ${className}.TITLE, width = ${className}.W, height = ${className}.H,
-        starters = AutomationStarter.class)
 public final class ${className} {
 
     /** The application's own name, which is what its settings directory is called. Stable across releases. */
@@ -49,6 +47,13 @@ public final class ${className} {
     /** Window size on a first run, in the engine's logical coordinates. */
     static final int W = ${width};
     static final int H = ${height};
+
+    /**
+     * The mark, from the class path's root: {@code src/main/rc/${artifactId}.ico}, which the pom also puts there and
+     * the executable links. It starts as the framework's own; replace the file, and the window, its taskbar button
+     * and the {@code .exe} all change together.
+     */
+    static final String ICON = "/${artifactId}.ico";
 
     /**
      * The smallest this UI is still coherent at, in root ems — a floor, not the design size: a navigator and a
@@ -70,7 +75,7 @@ public final class ${className} {
      */
     public static void main(String[] args) {
         String[] cleaned = java.util.Arrays.stream(args).filter(s -> !s.isBlank()).toArray(String[]::new);
-        VexelApplication.run(new ${className}Wiring(), cleaned);
+        VexelApplication.run(new ${className}AppWiring(), cleaned);
     }
 
     private ${className}() {

@@ -134,13 +134,16 @@ final class Support {
         return value;
     }
 
-    /** A generated project on disk, and the names the overlay and the assertions need. */
-    record Project(Path dir, String main, String packageName, String className) {
+    /**
+     * A generated project on disk, and the names the overlay and the assertions need: the entry class, and the
+     * {@code @VexelApp} class the wiring is generated from, which lives in the edition's source root.
+     */
+    record Project(Path dir, String main, String packageName, String className, String appClass) {
 
         /** Where javac put the wiring the processor generated. */
         Path wiring() {
             return dir.resolve("target/generated-sources/annotations/" + packageName.replace('.', '/') + "/"
-                    + className + "Wiring.java");
+                    + appClass + "Wiring.java");
         }
     }
 
@@ -179,10 +182,16 @@ final class Support {
                 .orElseThrow(() -> new AssertionError("no Recipes.java in " + blueprint.paths()));
         String main = recipes.substring(0, recipes.lastIndexOf('/'));
         String packageName = main.substring("src/main/java/".length()).replace('/', '.');
+        // The entry class is the one whose main runs the wiring; the @VexelApp class is not beside it but in each
+        // edition's own source root, and its name is what the processor names the wiring after.
         String className = blueprint.paths().stream()
-                .filter(p -> p.startsWith(main + "/") && blueprint.text(p).contains("@VexelApp"))
-                .map(p -> p.substring(p.lastIndexOf('/') + 1, p.length() - ".java".length()))
-                .findFirst().orElseThrow(() -> new AssertionError("no @VexelApp class in " + blueprint.paths()));
+                .filter(p -> p.startsWith(main + "/") && blueprint.text(p).contains("VexelApplication.run("))
+                .map(Support::simpleName)
+                .findFirst().orElseThrow(() -> new AssertionError("no entry class in " + blueprint.paths()));
+        String appClass = blueprint.paths().stream()
+                .filter(p -> p.startsWith("src/edition-debug/java/") && blueprint.text(p).contains("@VexelApp("))
+                .map(Support::simpleName)
+                .findFirst().orElseThrow(() -> new AssertionError("no debug @VexelApp class in " + blueprint.paths()));
         // A witness is a counter on real lanes, not an editor, so the editor the builder wrote is taken out and the
         // witness's own application put in. What is kept of the builder's is what every application on it shares:
         // the entry class, the look, the pom and the build. The counter's state model lives in /witnesses/shared,
@@ -221,7 +230,11 @@ final class Support {
                     .replace("${className}", className);
             Files.writeString(dir.resolve(main).resolve(name + ".java"), source, StandardCharsets.UTF_8);
         }
-        return new Project(dir, main, packageName, className);
+        return new Project(dir, main, packageName, className, appClass);
+    }
+
+    private static String simpleName(String path) {
+        return path.substring(path.lastIndexOf('/') + 1, path.length() - ".java".length());
     }
 
     /** {@code mvn package} in the project, failing with the log if it does not pass. */

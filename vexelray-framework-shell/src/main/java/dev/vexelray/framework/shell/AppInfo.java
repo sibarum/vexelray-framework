@@ -20,8 +20,9 @@ import java.util.Set;
  *                    refused by name with the alternatives listed. A generated wiring fills this in from every
  *                    {@code @Setting} it binds, so it cannot fall out of date with the code that reads them;
  *                    see {@link #settingKeys()} for what that costs a hand-written one
- * @param icon        the mark this application wears, or {@code null} to leave every window under the OS
- *                    default. See {@link #icon()} for why identity belongs here and not in {@link Appearance}
+ * @param icon        the mark this application wears, decoded, or {@code null} for the one its wiring names
+ *                    ({@code @VexelApp(icon)}), and failing that the framework's. See {@link #icon()} for why
+ *                    identity belongs here and not in {@link Appearance}
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public record AppInfo(String name, String title, int width, int height, Set<String> settingKeys, Icon icon) {
@@ -94,6 +95,10 @@ public record AppInfo(String name, String title, int width, int height, Set<Stri
      * listed.</blockquote>
      *
      * <p>Every application on this stack that wears a mark had that paragraph in it. Now the framework does.
+     *
+     * <p><b>Usually {@code null} here</b>, because the usual way to name a mark is {@code @VexelApp(icon)}: a
+     * resource the wiring names and the framework decodes at {@code WINDOW}, when there is somewhere to put it.
+     * This is for a mark built in code. Neither, and the application wears the framework's — see {@code Mark}.
      */
     @Override
     public Icon icon() {

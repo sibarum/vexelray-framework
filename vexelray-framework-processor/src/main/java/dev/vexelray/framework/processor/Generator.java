@@ -23,6 +23,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
+import javax.tools.StandardLocation;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -636,6 +637,14 @@ final class Generator {
                 && r.root().type().equals(Framework.COMPUTE_QUEUE)))) {
             src.append("\n    @Override\n    public boolean computeQueue() {\n        return true;\n    }\n");
         }
+        // The mark, by name: the shell decodes it at WINDOW, beside this class, so the name is resolved exactly as
+        // Declarations.icon found it. Registered for native-image here too, so no application writes that by hand.
+        String icon = mirrors.string(vexelApp, "icon");
+        if (!icon.isEmpty()) {
+            src.append("\n    @Override\n    public String icon() {\n        return ").append(literal(icon))
+                    .append(";\n    }\n");
+            nativeResource(app, qualified, Declarations.iconPath(app, icon));
+        }
 
         // What was built, readable by whoever holds the wiring: a test, or a capture that has just called
         // VexelApplication.tree. Package-private like the class, typed, and checked by javac -- no lookup by
@@ -677,6 +686,22 @@ final class Generator {
             out.write(src.toString());
         } catch (IOException e) {
             error(app, "could not write " + qualified + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * A resource the generated wiring opens, registered for native-image beside the classes: elektroq's rule, that
+     * what a processor makes the program reach, the processor also declares. GraalVM reads every
+     * {@code META-INF/native-image/<dir>/<dir>/reachability-metadata.json} on the class path, so a directory of the
+     * framework's own, keyed by the wiring, cannot meet the application's own metadata or another wiring's.
+     */
+    private void nativeResource(TypeElement app, String wiring, String path) {
+        String file = "META-INF/native-image/dev.vexelray.framework.generated/" + wiring + "/reachability-metadata.json";
+        String json = "{\n  \"resources\": [\n    {\n      \"glob\": " + literal(path) + "\n    }\n  ]\n}\n";
+        try (Writer out = filer.createResource(StandardLocation.CLASS_OUTPUT, "", file, app).openWriter()) {
+            out.write(json);
+        } catch (IOException e) {
+            error(app, "could not write " + file + ": " + e.getMessage());
         }
     }
 

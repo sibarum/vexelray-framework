@@ -92,6 +92,50 @@ class VexelDesktopTest {
     }
 
     @Test
+    void theApplicationIsDeclaredOncePerEdition() {
+        Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
+        String debug = blueprint.text("src/edition-debug/java/dev/example/plotviewer/PlotViewerApp.java");
+        String release = blueprint.text("src/edition-release/java/dev/example/plotviewer/PlotViewerApp.java");
+        assertNotNull(debug, "expected the debug edition; got " + blueprint.paths());
+        assertNotNull(release, "expected the release edition; got " + blueprint.paths());
+        assertTrue(debug.contains("starters = AutomationStarter.class"), "the debug edition can be driven");
+        assertFalse(release.contains("starters =") || release.contains("import dev.vexelray.framework.automation"),
+                "the release edition links no socket");
+        assertFalse(blueprint.text("src/main/java/dev/example/plotviewer/PlotViewer.java").contains("@VexelApp("),
+                "the entry class declares nothing, or the release build would have two @VexelApp classes");
+        assertTrue(blueprint.text("src/main/java/dev/example/plotviewer/PlotViewer.java")
+                .contains("new PlotViewerAppWiring()"), "main runs the wiring the processor makes from the edition");
+    }
+
+    /**
+     * One mark, three readers: the window (from the class path, via {@code @VexelApp(icon)}), the executable (via the
+     * {@code .rc}), and the person who will redraw it (the {@code .svg}). And it is the framework's own, byte for
+     * byte, so a project that never replaces it looks the same as one that names no icon at all.
+     */
+    @Test
+    void theMarkIsTheFrameworksAndTheWindowAndTheExecutableShareIt() throws IOException {
+        Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
+        Blueprint.Entry ico = blueprint.entry("src/main/rc/plot-viewer.ico");
+        assertNotNull(ico, "expected the icon; got " + blueprint.paths());
+        Path shell = Path.of("../vexelray-framework-shell/src/main/resources/dev/vexelray/framework/shell/new-app.ico");
+        assertTrue(java.util.Arrays.equals(Files.readAllBytes(shell), ico.bytes()),
+                "the template's new-app.ico has drifted from -shell's; copy it again (both render new-app.svg)");
+        assertTrue(java.util.Arrays.equals(
+                Files.readAllBytes(Path.of("../vexelray-framework-shell/src/main/rc/new-app.svg")),
+                blueprint.entry("src/main/rc/plot-viewer.svg").bytes()), "and its source");
+
+        assertTrue(blueprint.text("src/main/rc/plot-viewer.rc").contains("1 ICON \"plot-viewer.ico\""));
+        String pom = blueprint.text("pom.xml");
+        assertTrue(pom.contains("<include>plot-viewer.ico</include>"), "on the class path for the window");
+        assertTrue(pom.contains("/src/main/rc/plot-viewer.rc"), "compiled for the executable");
+        assertTrue(blueprint.text("src/main/java/dev/example/plotviewer/PlotViewer.java")
+                .contains("ICON = \"/plot-viewer.ico\""), "and named, from the root it lands at");
+        assertTrue(blueprint.text(
+                        "src/main/resources/META-INF/native-image/dev.example/plot-viewer/reachability-metadata.json")
+                .contains("\"dev.example.plotviewer.PlotViewer\""), "the native entry point is this program's");
+    }
+
+    @Test
     void nothingGeneratedStillHasAPlaceholderInIt() {
         for (Blueprint.Entry entry : blueprint(Map.of()).entries()) {
             String text = new String(entry.bytes(), java.nio.charset.StandardCharsets.UTF_8);
@@ -160,7 +204,7 @@ class VexelDesktopTest {
             String text = blueprint.text(entry.path());
             // The package is the folder the file lands in, so a sub-package's file declares the sub-package.
             String folder = entry.path().substring(0, entry.path().lastIndexOf('/'))
-                    .replaceFirst("^src/(main|test)/java/", "");
+                    .replaceFirst("^src/(main|test|edition-debug|edition-release)/java/", "");
             String expected = "package " + folder.replace('/', '.') + ";";
             assertTrue(folder.startsWith("dev/example/plotviewer"), entry.path() + " is outside the project's package");
             assertTrue(text.startsWith(expected),

@@ -37,11 +37,11 @@ class EditorTest {
     Path dir;
 
     private Shell shell;
-    private ${className}Wiring wiring;
+    private ${className}AppWiring wiring;
 
     @BeforeEach
     void build() {
-        wiring = new ${className}Wiring();
+        wiring = new ${className}AppWiring();
         shell = VexelApplication.tree(wiring, new String[0]);
     }
 

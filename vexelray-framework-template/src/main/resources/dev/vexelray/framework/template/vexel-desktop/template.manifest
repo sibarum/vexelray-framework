@@ -156,6 +156,12 @@ file docs/TODO.md
 # that sits at the top of the project.
 
 file src/main/java/${packagePath}/${className}.java  from App.java
+
+# The two editions of the one class the processor reads, @VexelApp's: the debug one
+# names the automation starter and the release one does not. The pom compiles one.
+
+file src/edition-debug/java/${packagePath}/${className}App.java    from EditionDebug.java
+file src/edition-release/java/${packagePath}/${className}App.java  from EditionRelease.java
 file src/main/java/${packagePath}/Recipes.java       from Recipes.java
 file src/main/java/${packagePath}/Ui.java            from Ui.java
 file src/main/java/${packagePath}/Model.java         from Model.java
@@ -176,6 +182,17 @@ file src/main/java/${packagePath}/Session.java       from Session.java
 
 file src/main/java/${packagePath}/text/TextFile.java  from TextFile.java
 file src/main/java/${packagePath}/text/Markdown.java  from Markdown.java
+
+# The mark, and what a native build needs. The .ico is copied as it is (it is not
+# text, so nothing is substituted into it): the window wears it from the class
+# path and the executable links it through the .rc, so they are one file. The
+# .svg is its source; the metadata is this program's own, everything else in a
+# native image registers itself.
+
+file src/main/rc/${artifactId}.ico  from new-app.ico
+file src/main/rc/${artifactId}.svg  from new-app.svg
+file src/main/rc/${artifactId}.rc   from app.rc
+file src/main/resources/META-INF/native-image/${groupId}/${artifactId}/reachability-metadata.json  from reachability-metadata.json
 
 file src/test/java/${packagePath}/ModelTest.java     from ModelTest.java  when tests
 file src/test/java/${packagePath}/LookTest.java      from LookTest.java   when tests

@@ -108,6 +108,7 @@ class VexelProcessorTest {
                 public abstract class Wiring {
                     public abstract AppInfo info();
                     public boolean computeQueue() { return false; }
+                    public String icon() { return null; }
                     public void config(Shell shell) {}
                     public void model(Shell shell) {}
                     public void gui(Shell shell) {}
@@ -302,6 +303,60 @@ class VexelProcessorTest {
         assertEquals(true, run.computeQueue(), "the device is asked for a queue to lend");
         assertEquals(List.of(), run.phase("config"));
         assertEquals(List.of("compute queue lent"), run.phase("window"), "built when the device exists");
+    }
+
+    // --- @VexelApp(icon) -------------------------------------------------------------------------------------
+
+    private static final String GENERATED_METADATA =
+            "META-INF/native-image/dev.vexelray.framework.generated/app.DemoAppWiring/reachability-metadata.json";
+
+    @Test
+    void aNamedIconIsHandedToTheShellAndRegisteredForNativeImage() throws Exception {
+        Compiled compiled = buildWith(Map.of("app/demo.ico", "an icon"), """
+                @VexelApp(name = "demo", title = "Demo", icon = "demo.ico")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.errors());
+        assertEquals("demo.ico", compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).icon(),
+                "by name, resolved beside the wiring as it was beside the application");
+        String metadata = Files.readString(compiled.out().resolve(GENERATED_METADATA));
+        assertTrue(metadata.contains("\"glob\": \"app/demo.ico\""), metadata);
+    }
+
+    @Test
+    void anAbsoluteIconNameIsResolvedFromTheRoot() throws Exception {
+        Compiled compiled = buildWith(Map.of("marks/demo.ico", "an icon"), """
+                @VexelApp(name = "demo", title = "Demo", icon = "/marks/demo.ico")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.errors());
+        assertTrue(Files.readString(compiled.out().resolve(GENERATED_METADATA)).contains("\"marks/demo.ico\""));
+    }
+
+    @Test
+    void anIconThatIsNotThereIsACompileError() {
+        onlyError(buildWith(Map.of(), """
+                @VexelApp(name = "demo", title = "Demo", icon = "demo.ico")
+                public final class DemoApp {}
+                """).errors(), "there is no resource app/demo.ico on the class output or the class path");
+    }
+
+    @Test
+    void anIconIsAnIcoOrAPng() {
+        onlyError(buildWith(Map.of("app/demo.bmp", "a bitmap"), """
+                @VexelApp(name = "demo", title = "Demo", icon = "demo.bmp")
+                public final class DemoApp {}
+                """).errors(), "an icon is an .ico or a .png");
+    }
+
+    @Test
+    void anApplicationNamingNoIconLeavesItToTheFramework() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(null, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).icon());
+        assertFalse(Files.exists(compiled.out().resolve(GENERATED_METADATA)), "nothing to register");
     }
 
     @Test
@@ -1403,12 +1458,25 @@ class VexelProcessorTest {
     }
 
     private static Compiled build(String... bodies) {
+        return buildWith(Map.of(), bodies);
+    }
+
+    /**
+     * {@link #build}, with files already in the class output, as Maven's resources phase leaves
+     * {@code src/main/resources} there before the compiler runs.
+     */
+    private static Compiled buildWith(Map<String, String> resources, String... bodies) {
         Map<String, String> sources = new java.util.LinkedHashMap<>();
         for (String body : bodies) {
             sources.put("app." + typeName(body), IMPORTS + body);
         }
         try {
             Path out = Files.createTempDirectory(temp, "app");
+            for (Map.Entry<String, String> r : resources.entrySet()) {
+                Path file = out.resolve(r.getKey());
+                Files.createDirectories(file.getParent());
+                Files.writeString(file, r.getValue());
+            }
             return new Compiled(compile(sources, out, lib, false), out);
         } catch (IOException e) {
             throw new java.io.UncheckedIOException(e);
@@ -1458,6 +1526,11 @@ class VexelProcessorTest {
             var accessor = wiring.getClass().getDeclaredMethod(name);
             accessor.setAccessible(true);
             return accessor.invoke(wiring);
+        }
+
+        /** What the wiring answers {@code Wiring.icon}: the resource holding the mark, or null. */
+        String icon() throws Exception {
+            return (String) wiring.getClass().getSuperclass().getMethod("icon").invoke(wiring);
         }
 
         /** What the wiring answers {@code Wiring.computeQueue}: whether the device is made with a queue to lend. */

@@ -221,9 +221,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `-Pacceptance` builds and drives the result. The **resolution rules are the contract** — an application depends on which provider satisfies a parameter without ever writing it — so the decisions below are v1 items and the additions are not. Each bullet says which:
       - **Additive, once the rule is written.** **Most of the framework's defaults still cannot be replaced.** The look, the input backend and the
         clipboard can — a `@Provides` returning one is handed back to `Shell` (see architecture.md, *the
-        framework's own defaults are handed back*). Window memory, the icon, the dialogs and pacing cannot, and
-        the README lists them among the defaults. Each wants a reason to be replaced before it gets a setter;
-        none has one on the stack yet.
+        framework's own defaults are handed back*). So can the icon, which is named rather than provided:
+        `@VexelApp(icon)`, falling back to the framework's mark (architecture.md, *the application's mark*).
+        Window memory, the dialogs and pacing cannot, and the README lists them among the defaults. Each wants a
+        reason to be replaced before it gets a setter; none has one on the stack yet.
       - **Additive, but before a BOM.** **A starter is not checked where it is compiled.** `AutomationStarterTest` compiles applications
         against `AutomationStarter` with the real processor, which covers the one starter there is; the
         processor is not on `-automation`'s own `annotationProcessorPaths`, so a starter's library-level checks
@@ -374,6 +375,12 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       traced from limited runs, so a path nobody exercised (the dialogs, the clipboard, mainframe's other
       shells) may still fail at runtime, and tracing is per application, so upstream metadata wants a trace of
       each backend's own test or demo rather than of an app.
+      **Since 2026-10-09 the template writes the native build too** (`-Pnative`, `-Pnative-release`, the two
+      editions, the icon, and a `reachability-metadata.json` holding only the entry point and the JDK entries the
+      calculator's trace saw). That is the arrangement this entry says is wrong, now copied into every new
+      project. It is the honest default until the profiles and flags have an upstream home, and it is small,
+      because the libraries already carry their own metadata. When they move, the template's pom is the place
+      to delete them from, with the five applications.
 
 - [ ] **A `Window` seam instead of `memory()`, `app()` and one-off dialogs.** Each is a singleton accessor in a
       world where a window is not: the designer already needs two, and every one of them has to say *which

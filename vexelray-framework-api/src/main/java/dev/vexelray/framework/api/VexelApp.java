@@ -54,6 +54,24 @@ public @interface VexelApp {
     int height() default 600;
 
     /**
+     * The application's mark: a classpath resource, an {@code .ico} or a {@code .png}, named as
+     * {@code Class.getResource} names one — relative to this class's package, or absolute with a leading {@code /}.
+     * Empty, the default, wears the framework's own mark, the one the template's projects start with.
+     *
+     * <p><b>One file for the window and the executable.</b> An {@code .ico} is the form to use, because it is also
+     * what a Windows executable links: the template's {@code src/main/rc/<name>.rc} names the same file, so the
+     * running window, its taskbar button and the {@code .exe} on disk cannot drift apart. It holds every size the
+     * shell asks for, which a single {@code .png} does not (see {@code vexelray/docs/window-icons.md}, §3).
+     *
+     * <p><b>Checked at compile time.</b> The processor refuses a name that is not an {@code .ico} or {@code .png},
+     * or that names no resource on the class output or the class path, and registers the one it finds for
+     * native-image itself, so no application writes {@code reachability-metadata.json} for its own mark. Whether
+     * the bytes decode is a startup question: a mark that does not costs the application its icon, reported, and
+     * nothing else.
+     */
+    String icon() default "";
+
+    /**
      * The {@link Configuration} classes this application is built out of, beyond its own.
      *
      * <p><b>Listed, not discovered, and this is the load-bearing decision of the whole mechanism.</b> A

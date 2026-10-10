@@ -55,6 +55,19 @@ public abstract class Wiring {
     }
 
     /**
+     * The resource holding the application's mark, named as {@code Class.getResource} names one — relative to this
+     * wiring's package, which is the application's — or {@code null} to wear the framework's.
+     *
+     * <p>A name and not an {@link dev.vexelray.os.Icon}, because decoding reads a resource and can fail, and the
+     * framework is the party that can report a failure and carry on: it decodes this at {@link Phase#WINDOW}, the
+     * first moment a mark has anywhere to go. The generated wiring returns {@code @VexelApp(icon)}, which the
+     * processor has already found on the class path; an {@link AppInfo#icon} handed back directly still wins.
+     */
+    public String icon() {
+        return null;
+    }
+
+    /**
      * {@link Phase#CONFIG} — settings-derived values, and the look.
      *
      * <p>The one phase with something an application almost always wants to say: {@link Shell#appearance} is
