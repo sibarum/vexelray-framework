@@ -42,6 +42,35 @@ final class Mark {
         return load(Mark.class, FRAMEWORK, "the framework's icon");
     }
 
+    /**
+     * The mark the application's <em>other</em> windows wear: the suite's window icon, a band of the application's
+     * hue across the top and its glyph shrunk under it, so a viewer or a settings window is told apart from the
+     * application at a glance and still reads as its own.
+     *
+     * <p>Found by name rather than declared: the variant of {@code pix.ico} is {@code pix-window.ico} beside it, as
+     * the suite canvas exports {@code pix-window.svg} beside {@code pix.svg}. An application without one — every
+     * application that is not a suite one, and every mark built in code — wears {@code primary} in every window,
+     * which is not a failure and so is not reported. A variant that is there and cannot be read is.
+     */
+    static Icon window(Wiring wiring, AppInfo info, Icon primary) {
+        String named = wiring.icon();
+        if (info.icon() != null || named == null) {
+            return primary;
+        }
+        String variant = windowVariant(named);
+        if (variant == null || wiring.getClass().getResource(variant) == null) {
+            return primary;
+        }
+        Icon icon = load(wiring.getClass(), variant, "the application's window icon " + variant);
+        return icon != null ? icon : primary;
+    }
+
+    /** {@code pix.ico} to {@code pix-window.ico}, keeping any path; {@code null} for a name with no extension. */
+    static String windowVariant(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot <= name.lastIndexOf('/') + 1 ? null : name.substring(0, dot) + "-window" + name.substring(dot);
+    }
+
     /** {@code name} beside {@code anchor}, decoded by its extension; {@code null}, reported, if it cannot be. */
     static Icon load(Class<?> anchor, String name, String what) {
         try (InputStream in = anchor.getResourceAsStream(name)) {

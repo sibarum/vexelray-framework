@@ -7,6 +7,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /** Which mark an application wears: handed back, named, or the framework's, and never none because one failed. */
@@ -54,6 +56,33 @@ class MarkTest {
     void aMarkThatIsMissingOrDoesNotDecodeFallsToTheFrameworks() {
         assertEquals(10, Mark.of(naming("not-there.ico"), BARE).images().size(), "missing");
         assertEquals(10, Mark.of(naming("MarkTest.class"), BARE).images().size(), "there, and not an .ico");
+    }
+
+    /** The suite canvas exports {@code pix-window.svg} beside {@code pix.svg}; the icons keep the same pairing. */
+    @Test
+    void theWindowVariantIsNamedBesideTheMark() {
+        assertEquals("/pix-window.ico", Mark.windowVariant("/pix.ico"));
+        assertEquals("icons/a.b-window.png", Mark.windowVariant("icons/a.b.png"));
+        assertNull(Mark.windowVariant("/.ico"), "no name to put the suffix on");
+        assertNull(Mark.windowVariant("icon"), "no extension");
+    }
+
+    @Test
+    void otherWindowsWearTheWindowVariantWhenThereIsOne() {
+        // suite-mark-window.ico is a test resource beside this class; suite-mark.ico itself need not be.
+        Icon primary = Icon.of(1, 1, new int[] {0xFF00FF00});
+        Icon window = Mark.window(naming("suite-mark.ico"), BARE, primary);
+        assertNotSame(primary, window);
+        assertEquals(10, window.images().size());
+    }
+
+    @Test
+    void otherWindowsWearTheMarkItselfWithoutAVariant() {
+        Icon primary = Icon.of(1, 1, new int[] {0xFF00FF00});
+        assertSame(primary, Mark.window(naming(Mark.FRAMEWORK), BARE, primary), "no new-app-window.ico");
+        assertSame(primary, Mark.window(naming(null), BARE, primary), "named none");
+        assertSame(primary, Mark.window(naming("suite-mark.ico"), BARE.withIcon(primary), primary),
+                "a mark built in code has no file to find a variant beside");
     }
 
     @Test

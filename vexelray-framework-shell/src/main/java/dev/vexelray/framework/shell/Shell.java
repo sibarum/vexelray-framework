@@ -18,6 +18,7 @@ import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
+import dev.vexelray.os.Icon;
 import sibarum.atchung.Atchung;
 import sibarum.probe.Log;
 
@@ -72,6 +73,7 @@ public final class Shell {
     private WindowMemory memory;
     private GuiApp app;
     private TitleBar titleBar;
+    private Icon windowMark;
     private InputBackend input;
     private ClipboardBackend clipboard;
     private LivenessPolicy liveness = new LivenessPolicy() { };
@@ -533,6 +535,23 @@ public final class Shell {
      */
     public GuiApp app() {
         return require(Phase.WINDOW, "the window", app);
+    }
+
+    /**
+     * The mark for any window this application opens besides its main one — a viewer, a settings window. Exists from
+     * {@link Phase#WINDOW}; null only if no mark could be read at all.
+     *
+     * <p>The suite's window icon when the application ships one ({@code pix-window.ico} beside {@code pix.ico}), else
+     * the application's own mark. Name it on the window's config, so the taskbar shows it, and hand it to the window's
+     * title bar with {@code TitleBar.icon(app(), windowMark())}, so the caption does.
+     */
+    public Icon windowMark() {
+        require(Phase.WINDOW, "the window mark");
+        return windowMark;
+    }
+
+    void windowMark(Icon windowMark) {
+        this.windowMark = windowMark;
     }
 
     /** The queue lent by {@link #computeQueue}, once it has been asked for. */

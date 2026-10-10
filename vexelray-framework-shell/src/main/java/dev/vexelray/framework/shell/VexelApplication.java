@@ -252,6 +252,7 @@ public final class VexelApplication {
         // framework's if not: see Mark.
         Icon mark = Mark.of(wiring, info);
         installMark(mark);
+        shell.windowMark(Mark.window(wiring, info, mark));
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
         WindowConfig main = mainWindow(memory, info, appearance, mark);
@@ -291,9 +292,11 @@ public final class VexelApplication {
         // The window exists at last, so the bar can be given controls that actually work and the instruments
         // that use them. Both in one place, because an instrument without real controls is the exact failure
         // automation.md 7 records: "every other window had a screenshot button that neither worked nor
-        // complained".
+        // complained". The mark too: the window wears it in the taskbar, and a drawn caption without it is the
+        // one place the native frame showed it and ours did not. Here because its sizes are textures, and a
+        // texture needs the device.
         if (appearance.drawsOwnFrame()) {
-            shell.titleBar().controls(app.controls()).instruments(appearance.instruments());
+            shell.titleBar().controls(app.controls()).instruments(appearance.instruments()).icon(app, mark);
         }
         if (memory.maximized(MAIN)) {
             app.window().maximize();

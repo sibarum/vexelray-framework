@@ -638,12 +638,17 @@ final class Generator {
             src.append("\n    @Override\n    public boolean computeQueue() {\n        return true;\n    }\n");
         }
         // The mark, by name: the shell decodes it at WINDOW, beside this class, so the name is resolved exactly as
-        // Declarations.icon found it. Registered for native-image here too, so no application writes that by hand.
+        // Declarations.icon found it. Registered for native-image here too, so no application writes that by hand --
+        // and its window variant with it (pix-window.ico beside pix.ico, see the shell's Mark.window), which the
+        // shell looks for and is not obliged to find: a glob that matches nothing registers nothing.
         String icon = mirrors.string(vexelApp, "icon");
         if (!icon.isEmpty()) {
             src.append("\n    @Override\n    public String icon() {\n        return ").append(literal(icon))
                     .append(";\n    }\n");
-            nativeResource(app, qualified, Declarations.iconPath(app, icon));
+            String path = Declarations.iconPath(app, icon);
+            int dot = path.lastIndexOf('.');
+            nativeResource(app, qualified, dot <= path.lastIndexOf('/') + 1 ? List.of(path)
+                    : List.of(path, path.substring(0, dot) + "-window" + path.substring(dot)));
         }
 
         // What was built, readable by whoever holds the wiring: a test, or a capture that has just called
@@ -695,9 +700,14 @@ final class Generator {
      * {@code META-INF/native-image/<dir>/<dir>/reachability-metadata.json} on the class path, so a directory of the
      * framework's own, keyed by the wiring, cannot meet the application's own metadata or another wiring's.
      */
-    private void nativeResource(TypeElement app, String wiring, String path) {
+    private void nativeResource(TypeElement app, String wiring, List<String> paths) {
         String file = "META-INF/native-image/dev.vexelray.framework.generated/" + wiring + "/reachability-metadata.json";
-        String json = "{\n  \"resources\": [\n    {\n      \"glob\": " + literal(path) + "\n    }\n  ]\n}\n";
+        StringBuilder globs = new StringBuilder();
+        for (String path : paths) {
+            globs.append(globs.isEmpty() ? "" : ",\n").append("    {\n      \"glob\": ").append(literal(path))
+                    .append("\n    }");
+        }
+        String json = "{\n  \"resources\": [\n" + globs + "\n  ]\n}\n";
         try (Writer out = filer.createResource(StandardLocation.CLASS_OUTPUT, "", file, app).openWriter()) {
             out.write(json);
         } catch (IOException e) {
