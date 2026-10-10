@@ -808,6 +808,16 @@ blocks v1, and one thing worked better than expected: the processor's compile er
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
 
+- [ ] **DXGI is the default presenter on Windows, and `dxgi-bridge` has no native-image metadata.** `GuiApp`
+      asks for `dxgi` when `-Dvexelray.present` is unset, and every Windows build (the template's included) puts
+      `vexelray-present-dxgi` on the class path. On the JVM that is complete. In a native image, every D3D12/DXGI
+      downcall and COM vtable call has to be registered under `"foreign"`, as `vexelray-os-windows` and
+      `vastir-vulkan` do (`vexelray/docs/native-bindings.md` §6), and `dxgi-bridge` registers none. The template
+      builds no native image, so a generated project is unaffected. The calculator's `native` profile carries the
+      module, and its binary has not been run since. An unregistered downcall is an `Error`, which `GuiApp`'s
+      fall-back to the swapchain does not catch. **Ask:** trace `DxgiSmokeTest` with the native-image agent
+      and commit `dxgi-bridge`'s `reachability-metadata.json`.
+
 - [ ] **On macOS, a modal dialog on the GUI thread is reported as a stall** (`vexelray-gui-core`
       `GuiApp.reportStall`). The screenshot button opens a native save dialog (`vexelray-gui-nfd`'s
       `SaveScreenshot`, through `FileDialog.saveAsync`). On Windows that runs on the module's own dialog thread
