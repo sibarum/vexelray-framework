@@ -809,12 +809,12 @@ blocks v1, and one thing worked better than expected: the processor's compile er
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
 
 - [x] **DXGI is the default presenter on Windows, and `dxgi-bridge` had no native-image metadata** — **fixed
-      upstream.** `GuiApp` asks for `dxgi` when `-Dvexelray.present` is unset, and every Windows build (the
-      template's included) puts `vexelray-present-dxgi` on the class path. In a native image every D3D12/DXGI
-      downcall and COM vtable call has to be registered under `"foreign"` (`vexelray/docs/native-bindings.md` §6),
-      and neither `dxgi-bridge` nor `vexelray-present-dxgi` registered any. Without them the calculator's native
-      binary died at startup with `MissingForeignRegistrationError`: an `Error`, which `GuiApp`'s fall-back to the
-      swapchain does not catch. Both now ship `reachability-metadata.json`. They are written from every
+      upstream.** VexelRay on Windows presents through DXGI and only DXGI: `vexelray-gui-core`'s Windows profile
+      carries `vexelray-present-dxgi`, and `GuiApp` will not start there without it (the swapchain is too fragile
+      to fall back to). In a native image every D3D12/DXGI downcall and COM vtable call has to be registered under
+      `"foreign"` (`vexelray/docs/native-bindings.md` §6), and neither `dxgi-bridge` nor `vexelray-present-dxgi`
+      registered any. Without them the calculator's native binary died at startup with
+      `MissingForeignRegistrationError`. Both now ship `reachability-metadata.json`. They are written from every
       `FunctionDescriptor` in the source, not only from a trace, because COM methods bind lazily and
       `DxgiSmokeTest` reaches only some of them; the trace was used as a cross-check.
 
