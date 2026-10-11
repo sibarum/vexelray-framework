@@ -1574,6 +1574,21 @@ apart from any other program that forgot. The fallback is the template's own "ne
 - **One file for the window and the executable.** The template's `src/main/rc/<name>.ico` is both what the `.rc`
   links into the `.exe` and what the pom puts on the class path for `@VexelApp(icon)`, so they cannot drift apart.
 
+**Every window wears a mark, and the main one's title bar does too** (2026-10-10). Two gaps the suite's icons
+showed once each application had one:
+
+- **A drawn caption had no mark.** An application whose look draws its own frame lost the icon the native frame
+  showed beside the title. The shell hands the mark to the `TitleBar` with the window's controls, at `WINDOW`,
+  because its sizes are textures and a texture needs the device.
+- **A second window wore the main one's mark, or none.** `Shell.windowMark()` (from `WINDOW`) is the mark for any
+  other window, a viewer or a settings window: the suite's *window* variant when the application ships one, found
+  by name beside its mark (`calculator-window.ico` beside `calculator.ico`, as the suite canvas exports them), and
+  otherwise the application's own mark. A missing variant is the normal case and is not reported; one that is
+  there and will not decode is. A window declared with `windows.named` wears it on the taskbar and in its title bar
+  with nothing written, since the framework claims it (the calculator's settings window and Vexplore's viewer); one
+  claimed by hand names it on the window's config and calls `TitleBar.icon(app, mark)`. The processor
+  registers the variant for native-image beside the mark, as a glob that may match nothing.
+
 Under `exec:exec` the process is `java.exe`, so Windows groups the taskbar button with other Java programs and
 pinning pins Java. That needs a per-process AppUserModelID, which is a `shell32` binding
 `vexelray/docs/window-icons.md` §5 records as missing.

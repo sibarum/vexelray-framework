@@ -27,14 +27,17 @@ an annotation processor. An application compiles to a native binary with no reac
 framework's own, and starts up as fast as the equivalent hand-written `main`.
 
 ```java
-@VexelApp(name = "text-editor", title = "Text Editor", width = 800, height = 592)
-public final class TextEditorApp {
+@VexelApp(name = "text-editor", title = "Vex", width = 800, height = 592,
+          icon = "/editor.ico", starters = AutomationStarter.class)
+final class TextEditorApp {
 
     public static void main(String[] args) {
-        VexelApplication.run(new TextEditorWiring(), args);
+        VexelApplication.run(new TextEditorAppWiring(), args);
     }
 }
 ```
+
+`TextEditorAppWiring` is generated from the annotation while the application compiles; nobody writes it.
 
 The framework is before v1. [The source and the tour are on GitHub](https://github.com/sibarum/vexelray-framework).
 

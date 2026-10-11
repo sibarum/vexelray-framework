@@ -36,7 +36,7 @@ component is never `@MainThread`.
 | Its own `ThreadGroup`, so the watchdog can interrupt everything the lane started | `Lanes.interruptLane` | liveness |
 | A stall report naming its lane, and a policy the application can override | `Watchdog`, `LivenessPolicy` | T6.5 |
 | That no other lane holds a reference to it, and no provider does | processor | T2.3, T3.7 |
-| That a value crossing into it shares nothing with the sender's heap | **not built** | T2.4, T2.5 |
+| That a value crossing into it shares nothing with the sender's heap | processor, for `@Subscribe` payloads (deeply immutable, `Shareable`); a captured lambda is **not checked** | T2.4, T2.5 |
 | That no blocking cycle runs through it | processor, for declared sends | T4.4 |
 
 And what it owes the application: it never blocks the main thread, never touches the timeline (T3.2), and
@@ -47,8 +47,8 @@ returns work through one of the two doors (T5.1). A wedged component loses its o
 | | Built | Decided, unbuilt | Undecided |
 | --- | --- | --- | --- |
 | Threads | `Lanes`, `Placement`, default lane, platform-only, bounded offload | handler lane bound (waits on a census) | |
-| Declaration | `@Component(lane)`, `@Subscribe`, `@Publishes` | | the eight rulings below |
-| Colour | T2.1 to T2.3, T3.1, T3.7 | the copier's pattern (annotate a record, processor emits the copy) | its annotation's name; the capture check's mechanism |
+| Declaration | `@Component(lane)`, `@Subscribe`, `@Publishes` | what the nine rulings below (accepted 2026-10-01) ordered and is not built: the capture rule | |
+| Colour | T2.1 to T2.4 (T2.4 as a check: payloads must be deeply immutable), T3.1, T3.7 | the copier's pattern (annotate a record, processor emits the copy) | its annotation's name; the capture check's mechanism |
 | Channels | T4.1, T4.3, T4.4, T4.7 for declared sends | | the graph as generated data (additive) |
 | Completion | `Lanes.offload()`, `app.post` | two doors | `kronometer` `offload` and the timeline door unbuilt |
 | Liveness | watchdog, busy gauge, shutdown bound, policy seam | main-thread heartbeat that knows a dialog is up | |

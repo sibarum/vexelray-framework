@@ -31,15 +31,15 @@ which on this stack is the whole reason for being on native-image at all.
 
 ## The problem
 
-`mainframe-template`'s scaffold — where a new VexelRay application starts — is ~350 lines of wiring,
-and its own Javadoc explains why:
+`mainframe-template`'s scaffold — where a new VexelRay application used to start — was ~350 lines of
+wiring, and its own Javadoc explained why:
 
 > The **application edge** — the part a client of vexelray-gui has to write for itself... Every one of
 > those is a decision the framework deliberately does not take on an application's behalf.
 
-Four applications now hold near-identical copies. They have drifted: the flags parse in different
-orders, `--capture`'s optional path is read three different ways, and two carry a comment warning the
-reader not to open `Settings` twice, because nothing stops them:
+Four applications held near-identical copies. They had drifted: the flags parsed in different
+orders, `--capture`'s optional path was read three different ways, and two carried a comment warning the
+reader not to open `Settings` twice, because nothing stopped them:
 
 > One `Settings` for the whole application, shared rather than opened twice: two instances over the
 > same file each hold their own copy of it, so the second one to save would drop whatever the first
@@ -51,19 +51,24 @@ argument for a container.
 ## The target
 
 ```java
-@VexelApp(name = "text-editor", title = "Text Editor", width = 800, height = 592)
-public final class TextEditorApp {
+@VexelApp(name = "text-editor", title = "Vex", width = 800, height = 592,
+          icon = "/editor.ico", starters = AutomationStarter.class)
+final class TextEditorApp {
 
     public static void main(String[] args) {
-        VexelApplication.run(new TextEditorWiring(), args);
+        VexelApplication.run(new TextEditorAppWiring(), args);
     }
 }
 ```
 
-Input, clipboard, window memory, the app icon, dialogs, the theme and the zoom range, pacing, wakes
-and argument parsing are defaults. Overriding the look, the input backend or the clipboard is a
+`TextEditorAppWiring` is generated from that annotation and the application's `@Configuration` classes while it
+compiles; nobody writes it. Input, clipboard, window memory, dialogs, the theme and the zoom range, pacing, wakes
+and argument parsing are defaults. The icon is named rather than provided, and an application that names none
+wears the framework's ([the application's mark](docs/architecture.md#the-applications-mark)). `starters` lists
+what configures the application beyond its own recipes; a generated project declares the annotation twice, a
+debug edition with the automation starter and a release edition without it. Overriding the look, the input backend, the clipboard, the liveness policy or the dialogs is a
 `@Provides` method returning that type: the wiring hands it back, the framework's is never opened, and
-there is no precedence documentation to read. The rest are not replaceable yet ([docs/TODO.md](docs/TODO.md)).
+there is no precedence documentation to read; a test hands back `Dialogs` that answer its questions. The rest are not replaceable yet ([docs/TODO.md](docs/TODO.md)).
 The types are interfaces — `InputBackend`, `ClipboardBackend` — because a provider returns one, and an
 override needs something it can be a second implementation of.
 
@@ -77,7 +82,7 @@ final class Editor {
 
     /**
      * Phase GUI, inferred: it takes a Gui and a clock, so it cannot be built before either exists —
-     * and it is therefore buildable before there is a window, which is what makes --capture work.
+     * and it is therefore buildable before there is a window, which is what lets a test build the tree.
      */
     @Provides
     Workspace workspace(Gui gui, KronoGui krono, SourceIndex index) {
@@ -111,8 +116,12 @@ always close the application, and the application can end itself, ultimately by 
 process. What the framework does about a stalled lane is a policy the application can override; the default
 today is to report and exit, and the target is to offer the user a restart.
 
-**This is designed and ruled, not built yet.** The lanes and mailboxes exist; supervision, the policy seam and the
-thread groups that make the sweep possible are still to do. [docs/v1.md](docs/v1.md#the-liveness-guarantee) is
+**Most of it is built.** The lanes, the mailboxes, a thread group per component lane, a per-lane busy gauge, the
+watchdog that reports a stalled delivery and halts when its deadline passes, the bound on shutdown, and
+`LivenessPolicy`, the seam that takes the policy, all exist and are tested with no GPU. Still to do: the main
+thread is not watched (it legitimately blocks in a native dialog), offloaded work cannot be cancelled, and there is
+no restart ([docs/TODO.md](docs/TODO.md), *Build the liveness guarantee*). A frame hook that throws is stopped and
+reported rather than taking the loop down. [docs/v1.md](docs/v1.md#the-liveness-guarantee) is
 the guarantee, including what it does not promise, and
 [the design](docs/architecture.md#a-wedged-component-cannot-freeze-the-window) is the reasoning.
 
@@ -121,14 +130,14 @@ the guarantee, including what it does not promise, and
 | Module | State |
 | --- | --- |
 | `vexelray-framework-api` | **built** — the annotation vocabulary |
-| `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal (47 tests) |
-| `vexelray-framework-shell` | **built** — the absorbed edge, the threads, and the window chrome (87 tests) |
+| `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal, lanes and the watchdog (58 tests) |
+| `vexelray-framework-shell` | **built** — the absorbed edge, the threads, the windows (`Windows`, `Window`, close gates), the dialogs (`Dialogs`), the window chrome and the application's mark, and `Apps`, how the suite's applications find and start each other (121 tests) |
 | `vexelray-framework-automation` | **built** — the driving socket, in its own module, and `AutomationStarter`, the first starter (5 tests) |
-| `vexelray-framework-template` | **built** — the project builder, arrived from `mainframe-template` (48 tests) |
+| `vexelray-framework-template` | **built** — the project builder, arrived from `mainframe-template`, and `Generate`, which runs it from the command line (55 tests) |
 | `vexelray-framework-acceptance` | **built**, under `-Pacceptance` only — generates a project, builds it, and drives it through the automation socket |
-| `vexelray-framework-processor` | **built** (47 tests) — every rule the vocabulary calls a compile error that a declaration can decide, then the application's `Wiring`, generated. The template's is |
+| `vexelray-framework-processor` | **built** (90 tests) — every rule the vocabulary calls a compile error that a declaration can decide, then the application's `Wiring`, generated. The template's is |
 
-Three applications ran on it, each with its wiring hand-written in its own repo, and each was chosen so
+Three applications ran on it first, each with its wiring hand-written in its own repo, and each was chosen so
 it could find what the others could not:
 
 | Application | What it proved |
@@ -143,8 +152,15 @@ that cost a tax on every framework change, in three separate house styles, and t
 make them cohere made no progress. The witness is [a generated
 project](docs/architecture.md#the-witness-is-the-project-builder-not-an-application) now — it has no
 conventions of its own to defend, and rebuilding a real application from it costs about a day.
-`calculator-vexel-demo` was rebuilt exactly that way: it is a new application generated from the template,
-not the old hand-wired one restored.
+`calculator-vexel-demo` and `text-editor-vexel-demo` (now called Vex) were rebuilt exactly that way: each is a new
+application generated from the template, not the old hand-wired one restored, and the table above describes the
+deleted ones.
+
+The applications generated from it since are the witnesses now: Vex, the calculator, `vexplore` (a file
+explorer), `Pix` (an image viewer) and the fluid and rigid-body simulation demos, with `mainframe`, which uses the
+framework's pieces as a library. Each keeps a `docs/framework-notes.md` of what it had to work around, and
+[docs/TODO.md](docs/TODO.md) carries what they found. The suite's five applications build as Windows native
+executables and install together; see [the site](https://sibarum.github.io/vexelray-framework/).
 
 `-api` and `-core` are JDK-only, so the container's decisions are testable on a machine with no GPU.
 `-shell` is the only Vulkan-aware module.
@@ -157,8 +173,10 @@ wait, because refusing what the vocabulary already calls wrong freezes nothing.
 
 | Annotation | Does |
 | --- | --- |
-| `@VexelApp` | the entry class, and the settings-directory name |
-| `@Component` | an actor: one platform thread, one mailbox, built before the loop runs |
+| `@VexelApp` | the application: its name (the settings directory), title, size, `icon` and `starters` |
+| `@Component` | an actor on a lane: the shared default lane unless it names one, built before the loop runs |
+| `@Subscribe` | a component method that receives a topic, through a mailbox of its own with a declared overflow |
+| `@Publishes` | which topics a type or method sends on, so a blocking send from the main thread is a compile error |
 | `@Configuration` / `@Provides` | recipes for types the application does not own; returns an interface |
 | `@Default` | the framework's answer *unless the application has one* |
 | `@MainThread` | may only be touched on the main thread — checked at compile time |
@@ -179,7 +197,10 @@ java -cp vexelray-framework-template/target/classes dev.vexelray.framework.templ
 
 `--in` is the folder the project folder goes inside. Any other slot is `--<slot> value` (`--title`,
 `--packageName`, `--width`, …); `--help` lists them all. The project then builds against the installed siblings
-(see *Building*) with `cd my-app && mvn compile exec:exec`. `new vexel-desktop` in `mainframe` runs the same
+(see *Building*) with `cd my-app && mvn compile exec:exec`. On Windows with GraalVM 25, `mvn -Pnative package`
+builds `my-app-debug.exe` (a console, and the automation socket) and `mvn -Pnative-release package` builds
+`my-app.exe` (no console, and no socket linked at all); the project's own README says what each edition is and
+how to give it a mark of its own. `new vexel-desktop` in `mainframe` runs the same
 builder behind a terminal form; it is a second way in, not the only one.
 
 Non-GUI code — a file-system layer, parsing, anything with logic worth testing — goes in sub-packages of the

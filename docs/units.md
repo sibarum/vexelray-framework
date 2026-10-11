@@ -92,10 +92,10 @@ Each was checked against the source. File paths are relative to the repo named.
 
 ### Docs that contradict the code
 
-**Fixed 2026-10-05**, all of this list except one: in `vexelray-gui`, `vexelray` (`NativeWindow`, `WindowConfig`),
+**Fixed 2026-10-05**, all of this list but `status.html` (below): in `vexelray-gui`, `vexelray` (`NativeWindow`, `WindowConfig`),
 `tactroller` (`InputEvent`, `PointerState`), `vexplore` and here. `RetainedNode` also no longer calls layout px
-"screen px". What was fixed is the docs alone, not any code. Still open: `docs/status.html` lists `zoom` and
-`resize` as missing, and is left as the dated snapshot it says it is. Two items above are a mismatch between doc
+"screen px". What was fixed is the docs alone, not any code. `docs/status.html` listed `zoom` and
+`resize` as missing until it was regraded on 2026-10-10. Two items above are a mismatch between doc
 and code where the doc states the intent, so they are defects rather than doc errors (`Tooltip.GAP_PX`, and
 `Popout.size` claiming to set the window size).
 
@@ -210,4 +210,4 @@ seemed to need one is U1, U2 or U5.
 U6 and U9 cost nothing and settle vocabulary. U1 next: everything else uses it. U2 and U4 are the two
 **breaking** ones and so the only ones the freeze forces. U3, U5 and U7 can follow at leisure. U8's javadoc is
 now, and its arithmetic lands with E4. Nearly all of it is upstream in `vexelray-gui`. The framework's own share
-is `Appearance`'s stale zoom doc, `AppInfo`/`@VexelApp` naming their unit, and the template's `App.W`/`H`.
+is `AppInfo`/`@VexelApp` naming their unit (`Appearance`'s zoom doc was fixed on 2026-10-05), and the template's `App.W`/`H`.

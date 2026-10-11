@@ -368,25 +368,27 @@
   <header class="masthead">
     <div class="mark">
       <h1>Vexel<span class="ray">Ray</span> Framework</h1>
-      <span class="kicker">Readiness for v1&nbsp;·&nbsp;28 Sep 2026</span>
+      <span class="kicker">Readiness for v1&nbsp;·&nbsp;10 Oct 2026</span>
     </div>
 
     <p class="thesis">
       v1 means an application built on it needs <strong>no major refactor for the foreseeable
       future</strong>, and later releases add to the abstractions it already has. It also carries <strong>no legacy</strong>: nothing stays for backwards compatibility. By that bar the
       framework is not close: <strong>one of seven surfaces is ready to freeze</strong>, and the
-      concurrency model's declaration side does not exist. The five dimensions below are unchanged —
-      most of what they grade is built well, somewhere else.
+      concurrency model's declaration side is half built — components declare their mailboxes and what
+      they send, and supervision watches every lane, but the copier, capture and the rest of the channel
+      seam are not there. Most of what the dimensions below grade is built well, somewhere else.
     </p>
 
     <div class="facts">
-      <span class="fact pass"><b>234</b> tests green</span>
-      <span class="fact">core <b>47</b> · shell <b>87</b> · template <b>48</b> · processor <b>47</b> · automation <b>5</b></span>
+      <span class="fact pass"><b>314</b> tests green</span>
+      <span class="fact">core <b>58</b> · shell <b>106</b> · template <b>55</b> · processor <b>90</b> · automation <b>5</b></span>
       <span class="fact"><b>6</b> modules built · <b>1</b> planned</span>
       <span class="fact"><b>1</b> template, framework-shaped · <b>1</b> starter</span>
-      <span class="fact"><b>16</b> automation verbs on the wire</span>
+      <span class="fact"><b>23</b> automation verbs on the wire</span>
+      <span class="fact">threading rules held <b>20</b> of 33</span>
       <span class="fact">v1 surfaces ready <b>1</b> · close <b>2</b> · open <b>4</b> of 7</span>
-      <span class="fact">dimensions read @ <b>0e811c6</b></span>
+      <span class="fact">dimensions read @ <b>777d496</b></span>
     </div>
   </header>
 
@@ -414,12 +416,12 @@
           <tr>
             <td class="repo">The wire protocol</td>
             <td><span class="pill p-full">Ready</span></td>
-            <td class="note">Framing, <code>ok</code>/<code>err</code> and sixteen verbs, exercised by a real window on every acceptance run. Two verbs are missing and both are additive.</td>
+            <td class="note">Framing, <code>ok</code>/<code>err</code> and twenty-three verbs, exercised by a real window on every acceptance run; <code>zoom</code> and <code>resize</code> landed. What is still asked for (<code>keydown</code>/<code>keyup</code>, <code>await</code> on existence) is additive.</td>
           </tr>
           <tr>
             <td class="repo">Shell and the phases</td>
             <td><span class="pill p-part">Close</span></td>
-            <td class="note">Phases carry the stack's own constraints and three applications ran on them. Open: what <code>Shell</code> exposes of the siblings, and whether a new <code>Phase</code> can ever be additive.</td>
+            <td class="note">Phases carry the stack's own constraints, three ported applications ran on them, and every generated one does now. Open: what <code>Shell</code> exposes of the siblings, and whether a new <code>Phase</code> can ever be additive.</td>
           </tr>
           <tr>
             <td class="repo">The launch surface</td>
@@ -433,18 +435,18 @@
           </tr>
           <tr>
             <td class="repo">The component model</td>
-            <td><span class="pill p-none">Declaration unbuilt</span></td>
-            <td class="note">Threads and mailboxes are the container's. What is missing is the declaration side: channels, the colour rule's copier and capture, the message-graph checks and supervision. It reshapes how every component is written.</td>
+            <td><span class="pill p-part">Declaration half built</span></td>
+            <td class="note">Threads and mailboxes are the container's; <code>@Subscribe</code> and <code>@Publishes</code> declare a component's mailboxes and sends, the blocking-cycle and immutable-payload checks run, and supervision (<code>Watchdog</code>, <code>LivenessPolicy</code>) watches every lane. Missing: <code>@Subscribe</code> off a component, capture (T2.5, undecided), and the generated copier. It reshapes how every component is written.</td>
           </tr>
           <tr>
             <td class="repo">The build shape</td>
             <td><span class="pill p-none">One instance</span></td>
-            <td class="note">One starter, no BOM, no aggregated reachability metadata, and a composition-root question (<code>GuiApp</code> or <code>VexelEngine</code>) that decides what an application inherits.</td>
+            <td class="note">One starter, no BOM, no aggregated reachability metadata — the suite's applications build Windows native executables in two editions, and each carries its own metadata and flags, which the template now copies into every project — and a composition-root question (<code>GuiApp</code> or <code>VexelEngine</code>) that decides what an application inherits.</td>
           </tr>
           <tr>
             <td class="repo">The sibling boundary</td>
             <td><span class="pill p-none">Undecided</span></td>
-            <td class="note"><code>Shell</code> returns <code>Gui</code>, <code>GuiApp</code>, <code>KronoGui</code>, <code>TitleBar</code>, <code>Settings</code> and <code>Atchung</code>, and the framework's <code>Windows</code>, <code>Window</code> and <code>Dialogs</code> hand over <code>Gui</code>, <code>TitleBar</code> and <code>Modal</code>. v1 is only as stable as they are. <code>memory()</code> is deleted and <code>app()</code> is ruled the device. One bus also carries one tree, upstream.</td>
+            <td class="note"><code>Shell</code> returns <code>Gui</code>, <code>GuiApp</code>, <code>KronoGui</code>, <code>TitleBar</code>, <code>Settings</code>, <code>Atchung</code>, <code>ComputeQueue</code> and <code>dev.vexelray.os.Icon</code>, and the framework's <code>Windows</code>, <code>Window</code> and <code>Dialogs</code> hand over <code>Gui</code>, <code>TitleBar</code> and <code>Modal</code>. v1 is only as stable as they are. <code>Gui</code> is ruled frozen and its methods are not yet classified; <code>memory()</code> is deleted, <code>app()</code> is ruled the device, and the windows and the dialogs are roots of their own. One bus also carries one tree, upstream.</td>
           </tr>
         </tbody>
       </table>
@@ -452,8 +454,8 @@
 
     <h2 style="margin-top:34px">The extension test</h2>
     <p class="lede">
-      What v1 leaves out is fine if the seam it will use already exists. Two of these have none, which
-      is why the concurrency work comes first.
+      What v1 leaves out is fine if the seam it will use already exists. One of these still has none, and
+      it is the rest of the channel seam, which is why the concurrency work still comes first.
     </p>
     <div class="scroller">
       <table>
@@ -469,9 +471,9 @@
           <tr><td class="repo">A second automation socket</td><td class="note"><code>Driver.open(shell, gui, controls, offset)</code></td><td><span class="pill p-full">Yes</span></td></tr>
           <tr><td class="repo">Framework SDF vocabulary</td><td class="note">A <code>@Provides</code> and a placed component</td><td><span class="pill p-part">When the component model is final</span></td></tr>
           <tr><td class="repo">Simulation vocabulary</td><td class="note"><code>FrameStage.APP</code> and a placed component</td><td><span class="pill p-part">Partly</span></td></tr>
-          <tr><td class="repo">Supervision</td><td class="note">Per-component <code>Overrun</code>, in the wiring</td><td><span class="pill p-part">Contract undecided</span></td></tr>
-          <tr><td class="repo">elektro-Q, cross-process actors</td><td class="note">The channel declaration</td><td><span class="pill p-none">No</span></td></tr>
-          <tr><td class="repo">Reactive automation, macros, extensions</td><td class="note">The channel declaration</td><td><span class="pill p-none">No</span></td></tr>
+          <tr><td class="repo">Supervision policies, restart</td><td class="note"><code>LivenessPolicy</code>, handed back, acting through a <code>Context</code> (<code>exit</code>, <code>interrupt</code>)</td><td><span class="pill p-full">Yes</span> <span class="note"><code>restart</code> is a new <code>Context</code> method</span></td></tr>
+          <tr><td class="repo">elektro-Q, cross-process actors</td><td class="note">The channel declaration: <code>@Subscribe</code>, <code>@Publishes</code></td><td><span class="pill p-part">Partly</span> <span class="note">on components only</span></td></tr>
+          <tr><td class="repo">Reactive automation, macros, extensions</td><td class="note">A <code>@Subscribe</code> that is not on a component</td><td><span class="pill p-none">No</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -613,16 +615,17 @@
         only a plan. <code>Lanes</code> in <code>-core</code> owns the application's handler, offload
         and component threads; <code>Placement</code> in <code>-shell</code> owns a component's thread,
         its mailboxes and the drain-then-stop around it; the generated wiring places each <code>@Component</code> on both, and
-        no application code can. The grep this page prints as its own check used to return <b>zero</b> and now
-        returns <b>39 hits across six files</b> — which is the intended shape rather than a leak: 29
-        are <code>Lanes</code>, 5 are <code>Placement</code>, three are a <code>TimeUnit</code> import,
-        one <code>volatile</code> flag and a sentence of Javadoc, and the last two are words in the
-        template's list of Java keywords.
-        <b>Thirteen of threading.md's thirty-two rules are held.</b> Eight came from <code>Lanes</code> and
-        <code>Placement</code>, which needed something to <i>be</i> the rule rather than a processor; the other
-        five — T2.1, T2.2, T2.3, T3.1 and T3.7 — are the processor's, now that placement is declared as
-        <code>@Component(lane = …)</code> and the framework's <code>GuiApp</code> is marked main-thread in the
-        processor's own table.
+        no application code can, and <code>@Subscribe</code> and <code>@Publishes</code> put each mailbox and
+        each send on a declaration. The grep this page prints as its own check used to return <b>zero</b> and now
+        returns <b>60 hits across eight files</b> — which is the intended shape rather than a leak: 36
+        are <code>Lanes</code>, 12 are <code>Watchdog</code>, 5 are <code>Placement</code>, one each in
+        <code>Stalls</code>, <code>Shell</code> and <code>PointerLock</code>, and the last four are words: two
+        in the template's list of Java keywords and a method name in the processor's <code>Channels</code>.
+        <b>Twenty of threading.md's thirty-three rules are held</b>, and four still say <code>processor</code>.
+        Eight came from <code>Lanes</code> and <code>Placement</code>, which needed something to <i>be</i> the
+        rule rather than a processor; most of the rest are the processor's checks — placement, colour, the
+        immutable payload, the declared channel graph and its blocking cycles — and supervision came from
+        <code>Watchdog</code> and <code>LivenessPolicy</code>.
       </p>
     </div>
 
@@ -697,20 +700,20 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
-      <div class="row s1">
-        <span class="what">What a full mailbox does <span>— per channel, by the loss class it carries</span></span>
-        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Specified</span>
+      <div class="row s3">
+        <span class="what">What a full mailbox does <span>— per mailbox, <code>@Subscribe(overflow = …)</code>; an edge and a sample on one topic is a compile error</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
       <div class="row s3">
         <span class="what">Somebody notices a blocked main thread <span>— <code>Stalls</code>, 250&nbsp;ms, always on</span></span>
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
-      <div class="row s0">
-        <span class="what">Supervision <span>— nothing notices that a <i>component</i> stopped draining, or names it</span></span>
-        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Absent</span>
+      <div class="row s3">
+        <span class="what">Supervision <span>— <code>Watchdog</code> names a lane stuck inside one delivery; <code>LivenessPolicy</code> decides, report then exit by default</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
     </div>
 
@@ -729,7 +732,7 @@
         </ul>
       </div>
       <div class="col gap">
-        <h3>Open before the processor</h3>
+        <h3>Still open</h3>
         <ul>
           <li><b>The handler lane has no bound, and the blocker is a census rather than a fix.</b>
             "One bus is not one thread" is closed — <code>Gui</code> takes both lanes now and closes
@@ -738,12 +741,13 @@
             blocking handlers turned out to route everything through <code>GuiApp.post</code> instead,
             so nobody yet knows what <i>does</i> block one. <code>-Dvexelray.stall.ms=16</code> is the
             setting that answers it by running the applications rather than reading them.</li>
-          <li>The dream case — <b>responsive through a component's infinite loop</b> — is now half
-            designed and a quarter built. Coalescing keeps a wedged component's publishers running and
-            the loop alive, and <code>Stalls</code> now names a blocked <i>main thread</i>. What is
-            still missing is the component half: nothing notices that a placement stopped draining,
-            names it, or decides what the rest of the application does about it. It wants
-            <code>Overrun</code> surfaced per grouping before it is built on anything but a timeout.</li>
+          <li>The dream case — <b>responsive through a component's infinite loop</b> — is built for the
+            lanes. Each component lane is its own <code>ThreadGroup</code> with a busy gauge;
+            <code>Watchdog</code>, on no lane, reports a stalled delivery once by name and halts past a
+            deadline; close has a total bound; and the policy is the application's to replace. What is left:
+            the main thread is not watched (a modal dialog legitimately blocks it), the handler and offload
+            pools are not grouped and have no cancellation, <code>Context</code> has no <code>restart</code>,
+            and W2 has no wedge that ignores interrupts, so the halt backstop has not fired in a witness.</li>
           <li>Three vocabulary mismatches are recorded for the processor's brief:
             <code>@Component</code> is a DI contract not an actor one, <code>@MainThread</code> is
             two-coloured, <code>FrameHooks</code> is the barrier's N=1 case.</li>
@@ -764,8 +768,9 @@
         The app <i>edge</i> now has one language and the measurement is real: three ported wirings run
         <b>186 / 296 / 556</b> lines against a ~350-line scaffold that each application used to carry
         for itself, and two of the three import four or fewer sibling types. The app <i>fabric</i>
-        still has four — <code>Shell.krono()</code> hands over a clock and then you are in Kronometer's
-        language, and there is no <code>Shell.bus()</code> at all.
+        is half there: <code>Shell.bus()</code> is the application's own and a component speaks on it in
+        <code>@Subscribe</code> and <code>@Publishes</code>, but <code>Shell.krono()</code> hands over a clock
+        and then you are in Kronometer's language, and graphics is still vexelray's.
       </p>
     </div>
 
@@ -776,7 +781,7 @@
         <span class="stage">In the framework</span>
       </div>
       <div class="row s3">
-        <span class="what">…and replaced by a <code>@Provides</code> <span>— the look, input and clipboard; memory, icon, dialogs and pacing not yet</span></span>
+        <span class="what">…and replaced by a <code>@Provides</code> <span>— the look, input, clipboard, liveness policy and dialogs; the icon is named in <code>@VexelApp(icon)</code>; pacing not yet</span></span>
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
@@ -800,13 +805,13 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
         <span class="stage">In the stack</span>
       </div>
-      <div class="row s0">
-        <span class="what">A bus seam <span>— an app reaches one as <code>shell.gui().bus()</code>, which is that window's</span></span>
-        <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Absent</span>
+      <div class="row s3">
+        <span class="what">A bus seam <span>— <code>Shell.bus()</code>, the application's own; components declare their side of it</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
       <div class="row s0">
-        <span class="what">elektro-Q <span>— named nowhere, in the framework or in any ported app</span></span>
+        <span class="what">elektro-Q <span>— named only as the processor's precedent, never as a dependency</span></span>
         <span class="meter"><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Absent</span>
       </div>
@@ -855,7 +860,9 @@
       </div>
       <p class="dim-read">
         The no-reflection thesis holds, and three applications ran on it before being deleted on
-        purpose — the witness is a generated project now. Of the three things that make Boot
+        purpose — the witnesses are generated now: the template's project, the two-window (W1), component (W2) and
+        long-running (W3) witnesses, and the suite's calculator and text editor, Vexplore, Pix and the
+        simulation demos. Of the three things that make Boot
         <i>Boot</i>, <b>the generator is built</b>: vocabulary is enforcement, and the template's wiring is
         generated. <b>The starter has its first instance</b> — the driving socket, named in
         <code>@VexelApp</code> — but no BOM makes one dependency enough. And the instrument that answers
@@ -884,10 +891,10 @@
         <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
         <span class="stage">Specified</span>
       </div>
-      <div class="row s1">
-        <span class="what"><code>@Subscribe</code> <span>— actor substrate, extension API and reactive automation, at once</span></span>
-        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Specified</span>
+      <div class="row s3">
+        <span class="what"><code>@Subscribe</code> <span>— the actor substrate, on a component; the extension API and reactive automation want it off one, which is unbuilt</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
+        <span class="stage">In the framework</span>
       </div>
       <div class="row s3">
         <span class="what">Starters <span>— <code>AutomationStarter</code>, a <code>@Default</code> an application names and may back off</span></span>
@@ -918,7 +925,7 @@
           <li><b>Nothing reflects.</b> Retention is <code>CLASS</code> deliberately; no
             <code>Class.forName</code> on the startup path.</li>
           <li><code>-api</code> and <code>-core</code> stay JDK-only, so <b>every decision the
-            container makes is testable with no GPU</b> — which is why all 234 tests run anywhere, a
+            container makes is testable with no GPU</b> — which is why all 314 tests run anywhere, a
             real <code>GuiApp</code> and a placed component among them.</li>
           <li>The spreadsheet half was demonstrated three times over — one window, three windows, and
             two windows on one device — and those three applications have since been deleted on
@@ -952,14 +959,14 @@
       <span class="eyebrow">Dimension 05 · Verification</span>
       <div class="dim-title">
         <h2>Driving the real application</h2>
-        <span class="verdict v-stack">Mature · two verbs from complete</span>
+        <span class="verdict v-stack">Mature · drives, does not yet react</span>
       </div>
       <p class="dim-read">
         The strongest area on this page, and the only capability where the framework's share is already
         finished. A running desktop application — real window, real Vulkan device, real frame loop —
         is driven over a loopback line protocol: <b>one command in, one reply out, terminated by a lone
         <code>.</code></b>, replies beginning <code>ok</code> or <code>err</code> so a script branches on
-        two characters. Sixteen verbs, a real cursor behind them, and a CLI whose exit status is the
+        two characters. Twenty-three verbs, a real cursor behind them, and a CLI whose exit status is the
         verdict.
       </p>
     </div>
@@ -995,10 +1002,10 @@
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
-      <div class="row s1">
-        <span class="what"><code>zoom</code> and <code>resize</code> <span>— the last two things per-app <code>--capture</code> can do and this cannot</span></span>
-        <span class="meter"><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i><i class="seg"></i></span>
-        <span class="stage">Specified</span>
+      <div class="row s2">
+        <span class="what"><code>zoom</code>, <code>resize</code>, <code>dpi</code>, <code>windows</code> <span>— on <code>WindowControls</code>; per-app <code>--capture</code> is retired</span></span>
+        <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i><i class="seg"></i></span>
+        <span class="stage">In the stack</span>
       </div>
       <div class="row s1">
         <span class="what">A second socket per application <span>— the designer places its own at <code>port() + 1</code></span></span>
@@ -1036,10 +1043,11 @@
       <div class="col gap">
         <h3>What is left</h3>
         <ul>
-          <li>Until <code>zoom</code> and <code>resize</code> land, <b>per-application
-            <code>--capture</code> cannot be retired</b> and every app keeps its own headless entry point.
-            <code>resize</code> is new capability rather than a verb: nothing in
-            <code>WindowControls</code> sets a size.</li>
+          <li><b>A scene cannot hold a modifier or wait on existence.</b> <code>key</code> is
+            press-and-release, so Shift-click is untestable from outside, and <code>await</code> waits on
+            text, so a script that wants "the dialog appeared" needs the application to print something —
+            a witness flaked on exactly that. <code>keydown</code>/<code>keyup</code> and a bare
+            <code>await &lt;landmark&gt;</code> are both additive.</li>
           <li><b>An application that never goes quiet cannot be settled.</b> A repeating cue keeps the clock
             busy by definition, so <code>settle</code> reports it after ten seconds and names
             <code>await</code> instead — honest, and a real limit for a clock face or a spinner.</li>
@@ -1096,7 +1104,7 @@
             <td class="repo">vexelray</td>
             <td class="note">Vulkan runtime, canvas, MSDF, SDF</td>
             <td><span class="pill p-none">None</span></td>
-            <td class="note">Through <code>GuiApp</code>'s device, or directly. Viewports and scenes are the application's.</td>
+            <td class="note">Through <code>GuiApp</code>'s device, or directly; <code>Shell.computeQueue()</code> and <code>Shell.windowMark()</code> hand over a queue and the window's icon. On Windows it presents through DXGI only, carried by <code>vexelray-gui-core</code>. Viewports and scenes are the application's.</td>
           </tr>
           <tr>
             <td class="repo">supirvast</td>
@@ -1114,7 +1122,7 @@
             <td class="repo">elektroq</td>
             <td class="note">Transport-agnostic messaging, actors</td>
             <td><span class="pill p-none">None</span></td>
-            <td class="note">Not at all. Named nowhere in the framework or in any ported application.</td>
+            <td class="note">Not at all. Named only as the processor's precedent, and in no application.</td>
           </tr>
         </tbody>
       </table>
@@ -1153,8 +1161,8 @@
             crash into a hang. A wedged component is a different event, answered by the
             <code>Backpressure</code> of its channel: a sample coalesces, an edge must not be lost, and
             a channel carrying both gets split.
-            <span class="why">What it leaves open is supervision — nothing yet notices that a component
-            has stopped draining, or names which one.</span>
+            <span class="why">What it left open was supervision, since built: <code>Watchdog</code> names a
+            lane that has stopped draining, and <code>LivenessPolicy</code> decides what happens next.</span>
           </p>
         </div>
       </div>
@@ -1195,7 +1203,9 @@
             <code>mvn clean install -Pacceptance</code> drives the builder API, asserts the
             <code>Blueprint</code> in memory, writes it, builds it — its own tests and the framework's
             processor included — and runs it with <code>mvn compile exec:exec</code> under automation:
-            count, count, reset by key, reset by button, and a screenshot of the window.
+            the template's text editor opens a folder, switches files by click and by key, edits and saves
+            one, takes a screenshot, then resizes, zooms and changes density and checks each picture is the
+            size asked for.
             <span class="why">The three ported applications were the witness and they are gone on
             purpose. A generated project has no conventions of its own to defend, and the automation
             step is what stops the builder and the framework agreeing with each other about being
@@ -1213,9 +1223,9 @@
             <code>@Provides</code> methods — each part built once, in the phase its parameters put it in.
             The template ships a <code>Recipes</code> configuration rather than a hand-written wiring, and
             <code>-Pacceptance</code> builds and drives what it generates.
-            <span class="why"><b>Nine of the thirty-two threading rules still say
+            <span class="why"><b>Four of the thirty-three threading rules still say
             <code>processor</code></b>, and none can be decided from a declaration: they want a method body,
-            a channel seam, or the component tree. The framework's own defaults turned out to want handing
+            a send nobody declared, or the component tree. The framework's own defaults turned out to want handing
             back rather than backing off, because a hand-written wiring still has to start with input; that
             made overriding the input backend and the clipboard real, and what generation left is in the
             TODO.</span>
@@ -1238,8 +1248,10 @@
         <div>
           <h3>Finish the component model</h3>
           <p>
-            The channel declaration, the colour rule's copier and capture halves, the message-graph
-            checks, supervision, and the way an offloaded result gets back onto the frame loop.
+            <code>@Subscribe</code> off a component, the capture rule (undecided), the generated copier, the
+            <code>@Subscribe</code> defaults, the rest of supervision (the main thread, the handler and offload
+            pools, <code>restart</code>), and the way an offloaded result gets back onto the frame loop. The
+            component mailboxes, the declared channel graph, its checks and the lane watchdog have landed.
             <span class="why">It reshapes how every component is written and is where new compile
             errors come from. It is also the seam elektro-Q, reactive automation and extensions are
             waiting for, which is why nothing else can be judged final before it.</span>
@@ -1279,8 +1291,10 @@
           <p>
             Two or three generated applications that differ where it matters: several windows on one
             device, component-heavy with real placement, long-running with nothing to settle.
-            <span class="why">One generated application validates the abstractions today. Each new
-            shape is expected to find something, and what it finds is written up as the ports were.</span>
+            <span class="why">The component witness (W2) and the long-running one (W3) are built and pass,
+            and the suite's applications are generated from the template. W1, several windows on one device, is
+            built too, and shaped the <code>Window</code> seam and the dialogs. Each new shape was expected to
+            find something, and what it finds is written up as the ports were.</span>
           </p>
         </div>
       </div>
@@ -1318,8 +1332,11 @@
           <p>
             Mark each public type frozen or experimental, walk the whole surface for anything that
             would be renamed today, fix it, and cut 1.0. Releases are 0.x until then.
-            <span class="why">The mechanism for the marking does not exist yet and must not reflect.
-            The pass is meaningless while any step above is open.</span>
+            <span class="why">The marking exists and does not reflect: <code>@Stability</code>, on every
+            public type in <code>-api</code>, <code>-core</code>, <code>-shell</code> and
+            <code>-automation</code>, and every one says <code>EXPERIMENTAL</code>. Nothing is frozen yet, and
+            <code>vexelray-gui</code> wants a marker of its own. The pass is meaningless while any step above is
+            open.</span>
           </p>
         </div>
       </div>
@@ -1330,22 +1347,23 @@
   <section class="method">
     <h2>How to re-check this page</h2>
     <p>
-      The five dimensions were read off the tree on 25 September 2026 at <code>0e811c6</code>, not
-      inferred from the docs. The hash is <b>when this page was read, not what it describes</b>. It was
-      last fully regraded at <code>0838329</code>; the one commit since moved dimension 05 alone, which was
-      regraded with it, and left the checks below exactly where they were. The threading grep reads
+      The five dimensions were regraded on 10 October 2026 at <code>777d496</code> against TODO.md,
+      threading.md's matrix, components.md and the code, not inferred from the docs alone. The hash is
+      <b>when this page was read, not what it describes</b>. The threading grep reads
       <code>src/main/java</code> only, because a template's resources are a generated project's source
-      rather than the framework's. <b>The v1 ledger and the road to v1 are the exception:</b> they were assembled on 28 September 2026 from these docs, TODO.md, and one read of <code>Shell</code>'s public signatures for the sibling types it returns. Nothing checked them against the whole public surface; that walk is step 13.
+      rather than the framework's. <b>The v1 ledger and the road to v1</b> were first assembled on 28 September 2026 and re-read on the same day as the dimensions, with one read of <code>Shell</code>'s public signatures for the sibling types it returns. Nothing checked them against the whole public surface; that walk is step 13.
     </p>
-    <pre><span class="c"># 234 green, offline: core 47, shell 87, template 48, processor 47, automation 5</span>
+    <pre><span class="c"># 314 green, offline: core 58, shell 106, template 55, processor 90, automation 5</span>
 mvn -o test
 
-<span class="c"># 39 hits in six files: Lanes 29, Placement 5, one each in Stalls, Shell and</span>
-<span class="c"># PointerLock, two keywords in the template's Checks. A seventh file is a new thread seam</span>
+<span class="c"># 60 hits in eight files: Lanes 36, Watchdog 12, Placement 5, one each in Stalls, Shell and</span>
+<span class="c"># PointerLock, two keywords in the template's Checks, two words in the processor's Channels.</span>
+<span class="c"># A ninth file is a new thread seam</span>
 grep -rn "Thread\|Executor\|java.util.concurrent\|volatile\|synchronized\|Atomic" \
      --include=*.java vexelray-framework-*/src/main/java | grep -v MainThread
 
-<span class="c"># 24 hits, two names: tactroller and atchung. A third name is a new dependency edge</span>
+<span class="c"># 41 hits, four names: atchung 17, tactroller 14 and probe 8 in the framework's Java,</span>
+<span class="c"># and kronometer 2 in the template's Motion.java. A fifth name is a new dependency edge</span>
 grep -rn "import sibarum" --include=*.java vexelray-framework-*/src/main
 
 <span class="c"># dimension 5, against a real window: exit status is the verdict</span>
@@ -1353,7 +1371,7 @@ printf 'find Save\nclick save\nsettle\nshot after.png\n' | ottermate --script -<
   </section>
 
   <footer>
-    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 0e811c6</span>
+    <span>vexelray-framework · 0.1.0-SNAPSHOT · graded at 777d496 · 2026-10-10</span>
     <span>Dimensions: where a capability lives · Ledger: whether its shape is final</span>
   </footer>
 

@@ -8,6 +8,13 @@ rests.
 
 ![Pix: a picture, and under it the file's name, the filmstrip of its neighbours, and the controls](img/pix-viewer.png)
 
+## Opening one
+
+- **Ctrl+O**, the **Open** tile, or a click on the picture's name opens a picture, and its folder comes with it.
+- **Ctrl+Shift+O** opens a folder on its first image.
+- Both use the system's own dialogs, starting in the folder that is open. Started with nothing, Pix shows the
+  first image in your Pictures folder.
+
 ## Stepping through a folder
 
 - **← and →**, Page Up and Page Down step to the previous and next image; **Home** and **End** go to the first
@@ -26,7 +33,7 @@ picture, or will not decode, says why in place of the picture. Nothing in a file
 
 - **Background**: dark, light, a checkerboard for transparency, magenta or green, across the whole window.
 - **Keep shown** stops the controls fading. Moving the mouse, a click or Tab brings them back.
-- **Esc** closes Pix.
+- **Esc** closes the background menu if it is open, and otherwise closes Pix.
 
 ## With the rest of the suite
 

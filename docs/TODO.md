@@ -6,7 +6,8 @@ already has.** So the first question about an entry is not how big it is but whe
 would break an application that compiled before. Most of it is what the ports turned up — what
 [the text editor found](architecture.md#what-porting-the-text-editor-found), and what
 [the designer found](architecture.md#what-porting-the-designer-found) — where the gaps each port
-closed, and the reasoning behind each, are recorded.
+closed, and the reasoning behind each, are recorded — and, since October, what the applications generated from the
+template wrote in their own `docs/framework-notes.md`.
 
 Keep an entry short enough that it does not need editing, and delete it when it is done rather than
 ticking it. An entry whose fix belongs in a sibling repo says which one; the ones under **Upstream**
@@ -54,9 +55,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **What is actually left**, and it is the part a runtime object cannot hold: the colour rule's copier
       and capture halves (T2.4, T2.5 — T2.1–T2.3 are the processor's now, and held), the message-graph
-      checks (§4.1, §4.3–§4.5), and supervision (§6.5, §6.3) — *nothing
-      notices that a component has stopped draining, or names it*, which wants `Overrun` surfaced per
-      grouping before it is built on anything but a timeout. Plus the handler lane's bound, which waits on a
+      checks (§4.1, §4.3–§4.5), and the rest of supervision (§6.3). A lane that has stopped draining is now
+      noticed and named (`Watchdog` and `Lanes.busy`, see *Build the liveness guarantee*), but on a timeout only:
+      `Overrun` surfaced per grouping is still the better signal. Plus the handler lane's bound, which waits on a
       census of what still blocks on a handler rather than on any one known blocker.
 
       **Ruled 2026-09-28: the component model — multithreaded by default — is a design seam frozen at v1.** Groups, lanes, channels, loss
@@ -146,8 +147,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `@Subscribe` that is not on a component (an extension or a macro, which is the whole point of the entry),
       registration in `ATTACH` and teardown through the `Disposer` for something that is not a placement, `Fold`,
       and the graph exposed as generated data (T4.5's additive half; the blocking-cycle check, T4.4, is built). The three
-      `@Subscribe` defaults (FAIL, 64, registered at construction and started with the lane) are unruled; they
-      are the ones a v1 freeze would make contract.
+      `@Subscribe` defaults (FAIL, 64, registered at construction and started with the lane) were
+      accepted as recommended on 2026-10-01 and are frozen, capacity included ([components.md](components.md),
+      ruling 5), because changing 64 later changes whether an application dies under a burst.
 
 - [ ] **Nothing in the model covers work that outlasts a frame, and the stack already named the
       answer.** `kronometer/docs/architecture.md` §10 specifies it: *"`offload(work)` remains available
@@ -277,16 +279,24 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **Why this blocks v1:** it caps one fabric per application, so `Shell.bus()` cannot promise that a second window joins it. Either the fix lands upstream first, or v1 documents the ceiling as part of the contract.
 
+      **A third time, 2026-10-07:** `Popout` did `new Gui(host.bus())`, the calculator's settings window
+      copied that line, and the main window came up drawing the *settings* tree from its first frame, with
+      nothing thrown (calculator FN-2). `Popout` now gives the popped-out tree a bus of its own
+      (`vexelray-gui` `a93a661`). Each new second window was another chance to copy the wrong line, so since
+      2026-10-11 the framework builds a named window's tree itself (`Windows.named`, on a bus of its own and the
+      application's lanes), and no application on the stack makes a `Gui` for a second window any more.
+
       Constrained rather than fixed: `Gui(Atchung)`'s javadoc now says which things may share a bus.
       **It is also the ceiling on one inspectable fabric per application**, which is the point of having
       a bus at all — a second window cannot join it. The fix is topics named per instance rather than
       per class, and it is a real change in `vexelray-gui` rather than a line here.
 
 - [ ] **What `Shell` hands over is the seventh surface, and it bounds the other six.** `Shell` returns
-      `Gui`, `GuiApp`, `KronoGui`, `TitleBar`, `Settings` and `Atchung`; `Windows`, `Window` and `Dialogs` are
-      the framework's own and hand over `Gui`, `TitleBar` and `Modal` in turn (`WindowMemory` and `CloseRequest`
-      are no longer handed over at all, since 2026-10-11). So an application holds `vexelray-gui`'s and
-      `atchung`'s types directly and v1 is only as
+      `Gui`, `GuiApp`, `KronoGui`, `TitleBar`, `Settings` and `Atchung`, and since October `ComputeQueue`
+      (`Shell.computeQueue`) and `dev.vexelray.os.Icon` (`Shell.windowMark`); `Windows`, `Window` and `Dialogs`
+      are the framework's own and hand over `Gui`, `TitleBar` and `Modal` in turn (`WindowMemory` and
+      `CloseRequest` are no longer handed over at all, since 2026-10-11). So an application holds
+      `vexelray-gui`'s and `atchung`'s types directly and v1 is only as
       stable as they are. Either those repos freeze what is exposed, or `Shell` stops exposing it — a
       wrapper per type, or fewer accessors. A decision rather than a task, and it wants making per
       accessor rather than once. Every side of the edge is the author's own, which makes freezing cheap
@@ -322,8 +332,11 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       viewports and compute.
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
-      applications were deleted on purpose, which was right, and left one generated counter-style
-      application validating everything. *One component is not a census* applies to the framework itself.
+      applications were deleted on purpose, which was right, and for a while left one generated counter-style
+      application validating everything. (Since then the template writes a text editor, and Vex, the calculator,
+      Vexplore, Pix and the simulation demos are generated from it; their findings are below. Most are
+      one-window-plus-dialogs desktop applications; the calculator's settings and Vexplore's viewer are each one
+      second window, and W1 is the one with several.) *One component is not a census* applies to the framework itself.
       Wants two or three generated applications that differ where it matters — several windows on one
       device, component-heavy with real placement, long-running with nothing to settle — each expected to
       find something, and each finding written up in architecture.md as the ports were. After the
@@ -470,6 +483,27 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       the handler and offload pools are not grouped. `Context` has `exit` and `interrupt` and no `restart`.
       Verify the group sweep under native-image, untested. W2 gets the *wedge* button and the assertions that
       the window keeps painting and close exits within the bound.
+
+- [ ] **No part is ever inferred into `TREE`** (Vex FN-10). Every part that builds widgets takes the `Gui`, so it
+      is inferred into `GUI`; nothing the framework hands out first exists in `TREE`, and the generated wiring never
+      overrides `tree()`. `Phase.TREE`'s description (*the widgets, buildable with no window*) is true of what is
+      built in `GUI`. Not a defect, since `VexelApplication.tree` runs both. **Why this blocks v1:** phases are a
+      frozen contract, and a phase inference cannot produce is a distinction the documentation draws and the
+      mechanism does not. Either `TREE` gets a meaning a part can be inferred into, or it merges into `GUI`, and
+      either is cheaper now.
+
+- [ ] **A look is colour; shape, density and type are each widget's** (upstream, `vexelray-gui` and
+      `vexelray-text`). Found by Vex's retheme to a design mockup (FN-14 to FN-17): every colour landed through the
+      palette, and nothing else did. Corner radii, border widths, padding, row heights and text sizes are literals in
+      each widget, some repainted on every state change so they cannot be restyled after construction, and a role
+      override is global (a quiet `LINE` for the cards quietens the dialogs too). The atlas is baked from two
+      Noto faces, with no third face, weight, slant or tracking, and it lacks glyphs applications need (the
+      calculator spells `≤` as `<=`, FN-3). `Span` carries a colour and no style. Vexplore's FN-6 is the same
+      finding from the palette side. **Why this blocks v1:** how an application declares its fonts is build shape,
+      which v1 freezes; `Node.font(int)` is the one text-styling call; `Span` is a record, so adding a style
+      component later breaks its constructor and every deconstruction pattern; and turning widget literals into
+      token reads moves every application's pixels. Shape and density tokens on `Theme` are additive (an interface
+      with defaults); the fonts and `Span` are not.
 
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
       [v1.md](v1.md#what-must-not-remain). Known candidates so far, each a question and not yet a finding:
@@ -841,6 +875,11 @@ blocks v1, and one thing worked better than expected: the processor's compile er
       is for, can only test the behaviour at the engine and with a flag that sets the state. `keydown <KEY>` and
       `keyup <KEY>`, released at `quit`, would let a scene hold Shift, click, and photograph what the application
       proposed. `Gui.modifiers()` itself needed nothing.
+      **A second witness, and a worse one:** `key` publishes its press with no modifiers at all
+      (`Automation.key`), so no chord can be pressed. Vex's every command is one (Ctrl+S, Ctrl+W, Ctrl+Tab), and
+      its shortcuts were checked by reading the claim rules rather than by pressing them (Vex FN-3). `key ctrl+s`
+      is a new argument form and additive, but the wire protocol is a frozen surface, and freezing it without
+      chords freezes a driver that cannot test the commonest kind of command: decide the form before v1.
 
 - [ ] **`await` waits on text, and a scene wants to wait on existence and on lanes.** `await <landmark> <text>` and
       `click <landmark>` are what made Vexplore's three scenes deterministic and independent of layout, and both
@@ -855,6 +894,47 @@ blocks v1, and one thing worked better than expected: the processor's compile er
       `Support.Driver.firstFrame` does (it polls `find` for the landmark), every witness starts with it, and the
       `ok v0` itself is fixed upstream (`vexelray-gui` `1a40f59`: a new tree owes its first frame). The ask for
       `await <landmark>` with no text stands, for a scene that is not a witness.
+
+### Found by the rebuilt editor and calculator
+
+Vex (the text editor, [its notes](../../text-editor-vexel-demo/docs/framework-notes.md)) and the calculator
+([its notes](../../calculator-vexel-demo/docs/framework-notes.md)) were generated from the template in October 2026
+and rebuilt fresh. What took their requirements unmodified is the larger half (the generator, phase inference, one
+`Settings`, window memory, the title bar, the close gate's place, `Launch.rest()`, the dialogs, the logging), and an
+editor with tabs, a navigator, a close gate and a remembered session has no line of application edge. What they
+found that touches a frozen surface is filed above: the `Window` seam's three witnesses, `TREE`, the look, chords in
+`key`, and a third trip over one bus per `Gui`. Already closed: the editor's icon (FN-2, now `@VexelApp(icon)`), the
+calculator's crash on closing a second window (FN-4, see architecture.md, *the frame loop is the lifecycle*),
+`Popout`'s shared bus (calculator FN-2), the stall behind a file dialog on Windows (Vex FN-7's update), and a
+generated project with no motion (FN-12: the template builds `Motion`). The rest:
+
+- [ ] **A recipe run for its effect has no shape.** Arming the close gate and restoring a session produce nothing,
+      and a `@Provides` returning `void` is an error ("provides nothing"), as is one returning a record. Vex returns
+      an empty marker class (`Recipes.Restored`), which the wiring stores and exposes; Pix's window binding (above,
+      *a part that needs the device later*) returns an `AutoCloseable` and had to merge two late-bound parts into one
+      provider because two would be ambiguous. Three applications, one missing thing: a recipe the wiring runs for effect in
+      its inferred phase. Accepting `void` later removes an error, so it is additive; but the record rule's message
+      tells people to return an interface, which is the wrong advice for this case, and is worth fixing first.
+
+- [ ] **`onCommitLatest` makes a committer wait on another thread's listener** (atchung, Vex FN-4). Commit while
+      holding a lock the listener takes and it deadlocks, with nothing thrown; and the order it keeps is among its own
+      deliveries only, so a direct call racing a delivery lost Vex's last opened file from the saved session. The
+      template's `Model` now warns about the lock. Delivering through a serial executor with the same version drop
+      would mean a committer never waits.
+
+- [ ] **A change made off the frame thread is sometimes not drawn until something else draws** (`vexelray-gui-core`,
+      Vex FN-5 and FN-13). Syntax colours set from a worker appear on the next caret blink, and a tab change once
+      stayed undrawn until the pointer moved; `requestFrame()` after `setSpans` did not help. Suspected: vexelray-gui
+      `8a74b41` (*a frame is drawn when something changed*), not bisected. Not a framework surface, but `Shell` hands
+      out `Gui`, so its draw-on-change contract bounds v1. **Unverified whether still true.**
+
+- [ ] **Widget gaps, each found once** (`vexelray-gui-widget`, Vex FN-8, 9, 11, 13, 17 to 20). `TextField.onChange` is
+      one slot and fires on span-only changes; `Tabs`' own Close cannot be stopped for unsaved work, and the bar does
+      not handle more tabs than fit; `History.mark()` marks now, not a version; `SplitPane` cannot collapse a pane;
+      the dialogs' title bar offers minimise and maximise; a late publication into a closed `Gui` throws;
+      `wordWrap(false)` is ignored on a label, a node does not clip its own glyphs, and there is no ellipsis; no
+      current-line or active-gutter role; `TreeView` has one item per row; a sliding tab indicator is sixty lines
+      every application with tabs writes. Additive; the units half of FN-20 is [units.md](units.md).
 
 ## Upstream
 

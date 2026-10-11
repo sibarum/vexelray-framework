@@ -81,8 +81,8 @@ sentence was first written — see [architecture.md](architecture.md#the-vocabul
 `Lanes` does not mint it, there is exactly one of it, and what may happen there differs in kind; naming
 it as a lane would make a string the discriminator for all of that. *(held, by
 `VexelProcessorTest.aComponentIsNotAlsoMainThread` — a `@Component` that is also `@MainThread` is a compile
-error. The third colour, shareable, is not declarable until T2.4's copier exists, so the only way to give a
-value two colours today is the one that is refused)*
+error. The third colour, shareable, is not declared but checked: a `@Subscribe` payload must be deeply immutable
+(T2.4, `Shareable`), so the only way to give a value two colours today is the one that is refused)*
 
 **T2.2 — A main-thread value may not be injected into anything that is not itself main-thread.** One
 rule, one direction. The inverse is deliberately allowed: handing a main-thread component an immutable
@@ -197,6 +197,10 @@ value holding a component could be injected anywhere, carrying it across lanes w
 > names it"*, and a parent is the thing with standing to notice and to name. The grouping in §3.6 is the
 > second thing it pays for. If supervision is ever answered another way, §3.4 should be re-argued rather
 > than kept.
+>
+> **It has been.** Supervision is per lane (`Watchdog`, T6.5, and [components.md](components.md) ruling 4: for
+> v1 a group is a lane), so the tree's first reason is gone and §3.4 is owed that re-argument. components.md
+> records that T3.4, T3.6 and T6.3 should move to *after v1* as a consequence; not done yet.
 
 ## 4. Channels
 
@@ -204,14 +208,17 @@ value holding a component could be injected anywhere, carrying it across lanes w
 — is `COALESCE_LATEST`, because the next one supersedes it. An *edge* — a keystroke, a command, a tree
 mutation — is `FAIL`, or `BLOCK` where the publisher can safely wait. A channel carrying both *"cannot be
 given a correct policy — every choice is wrong for half the traffic. That is not a policy problem to be
-solved here; it is a signal to split the channel."* *(processor — structural rather than remembered)*
+solved here; it is a signal to split the channel."* *(held, by the processor reading `@Subscribe`: one topic that is
+an edge to one subscriber and a sample to another, or one topic name with two payload types, is a compile error —
+`VexelProcessorTest`'s T4.1 cases)*
 
 **T4.2 — `FAIL` is the default, and needs no justification; loss does.** *"Choose FAIL unless you can say
 why loss is harmless on this channel"* — a lost event is not an error anywhere, it is an absence, and the
 bug is then looked for in the consumer, which is working perfectly. *(held, by `Backpressure`'s default)*
 
 **T4.3 — A component gets a mailbox per loss class, not one mailbox.** §4.1 applied to a component
-rather than to a channel in isolation. *(processor)*
+rather than to a channel in isolation. *(held, by construction: each `@Subscribe` method gets a mailbox of its own,
+with its own overflow, so a component's loss classes cannot share one)*
 
 **T4.4 — No cycle in the message graph may contain a blocking edge.** Cycles are not the hazard —
 request/response *is* a cycle, and with asynchronous mailboxes it is ordinary. A cycle containing a
@@ -230,7 +237,6 @@ or reasoned about; a declared one can. This, rather than any restriction on the 
 keeps the design from being cornered: §4.4 catches the blocking cycle that a topology rule would miss. *(processor —
 the declarations are the graph and `Channels` reads them to run T4.1, T4.4 and T4.7; exposing the graph as
 generated data, for inspection and rendering, is additive and not built)*
-*(processor)*
 
 **T4.6 — Two `Gui` trees may not share a bus.** `Gui`'s topics are `static final` class-level names, so
 every instance subscribes to the same `vexelray.gui.mutations` and two trees on one bus each receive the
@@ -311,10 +317,12 @@ holding a mailbox lock, with a full queue behind it, is how a crash becomes a ha
 the cheaper loss. *(held, in `Faults`)*
 
 **T6.5 — A wedged component is not a bus fault.** It is a mailbox filling, answered by the `Backpressure`
-of its channel rather than by a process policy. What neither half covers is **supervision** — nothing
-notices that a component has stopped draining, names it, or decides what the rest of the application does
-about it. It wants `Overrun` surfaced per grouping (§3.6) before it is built on anything but a timeout.
-*(open)*
+of its channel rather than by a process policy. What neither half covers is **supervision** — noticing
+that a component has stopped draining, naming it, and deciding what the rest of the application does
+about it. *(held, by `Watchdog` in `-core` and `LivenessPolicy` in `-shell`: every component lane carries a busy
+gauge (`Lanes.busy`), a delivery inside it longer than the policy's threshold is reported once by lane name, and
+the policy decides, report-then-exit by default — `WatchdogTest.aLaneInsideOneDeliveryTooLongIsReportedOnceByName`.
+On a timeout only: `Overrun` surfaced per grouping (§3.6) is still the better signal, and is not built)*
 
 ---
 
@@ -329,16 +337,17 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **3 Ownership** | T3.1, T3.7 | T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
 | **4 Channels** | T4.1, T4.2, T4.3, T4.4, T4.7 | T4.5 | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
-| **6 Lifecycle** | T6.1, T6.2, T6.4 | | | T6.3, T6.5 | |
+| **6 Lifecycle** | T6.1, T6.2, T6.4, T6.5 | | | T6.3 | |
 
 Three readings worth taking from it. **Four of the thirty-three rules still say `processor`**, down from
 fourteen, and what the remaining four have in common is the useful thing to know about them: none can be
 decided from a declaration alone. T3.6 waits on the component
 tree (§3.4), T4.5 is held in all but exposing the graph (`@Subscribe` and `@Publishes` declare the
-two ends of a channel, which is what T4.1, T4.3, T4.4 and T4.7 needed), T2.5 wants a method body, and what is left of T3.3 is a send nobody declared, which no declaration shows. **`open` is three rules,
+two ends of a channel, which is what T4.1, T4.3, T4.4 and T4.7 needed), T2.5 wants a method body, and what is left of T3.3 is a send nobody declared, which no declaration shows. **`open` is two rules,
 and §2 is now empty of them** — the colour section was the one place where an unanswered question would
 have been classified into every application type by the processor, and T2.4 is answered. What is left open is the
-component seam and its supervision, which is where the remaining design work actually is. And
+component tree and its teardown (T3.4, T6.3), which is where the remaining design work actually is; supervision
+left the column when the watchdog landed, per lane rather than per subtree. And
 **the `upstream` column is down to one**, which is the useful surprise: T1.2 and T1.5 were filed as
 things this repo could not fix, and both turned out to be one change in `vexelray-gui` — the worker pool
 ceasing to be a field initializer — rather than two problems.
