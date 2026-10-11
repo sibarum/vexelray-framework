@@ -1272,8 +1272,7 @@ and none of their recipes takes the `GuiApp` (W2's `ToolWindow`, the calculator'
 `Viewer`, which keeps a late binding only for its native dialog and its textures).
 
 W1 itself is a generated application with a main window, a peer (`notes`) and a satellite (`palette`), all views
-of one model (`witnesses/windows`, `WindowsWitnessTest`). Two launches share one settings home. It is held out of
-the repo until the upstream finding below is fixed, because it fails on it.
+of one model (`witnesses/windows`, `WindowsWitnessTest`). Two launches share one settings home.
 
 **What it confirmed.**
 
@@ -1285,24 +1284,28 @@ the repo until the upstream finding below is fixed, because it fails on it.
 | One model, three trees | a count in the palette appears in the notes window and the main one |
 | Each window has its own zoom and size | zooming the notes window to 1.5 leaves the main one at 1 |
 | A listener on the window runs when it opens | the notes window's `opened 1`, written only by `onOpened` |
+| A window closed by its own button comes back to the same tree | the palette reopens showing the count it closed on, and a second press opens no second window |
+| Its placement and zoom survive a restart, apart from the main window's | resized to 520x380 and zoomed to 1.5, the notes window reopens at both in the next launch |
 
-**One finding, and it is upstream: with two windows and none focused, the loop can park for good with a wake
-outstanding.** The driver's click on the main window was dispatched and never counted; in the next run, a click on
+**One finding, and it was upstream: with two windows and none focused, the loop could park for good with a wake
+outstanding.** Fixed in `vexelray-gui` `809c584`. The driver's click on the main window was dispatched and never counted; in the next run, a click on
 *Palette* did nothing and the palette never opened. The trace shows why. The driver's wake arrived during a frame:
 the tree's *frame owed* flag was set and a wake message was posted. Then the loop parked `forever`, and no frame ever
 ran again. Every later input found the flag already set and posted nothing (*"a frame is already owed, and saying so
 twice does not owe two"*). The loop parks on the thread's message queue, and in an iteration with more than one
-window each window pumps that queue for its own frame. The reading, not yet confirmed: the wake message was consumed
-by a pump later in the same iteration, after the tree had already been drained. The park then waited for a message
-that had already gone. `GuiApp` already records the fact it needed (`wakePosted`, set by every wake and cleared at the
+window each window pumps that queue for its own frame. On Windows a pump is `PeekMessage` with no window filter, so it
+removes every message on the thread's queue, the main window's wake included: the wake message was consumed by a pump
+later in the same iteration, after the tree had already been drained, and the park then waited for a message that
+had already gone. `GuiApp` already records the fact it needed (`wakePosted`, set by every wake and cleared at the
 top of each iteration), but it reads it only to hold the frame ceiling, not to refuse the park. Two things make it
 look like a multi-window bug, and only one is: the extra pumps widen the window for the race, and the 5 Hz idle floor
 that would have ended the park within 200 ms applies only *while a window is focused*, so a run the test machine had
 not focused waited forever. For a person it is a missed wake that ends at the next mouse move. For a component's
-result arriving into an unfocused application, nothing ends it. **Proposed, not applied**: in `GuiApp`'s loop, do not
-park while `wakePosted` is set, in the same place it already declines to park on a queued task.
-`vexelray-gui` has other sessions' work uncommitted in that file, so the change is waiting on a decision about how to
-land and install it.
+result arriving into an unfocused application, nothing ends it. **The fix**: `GuiApp`'s loop does not park while
+`wakePosted` is set, in the same place it already declines to park on a queued task. The harness had hidden it, because
+its wake was a flag only the wait cleared; every window's pump now takes it, as the real queue does, and
+`TwoWindowsWakeTest` in `vexelray-gui-harness` hangs in its first round without the fix and passes four hundred with
+it. W1 then passed whole, three runs in a row, including the click straight after a close that first showed it.
 
 **Two smaller ones, found on the way.**
 
@@ -1315,9 +1318,7 @@ land and install it.
   owns the button (`Ui`) and hands it over, as W2 and the calculator already did. That is the `@Window("settings")`
   question from FN-1, which is a processor feature; nothing in three applications has needed more than the handover.
 
-**Not yet exercised.** The placement and zoom surviving a restart: the restart launch is written, and has not passed,
-because the first launch hangs before it resizes the window. A window declared with a theme of its own (unit-tested
-only). Closing the main window while the others are open. `Driver` still reaches the windows through `shell.app()`,
+**Not yet exercised.** A window declared with a theme of its own (unit-tested only). Closing the main window while the others are open. `Driver` still reaches the windows through `shell.app()`,
 and there is no `Window` for the main window yet, so `app()` and `memory()` are still public.
 
 ## What the long-running witness found

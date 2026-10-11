@@ -314,10 +314,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       **W2 (component-heavy) and W3 (long-running) are built** and pass: [what W2
       found](architecture.md#what-the-component-witness-found) is mostly confirmation plus two observations, and
       [what W3 found](architecture.md#what-the-long-running-witness-found) is two real findings, both filed below.
-      **W1 (several windows on one device) is written, 2026-10-11, and held out of the repo** until the upstream
-      hang it found is fixed (the lost wake under *Upstream*), because it fails on it before its restart half:
-      [what W1 found](architecture.md#what-the-two-window-witness-found) confirms the named-window half of the
-      `Window` seam. W2 also lacks a wedge that ignores interrupts, which is what would make the halt backstop fire, and W3
+      **W1 (several windows on one device) is built, 2026-10-11, and passes**: [what W1
+      found](architecture.md#what-the-two-window-witness-found) confirms the named-window half of the `Window` seam,
+      and found an upstream hang that is now fixed (the lost wake under *Upstream*). W2 also lacks a wedge that ignores interrupts, which is what would make the halt backstop fire, and W3
       is twenty seconds long, which rules out growth per tick and nothing slower.
 
 - [ ] **Starters, a BOM, and the stack's reachability metadata.** The build shape is a contract: an
@@ -844,17 +843,22 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       `FunctionDescriptor` in the source, not only from a trace, because COM methods bind lazily and
       `DxgiSmokeTest` reaches only some of them; the trace was used as a cross-check.
 
-- [ ] **With two windows and none focused, the loop can park for good with a wake outstanding**
-      (`vexelray-gui-core` `GuiApp`'s loop). Found by W1; the trace and the reading are in [what W1
+- [x] **With two windows and none focused, the loop can park for good with a wake outstanding**
+      (`vexelray-gui-core` `GuiApp`'s loop) — **fixed upstream** (`vexelray-gui` `809c584`, with
+      `TwoWindowsWakeTest`). Found by W1; the trace and the reading are in [what W1
       found](architecture.md#what-the-two-window-witness-found). A wake that lands during a frame sets the tree's
       *frame owed* flag and posts a message. When more than one window pumps the thread's queue in that iteration,
       the message can be consumed before the park, and the loop then parks `forever` because nothing is focused,
       while every later wake is suppressed because the flag is still set. A component's result arriving into an
       unfocused multi-window application is never drawn. **Ask:** do not park while `wakePosted` is set (it is
       already recorded, and read only for the frame ceiling), beside the existing refusal to park on a queued task.
-      Then commit W1 and run it, whose restart half is waiting on it. Also from W1, smaller: `settle` answers `ok`
-      before the first frame, because `Gui.onWork` re-arms the *frame owed* flag over a tree that has never been
-      drawn.
+      That is what landed.
+
+- [ ] **A driver that connects at once is answered before there is anything to drive** (`vexelray-gui-core`
+      `Gui.onWork`, `vexelray-gui-automation`). Found by W1. The socket opens at `ATTACH`, before the loop has bound
+      its main window, so every verb first answers that no window is open; then `settle` answers `ok` before the
+      first frame, because `Gui.onWork` re-arms the *frame owed* flag over a tree that has never been drawn. A
+      client has to wait on a landmark instead, which W1 does. **Ask:** `settle` that waits for the first frame.
 
 - [ ] **On macOS, a modal dialog on the GUI thread is reported as a stall** (`vexelray-gui-core`
       `GuiApp.reportStall`). The screenshot button opens a native save dialog (`vexelray-gui-nfd`'s

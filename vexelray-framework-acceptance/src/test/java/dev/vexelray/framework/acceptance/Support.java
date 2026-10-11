@@ -265,9 +265,17 @@ final class Support {
      */
     static Session launch(Project project, Path root, String artifact, String name, String... jvmArgs)
             throws Exception {
+        return launch(project, root, artifact, name, root.resolve("home-" + name), jvmArgs);
+    }
+
+    /**
+     * As {@link #launch(Project, Path, String, String, String...)}, with the settings home named rather than derived
+     * from the launch's name — so a second launch can be given the first one's, and find what it remembered.
+     */
+    static Session launch(Project project, Path root, String artifact, String name, Path home, String... jvmArgs)
+            throws Exception {
         int port = freePort();
         Path log = root.resolve("run-" + name + ".log");
-        Path home = root.resolve("home-" + name);
         List<String> args = new ArrayList<>(List.of("-D" + artifact + ".home=" + home));
         args.addAll(List.of(jvmArgs));
         Process app = maven(project.dir(), log, "compile", "exec:exec",
