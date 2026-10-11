@@ -167,12 +167,28 @@ public final class VexelApplication {
 
     private static Launch parseOrExit(String[] args, AppInfo info) {
         try {
-            return Launch.parse(args, info.name(), info.settingKeys());
+            return Launch.parse(osArguments(args), info.name(), info.settingKeys());
         } catch (IllegalArgumentException e) {
             System.err.println(e.getMessage());
             System.err.println(Launch.usage(info.name(), info.settingKeys()));
             System.exit(EXIT_USAGE);
             throw new IllegalStateException("unreachable: System.exit does not return", e);
+        }
+    }
+
+    /**
+     * {@code args} as the OS holds them ({@link NativePlatform#arguments}): a native image on Windows hands
+     * {@code main} its arguments decoded through the ANSI code page, so a path with {@code ’} in it would name
+     * another file. Before parsing, so every application gets the real paths without asking. Without a platform
+     * on the classpath, or if the platform cannot say, the arguments are taken as given.
+     */
+    private static String[] osArguments(String[] args) {
+        try {
+            return NativePlatform.current().arguments(args);
+        } catch (RuntimeException e) {
+            Diagnostics.dropped("VexelApplication.osArguments", "the arguments as the OS holds them",
+                    e + "; parsed as main was given them");
+            return args;
         }
     }
 
