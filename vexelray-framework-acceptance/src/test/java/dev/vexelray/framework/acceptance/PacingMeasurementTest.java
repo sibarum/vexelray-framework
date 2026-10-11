@@ -75,7 +75,7 @@ class PacingMeasurementTest {
         assertTrue(project != null, "nothing was built");
         try (Session session = live = launch(project, root, ARTIFACT, "run")) {
             Driver d = session.driver();
-            d.ok("settle");
+            d.firstFrame("button.pulse");
 
             for (int i = 1; i <= 3; i++) {
                 d.ok("click " + d.ref("button.pulse"));
@@ -137,7 +137,7 @@ class PacingMeasurementTest {
                 // working directory is the project's, so the log lands beside the tree.
                 "-Xlog:gc,safepoint:file=gc-" + timer + ".log:uptime,tags")) {
             Driver d = session.driver();
-            d.ok("settle");
+            d.firstFrame("button.pulse");
             for (int i = 1; i <= 3; i++) {
                 Thread.sleep(1_500);
                 d.ok("click " + d.ref("button.pulse"));

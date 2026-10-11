@@ -89,7 +89,7 @@ class LongRunWitnessTest {
         assertTrue(project != null, "nothing was built");
         try (Session session = live = launch(project, root, ARTIFACT, "run")) {
             Driver d = session.driver();
-            d.ok("settle");
+            d.firstFrame("button.sample");
             int next = 1;
 
             // Parked: with nothing running, the loop refreshes on its idle timer and no faster.

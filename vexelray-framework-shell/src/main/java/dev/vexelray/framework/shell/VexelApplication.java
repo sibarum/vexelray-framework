@@ -244,7 +244,8 @@ public final class VexelApplication {
         }
         // The other windows, declared by name from here to the end of TREE. Each one's tree is built when it is
         // declared, beside this one and with no window; the windows themselves are claimed at ATTACH.
-        shell.windows(new Windows(shell));
+        shell.windows(new Windows(shell, new Window(NamedWindow.of(Windows.MAIN, info.title(), info.width(),
+                info.height()), gui, appearance.drawsOwnFrame() ? shell.titleBar() : null, true)));
         wiring.gui(shell);
 
         // ---- TREE: the widgets, the framework's title bar among them. No window needed. -------------------
@@ -261,8 +262,8 @@ public final class VexelApplication {
 
         // ---- WINDOW: the device and the window exist. Main-thread from here on. -------------------------
         shell.phase(Phase.WINDOW);
+        // The framework's own, and not handed out: every window it opens is remembered through Windows, by name.
         WindowMemory memory = new WindowMemory(shell.settings());
-        shell.memory(memory);
         // The application's, if the wiring handed one back by TREE; the framework's, on tactroller, if not.
         InputBackend input = shell.openInput();
         // The mark goes on the process before the first window exists, so every window this application opens
@@ -377,9 +378,14 @@ public final class VexelApplication {
             app.run(gui, launch.frames(), shell.hooks()::run);
             LOG.info("stopped: {}", info.name());
         } finally {
-            // The debounce has no next frame to fire on once the loop is over, so the last move of the
-            // session is written here or not at all.
-            memory.save();
+            try {
+                // The main window's close listeners: the loop is over, and nothing is closed yet.
+                shell.windows().ended();
+            } finally {
+                // The debounce has no next frame to fire on once the loop is over, so the last move of the
+                // session is written here or not at all.
+                memory.save();
+            }
         }
     }
 

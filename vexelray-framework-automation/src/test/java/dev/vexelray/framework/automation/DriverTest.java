@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * this is the test that it happens.
  *
  * <p>No GPU and no window. {@code Integer.parseInt} runs before the {@code Automation} is constructed, so the
- * malformed-port path never reaches {@code shell.app()} — which is what makes this case, alone among the ways
+ * malformed-port path never reaches the windows — which is what makes this case, alone among the ways
  * a socket can fail to bind, assertable against a bare {@link Shell}.
  */
 final class DriverTest {

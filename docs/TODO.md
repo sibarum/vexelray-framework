@@ -303,6 +303,18 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `app()` cannot simply go: `Driver`, in a separate module, reaches the window's `WindowControls` through
       it, so the choice is a narrower accessor for exactly that, or an explicit host seam.
 
+      **Done 2026-10-11, on that ruling.** `memory()` is deleted, accessor and root: the windows that used it (the
+      calculator's settings, W2's tool window) are remembered through `Windows` now, and a census of every
+      application on the stack found no other caller. `Driver` reaches the windows through `Windows.views()`, the
+      narrower accessor, and not the `GuiApp`.
+
+      **Ruled 2026-10-11: `app()` stays, as the device and not the windows.** Reason: the same census found every
+      remaining use of `GuiApp` is the device or a dialog — Pix's and Vexplore's textures, the fluid and rigid
+      simulators' viewports and compute, and the dialogs of the text editor, Vexplore and Pix — and none is window
+      management, which is all `Windows` now covers. The device is the main thread's by rule, so a recipe taking it
+      is `@MainThread` correctly, and a narrower type for it would be the same boundary under another name. The
+      dialogs are the `Window` seam entry's own bullet and move off it there.
+
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and left one generated counter-style
       application validating everything. *One component is not a census* applies to the framework itself.
@@ -401,8 +413,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       application's lanes, the look, a title bar with its controls, the placement remembered, and the window mark.
       The calculator's settings window (FN-1), Vexplore's viewer and W2's tool window each lost their `@MainThread`
       recipe. **Still to do**, all of it signature-changing and so still v1:
-      - **The main window as a `Window`**, so that `Driver` reaches the windows through the seam and `app()` and
-        `memory()` can go. W1 did not need it: nothing in it commands the main window.
+      - ~~**The main window as a `Window`**~~ **Done 2026-10-11:** `Windows.main()`, whose `close` is quitting by
+        the close route (so the gate is asked); `Driver` reads `Windows.views()`; `memory()` is deleted and `app()`
+        stays as the device (the ruling under *what `Shell` hands over* above). W1's Quit button ends both its
+        launches through it.
       - **The dialogs.** `Modals` is still a static.
       - **A close gate per window.** `WindowSpec.onCloseRequest` exists upstream and `NamedWindow` does not carry
         it, so a named window with unsaved state cannot refuse to close. Nothing has needed it yet.
@@ -858,7 +872,10 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       `Gui.onWork`, `vexelray-gui-automation`). Found by W1. The socket opens at `ATTACH`, before the loop has bound
       its main window, so every verb first answers that no window is open; then `settle` answers `ok` before the
       first frame, because `Gui.onWork` re-arms the *frame owed* flag over a tree that has never been drawn. A
-      client has to wait on a landmark instead, which W1 does. **Ask:** `settle` that waits for the first frame.
+      client has to wait on a landmark instead, which W1 does. **The same for every window, not only at startup**:
+      W2 chose its tool window 3 ms after it opened, `settle` said `ok v0`, and `find` saw an empty tree, which is
+      also how a *does not contain* check passes against nothing. Both witnesses now await one of the window's own
+      landmarks after choosing it. **Ask:** `settle` that waits for a window's first frame.
 
 - [ ] **On macOS, a modal dialog on the GUI thread is reported as a stall** (`vexelray-gui-core`
       `GuiApp.reportStall`). The screenshot button opens a native save dialog (`vexelray-gui-nfd`'s

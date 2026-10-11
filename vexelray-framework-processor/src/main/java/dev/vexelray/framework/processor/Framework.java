@@ -69,7 +69,6 @@ final class Framework {
             // Not the main thread's, though a window is: every command on a Window only posts, and the framework
             // claims the window itself, so a recipe holding one is not coloured by a GuiApp it never took.
             new Root("dev.vexelray.framework.shell.Windows", "windows", Phase.GUI, false),
-            new Root("dev.vexelray.gui.core.app.WindowMemory", "memory", Phase.WINDOW, false),
             // "Vulkan, the window and present stay on the main thread" -- vexelray-gui/CLAUDE.md.
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),
             // The exception to it, and the only one: a queue nothing on the main thread submits to.

@@ -15,7 +15,6 @@ import dev.vexelray.gui.core.app.CloseRequest;
 import dev.vexelray.gui.core.app.ComputeQueue;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
-import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
@@ -70,7 +69,6 @@ public final class Shell {
     private Settings settings;
     private Gui gui;
     private KronoGui krono;
-    private WindowMemory memory;
     private GuiApp app;
     private TitleBar titleBar;
     private Windows windows;
@@ -526,22 +524,22 @@ public final class Shell {
     }
 
     /**
-     * This application's windows besides the main one: declare one by name with the trees, and the framework builds
-     * its tree now and claims its window at {@link Phase#ATTACH}. Exists from {@link Phase#GUI}. Not the main
-     * thread's: see {@link Windows}.
+     * This application's windows: the main one, and any other, declared by name with the trees, whose tree the
+     * framework builds at once and whose window it claims at {@link Phase#ATTACH}. Exists from {@link Phase#GUI}. Not
+     * the main thread's: see {@link Windows}.
      */
     public Windows windows() {
         return require(Phase.GUI, "the windows", windows);
     }
 
-    /** Window placement memory. Exists from {@link Phase#WINDOW}. */
-    public WindowMemory memory() {
-        return require(Phase.WINDOW, "window memory", memory);
-    }
-
     /**
-     * The window and the GPU device. Exists from {@link Phase#WINDOW}, and is the main-thread boundary —
-     * anything reached through this must be touched on the main thread only.
+     * The GPU device, and the main-thread boundary. Exists from {@link Phase#WINDOW}; anything reached through this
+     * must be touched on the main thread only.
+     *
+     * <p><b>For the device, not the windows.</b> Textures, a viewport, a native dialog that needs the window's handle:
+     * those are the main thread's by rule ("Vulkan, the window and present stay on the main thread"), so a recipe that
+     * takes this is {@code @MainThread}, and rightly. Showing, hiding, closing or quitting a window is not, and is
+     * {@link #windows()}, whose handles are safe from any thread.
      */
     public GuiApp app() {
         return require(Phase.WINDOW, "the window", app);
@@ -682,10 +680,6 @@ public final class Shell {
 
     void krono(KronoGui krono) {
         this.krono = krono;
-    }
-
-    void memory(WindowMemory memory) {
-        this.memory = memory;
     }
 
     void titleBar(TitleBar titleBar) {

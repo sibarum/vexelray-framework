@@ -6,6 +6,7 @@ import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.WindowControls;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.WindowMemory;
+import dev.vexelray.gui.core.app.WindowView;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
 import sibarum.atchung.Atchung;
@@ -14,8 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * <b>This application's windows besides the main one</b>, declared by name with the trees and opened on request.
- * A recipe takes it like any other framework value:
+ * <b>This application's windows</b>: the main one, and the others, declared by name with the trees and opened on
+ * request. A recipe takes it like any other framework value:
  *
  * {@snippet :
  * @Provides
@@ -37,6 +38,10 @@ import java.util.List;
  * after {@code TREE} is refused rather than quietly never claimed: the framework claims every window at the start of
  * {@code ATTACH}, and a recipe that took the {@code GuiApp} and then declared a window would be declaring one the
  * claim had already passed.
+ *
+ * <p><b>The main window too</b>, as {@link #main()}: a <i>Quit</i> button closes it, and something that wants the
+ * application in front shows it, without taking the {@code GuiApp} for either. What is left behind the
+ * {@code GuiApp} is the device, which is the main thread's by rule, and not the windows.
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class Windows {
@@ -45,10 +50,36 @@ public final class Windows {
     static final String MAIN = "main";
 
     private final Shell shell;
+    private final Window main;
     private final List<Window> declared = new ArrayList<>();
+    /** The application, once the windows are claimed: what {@link #views} reads. */
+    private volatile GuiApp app;
 
-    Windows(Shell shell) {
+    /** @param main the main window, built by the framework with its tree; null only in a test of the declarations */
+    Windows(Shell shell, Window main) {
         this.shell = shell;
+        this.main = main;
+    }
+
+    /**
+     * The main window. Its {@link Window#close} is quitting, by the route its own close button takes, so a close
+     * gate is asked first; see {@link Shell#onClose}.
+     */
+    public Window main() {
+        return main;
+    }
+
+    /**
+     * Every window open right now, the main one first: each one's name, tree and controls. A snapshot, safe from any
+     * thread, and empty before {@code ATTACH}.
+     *
+     * <p><b>For an instrument</b> — the automation socket selects windows from this — and the reason it is here rather
+     * than the {@code GuiApp} being handed out for it: an instrument that needs the windows needs nothing else
+     * behind that boundary.
+     */
+    public List<WindowView> views() {
+        GuiApp a = app;
+        return a == null ? List.of() : a.windows();
     }
 
     /** {@link #named(NamedWindow)}, for a window beside the main one, in the application's look. */
@@ -93,7 +124,7 @@ public final class Windows {
             appearance.zoom().applyTo(gui);
         }
         TitleBar bar = appearance.drawsOwnFrame() ? new TitleBar(gui, WindowControls.NONE, window.title()) : null;
-        Window w = new Window(window, gui, bar);
+        Window w = new Window(window, gui, bar, false);
         declared.add(w);
         return w;
     }
@@ -104,15 +135,23 @@ public final class Windows {
     }
 
     /**
-     * Claim every declared window, and bind each to the application's clipboard. Once, at the start of
-     * {@code ATTACH}, on the main thread.
+     * Claim every declared window, and bind each to the application's clipboard; then the main window. Once, at the
+     * start of {@code ATTACH}, on the main thread, after the main window is set up.
      */
     void claim(GuiApp app, WindowMemory memory, ClipboardBackend clipboard, Icon mark) {
+        this.app = app;
         Appearance appearance = shell.appearance();
         for (Window w : declared()) {
             // A window that is forgotten is one where Ctrl+C does nothing and reports nothing: see Shell.clipboard.
             clipboard.installOn(w.gui());
             w.claim(app, memory, appearance, mark);
         }
+        // Last, so a main window closed while the trees were built is closed with the others already claimed.
+        main.claimMain(app);
+    }
+
+    /** The frame loop has ended. Main thread, before anything is closed. */
+    void ended() {
+        main.mainEnded();
     }
 }

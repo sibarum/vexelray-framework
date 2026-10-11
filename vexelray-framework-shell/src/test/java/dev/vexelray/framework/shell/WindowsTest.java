@@ -116,6 +116,21 @@ final class WindowsTest {
     }
 
     @Test
+    void theMainWindowIsAWindowOverTheFrameworksOwnTreeAndBar() {
+        shell = VexelApplication.tree(wiring(Appearance.DEFAULT, s -> { }), new String[0]);
+        Window main = shell.windows().main();
+
+        assertEquals("main", main.key());
+        assertSame(shell.gui(), main.gui(), "the main window's handle is not over the framework's tree");
+        assertSame(shell.titleBar(), main.titleBar(), "the main window's handle has a bar of its own");
+        // Before there is a device: held, not thrown, and nothing reported open. A close here would quit at once
+        // once claimed, which is right for an application that decided to quit while it was being built.
+        main.hide().show();
+        assertFalse(main.isOpen(), "the main window reported open before there was a device");
+        assertTrue(shell.windows().views().isEmpty(), "views before ATTACH should be empty");
+    }
+
+    @Test
     void aNameIsDeclaredOnce() {
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> VexelApplication.tree(
                 wiring(Appearance.DEFAULT, s -> {
@@ -134,7 +149,7 @@ final class WindowsTest {
     @Test
     void aWindowIsDeclaredByTreeBecauseItIsClaimedAtAttach() {
         Shell bare = new Shell(Launch.parse(new String[0], DEMO.name(), Set.of()), DEMO);
-        Windows windows = new Windows(bare);
+        Windows windows = new Windows(bare, null);
         bare.phase(Phase.WINDOW);
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> windows.named("late", "Late", 300, 200));

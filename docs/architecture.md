@@ -1318,8 +1318,14 @@ it. W1 then passed whole, three runs in a row, including the click straight afte
   owns the button (`Ui`) and hands it over, as W2 and the calculator already did. That is the `@Window("settings")`
   question from FN-1, which is a processor feature; nothing in three applications has needed more than the handover.
 
-**Not yet exercised.** A window declared with a theme of its own (unit-tested only). Closing the main window while the others are open. `Driver` still reaches the windows through `shell.app()`,
-and there is no `Window` for the main window yet, so `app()` and `memory()` are still public.
+**Not yet exercised.** A window declared with a theme of its own (unit-tested only).
+
+**Then the main window.** `Windows.main()` is the main window as a `Window`, and W1's Quit button is
+`windows.main()::close` in a recipe that takes no `GuiApp`. Both launches now end that way, with the other windows
+still open, and wait for the application to stop by its own loop; the second launch then finds the placement the
+first wrote on its way out. With it, `Driver` reads the windows from `Windows.views()` rather than the `GuiApp`, and
+`memory()` is gone. `app()` stays, as the device: every remaining use on the stack is textures, viewports, compute or
+a dialog (see the `Shell` surface ruling in TODO.md).
 
 ## What the long-running witness found
 

@@ -313,6 +313,25 @@ final class Support {
             return reply;
         }
 
+        /**
+         * Wait for the main window's first frame, by waiting for {@code landmark} to be in its tree, then settle.
+         * What every session starts with, and not {@code settle} alone: the socket opens at {@code ATTACH}, so a client
+         * that connects at once is first told no window is open, and then {@code settle} answers over a tree with
+         * nothing laid out yet (TODO.md, a driver answered too early). Both witnesses with a second window found it.
+         */
+        void firstFrame(String landmark) throws IOException, InterruptedException {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            String reply = send("find " + landmark);
+            while (!reply.contains(" @" + landmark)) {
+                if (System.nanoTime() >= deadline) {
+                    fail("the main window never drew " + landmark + "; the driver says " + reply + "\n" + tail(log));
+                }
+                Thread.sleep(100);
+                reply = send("find " + landmark);
+            }
+            ok("settle");
+        }
+
         /** The ref of the one node carrying this landmark, from {@code find}'s listing. */
         String ref(String landmark) throws IOException {
             for (String line : ok("find " + landmark).lines().skip(1).toList()) {

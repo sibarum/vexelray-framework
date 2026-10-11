@@ -93,7 +93,7 @@ class ComponentsWitnessTest {
         assertTrue(project != null, "nothing was built");
         try (Session session = live = launch(project, root, ARTIFACT, "recover", "-Dwitness.policy=recover")) {
             Driver d = session.driver();
-            d.ok("settle");
+            d.firstFrame("button.work");
 
             // Components on their own lanes do work, and a result they publish reaches the tree with no wake
             // written anywhere: the placement owes it.
@@ -110,7 +110,9 @@ class ComponentsWitnessTest {
                 d.ok("click " + d.ref("button.tool"));
                 awaitWindows(d, 2);
                 d.ok("window tool");
-                d.ok("settle");
+                // On its own landmark, not settle: a window just opened can be chosen before its first frame, and
+                // settle then answers over a tree with nothing laid out (TODO.md, a driver answered too early).
+                d.ok("await button.tool.close Close");
                 d.ok("click " + d.ref("button.tool.close"));
                 awaitWindows(d, 1);
                 d.ok("window 1");
@@ -180,7 +182,7 @@ class ComponentsWitnessTest {
         assertTrue(project != null, "nothing was built");
         try (Session session = live = launch(project, root, ARTIFACT, "exit", "-Dwitness.policy=exit")) {
             Driver d = session.driver();
-            d.ok("settle");
+            d.firstFrame("button.wedge.default");
             d.ok("click " + d.ref("button.wedge.default"));
             d.ok("await default default wedged");
             // Reported after the one-second threshold, then Context.exit: a close request through the window's

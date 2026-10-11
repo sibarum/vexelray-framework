@@ -12,6 +12,8 @@ final class Landmarks {
     static final String NOTES_BUTTON = "button.notes";
     /** Opens the palette, a satellite of the main one. */
     static final String PALETTE_BUTTON = "button.palette";
+    /** Quits, by closing the main window through its handle. */
+    static final String QUIT_BUTTON = "button.quit";
 
     /** In the notes window: the count, as that window shows it. */
     static final String NOTES_COUNT = "notes.count";

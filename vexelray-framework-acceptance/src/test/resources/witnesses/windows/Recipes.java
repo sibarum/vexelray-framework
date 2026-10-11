@@ -31,9 +31,11 @@ final class Recipes {
         return new Model();
     }
 
+    /** The main window's tree. Its Quit closes the main window through its handle, with no {@code GuiApp} taken. */
     @Provides
-    Ui ui(Gui gui, Model model, TitleBar titleBar) {
-        Ui ui = new Ui(gui, model, titleBar);
+    Ui ui(Gui gui, Model model, TitleBar titleBar, Windows windows) {
+        Window main = windows.main();
+        Ui ui = new Ui(gui, model, titleBar, main::close);
         model.onChange(ui::show);
         ui.show(model.doc());
         return ui;

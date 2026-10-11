@@ -85,7 +85,7 @@ class WindowsWitnessTest {
         assertTrue(project != null, "nothing was built");
         try (Session session = live = launch(project, root, ARTIFACT, "first", home, "-Dwitness.open=notes")) {
             Driver d = session.driver();
-            awaitFirstFrame(d);
+            d.firstFrame("button.palette");
 
             // Asked for in TREE, before there was a device: held, and carried out when the window was claimed.
             awaitWindows(d, 2);
@@ -95,7 +95,9 @@ class WindowsWitnessTest {
             // Each window draws its own tree. The main window once drew the calculator's settings tree, because both
             // were on one bus (calculator FN-2), so the check is that a window's driver cannot see the others' nodes.
             d.ok("window palette");
-            d.ok("settle");
+            // Its own landmark first, so the check below is against a tree that has been drawn: settle can answer
+            // before a just-opened window's first frame, and an empty tree holds nobody's button.
+            d.ok("await palette.count 0");
             assertFalse(d.ok("find button.count").contains("@button.count"),
                     "the palette's tree holds the main window's button");
             d.ok("click " + d.ref("palette.bump"));
@@ -149,10 +151,9 @@ class WindowsWitnessTest {
             assertFalse(run.contains("a frame hook threw") || run.contains("uncaught exception"),
                     "the windows cost a frame hook\n" + tail(session.log()));
 
-            // The placement is written once the window has been still for a moment, not only on the way out, so a
-            // stop after that loses nothing -- which is also what a crash would get.
-            Thread.sleep(2_000);
-            session.out().println("quit");
+            // Quit through the main window's handle, by the route its close button takes, with two windows still
+            // open. The placement is written on the way out, so the next launch reads what this one left.
+            quit(session);
         }
         live = null;
     }
@@ -179,37 +180,35 @@ class WindowsWitnessTest {
         }
         try (Session session = live = launch(project, root, ARTIFACT, "again", home)) {
             Driver d = session.driver();
-            awaitFirstFrame(d);
+            d.firstFrame("button.palette");
             awaitWindows(d, 1);
             d.ok("click " + d.ref("button.notes"));
             awaitWindows(d, 2);
             d.ok("window notes");
-            d.ok("settle");
+            // Its listener ran for this process's first open, so the count is this launch's and not the last one's.
+            // Awaited first, as the window's own landmark, rather than a settle that can beat its first frame.
+            d.ok("await notes.opened opened 1");
             String notes = d.ok("size");
             assertTrue(notes.startsWith("ok " + NOTES_SIZE + " "), "the notes window forgot its size: " + notes);
             assertTrue(notes.contains(" zoom=" + NOTES_ZOOM + " "), "the notes window forgot its zoom: " + notes);
-            // Its listener ran for this process's first open, so the count is this launch's and not the last one's.
-            d.ok("await notes.opened opened 1");
-            session.out().println("quit");
+            quit(session);
         }
         live = null;
     }
 
     /**
-     * Wait for the main window's first frame. Not {@code settle}: the socket opens at {@code ATTACH}, and a client
-     * that connects before the first frame is told the tree has settled when nothing has been laid out yet, so the
-     * first {@code find} matches nothing. See architecture.md, what the two-window witness found.
+     * Press Quit, which closes the main window through {@code Windows.main()}, and wait for the application to end on
+     * its own. Nothing here stops the process: if the handle did not reach the window's close route, this fails.
      */
-    private static void awaitFirstFrame(Driver d) throws Exception {
-        // Earlier still, the loop has not bound its main window, and every verb answers that no window is open.
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
-        String reply = d.send("await count 0");
-        while (!reply.startsWith("ok") && System.nanoTime() < deadline) {
-            Thread.sleep(100);
-            reply = d.send("await count 0");
-        }
-        assertTrue(reply.startsWith("ok"), "the main window never drew its count: " + reply);
-        d.ok("settle");
+    private static void quit(Session session) throws Exception {
+        Driver d = session.driver();
+        d.ok("window main");
+        d.ok("click " + d.ref("button.quit"));
+        session.out().println("quit");
+        assertTrue(session.app().waitFor(60, TimeUnit.SECONDS),
+                "Quit did not end the application within 60 s\n" + tail(session.log()));
+        String run = Files.readString(session.log());
+        assertTrue(run.contains("stopped: " + ARTIFACT), "the application did not stop by its own loop\n" + tail(session.log()));
     }
 
     /** Wait for {@code count} windows to be open. Opening and closing are posted, so they land a frame or so later. */

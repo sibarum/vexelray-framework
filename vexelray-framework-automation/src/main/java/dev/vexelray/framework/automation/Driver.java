@@ -69,7 +69,7 @@ public final class Driver implements AutoCloseable {
             // a click that starts a fade and a settle straight after photographed the fade part-way through and
             // said ok. The sampled form, because the driver answers on a thread of its own.
             AutomationServer server = AutomationServer.start(new Windows(
-                    shell.app()::windows, shell.krono()::quiescentAtLastTick), port);
+                    shell.windows()::views, shell.krono()::quiescentAtLastTick), port);
             // Standard output, and not the log: this line is protocol. ottermate --launch reads the port from it,
             // and stdout is where a program puts what it produces. The log gets the same fact in its own words.
             System.out.println("automation: localhost:" + server.port());
