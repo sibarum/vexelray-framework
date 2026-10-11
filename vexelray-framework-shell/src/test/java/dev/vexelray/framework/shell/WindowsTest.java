@@ -131,6 +131,39 @@ final class WindowsTest {
     }
 
     @Test
+    void aWindowWithNoGateClosesAndOneWithAGateAsksIt() {
+        Window w = declare(Appearance.DEFAULT, NamedWindow.of("gated", "Gated", 300, 200));
+        java.util.List<String> heard = new java.util.ArrayList<>();
+
+        // The default is that closing closes: no gate, and the close goes straight through.
+        w.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
+        assertEquals(java.util.List.of("proceeded"), heard);
+
+        // Set after the window exists, which a gate may be: it is read when the close arrives.
+        w.onClose((proceed, cancel) -> {
+            heard.add("asked");
+            cancel.run();
+        });
+        w.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
+        assertEquals(java.util.List.of("proceeded", "asked", "cancelled"), heard);
+    }
+
+    @Test
+    void eachWindowHasAGateOfItsOwnAndOnlyOne() {
+        shell = VexelApplication.tree(wiring(Appearance.DEFAULT, s -> s.windows().named("tool", "Tool", 300, 200)),
+                new String[0]);
+        Window main = shell.windows().main();
+        main.onClose((proceed, cancel) -> proceed.run());
+        // A second window's gate is its own, not a second registration of the main one's.
+        Window tool = shell.windows().named("other", "Other", 300, 200);
+        tool.onClose((proceed, cancel) -> cancel.run());
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> main.onClose((proceed, cancel) -> cancel.run()));
+        assertTrue(e.getMessage().contains("main") && e.getMessage().contains("already"), e.getMessage());
+    }
+
+    @Test
     void aNameIsDeclaredOnce() {
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> VexelApplication.tree(
                 wiring(Appearance.DEFAULT, s -> {

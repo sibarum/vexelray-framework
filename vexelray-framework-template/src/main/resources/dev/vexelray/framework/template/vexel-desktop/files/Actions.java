@@ -2,7 +2,6 @@ package ${packageName};
 
 import ${packageName}.text.TextFile;
 import dev.vexelray.gui.core.Gui;
-import dev.vexelray.gui.core.app.CloseRequest;
 import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.framework.shell.Dialogs;
 import sibarum.probe.Log;
@@ -36,8 +35,8 @@ import java.util.stream.Collectors;
  *
  * <p>Every question here is asked of the {@link Dialogs} this was handed: the framework's, which holds a question
  * until there is a window to ask it in, or a test's, which answers it — {@code EditorTest} hands back its own. The
- * close gate is the same shape: {@link #guardClose(Runnable, Runnable)} is the gate, and the {@link CloseRequest}
- * overload the framework calls only adapts to it.
+ * close gate is the same shape: {@link #guardClose} is the main window's {@code CloseGate}, called by the framework
+ * when the window is asked to close and by a test with answers of its own.
  */
 final class Actions {
 
@@ -273,14 +272,10 @@ final class Actions {
         return rest;
     }
 
-    /** The close gate, as the framework calls it. */
-    void guardClose(CloseRequest request) {
-        guardClose(request::proceed, request::cancel);
-    }
-
     /**
-     * The close gate. The window is still open and drawing while it is unanswered, so the question is an ordinary
-     * dialog, and every path through it answers exactly once.
+     * The close gate, a {@code CloseGate}: the framework calls it and so can a test. The window is still open and
+     * drawing while it is unanswered, so the question is an ordinary dialog, and every path through it answers exactly
+     * once.
      */
     void guardClose(Runnable proceed, Runnable cancel) {
         List<Buffer> unsaved = ws.all().stream().filter(Buffer::dirty).toList();

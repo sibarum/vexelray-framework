@@ -20,7 +20,7 @@ import java.util.function.Consumer;
  *
  * <h2>The path bar is the whole of "open"</h2>
  *
- * <p>This editor uses nothing native beyond what the framework brings, so there is no OS file dialog. The bar
+ * <p>There is no file dialog, by choice, though the framework offers native ones ({@code Dialogs}). The bar
  * stands in for all three of them: type a folder and the tree shows it, type a file and it opens, type a name that
  * is not there yet and it is created. Ctrl+L puts the keyboard in it; Enter goes. It is an ordinary single-line
  * {@link TextField}, and {@code onSubmit} is the whole of its wiring.

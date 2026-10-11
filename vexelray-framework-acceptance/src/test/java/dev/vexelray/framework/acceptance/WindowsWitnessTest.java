@@ -122,9 +122,23 @@ class WindowsWitnessTest {
             assertTrue(main.contains(" zoom=1 ") || main.contains(" zoom=1.0 "),
                     "zooming the notes window zoomed the main one: " + main);
 
-            // The palette closes itself and comes back to the tree it left: same count, no second window made.
+            // The palette's close gate asks first, in a dialog of its own: the fourth window. Escape is Cancel, and the
+            // palette stays; the second time Enter is Close, and it goes.
             d.ok("window palette");
             d.ok("click " + d.ref("palette.close"));
+            awaitWindows(d, 4);
+            d.ok("window 4");
+            d.ok("settle");
+            d.ok("key escape");
+            awaitWindows(d, 3);
+            d.ok("window palette");
+            d.ok("await palette.count 1");
+            d.ok("click " + d.ref("palette.close"));
+            awaitWindows(d, 4);
+            d.ok("window 4");
+            d.ok("settle");
+            d.ok("key enter");
+            // Then it closes and comes back to the tree it left: same count, no second window made.
             awaitWindows(d, 2);
             d.ok("window main");
             // No settle first, on purpose: a click straight after the close was the first sign of the lost wake

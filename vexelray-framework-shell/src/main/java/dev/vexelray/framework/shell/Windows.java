@@ -63,7 +63,7 @@ public final class Windows {
 
     /**
      * The main window. Its {@link Window#close} is quitting, by the route its own close button takes, so a close
-     * gate is asked first; see {@link Shell#onClose}.
+     * gate is asked first; see {@link Window#onClose}.
      */
     public Window main() {
         return main;

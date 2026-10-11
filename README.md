@@ -68,7 +68,7 @@ The types are interfaces — `InputBackend`, `ClipboardBackend` — because a pr
 override needs something it can be a second implementation of.
 
 The close gate is the exception that proves the direction: the framework owns the *place* it is
-registered (`Shell.onClose`, from phase `ATTACH`) and installs none of its own, because the default
+registered (`Window.onClose`, on the main window or any other, at any time) and installs none of its own, because the default
 has to be that closing closes.
 
 ```java

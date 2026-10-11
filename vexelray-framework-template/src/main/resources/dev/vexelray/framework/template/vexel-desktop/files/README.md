@@ -76,8 +76,8 @@ Selecting a file in the navigator opens it — a click, or walking the tree with
 keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and Reveal in navigator. A bullet in
 front of a tab's name means unsaved changes; closing anything unsaved asks first, and so does quitting.
 
-There is no native file dialog, on purpose: this project uses nothing native beyond what the framework brings, so it
-builds wherever the framework does. The path bar is the whole of "open".
+There is no file dialog, by choice: the path bar is the whole of "open", and it works the same in a test as in use. The
+framework brings native pickers (`Dialogs.openFile`, `openFolder`, `saveFile`) for a project that wants them.
 
 ## How it is put together
 

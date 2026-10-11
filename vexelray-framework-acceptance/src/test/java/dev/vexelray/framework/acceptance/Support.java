@@ -316,8 +316,9 @@ final class Support {
         /**
          * Wait for the main window's first frame, by waiting for {@code landmark} to be in its tree, then settle.
          * What every session starts with, and not {@code settle} alone: the socket opens at {@code ATTACH}, so a client
-         * that connects at once is first told no window is open, and then {@code settle} answers over a tree with
-         * nothing laid out yet (TODO.md, a driver answered too early). Both witnesses with a second window found it.
+         * that connects at once is first told no window is open (TODO.md, a driver that connects at once). It also
+         * covered {@code settle} answering over a tree with nothing laid out yet, which both witnesses with a second
+         * window found and {@code vexelray-gui} has since fixed.
          */
         void firstFrame(String landmark) throws IOException, InterruptedException {
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);

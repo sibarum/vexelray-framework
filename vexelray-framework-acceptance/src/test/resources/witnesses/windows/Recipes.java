@@ -71,10 +71,16 @@ final class Recipes {
         return notes;
     }
 
-    /** The palette, a satellite. */
+    /**
+     * The palette, a satellite, with a close gate of its own: closing it asks first, through the framework's
+     * {@code Dialogs}, and Cancel keeps it open. A gate on a window that is not the main one, which nothing could set
+     * before {@code Window.onClose}.
+     */
     @Provides
-    Palette palette(Windows windows, Model model, Ui ui) {
+    Palette palette(Windows windows, Model model, Ui ui, Dialogs dialogs) {
         Window window = windows.named(NamedWindow.of(Palette.KEY, "Palette", Palette.W, Palette.H).satellite());
+        window.onClose((proceed, cancel) ->
+                dialogs.confirm("Close the palette?", "It keeps its count either way.", "Close", proceed, cancel));
         Palette palette = new Palette(window, model);
         ui.onPalette(window::show);
         model.onChange(palette::show);

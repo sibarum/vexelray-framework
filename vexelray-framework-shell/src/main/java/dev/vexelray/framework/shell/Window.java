@@ -34,7 +34,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * The framework closes the tree at shutdown.
  *
  * <p><b>The main window is the same type with one difference</b>: closing it is quitting. Its {@link #close} takes the
- * route its own close button does, so a close gate ({@link Shell#onClose}) is asked first and may refuse; it cannot be
+ * route its own close button does, so a close gate ({@link #onClose}) is asked first and may refuse; it cannot be
  * shown again once it has gone. That is what a <i>Quit</i> button wants, and it is why such a button no longer needs
  * the {@code GuiApp}.
  *
@@ -75,6 +75,10 @@ public final class Window {
     private boolean closeAsked;
     /** The handle, when this is the main window; null for a named one. */
     private MainHandle main;
+    /** Asked before the window closes, or null to let it close. Read when a close arrives, so it can be set at any time. */
+    private volatile CloseGate gate;
+    /** Guarded by {@code this}: whether {@link #gate} has been set, which it may be once. */
+    private boolean gated;
 
     /**
      * @param shown whether the window is on screen once claimed unless a command says otherwise: true for the main
@@ -182,6 +186,42 @@ public final class Window {
     }
 
     /**
+     * Ask {@code gate} before this window closes, by its close button, by {@link #close}, or for the main window by the
+     * OS or a liveness exit. For the main window that is asking before the application quits.
+     *
+     * <p><b>Any time, from any thread</b>: the gate is read when a close arrives, so one set after the window opened
+     * still counts. <b>Once per window</b>: a second would silently replace the first, and in an application with two
+     * things worth guarding, the one replaced is as likely as not the one that knew about the unsaved documents.
+     *
+     * @throws IllegalStateException if this window already has a gate
+     */
+    public Window onClose(CloseGate gate) {
+        java.util.Objects.requireNonNull(gate, "gate");
+        synchronized (this) {
+            if (gated) {
+                throw new IllegalStateException("window '" + key() + "' already has a close gate; a second would "
+                        + "replace it");
+            }
+            gated = true;
+        }
+        this.gate = gate;
+        return this;
+    }
+
+    /**
+     * A close has arrived: ask the gate, or let it through when there is none. What the window's own close route calls,
+     * on the handler lane; package-private so a test can stand in for the route.
+     */
+    void requested(Runnable proceed, Runnable cancel) {
+        CloseGate g = gate;
+        if (g == null) {
+            proceed.run();
+        } else {
+            g.ask(proceed, cancel);
+        }
+    }
+
+    /**
      * Run {@code listener} each time the window is created — placed where it was left, its zoom restored — on the
      * main thread. For a part that does work only while its window is up, such as a viewer reading full-size images.
      * The main window is created once, and its listeners run when it is claimed, at {@code ATTACH}.
@@ -211,7 +251,9 @@ public final class Window {
         if (mark != null) {
             config = config.icon(mark);
         }
-        WindowSpec spec = WindowSpec.of(config, gui).standing(declared.standing());
+        // The gate is read at the close, not here, so one set after the claim still counts.
+        WindowSpec spec = WindowSpec.of(config, gui).standing(declared.standing())
+                .onCloseRequest(request -> requested(request::proceed, request::cancel));
         if (bar != null) {
             // Its own window's controls while it is open, and none once it closes; the instruments with them, so a
             // screenshot from this bar photographs this window.
@@ -311,6 +353,9 @@ public final class Window {
      */
     void claimMain(GuiApp app) {
         MainHandle h = new MainHandle(app);
+        // GuiApp holds one handler for the main window, and this is it: the gate is read at the close, as for the
+        // others, so the application's recipes may set it in ATTACH, after this.
+        app.onCloseRequest(request -> requested(request::proceed, request::cancel));
         boolean show;
         boolean close;
         synchronized (this) {

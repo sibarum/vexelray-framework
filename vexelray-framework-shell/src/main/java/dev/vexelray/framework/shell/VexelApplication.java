@@ -291,9 +291,9 @@ public final class VexelApplication {
         // out. See PointerLock.
         input.bridge(gui, shell.pointerLock());
         app.input(InputBackend.perWindow(shell.pointerLock()));
-        // Held rather than discarded once installed: a clipboard belongs to a Gui, so an application with more
-        // than one window has to bind the rest itself. See Shell.clipboard. The application's, if the wiring
-        // handed one back by WINDOW.
+        // Held rather than discarded once installed: a clipboard belongs to a Gui, so every other window is bound
+        // too -- the named ones at their claim, below, and a Gui the application built itself through
+        // Shell.clipboard. The application's, if the wiring handed one back by WINDOW.
         shell.openClipboard().installOn(gui);
         // The dialogs: Modals, for the questions, and the Dialogs every part was handed, below. Installed here, with
         // the window, because a dialog is a window parented to this one; a question asked earlier was held for it.

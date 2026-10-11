@@ -283,8 +283,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       per class, and it is a real change in `vexelray-gui` rather than a line here.
 
 - [ ] **What `Shell` hands over is the seventh surface, and it bounds the other six.** `Shell` returns
-      `Gui`, `GuiApp`, `KronoGui`, `TitleBar`, `WindowMemory`, `Settings`, `CloseRequest` and
-      `Atchung`, so an application holds `vexelray-gui`'s and `atchung`'s types directly and v1 is only as
+      `Gui`, `GuiApp`, `KronoGui`, `TitleBar`, `Settings` and `Atchung`; `Windows`, `Window` and `Dialogs` are
+      the framework's own and hand over `Gui`, `TitleBar` and `Modal` in turn (`WindowMemory` and `CloseRequest`
+      are no longer handed over at all, since 2026-10-11). So an application holds `vexelray-gui`'s and
+      `atchung`'s types directly and v1 is only as
       stable as they are. Either those repos freeze what is exposed, or `Shell` stops exposing it — a
       wrapper per type, or fewer accessors. A decision rather than a task, and it wants making per
       accessor rather than once. Every side of the edge is the author's own, which makes freezing cheap
@@ -296,12 +298,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       them. Still to do: classify the ~100 methods, and give `vexelray-gui` a marker of its own, since the
       framework's `@Stability` sits above it in the dependency order.
 
-      **Ruled 2026-09-28: hide or delete what nothing needs; delete is preferred.** `Shell.dialogs()` is
-      deleted: no caller, and it was not an injectable root anyone had a use for. Still open: `memory()` is an
-      injectable root in the processor's table, and the text editor port needed `WindowMemory` injected
-      (architecture.md, *what porting the text editor found*), so *no caller* is partly the deleted witness.
-      `app()` cannot simply go: `Driver`, in a separate module, reaches the window's `WindowControls` through
-      it, so the choice is a narrower accessor for exactly that, or an explicit host seam.
+      **Ruled 2026-09-28: hide or delete what nothing needs; delete is preferred.** The `Shell.dialogs()` of the
+      time was deleted: no caller, and it was not an injectable root anyone had a use for (the name came back on
+      2026-10-11 for something else, the `Dialogs` root). Open then: `memory()` was an injectable root in the
+      processor's table, and the text editor port had needed `WindowMemory` injected (architecture.md, *what
+      porting the text editor found*), so *no caller* was partly the deleted witness. `app()` could not simply go:
+      `Driver`, in a separate module, reached the window's `WindowControls` through it, so the choice was a
+      narrower accessor for exactly that, or an explicit host seam.
 
       **Done 2026-10-11, on that ruling.** `memory()` is deleted, accessor and root: the windows that used it (the
       calculator's settings, W2's tool window) are remembered through `Windows` now, and a census of every
@@ -313,8 +316,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       simulators' viewports and compute, and the dialogs of the text editor, Vexplore and Pix — and none is window
       management, which is all `Windows` now covers. The device is the main thread's by rule, so a recipe taking it
       is `@MainThread` correctly, and a narrower type for it would be the same boundary under another name. The
-      dialogs are the `Window` seam entry's own bullet and move off it there. They have (`Dialogs`, the same day), so
-      what is left behind the `GuiApp` is the device and nothing else: textures, viewports and compute.
+      dialogs are the `Window` seam entry's own bullet and move off it there. They have (`Dialogs`, the same day),
+      and so has the one window-management use the census missed (Pix's viewer closing the main window, now
+      `windows.main().close()`), so what is left behind the `GuiApp` is the device and nothing else: textures,
+      viewports and compute.
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and left one generated counter-style
@@ -328,9 +333,11 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       found](architecture.md#what-the-component-witness-found) is mostly confirmation plus two observations, and
       [what W3 found](architecture.md#what-the-long-running-witness-found) is two real findings, both filed below.
       **W1 (several windows on one device) is built, 2026-10-11, and passes**: [what W1
-      found](architecture.md#what-the-two-window-witness-found) confirms the named-window half of the `Window` seam,
-      and found an upstream hang that is now fixed (the lost wake under *Upstream*). W2 also lacks a wedge that ignores interrupts, which is what would make the halt backstop fire, and W3
-      is twenty seconds long, which rules out growth per tick and nothing slower.
+      found](architecture.md#what-the-two-window-witness-found) is what shaped the `Window` seam — named windows,
+      the main window, the dialogs and the close gates — and found an upstream hang that is now fixed (the lost wake
+      under *Upstream*). So all three are built; what is left is depth, not breadth: W2 lacks a wedge that ignores
+      interrupts, which is what would make the halt backstop fire, and W3 is twenty seconds long, which rules out
+      growth per tick and nothing slower.
 
 - [ ] **Starters, a BOM, and the stack's reachability metadata.** The build shape is a contract: an
       application's dependency block and its `@VexelApp` are the first things it writes. One starter
@@ -396,43 +403,34 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       because the libraries already carry their own metadata. When they move, the template's pom is the place
       to delete them from, with the five applications.
 
-- [ ] **A `Window` seam instead of `memory()`, `app()` and one-off dialogs.** Each is a singleton accessor in a
-      world where a window is not: the designer already needs two, and every one of them has to say *which
-      window*. Adding that later changes the signatures apps call. The capabilities are reasonable to expect
-      (per-window placement memory, title/size/maximise/fullscreen/close, and dialogs that can be answered by a
-      test as well as a person), the types are not: `GuiApp` is the window, the GPU device and the main-thread
-      boundary in one 41-method class, and `WindowMemory` and `Modals` carry their mechanisms. Sketch: one
-      framework-owned `Window` handle, `shell.window()` for the main one and `shell.window("log")` for a named
-      one, operations safe from any thread and posted to the main thread, with `Driver` using the same seam so
-      `app()` can go. **Unbuilt and unwitnessed**: let W1 (two windows, in the witness specs) shape it rather
-      than designing it first, then delete `memory()` and `app()` under the legacy sweep. `Shell.dialogs()` is
-      already deleted, and automation's `resize` and `zoom` verbs landed without it (on `WindowControls`).
+- [ ] **The `Window` seam: built, and one choice left.** `memory()`, `app()` and one-off dialogs were each a singleton
+      accessor in a world where a window is not, and every one of them had to say *which window*; adding that later
+      would have changed the signatures applications call. Built 2026-10-11 and shaped by W1 ([what W1
+      found](architecture.md#what-the-two-window-witness-found)), all of it not main-thread and safe from any thread:
+      - **`Windows`**, a root from `GUI`. `windows.named(NamedWindow...)` declares a second window: the framework
+        builds its tree at once (a `Gui` on a bus of its own and the application's lanes, the look, a title bar)
+        and claims it at `ATTACH` (placement and zoom remembered under its name, the window mark, the bar's
+        controls and instruments, the clipboard). `windows.main()` is the main window, whose `close` is quitting.
+        `windows.views()` is what `Driver` reads. The calculator's settings window, Vexplore's viewer and W2's
+        tool window each lost a `@MainThread` recipe (calculator FN-1, FN-2).
+      - **`Dialogs`**, a root from `CONFIG`: a `Modal`, and NFD's open, folder and save pickers, parented to the
+        main window and answered on the handler lane. A question asked before there is a window is held and asked
+        once there is; a `@Provides Dialogs` (or `shell.dialogs(...)` by `WINDOW`) replaces the framework's, which
+        is how a test answers. The text editor's `NativeDialogs`, Vexplore's `Chooser` and Pix's `Opener` were
+        three copies of one class, each taking the `GuiApp`, and are gone (Vex FN-6's dialog half, FN-7).
+        `Modals` stays a static, for MainFrame, which is hand-wired.
+      - **`Window.onClose(CloseGate)`**, a close gate on any window, the main one included: two callbacks rather
+        than gui-core's `CloseRequest`, which a test could not construct, so the gate a test calls is the gate the
+        window calls (Vex FN-6's other half). Once per window, read when the close arrives. `Shell.onClose` is
+        deleted; the template and the text editor arm `windows.main().onClose(actions::guardClose)`, and W1's
+        palette asks before it closes.
+      - **`memory()` is deleted**, accessor and root; **`app()` stays**, as the device (the ruling under *what
+        `Shell` hands over* above).
 
-      **Named windows landed, 2026-10-11, shaped by W1** ([what W1 found](architecture.md#what-the-two-window-witness-found)).
-      `Windows` is a root from `GUI` and is not main-thread: `windows.named(NamedWindow...)` returns a `Window` whose
-      tree the framework builds at once and whose window it claims at `ATTACH`: its own `Gui` on its own bus and the
-      application's lanes, the look, a title bar with its controls, the placement remembered, and the window mark.
-      The calculator's settings window (FN-1), Vexplore's viewer and W2's tool window each lost their `@MainThread`
-      recipe. **Still to do**, all of it signature-changing and so still v1:
-      - ~~**The main window as a `Window`**~~ **Done 2026-10-11:** `Windows.main()`, whose `close` is quitting by
-        the close route (so the gate is asked); `Driver` reads `Windows.views()`; `memory()` is deleted and `app()`
-        stays as the device (the ruling under *what `Shell` hands over* above). W1's Quit button ends both its
-        launches through it.
-      - ~~**The dialogs**~~ **Done 2026-10-11:** `Dialogs`, a root from `CONFIG` and not main-thread: a `Modal`, and
-        NFD's open, folder and save pickers, parented to the main window, answered on the handler lane. A question
-        asked before there is a window is held and asked once there is; a `@Provides Dialogs` replaces the
-        framework's, which is how a test answers (the template's `EditorTest` and the text editor's hand theirs back
-        after a headless `tree`). The text editor's `NativeDialogs`, Vexplore's `Chooser` and Pix's `Opener` were
-        three copies of one class, each taking the `GuiApp`; all three are now the framework's, and so is Vex FN-7's
-        case. W1 asks one from `TREE` and answers it in its own window. `Modals` stays a static, for MainFrame, which
-        is hand-wired.
-      - **A close gate per window.** `WindowSpec.onCloseRequest` exists upstream and `NamedWindow` does not carry
-        it, so a named window with unsaved state cannot refuse to close. Nothing has needed it yet. With it, the
-        half of Vex FN-6 the dialogs did not answer: `CloseRequest`'s constructor is package-private, so a test
-        cannot hand a gate one, and the template's `guardClose(Runnable, Runnable)` exists only to get round that.
-      - **Reopening what was open.** `WindowMemory` records whether a window was open (`wasOpen`), and nothing
-        uses it, so a window open at quit is closed at the next launch. A choice to make deliberately, per window,
-        rather than a default to inherit.
+      **Left: reopening what was open.** `WindowMemory` records whether a window was open (`wasOpen`), and nothing
+      uses it, so a window open at quit is closed at the next launch. A choice to make deliberately, per window
+      (`NamedWindow` is where it would be said), rather than a default to inherit. Additive, so not v1-blocking on
+      its own; it stays here because it is the seam's.
 
 - [ ] **Spike the extension test.** [v1.md](v1.md#how-future-proofness-is-measured): for each row of the
       extension table, a throwaway prototype against the API as it stands, and the number of existing
@@ -445,7 +443,12 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       cycle is an error) changed no existing signature and none of the 67 existing processor tests; `Shell`,
       `Placements`, `Lanes` and the runtime were not touched, since a lane is a string. Not spiked: child-before-
       parent shutdown, which falls out of reverse construction order but was not run, and supervision naming a
-      subtree. The other rows (second window, Linux backend, supervision, second starter) are still to do.
+      subtree. The other rows (Linux backend, supervision, second starter) are still to do.
+
+      **The second window, 2026-10-11: built rather than spiked, 2.** `Windows` landed for real (W1), so the count is
+      of the actual change: two existing signatures went, `Shell.memory()` and `Shell.onClose(Consumer<CloseRequest>)`,
+      both deliberately and before the freeze, each replaced by a per-window form (`Windows`, `Window.onClose`).
+      Everything else was additive: a new root, new types, no recipe signature forced to change.
 
 - [ ] **Build the liveness guarantee.** Designed in
       [architecture.md](architecture.md#a-wedged-component-cannot-freeze-the-window), contract in
@@ -522,9 +525,9 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         application (`~/.{name}`), e.g. `~/.vexelray/`.
 
       **Why after v1:** `Settings`' accessors and `save()` keep their signatures, the lock and merge are inside
-      them, and the ephemeral switch is a new option with a default. **It moves to Blocks v1** if the *`Window`
-      seam* entry changes `shell.memory()` into a per-window handle, since the session then belongs to the
-      window and not to the store, or if a shared home changes `AppHome.of`'s contract.
+      them, and the ephemeral switch is a new option with a default. The *`Window` seam* did not move it:
+      `shell.memory()` is deleted and placement is per window inside the framework (`Windows`), so no application
+      holds the store's session. **It moves to Blocks v1** if a shared home changes `AppHome.of`'s contract.
 
 - [ ] **A shipped application and a drivable one are two builds, and each app now copies the arrangement.** Found
       2026-10-05, removing the console window from the native executables. The automation facility (`ottermate`)
@@ -721,11 +724,9 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       extension and its feature chain in `VulkanDevice` and adding the wait to `WindowedPresenter`, on a driver
       that may not offer either.
 
-- [ ] **A test for the second close gate.** `Shell.onClose` refuses a second registration because
-      `GuiApp` holds one handler and the replaced one is as likely as not the one that knew about the
-      unsaved documents. Only the before-`ATTACH` refusal is covered; the duplicate case needs a real
-      `GuiApp`. Now unblocked: `WakeSeamsTest` runs one, so the pattern to copy is its `ProbeWiring`
-      registering a second gate in `attach` and expecting the throw.
+- [x] **A test for the second close gate.** Done 2026-10-11, without a `GuiApp`: the gate is `Window.onClose` now,
+      which refuses a second on the same window whatever the phase, and `WindowsTest` covers it headless
+      (`eachWindowHasAGateOfItsOwnAndOnlyOne`); W1 drives a gate on a real window.
 
 - [ ] **The designer's comment describes the mode the framework does not use** (fix belongs in
       `vexelray-designer`). `Viewport.java` says *"turning is a displacement, so the pointer is held for
@@ -735,9 +736,9 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       intention rather than an observation. Now that it does, the comment is the only place on the
       stack that still says the cursor moves.
 
-- [ ] **Fully-qualified names inline where every other file imports.** `Shell.onClose` takes a
-      `java.util.function.Consumer<CloseRequest>`, and `Pacing` and `FrameHooks` write
-      `java.util.Objects.requireNonNull` and `java.util.Comparator` in place. Cosmetic. The one
+- [ ] **Fully-qualified names inline where every other file imports.** `Pacing` and `FrameHooks` write
+      `java.util.Objects.requireNonNull` and `java.util.Comparator` in place, and so do `Shell` and `Window` for
+      their `java.util` types. Cosmetic. The one
       deliberate case should stay as it is: `InputBackend.perWindow` spells both `NativeWindow` types
       out in full because *"importing either shadows the other."*
 
@@ -826,13 +827,14 @@ onboarding is the goal.
 blocks v1, and one thing worked better than expected: the processor's compile errors (a record behind `@Provides`;
 `GuiApp` injected into something that is not `@MainThread`) were each right and each named the fix.
 
-- [ ] **A part that needs the window later has no direct way to say so.** A folder dialog needs the window handle,
-      which exists only from `WINDOW`, and a part taking `GuiApp` is itself `@MainThread` and pulls everything that
-      takes it into the window's phase, so a headless capture can no longer build the tree. The way through is the
-      README's clipboard shape: a tree-phase object, plus a `@MainThread @Provides AutoCloseable` that binds it to
-      the window and un-binds on close (Vexplore's `Chooser` and `chooserBinding`). It is right and roundabout for
-      something every application with a dialog needs; a provider that runs *when the window exists* and returns
-      nothing the container needs to hold would say it in one line.
+- [ ] **A part that needs the device later has no direct way to say so.** Textures need the device, which exists
+      only from `WINDOW`, and a part taking `GuiApp` is itself `@MainThread` and pulls everything that takes it into
+      the window's phase, so a headless capture can no longer build the tree. The way through is the README's
+      clipboard shape: a tree-phase object, plus a `@MainThread @Provides AutoCloseable` that binds it to the device
+      and un-binds on close (Vexplore's and Pix's `windowBinding`). It is right and roundabout; a provider that runs
+      *when the window exists* and returns nothing the container needs to hold would say it in one line. Narrower
+      than it was: the folder dialog it was found with (Vexplore's `Chooser`) is the framework's `Dialogs` since
+      2026-10-11, which hold a question until there is a window, so only the device is left late-bound.
 
 - [ ] **A held modifier cannot be driven from outside.** `ottermate key` is press-and-release (`vexelray-gui-automation`).
       An application that treats Shift and Control as intent signals, which is what a keyboard-first file explorer
@@ -849,7 +851,10 @@ blocks v1, and one thing worked better than expected: the processor's compile er
       **A witness hit this as a flake, 2026-10-02.** `ComponentsWitnessTest.theDefaultPolicyExitsAnApplicationWhoseLaneIsWedgedThroughItsOwnCloseRoute`
       calls `settle`, gets `ok v0`, and looks up `button.wedge.default` at once; the tree was not built yet, `find`
       said nothing matched, and the test failed (once in four runs; it passed on a rerun with no change). The fix is the
-      same `await <landmark>` with no text, in `Support.Driver`, not a longer wait.
+      same `await <landmark>` with no text, in `Support.Driver`, not a longer wait. **Since 2026-10-11** that is what
+      `Support.Driver.firstFrame` does (it polls `find` for the landmark), every witness starts with it, and the
+      `ok v0` itself is fixed upstream (`vexelray-gui` `1a40f59`: a new tree owes its first frame). The ask for
+      `await <landmark>` with no text stands, for a scene that is not a witness.
 
 ## Upstream
 
@@ -876,14 +881,18 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       already recorded, and read only for the frame ceiling), beside the existing refusal to park on a queued task.
       That is what landed.
 
-- [ ] **A driver that connects at once is answered before there is anything to drive** (`vexelray-gui-core`
-      `Gui.onWork`, `vexelray-gui-automation`). Found by W1. The socket opens at `ATTACH`, before the loop has bound
-      its main window, so every verb first answers that no window is open; then `settle` answers `ok` before the
-      first frame, because `Gui.onWork` re-arms the *frame owed* flag over a tree that has never been drawn. A
-      client has to wait on a landmark instead, which W1 does. **The same for every window, not only at startup**:
-      W2 chose its tool window 3 ms after it opened, `settle` said `ok v0`, and `find` saw an empty tree, which is
-      also how a *does not contain* check passes against nothing. Both witnesses now await one of the window's own
-      landmarks after choosing it. **Ask:** `settle` that waits for a window's first frame.
+- [ ] **A driver that connects at once is told no window is open** (`vexelray-gui-automation`, and where
+      `Driver.open` sits). Found by W1. The socket opens at `ATTACH`, before the loop has bound its main window, so
+      every verb first answers `err no window is open yet` (`Windows.views()` is empty until the claim). A client
+      waits for a landmark to appear, which every witness does (`Support.Driver.firstFrame`). **Ask:** open the
+      socket once the main window is bound, or have a verb wait for it rather than refuse.
+
+      **The other half is fixed upstream** (`vexelray-gui` `1a40f59`): `settle` answered `ok v0` before a window's
+      first frame, because `Gui.onWork` re-armed the *frame owed* flag over a tree never drawn — at startup, and for
+      every window opened later (W2 chose its tool window 3 ms after it opened, and `find` saw an empty tree, which is
+      also how a *does not contain* check passes against nothing). A new tree now owes its first frame. The witnesses
+      still await a window's own landmark after choosing it; that costs nothing and was written before the fix, and
+      they have not yet been run against an install that includes it.
 
 - [ ] **On macOS, a modal dialog on the GUI thread is reported as a stall** (`vexelray-gui-core`
       `GuiApp.reportStall`). The screenshot button opens a native save dialog (`vexelray-gui-nfd`'s

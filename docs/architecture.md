@@ -971,7 +971,7 @@ carries that warning on the type itself. The audit found three more, of two diff
 | Claim | Kind | Resolution |
 | --- | --- | --- |
 | `Phase.GUI`: *"theme, minimum size, zoom range, and the frame clock attached"* | A capability that should exist | Taken — `Appearance.ZoomRange`, applied beside `minSize`. See [below](#what-the-port-left-as-the-applications) for why the range moves and the chords do not |
-| `Phase.ATTACH`: *"the close gate armed"* | A seam deliberately left empty | Text corrected. `Shell.onClose` is registerable there and the framework installs no gate: the default has to be that closing closes |
+| `Phase.ATTACH`: *"the close gate armed"* | A seam deliberately left empty | Text corrected. A gate is registerable there (`Window.onClose` since 2026-10-11, `Shell.onClose` before) and the framework installs none: the default has to be that closing closes |
 | `Phase.ATTACH`: *"the automation socket bound"* | Bound by an optional module | Text corrected. `-automation`'s `Driver`, called from the application's own `attach` — see [the two reserved keys](#the-two-reserved-keys) |
 
 The second kind is the one worth having a name for, because it is not a defect and reads like one: a
@@ -1269,7 +1269,7 @@ taskbar and in the bar, the bar's controls and instruments, and the clipboard. `
 are safe from any thread, and a `show` before the claim is held until the claim. A declaration after `TREE`, a second
 one under the same name, and `"main"` are all refused. The three hand-built windows now each take one declaration,
 and none of their recipes takes the `GuiApp` (W2's `ToolWindow`, the calculator's `SettingsWindow`, Vexplore's
-`Viewer`, which keeps a late binding only for its native dialog and its textures).
+`Viewer`, whose only late binding left is its textures, which are the device).
 
 W1 itself is a generated application with a main window, a peer (`notes`) and a satellite (`palette`), all views
 of one model (`witnesses/windows`, `WindowsWitnessTest`). Two launches share one settings home.
@@ -1313,7 +1313,8 @@ it. W1 then passed whole, three runs in a row, including the click straight afte
   ask before anything is drawn. `Gui.onWork` re-arms the *frame owed* flag when the wake is wired, so the edits the
   tree was built with are owed nothing, and `settle` said `ok v0` over an empty tree. W1 waits on a landmark instead.
   The flag is right that no wake is outstanding and wrong that the tree has caught up, which is the question
-  `settle` asks it.
+  `settle` asks it. Fixed upstream the same day (`vexelray-gui` `1a40f59`: a new tree owes its first frame); what
+  remains is the moment before the main window is bound, when every verb answers that no window is open.
 - **A `Window` cannot be injected by name.** A recipe that wants the window's `show` for a button takes the part that
   owns the button (`Ui`) and hands it over, as W2 and the calculator already did. That is the `@Window("settings")`
   question from FN-1, which is a processor feature; nothing in three applications has needed more than the handover.
@@ -1324,8 +1325,8 @@ it. W1 then passed whole, three runs in a row, including the click straight afte
 `windows.main()::close` in a recipe that takes no `GuiApp`. Both launches now end that way, with the other windows
 still open, and wait for the application to stop by its own loop; the second launch then finds the placement the
 first wrote on its way out. With it, `Driver` reads the windows from `Windows.views()` rather than the `GuiApp`, and
-`memory()` is gone. `app()` stays, as the device: every remaining use on the stack is textures, viewports, compute or
-a dialog (see the `Shell` surface ruling in TODO.md).
+`memory()` is gone. `app()` stays, as the device: every remaining use on the stack was textures, viewports, compute or
+a dialog (see the `Shell` surface ruling in TODO.md), and the dialogs went next.
 
 **Then the dialogs.** `Dialogs` is a framework root from `CONFIG`, not main-thread: a `Modal`, and the native open,
 folder and save pickers. What a part is handed is the same value in every phase, and it holds a question until
@@ -1335,8 +1336,17 @@ three copies of one class, the text editor's `NativeDialogs`, Vexplore's `Choose
 the `GuiApp` for a window handle it only passed along, and the `ask` fields the text editor and the template had grown
 so a test could answer (Vex FN-6). W1's fourth launch asks from `TREE`, before there is a window: the question comes
 up in a window of its own once there is one, Enter takes its default button and the count moves, and a second one,
-asked from a button and cancelled with Escape, leaves it where it was. Since then, the only uses of `GuiApp` left on
-the stack are the device.
+asked from a button and cancelled with Escape, leaves it where it was.
+
+**Then the close gates.** A gate belongs to a window, so it is `Window.onClose(CloseGate)`, on any window including
+the main one, once per window, and read when the close arrives rather than when it is set. `CloseGate` is two
+callbacks, `proceed` and `cancel`, rather than gui-core's `CloseRequest`, which nothing outside gui-core can construct:
+the template and the text editor had each kept a `guardClose(Runnable, Runnable)` beneath the real gate so a test could
+call it (Vex FN-6's other half), and now that is the gate. `Shell.onClose` is deleted. W1's palette has a gate that
+asks through `Dialogs` before it closes: its own Close button brings the question up as a fourth window, Escape keeps
+the palette, and Enter lets it go. One window-management use of the `GuiApp` was left on the stack — Pix's viewer
+closed the main window through `app.controls()` — and it is `windows.main().close()` now, so a close gate would be
+asked there too. Since then, the only uses of `GuiApp` left on the stack are the device.
 
 ## What the long-running witness found
 

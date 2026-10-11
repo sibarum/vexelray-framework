@@ -11,7 +11,6 @@ import dev.vexelray.framework.core.Phase;
 import dev.vexelray.framework.core.WakeSource;
 import dev.vexelray.framework.core.Watchdog;
 import dev.vexelray.gui.core.Gui;
-import dev.vexelray.gui.core.app.CloseRequest;
 import dev.vexelray.gui.core.app.ComputeQueue;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
@@ -42,8 +41,9 @@ import java.time.Duration;
  * error beats a runtime error</i>. It is why these messages name the phase and the thing asked for rather than
  * simply failing.
  *
- * <p><b>What the wiring hands back.</b> Three of the framework's defaults are replaced by handing one back —
- * {@link #appearance(Appearance)}, {@link #input(InputBackend)} and {@link #clipboard(ClipboardBackend)} — each
+ * <p><b>What the wiring hands back.</b> Five of the framework's defaults are replaced by handing one back —
+ * {@link #appearance(Appearance)}, {@link #input(InputBackend)}, {@link #clipboard(ClipboardBackend)},
+ * {@link #liveness(LivenessPolicy)} and {@link #dialogs(Dialogs)} — each
  * accepted up to the phase before the framework reaches for its own, and each the framework's own answer when
  * nothing is. A generated wiring calls them for a {@code @Provides} method returning that type, which is the whole
  * of <i>"overriding one is a {@code @Provides} method returning that type"</i>.
@@ -78,7 +78,6 @@ public final class Shell {
     private ClipboardBackend clipboard;
     private LivenessPolicy liveness = new LivenessPolicy() { };
     private boolean livenessSet;
-    private boolean closeGateSet;
     private Phase phase = Phase.CONFIG;
 
     Shell(Launch launch, AppInfo info) {
@@ -300,35 +299,6 @@ public final class Shell {
     public Shell wake(WakeSource source) {
         require(Phase.ATTACH, "wake sources");
         source.onWake(app::postWake);
-        return this;
-    }
-
-    /**
-     * Be asked before the main window closes — the seam an application with unsaved work needs.
-     *
-     * <p>Closing the main window is quitting, so this is also how an application refuses to exit. The handler
-     * runs on the handler executor and may answer the {@link CloseRequest} at its leisure, from any thread;
-     * until it does, the window stays open and fully live, which is what lets the answer come from a dialog.
-     *
-     * <p><b>The framework installs no gate of its own</b>, and that is the decision rather than an omission:
-     * the default has to be that closing closes. A framework that interposed anything here would be deciding,
-     * for every application, that quitting is a question — and most applications have nothing to lose. What
-     * the framework owns is the <em>place</em> the answer is given, and the dialog it is given in
-     * ({@link #dialogs()}).
-     *
-     * <p>{@link Phase#ATTACH} onwards, because there is no window to be asked about before that. Once only:
-     * {@code GuiApp} holds a single handler, so a second registration would silently replace the first — and
-     * in an application with two things worth guarding, the one replaced is as likely as not the one that knew
-     * about the unsaved documents.
-     */
-    public Shell onClose(java.util.function.Consumer<CloseRequest> gate) {
-        require(Phase.ATTACH, "a close gate");
-        if (closeGateSet) {
-            throw new IllegalStateException(
-                    "a close gate is already registered; GuiApp holds one, so a second would replace it");
-        }
-        closeGateSet = true;
-        app.onCloseRequest(gate);
         return this;
     }
 
@@ -583,10 +553,11 @@ public final class Shell {
      * The GPU device, and the main-thread boundary. Exists from {@link Phase#WINDOW}; anything reached through this
      * must be touched on the main thread only.
      *
-     * <p><b>For the device, not the windows.</b> Textures, a viewport, a native dialog that needs the window's handle:
-     * those are the main thread's by rule ("Vulkan, the window and present stay on the main thread"), so a recipe that
+     * <p><b>For the device, not the windows.</b> Textures, a viewport, a compute queue: those are the main thread's
+     * by rule ("Vulkan, the window and present stay on the main thread"), so a recipe that
      * takes this is {@code @MainThread}, and rightly. Showing, hiding, closing or quitting a window is not, and is
-     * {@link #windows()}, whose handles are safe from any thread.
+     * {@link #windows()}, whose handles are safe from any thread; a question or a file picker is {@link #dialogs()},
+     * which hold the window's handle themselves.
      */
     public GuiApp app() {
         return require(Phase.WINDOW, "the window", app);
@@ -641,10 +612,9 @@ public final class Shell {
      * same place copy out of a tab does."</i> A window that is forgotten is a window where Ctrl+C does nothing
      * and reports nothing.
      *
-     * <p>The framework cannot close that on its own. Both of the editor's other windows own a {@code Gui} from
-     * construction, long before any native window exists, and {@code GuiApp.input} — the only per-window seam
-     * there is — fires at window creation. So the framework binds the one {@code Gui} it built and hands the
-     * backend over for the rest:
+     * <p>The framework closes it for every window it builds: the main one, and each declared through
+     * {@link #windows()}, which is bound at its claim. What is left is a {@code Gui} the application built itself —
+     * a tree from a library, or a window opened without {@code Windows} — and for that the backend is handed over:
      *
      * {@snippet :
      * for (Gui window : files.windows()) {

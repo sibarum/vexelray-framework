@@ -444,7 +444,7 @@
           <tr>
             <td class="repo">The sibling boundary</td>
             <td><span class="pill p-none">Undecided</span></td>
-            <td class="note"><code>Shell</code> returns <code>Gui</code>, <code>GuiApp</code>, <code>KronoGui</code>, <code>TitleBar</code>, <code>WindowMemory</code>, <code>Settings</code>, <code>CloseRequest</code> and <code>Atchung</code>. v1 is only as stable as they are. One bus also carries one tree, upstream.</td>
+            <td class="note"><code>Shell</code> returns <code>Gui</code>, <code>GuiApp</code>, <code>KronoGui</code>, <code>TitleBar</code>, <code>Settings</code> and <code>Atchung</code>, and the framework's <code>Windows</code>, <code>Window</code> and <code>Dialogs</code> hand over <code>Gui</code>, <code>TitleBar</code> and <code>Modal</code>. v1 is only as stable as they are. <code>memory()</code> is deleted and <code>app()</code> is ruled the device. One bus also carries one tree, upstream.</td>
           </tr>
         </tbody>
       </table>
@@ -653,7 +653,7 @@
         <span class="stage">In the framework</span>
       </div>
       <div class="row s3">
-        <span class="what">The container owns the application's bus <span>— one fabric, dialogs included</span></span>
+        <span class="what">The container owns the application's bus <span>— one fabric; the dialogs and the other windows keep their trees on buses of their own</span></span>
         <span class="meter"><i class="seg on"></i><i class="seg on"></i><i class="seg on"></i><i class="seg on tip"></i></span>
         <span class="stage">In the framework</span>
       </div>
@@ -1135,7 +1135,7 @@
           <h3>Hand the container a bus <span class="landed">landed</span></h3>
           <p>
             <code>Shell.bus()</code>, built in the constructor and available in every phase; the
-            framework's <code>Gui</code> and the dialogs are both on it, so an application is one
+            framework's <code>Gui</code> is on it, so an application is one
             fabric rather than one per tree.
             <span class="why">The half that could not be added later without moving everything built
             on top of it. What is left of this step is the handler executor, which needs

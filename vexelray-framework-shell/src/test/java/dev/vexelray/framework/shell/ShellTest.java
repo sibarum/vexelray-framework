@@ -278,19 +278,4 @@ final class ShellTest {
         assertTrue(mine.closed);
     }
 
-    /**
-     * A gate registered before there is a window would be registered against nothing, on the same terms as a
-     * wake registered before there is a loop — so it is refused rather than silently dropped.
-     */
-    @Test
-    void aCloseGateIsRefusedBeforeAttach() {
-        Shell shell = shell();
-        shell.phase(Phase.WINDOW);
-
-        IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> shell.onClose(request -> {
-                }));
-        assertTrue(e.getMessage().contains("ATTACH"), e.getMessage());
-    }
-
 }
