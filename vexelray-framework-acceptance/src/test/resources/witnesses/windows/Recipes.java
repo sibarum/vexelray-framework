@@ -4,11 +4,13 @@ import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.shell.Appearance;
+import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.NamedWindow;
 import dev.vexelray.framework.shell.Window;
 import dev.vexelray.framework.shell.Windows;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
+import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.TitleBar;
 
 /**
@@ -31,13 +33,24 @@ final class Recipes {
         return new Model();
     }
 
-    /** The main window's tree. Its Quit closes the main window through its handle, with no {@code GuiApp} taken. */
+    /**
+     * The main window's tree. Its Quit closes the main window through its handle, and its Ask asks the framework's
+     * {@code Dialogs}, with no {@code GuiApp} taken for either. {@code witness.ask=early} asks from here, in
+     * {@code TREE}, before there is a window to ask in: the dialogs hold the question and ask it once there is.
+     */
     @Provides
-    Ui ui(Gui gui, Model model, TitleBar titleBar, Windows windows) {
+    Ui ui(Gui gui, Model model, TitleBar titleBar, Windows windows, Dialogs dialogs,
+          @Setting(value = "witness.ask", def = "") String ask) {
         Window main = windows.main();
-        Ui ui = new Ui(gui, model, titleBar, main::close);
+        Runnable question = () -> dialogs.ask(Modal.of("Witness question", "Count one more?")
+                .defaultButton("Count", model::bump)
+                .cancelButton("Cancel", () -> { }));
+        Ui ui = new Ui(gui, model, titleBar, main::close, question);
         model.onChange(ui::show);
         ui.show(model.doc());
+        if (ask.equals("early")) {
+            question.run();
+        }
         return ui;
     }
 

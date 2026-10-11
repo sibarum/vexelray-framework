@@ -1,7 +1,9 @@
 package ${packageName};
 
+import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
+import dev.vexelray.gui.nfd.FileDialog;
 import dev.vexelray.gui.widget.Modal;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,11 +40,43 @@ class EditorTest {
 
     private Shell shell;
     private ${className}AppWiring wiring;
+    /** How this test answers a question: by default, it fails the test, since nothing should be asked unexpectedly. */
+    private volatile Consumer<Modal> answer = modal -> {
+        throw new AssertionError("asked unexpectedly: " + modal.title());
+    };
 
     @BeforeEach
     void build() {
         wiring = new ${className}AppWiring();
         shell = VexelApplication.tree(wiring, new String[0]);
+        // This test's dialogs in place of the framework's, which would hold every question for a window that never
+        // comes. Taken back as late as WINDOW, so handing them over after the tree is built is in time.
+        shell.dialogs(new Answering());
+    }
+
+    /** Dialogs that answer a question with {@link #answer}, and cancel every file picker. */
+    private final class Answering implements Dialogs {
+
+        @Override
+        public void ask(Modal modal) {
+            answer.accept(modal);
+        }
+
+        @Override
+        public void openFile(Path start, List<FileDialog.Filter> filters, Consumer<Path> picked, Runnable cancelled) {
+            cancelled.run();
+        }
+
+        @Override
+        public void openFolder(Path start, Consumer<Path> picked, Runnable cancelled) {
+            cancelled.run();
+        }
+
+        @Override
+        public void saveFile(Path start, String name, List<FileDialog.Filter> filters, Consumer<Path> picked,
+                             Runnable cancelled) {
+            cancelled.run();
+        }
     }
 
     @AfterEach
@@ -150,7 +184,7 @@ class EditorTest {
         b.field.insert("x");
         eventually("unsaved", b::dirty);
         List<String> asked = new ArrayList<>();
-        wiring.actions().ask(pressing("Don't save", asked));
+        answer = pressing("Don't save", asked);
         wiring.actions().close(b);
         assertEquals(List.of("Unsaved changes"), asked);
         assertNull(wiring.ui().workspace().byId(b.id));
@@ -160,7 +194,7 @@ class EditorTest {
     @Test
     void theCloseGateLetsACleanSessionGoWithoutAsking() {
         List<String> asked = new ArrayList<>();
-        wiring.actions().ask(pressing("Cancel", asked));
+        answer = pressing("Cancel", asked);
         AtomicInteger proceeded = new AtomicInteger();
         wiring.actions().guardClose(proceeded::incrementAndGet, () -> { });
         assertEquals(1, proceeded.get());
@@ -173,7 +207,7 @@ class EditorTest {
         b.field.insert("x");
         eventually("unsaved", b::dirty);
         List<String> asked = new ArrayList<>();
-        wiring.actions().ask(pressing("Cancel", asked));
+        answer = pressing("Cancel", asked);
         AtomicInteger proceeded = new AtomicInteger();
         AtomicInteger cancelled = new AtomicInteger();
         wiring.actions().guardClose(proceeded::incrementAndGet, cancelled::incrementAndGet);
@@ -189,7 +223,7 @@ class EditorTest {
         opened(a).field.insert("1");
         opened(c).field.insert("2");
         eventually("both unsaved", () -> wiring.model().doc().unsaved().size() == 2);
-        wiring.actions().ask(pressing("Save all", new ArrayList<>()));
+        answer = pressing("Save all", new ArrayList<>());
         AtomicInteger proceeded = new AtomicInteger();
         wiring.actions().guardClose(proceeded::incrementAndGet, () -> { });
         eventually("the quit to proceed", () -> proceeded.get() == 1);

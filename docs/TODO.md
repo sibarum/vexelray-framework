@@ -313,7 +313,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       simulators' viewports and compute, and the dialogs of the text editor, Vexplore and Pix — and none is window
       management, which is all `Windows` now covers. The device is the main thread's by rule, so a recipe taking it
       is `@MainThread` correctly, and a narrower type for it would be the same boundary under another name. The
-      dialogs are the `Window` seam entry's own bullet and move off it there.
+      dialogs are the `Window` seam entry's own bullet and move off it there. They have (`Dialogs`, the same day), so
+      what is left behind the `GuiApp` is the device and nothing else: textures, viewports and compute.
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and left one generated counter-style
@@ -417,14 +418,21 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         the close route (so the gate is asked); `Driver` reads `Windows.views()`; `memory()` is deleted and `app()`
         stays as the device (the ruling under *what `Shell` hands over* above). W1's Quit button ends both its
         launches through it.
-      - **The dialogs.** `Modals` is still a static.
+      - ~~**The dialogs**~~ **Done 2026-10-11:** `Dialogs`, a root from `CONFIG` and not main-thread: a `Modal`, and
+        NFD's open, folder and save pickers, parented to the main window, answered on the handler lane. A question
+        asked before there is a window is held and asked once there is; a `@Provides Dialogs` replaces the
+        framework's, which is how a test answers (the template's `EditorTest` and the text editor's hand theirs back
+        after a headless `tree`). The text editor's `NativeDialogs`, Vexplore's `Chooser` and Pix's `Opener` were
+        three copies of one class, each taking the `GuiApp`; all three are now the framework's, and so is Vex FN-7's
+        case. W1 asks one from `TREE` and answers it in its own window. `Modals` stays a static, for MainFrame, which
+        is hand-wired.
       - **A close gate per window.** `WindowSpec.onCloseRequest` exists upstream and `NamedWindow` does not carry
-        it, so a named window with unsaved state cannot refuse to close. Nothing has needed it yet.
+        it, so a named window with unsaved state cannot refuse to close. Nothing has needed it yet. With it, the
+        half of Vex FN-6 the dialogs did not answer: `CloseRequest`'s constructor is package-private, so a test
+        cannot hand a gate one, and the template's `guardClose(Runnable, Runnable)` exists only to get round that.
       - **Reopening what was open.** `WindowMemory` records whether a window was open (`wasOpen`), and nothing
         uses it, so a window open at quit is closed at the next launch. A choice to make deliberately, per window,
         rather than a default to inherit.
-      - **Vex FN-7's `NativeDialogs`**, which takes the `GuiApp` for a dialog and not a window, and so is not
-        answered by this; nor is Vexplore's `Chooser`, the same case.
 
 - [ ] **Spike the extension test.** [v1.md](v1.md#how-future-proofness-is-measured): for each row of the
       extension table, a throwaway prototype against the API as it stands, and the number of existing

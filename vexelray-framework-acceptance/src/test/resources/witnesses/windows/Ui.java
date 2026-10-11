@@ -13,8 +13,11 @@ final class Ui {
     private volatile Runnable notes = () -> { };
     private volatile Runnable palette = () -> { };
 
-    /** @param quit what the Quit button does: close the main window, which is quitting */
-    Ui(Gui gui, Model model, TitleBar titleBar, Runnable quit) {
+    /**
+     * @param quit what the Quit button does: close the main window, which is quitting
+     * @param ask  what the Ask button does: ask a question whose answer counts
+     */
+    Ui(Gui gui, Model model, TitleBar titleBar, Runnable quit, Runnable ask) {
         Node heading = gui.text(${className}.TITLE).font(Type.UI).textSize(Type.HEADING)
                 .textColor(gui.theme().color(Role.INK));
         count = Parts.readout(gui, Landmarks.COUNT, "0", Type.FIGURE);
@@ -22,6 +25,7 @@ final class Ui {
                 Parts.button(gui, Landmarks.COUNT_BUTTON, "Count", model::bump),
                 Parts.button(gui, Landmarks.NOTES_BUTTON, "Notes", () -> notes.run()),
                 Parts.button(gui, Landmarks.PALETTE_BUTTON, "Palette", () -> palette.run()),
+                Parts.button(gui, Landmarks.ASK_BUTTON, "Ask", ask),
                 Parts.button(gui, Landmarks.QUIT_BUTTON, "Quit", quit));
         Parts.lay(gui, titleBar.node(), heading, count, buttons);
     }

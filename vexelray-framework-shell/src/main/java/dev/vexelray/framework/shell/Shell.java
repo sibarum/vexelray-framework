@@ -60,6 +60,7 @@ public final class Shell {
     private final Disposer disposer = new Disposer();
     private final Atchung bus = Atchung.create();
     private final PointerLock pointerLock = new PointerLock();
+    private final HeldDialogs dialogs = new HeldDialogs();
     private final Lanes lanes;
     private final Watchdog watchdog;
     /** Components placed but not yet started. See {@link #place} for why those are two different moments. */
@@ -227,6 +228,52 @@ public final class Shell {
         return pointerLock;
     }
 
+    /**
+     * <b>The questions this application asks the person using it</b>: a {@code Modal}, and the native pickers for a
+     * file or a folder. See {@link Dialogs}.
+     *
+     * <p><b>Available in every phase</b>, like the bus, and safe from any thread: a question asked before there is a
+     * window is held and asked once there is. The same value throughout, whoever ends up answering — the
+     * application's own, if it handed some back through {@link #dialogs(Dialogs)}, or the framework's from
+     * {@link Phase#ATTACH}.
+     */
+    public Dialogs dialogs() {
+        return dialogs;
+    }
+
+    /**
+     * <b>This application's dialogs, in place of the framework's</b> — a test's, which answers each question as it is
+     * asked, or a kiosk's that will not browse. Every part that took {@link #dialogs()} asks these from now on,
+     * including in a headless {@link VexelApplication#tree} run, after whatever it had already asked.
+     *
+     * <p><b>Accepted up to {@link Phase#WINDOW}</b>, because the framework puts its own in place at the start of
+     * {@link Phase#ATTACH}. {@code null} is no opinion and leaves the framework's. Once only, on the terms of
+     * {@link #input(InputBackend)}. Not closed by the framework: whoever built it closes it, which the generated
+     * wiring does for one that is {@code AutoCloseable}.
+     */
+    public Shell dialogs(Dialogs dialogs) {
+        refuseAfter(Phase.WINDOW, "dialogs", "the framework puts its own in place at the start of ATTACH");
+        if (dialogs == null) {
+            return this;
+        }
+        if (this.dialogs.decided()) {
+            throw new IllegalStateException("dialogs are already registered; a second would leave the first's "
+                    + "questions asked in one place and the rest in another");
+        }
+        this.dialogs.target(dialogs);
+        return this;
+    }
+
+    /** Whether the application handed its own dialogs back, and so whether the framework's are wanted. */
+    boolean dialogsDecided() {
+        return dialogs.decided();
+    }
+
+    /** Put the framework's dialogs in place, at the start of {@link Phase#ATTACH}. */
+    void frameworkDialogs(Dialogs frameworks) {
+        dialogs.target(frameworks);
+    }
+
     /** Register a per-frame hook. See {@code FrameStage} for why the position is a name and not a number. */
     public FrameHooks hooks() {
         return hooks;
@@ -267,7 +314,7 @@ public final class Shell {
      * the default has to be that closing closes. A framework that interposed anything here would be deciding,
      * for every application, that quitting is a question — and most applications have nothing to lose. What
      * the framework owns is the <em>place</em> the answer is given, and the dialog it is given in
-     * ({@code Modals}).
+     * ({@link #dialogs()}).
      *
      * <p>{@link Phase#ATTACH} onwards, because there is no window to be asked about before that. Once only:
      * {@code GuiApp} holds a single handler, so a second registration would silently replace the first — and

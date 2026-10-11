@@ -14,6 +14,8 @@ final class Landmarks {
     static final String PALETTE_BUTTON = "button.palette";
     /** Quits, by closing the main window through its handle. */
     static final String QUIT_BUTTON = "button.quit";
+    /** Asks a question through the framework's Dialogs, whose answer counts. */
+    static final String ASK_BUTTON = "button.ask";
 
     /** In the notes window: the count, as that window shows it. */
     static final String NOTES_COUNT = "notes.count";

@@ -4,7 +4,7 @@ import ${packageName}.text.TextFile;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.CloseRequest;
 import dev.vexelray.gui.widget.Modal;
-import dev.vexelray.gui.widget.Modals;
+import dev.vexelray.framework.shell.Dialogs;
 import sibarum.probe.Log;
 import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
@@ -16,7 +16,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -35,10 +34,10 @@ import java.util.stream.Collectors;
  *
  * <h2>Questions go through one seam</h2>
  *
- * <p>The framework's dialogs are {@link Modals}, a process-wide static it installs once the window exists; a tree
- * built headless has none, and asking would throw. So every question here goes through {@link #ask}, which a test
- * replaces with something that answers it. The close gate is the same shape: {@link #guardClose(Runnable, Runnable)}
- * is the gate, and the {@link CloseRequest} overload the framework calls only adapts to it.
+ * <p>Every question here is asked of the {@link Dialogs} this was handed: the framework's, which holds a question
+ * until there is a window to ask it in, or a test's, which answers it — {@code EditorTest} hands back its own. The
+ * close gate is the same shape: {@link #guardClose(Runnable, Runnable)} is the gate, and the {@link CloseRequest}
+ * overload the framework calls only adapts to it.
  */
 final class Actions {
 
@@ -50,11 +49,11 @@ final class Actions {
     private final Workspace ws;
     private final Navigator nav;
     private final Executor io;
+    private final Dialogs dialogs;
 
-    private volatile Consumer<Modal> ask = Modals::show;
-
-    Actions(Gui gui, Model model, Ui ui) {
+    Actions(Gui gui, Model model, Ui ui, Dialogs dialogs) {
         this.gui = gui;
+        this.dialogs = dialogs;
         this.model = model;
         this.ui = ui;
         this.ws = ui.workspace();
@@ -77,11 +76,6 @@ final class Actions {
                     .separator()
                     .item("Reveal in navigator", () -> reveal(b));
         });
-    }
-
-    /** Replace where questions go: a test answers them itself. */
-    void ask(Consumer<Modal> ask) {
-        this.ask = ask;
     }
 
     /**
@@ -253,7 +247,7 @@ final class Actions {
             ws.close(b.id);
             return;
         }
-        ask.accept(Modal.of("Unsaved changes", "Save the changes to " + b.name() + " before closing it?")
+        dialogs.ask(Modal.of("Unsaved changes", "Save the changes to " + b.name() + " before closing it?")
                 .defaultButton("Save", () -> save(b, () -> ws.close(b.id), () -> { }))
                 .button("Don't save", () -> ws.close(b.id))
                 .cancelButton("Cancel", () -> { }));
@@ -267,7 +261,7 @@ final class Actions {
             closeThem.run();
             return;
         }
-        ask.accept(Modal.of("Unsaved changes", unsavedMessage(unsaved))
+        dialogs.ask(Modal.of("Unsaved changes", unsavedMessage(unsaved))
                 .defaultButton("Save all", () -> saveAll(unsaved, closeThem, () -> { }))
                 .button("Discard", closeThem)
                 .cancelButton("Cancel", () -> { }));
@@ -294,7 +288,7 @@ final class Actions {
             proceed.run();
             return;
         }
-        ask.accept(Modal.of("Quit with unsaved changes?", unsavedMessage(unsaved))
+        dialogs.ask(Modal.of("Quit with unsaved changes?", unsavedMessage(unsaved))
                 .defaultButton("Save all", () -> saveAll(unsaved, proceed, cancel))
                 .button("Discard", proceed)
                 .cancelButton("Cancel", cancel));

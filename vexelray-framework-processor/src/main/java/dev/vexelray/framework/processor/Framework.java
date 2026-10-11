@@ -25,6 +25,7 @@ final class Framework {
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";
     static final String LIVENESS = "dev.vexelray.framework.shell.LivenessPolicy";
+    static final String DIALOGS = "dev.vexelray.framework.shell.Dialogs";
     /**
      * The one framework value that is a component's and not the main thread's, though it is Vulkan: the device's
      * compute queue of its own, lent to the one component that takes it (T3.1). The generated wiring asks for it
@@ -62,6 +63,9 @@ final class Framework {
             new Root("dev.vexelray.framework.core.FrameHooks", "hooks", Phase.CONFIG, false),
             new Root("dev.vexelray.framework.core.Disposer", "disposer", Phase.CONFIG, false),
             new Root("dev.vexelray.framework.shell.PointerLock", "pointerLock", Phase.CONFIG, false),
+            // From the first phase and not the main thread's: what it hands out holds a question until there is a
+            // window to ask it in, and asks whichever dialogs end up answering.
+            new Root(DIALOGS, "dialogs", Phase.CONFIG, false),
             new Root("dev.vexelray.gui.core.app.Settings", "settings", Phase.CONFIG, false),
             new Root("dev.vexelray.gui.core.Gui", "gui", Phase.GUI, false),
             new Root("dev.vexelray.gui.krono.KronoGui", "krono", Phase.GUI, false),
@@ -101,7 +105,9 @@ final class Framework {
             new HandBack(CLIPBOARD, "clipboard", Phase.WINDOW, "The clipboard is installed on the Gui at the start"
                     + " of ATTACH", true),
             new HandBack(LIVENESS, "liveness", Phase.ATTACH, "The watchdog starts with the components, after"
-                    + " ATTACH, and reads the policy once when it does", false));
+                    + " ATTACH, and reads the policy once when it does", false),
+            new HandBack(DIALOGS, "dialogs", Phase.WINDOW, "The framework puts its own dialogs in place at the"
+                    + " start of ATTACH", false));
 
     /** The hand-back for a type, by qualified name, or {@code null}. */
     static HandBack handBack(String qualifiedName) {

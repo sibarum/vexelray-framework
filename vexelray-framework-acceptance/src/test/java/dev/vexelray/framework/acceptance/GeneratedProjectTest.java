@@ -196,7 +196,7 @@ class GeneratedProjectTest {
                      new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
             Driver driver = new Driver(out, in, log);
 
-            driver.ok("settle");
+            driver.firstFrame("path");
             // The path bar's name is the folder it shows, so this waits for the navigator to have listed it.
             driver.ok("await path " + work.getFileName());
 

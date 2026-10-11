@@ -1327,6 +1327,17 @@ first wrote on its way out. With it, `Driver` reads the windows from `Windows.vi
 `memory()` is gone. `app()` stays, as the device: every remaining use on the stack is textures, viewports, compute or
 a dialog (see the `Shell` surface ruling in TODO.md).
 
+**Then the dialogs.** `Dialogs` is a framework root from `CONFIG`, not main-thread: a `Modal`, and the native open,
+folder and save pickers. What a part is handed is the same value in every phase, and it holds a question until
+something can answer it — the framework's own from `ATTACH` (`Modals` and NFD, parented to the main window), or the
+application's, handed back through a `@Provides Dialogs`, which is how a test answers in a headless run. It replaced
+three copies of one class, the text editor's `NativeDialogs`, Vexplore's `Chooser` and Pix's `Opener`, each of which took
+the `GuiApp` for a window handle it only passed along, and the `ask` fields the text editor and the template had grown
+so a test could answer (Vex FN-6). W1's fourth launch asks from `TREE`, before there is a window: the question comes
+up in a window of its own once there is one, Enter takes its default button and the count moves, and a second one,
+asked from a button and cancelled with Escape, leaves it where it was. Since then, the only uses of `GuiApp` left on
+the stack are the device.
+
 ## What the long-running witness found
 
 W2 and the counter are event-driven: they do something and go quiet. The parking and wake machinery — the loop

@@ -197,6 +197,44 @@ class WindowsWitnessTest {
     }
 
     /**
+     * The framework's own {@code Dialogs}, for real: a question asked in {@code TREE}, before there is a window, is held
+     * and asked once there is one, in a window of its own; Enter takes its default button and Escape its cancel, and
+     * the answer reaches the model. Before the seam, asking that early threw.
+     */
+    @Test
+    @Order(4)
+    void aQuestionAskedBeforeTheWindowIsAskedInItAndAnswered() throws Exception {
+        assertTrue(project != null, "nothing was built");
+        try (Session session = live = launch(project, root, ARTIFACT, "asked", "-Dwitness.ask=early")) {
+            Driver d = session.driver();
+            d.firstFrame("button.palette");
+
+            // The question asked in TREE is up, as the one other window.
+            awaitWindows(d, 2);
+            d.ok("window 2");
+            d.ok("settle");
+            d.ok("key enter");
+            awaitWindows(d, 1);
+            d.ok("window main");
+            d.ok("await count 1");
+
+            // Asked again from the button, and cancelled: the count stays where it was.
+            d.ok("click " + d.ref("button.ask"));
+            awaitWindows(d, 2);
+            d.ok("window 2");
+            d.ok("settle");
+            d.ok("key escape");
+            awaitWindows(d, 1);
+            d.ok("window main");
+            d.ok("settle");
+            String count = d.ok("find count");
+            assertTrue(count.contains("\"1\""), "a cancelled question changed the count\n" + count);
+            quit(session);
+        }
+        live = null;
+    }
+
+    /**
      * Press Quit, which closes the main window through {@code Windows.main()}, and wait for the application to end on
      * its own. Nothing here stops the process: if the handle did not reach the window's close route, this fails.
      */
