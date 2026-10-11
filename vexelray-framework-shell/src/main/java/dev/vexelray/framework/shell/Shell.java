@@ -73,6 +73,7 @@ public final class Shell {
     private WindowMemory memory;
     private GuiApp app;
     private TitleBar titleBar;
+    private Windows windows;
     private Icon windowMark;
     private InputBackend input;
     private ClipboardBackend clipboard;
@@ -524,6 +525,15 @@ public final class Shell {
         return require(Phase.GUI, "the title bar", titleBar);
     }
 
+    /**
+     * This application's windows besides the main one: declare one by name with the trees, and the framework builds
+     * its tree now and claims its window at {@link Phase#ATTACH}. Exists from {@link Phase#GUI}. Not the main
+     * thread's: see {@link Windows}.
+     */
+    public Windows windows() {
+        return require(Phase.GUI, "the windows", windows);
+    }
+
     /** Window placement memory. Exists from {@link Phase#WINDOW}. */
     public WindowMemory memory() {
         return require(Phase.WINDOW, "window memory", memory);
@@ -542,8 +552,9 @@ public final class Shell {
      * {@link Phase#WINDOW}; null only if no mark could be read at all.
      *
      * <p>The suite's window icon when the application ships one ({@code pix-window.ico} beside {@code pix.ico}), else
-     * the application's own mark. Name it on the window's config, so the taskbar shows it, and hand it to the window's
-     * title bar with {@code TitleBar.icon(app(), windowMark())}, so the caption does.
+     * the application's own mark. A window declared through {@link #windows()} wears it with nothing to write; one
+     * claimed by hand names it on the window's config, so the taskbar shows it, and hands it to the window's title bar
+     * with {@code TitleBar.icon(app(), windowMark())}, so the caption does.
      */
     public Icon windowMark() {
         require(Phase.WINDOW, "the window mark");
@@ -679,6 +690,10 @@ public final class Shell {
 
     void titleBar(TitleBar titleBar) {
         this.titleBar = titleBar;
+    }
+
+    void windows(Windows windows) {
+        this.windows = windows;
     }
 
     void app(GuiApp app) {

@@ -314,8 +314,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       **W2 (component-heavy) and W3 (long-running) are built** and pass: [what W2
       found](architecture.md#what-the-component-witness-found) is mostly confirmation plus two observations, and
       [what W3 found](architecture.md#what-the-long-running-witness-found) is two real findings, both filed below.
-      **Still to build:** W1, several windows on one device, which wants the `Window` seam and is meant to shape
-      it. W2 also lacks a wedge that ignores interrupts, which is what would make the halt backstop fire, and W3
+      **W1 (several windows on one device) is written, 2026-10-11, and held out of the repo** until the upstream
+      hang it found is fixed (the lost wake under *Upstream*), because it fails on it before its restart half:
+      [what W1 found](architecture.md#what-the-two-window-witness-found) confirms the named-window half of the
+      `Window` seam. W2 also lacks a wedge that ignores interrupts, which is what would make the halt backstop fire, and W3
       is twenty seconds long, which rules out growth per tick and nothing slower.
 
 - [ ] **Starters, a BOM, and the stack's reachability metadata.** The build shape is a contract: an
@@ -393,6 +395,23 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `app()` can go. **Unbuilt and unwitnessed**: let W1 (two windows, in the witness specs) shape it rather
       than designing it first, then delete `memory()` and `app()` under the legacy sweep. `Shell.dialogs()` is
       already deleted, and automation's `resize` and `zoom` verbs landed without it (on `WindowControls`).
+
+      **Named windows landed, 2026-10-11, shaped by W1** ([what W1 found](architecture.md#what-the-two-window-witness-found)).
+      `Windows` is a root from `GUI` and is not main-thread: `windows.named(NamedWindow...)` returns a `Window` whose
+      tree the framework builds at once and whose window it claims at `ATTACH`: its own `Gui` on its own bus and the
+      application's lanes, the look, a title bar with its controls, the placement remembered, and the window mark.
+      The calculator's settings window (FN-1), Vexplore's viewer and W2's tool window each lost their `@MainThread`
+      recipe. **Still to do**, all of it signature-changing and so still v1:
+      - **The main window as a `Window`**, so that `Driver` reaches the windows through the seam and `app()` and
+        `memory()` can go. W1 did not need it: nothing in it commands the main window.
+      - **The dialogs.** `Modals` is still a static.
+      - **A close gate per window.** `WindowSpec.onCloseRequest` exists upstream and `NamedWindow` does not carry
+        it, so a named window with unsaved state cannot refuse to close. Nothing has needed it yet.
+      - **Reopening what was open.** `WindowMemory` records whether a window was open (`wasOpen`), and nothing
+        uses it, so a window open at quit is closed at the next launch. A choice to make deliberately, per window,
+        rather than a default to inherit.
+      - **Vex FN-7's `NativeDialogs`**, which takes the `GuiApp` for a dialog and not a window, and so is not
+        answered by this; nor is Vexplore's `Chooser`, the same case.
 
 - [ ] **Spike the extension test.** [v1.md](v1.md#how-future-proofness-is-measured): for each row of the
       extension table, a throwaway prototype against the API as it stands, and the number of existing
@@ -824,6 +843,18 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       `MissingForeignRegistrationError`. Both now ship `reachability-metadata.json`. They are written from every
       `FunctionDescriptor` in the source, not only from a trace, because COM methods bind lazily and
       `DxgiSmokeTest` reaches only some of them; the trace was used as a cross-check.
+
+- [ ] **With two windows and none focused, the loop can park for good with a wake outstanding**
+      (`vexelray-gui-core` `GuiApp`'s loop). Found by W1; the trace and the reading are in [what W1
+      found](architecture.md#what-the-two-window-witness-found). A wake that lands during a frame sets the tree's
+      *frame owed* flag and posts a message. When more than one window pumps the thread's queue in that iteration,
+      the message can be consumed before the park, and the loop then parks `forever` because nothing is focused,
+      while every later wake is suppressed because the flag is still set. A component's result arriving into an
+      unfocused multi-window application is never drawn. **Ask:** do not park while `wakePosted` is set (it is
+      already recorded, and read only for the frame ceiling), beside the existing refusal to park on a queued task.
+      Then commit W1 and run it, whose restart half is waiting on it. Also from W1, smaller: `settle` answers `ok`
+      before the first frame, because `Gui.onWork` re-arms the *frame owed* flag over a tree that has never been
+      drawn.
 
 - [ ] **On macOS, a modal dialog on the GUI thread is reported as a stall** (`vexelray-gui-core`
       `GuiApp.reportStall`). The screenshot button opens a native save dialog (`vexelray-gui-nfd`'s

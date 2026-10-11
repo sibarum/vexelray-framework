@@ -1251,6 +1251,75 @@ lane is a daemon, so `Runtime.halt` never fired and the total shutdown bound is 
 unit tests. A wedge that ignores interrupts, which the policy cannot free and only the exit path answers. The main
 thread, which is not watched.
 
+## What the two-window witness found
+
+Every generated application so far is one window plus dialogs, and the three second windows that exist — the
+calculator's settings, Vexplore's viewer and W2's tool window — each claimed its window by hand: its own `Gui` on its
+own bus and the application's lanes, the look, a `TitleBar` with `commands`, `GuiApp.window`, `WindowMemory.remember`
+and the window mark. Doing that took the `GuiApp`, which made the recipe main-thread (T2.2) for a handle that only posts
+(calculator FN-1), and the calculator's first attempt put its tree on the host's bus and drew it in the main window
+(FN-2). W1 was meant to shape the seam that replaces all of that, so the seam and the witness were built together.
+
+**The seam.** `Windows` is a framework root from `GUI`, not main-thread. A recipe declares a window by name with the
+trees — `windows.named(NamedWindow.of("settings", "Settings", 500, 640).satellite())` — and gets a `Window`. The
+framework builds that window's tree when it is declared (a `Gui` on a bus of its own and the application's lanes, the
+application's look or the one declared, and a title bar unless the frame is the OS's). At `ATTACH` it claims every
+declared window: placement and zoom remembered under its name and forgotten when it closes, the window mark on the
+taskbar and in the bar, the bar's controls and instruments, and the clipboard. `show`, `hide`, `toggle` and `close`
+are safe from any thread, and a `show` before the claim is held until the claim. A declaration after `TREE`, a second
+one under the same name, and `"main"` are all refused. The three hand-built windows now each take one declaration,
+and none of their recipes takes the `GuiApp` (W2's `ToolWindow`, the calculator's `SettingsWindow`, Vexplore's
+`Viewer`, which keeps a late binding only for its native dialog and its textures).
+
+W1 itself is a generated application with a main window, a peer (`notes`) and a satellite (`palette`), all views
+of one model (`witnesses/windows`, `WindowsWitnessTest`). Two launches share one settings home. It is held out of
+the repo until the upstream finding below is fixed, because it fails on it.
+
+**What it confirmed.**
+
+| Claim | How it was checked |
+| --- | --- |
+| No recipe takes the `GuiApp` and nothing is main-thread | the generated wiring has `shell.windows()` and no `shell.app()` |
+| A `show` from `TREE`, before there is a device, is carried out | `-Dwitness.open=notes` opens the window at the first frame |
+| Each window draws its own tree | a window's driver finds none of the other windows' landmarks |
+| One model, three trees | a count in the palette appears in the notes window and the main one |
+| Each window has its own zoom and size | zooming the notes window to 1.5 leaves the main one at 1 |
+| A listener on the window runs when it opens | the notes window's `opened 1`, written only by `onOpened` |
+
+**One finding, and it is upstream: with two windows and none focused, the loop can park for good with a wake
+outstanding.** The driver's click on the main window was dispatched and never counted; in the next run, a click on
+*Palette* did nothing and the palette never opened. The trace shows why. The driver's wake arrived during a frame:
+the tree's *frame owed* flag was set and a wake message was posted. Then the loop parked `forever`, and no frame ever
+ran again. Every later input found the flag already set and posted nothing (*"a frame is already owed, and saying so
+twice does not owe two"*). The loop parks on the thread's message queue, and in an iteration with more than one
+window each window pumps that queue for its own frame. The reading, not yet confirmed: the wake message was consumed
+by a pump later in the same iteration, after the tree had already been drained. The park then waited for a message
+that had already gone. `GuiApp` already records the fact it needed (`wakePosted`, set by every wake and cleared at the
+top of each iteration), but it reads it only to hold the frame ceiling, not to refuse the park. Two things make it
+look like a multi-window bug, and only one is: the extra pumps widen the window for the race, and the 5 Hz idle floor
+that would have ended the park within 200 ms applies only *while a window is focused*, so a run the test machine had
+not focused waited forever. For a person it is a missed wake that ends at the next mouse move. For a component's
+result arriving into an unfocused application, nothing ends it. **Proposed, not applied**: in `GuiApp`'s loop, do not
+park while `wakePosted` is set, in the same place it already declines to park on a queued task.
+`vexelray-gui` has other sessions' work uncommitted in that file, so the change is waiting on a decision about how to
+land and install it.
+
+**Two smaller ones, found on the way.**
+
+- **`settle` answers before the first frame.** The socket opens at `ATTACH`, so a client that connects at once can
+  ask before anything is drawn. `Gui.onWork` re-arms the *frame owed* flag when the wake is wired, so the edits the
+  tree was built with are owed nothing, and `settle` said `ok v0` over an empty tree. W1 waits on a landmark instead.
+  The flag is right that no wake is outstanding and wrong that the tree has caught up, which is the question
+  `settle` asks it.
+- **A `Window` cannot be injected by name.** A recipe that wants the window's `show` for a button takes the part that
+  owns the button (`Ui`) and hands it over, as W2 and the calculator already did. That is the `@Window("settings")`
+  question from FN-1, which is a processor feature; nothing in three applications has needed more than the handover.
+
+**Not yet exercised.** The placement and zoom surviving a restart: the restart launch is written, and has not passed,
+because the first launch hangs before it resizes the window. A window declared with a theme of its own (unit-tested
+only). Closing the main window while the others are open. `Driver` still reaches the windows through `shell.app()`,
+and there is no `Window` for the main window yet, so `app()` and `memory()` are still public.
+
 ## What the long-running witness found
 
 W2 and the counter are event-driven: they do something and go quiet. The parking and wake machinery — the loop

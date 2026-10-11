@@ -114,7 +114,7 @@ final class Ui {
         return button;
     }
 
-    /** What the tool button does: handed in, since the window is claimed a phase after this tree is built. */
+    /** What the tool button does: handed in, since the window is declared after this tree is built. */
     void onTool(Runnable action) {
         tool = action == null ? () -> { } : action;
     }

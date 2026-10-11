@@ -66,6 +66,9 @@ final class Framework {
             new Root("dev.vexelray.gui.core.Gui", "gui", Phase.GUI, false),
             new Root("dev.vexelray.gui.krono.KronoGui", "krono", Phase.GUI, false),
             new Root("dev.vexelray.gui.widget.TitleBar", "titleBar", Phase.GUI, false),
+            // Not the main thread's, though a window is: every command on a Window only posts, and the framework
+            // claims the window itself, so a recipe holding one is not coloured by a GuiApp it never took.
+            new Root("dev.vexelray.framework.shell.Windows", "windows", Phase.GUI, false),
             new Root("dev.vexelray.gui.core.app.WindowMemory", "memory", Phase.WINDOW, false),
             // "Vulkan, the window and present stay on the main thread" -- vexelray-gui/CLAUDE.md.
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),

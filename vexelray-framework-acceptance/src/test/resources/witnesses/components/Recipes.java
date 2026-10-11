@@ -1,15 +1,13 @@
 package ${packageName};
 
 import dev.vexelray.framework.api.Configuration;
-import dev.vexelray.framework.api.MainThread;
-import dev.vexelray.framework.core.Lanes;
-import dev.vexelray.gui.core.app.AppWindow;
-import dev.vexelray.gui.core.app.GuiApp;
-import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.shell.Appearance;
 import dev.vexelray.framework.shell.LivenessPolicy;
+import dev.vexelray.framework.shell.NamedWindow;
+import dev.vexelray.framework.shell.Window;
+import dev.vexelray.framework.shell.Windows;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.widget.TitleBar;
@@ -76,19 +74,16 @@ final class Recipes {
         };
     }
 
-    /** The tool window's tree: a second window that can close before the application does. */
+    /**
+     * The tool window: a second window that can close before the application does, and the button that opens it.
+     * Declared with the trees and claimed by the framework, so nothing here takes the {@code GuiApp} and nothing
+     * here is main-thread.
+     */
     @Provides
-    ToolWindow toolWindow(Appearance look, Lanes lanes) {
-        return new ToolWindow(look, lanes);
-    }
-
-    /** Its window, claimed once the GuiApp exists, and the button that opens it. */
-    @Provides
-    @MainThread
-    AppWindow toolHost(GuiApp app, WindowMemory memory, ToolWindow tool, Ui ui) {
-        AppWindow window = tool.claim(app, memory);
+    ToolWindow toolWindow(Windows windows, Ui ui) {
+        Window window = windows.named(NamedWindow.of(ToolWindow.KEY, "Tool", ToolWindow.W, ToolWindow.H).satellite());
         ui.onTool(window::show);
-        return window;
+        return new ToolWindow(window);
     }
 
     @Provides

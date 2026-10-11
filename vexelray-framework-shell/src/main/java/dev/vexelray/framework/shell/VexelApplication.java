@@ -242,6 +242,9 @@ public final class VexelApplication {
         if (appearance.drawsOwnFrame()) {
             shell.titleBar(new TitleBar(gui, WindowControls.NONE, info.title()));
         }
+        // The other windows, declared by name from here to the end of TREE. Each one's tree is built when it is
+        // declared, beside this one and with no window; the windows themselves are claimed at ATTACH.
+        shell.windows(new Windows(shell));
         wiring.gui(shell);
 
         // ---- TREE: the widgets, the framework's title bar among them. No window needed. -------------------
@@ -320,6 +323,10 @@ public final class VexelApplication {
         // Watched with its tree, so the UI zoom is remembered too: Ctrl+= is the same kind of decision as
         // dragging the window bigger, and losing it on quit is the same loss.
         memory.watch(MAIN, app.window(), gui);
+        // Every other window the wiring declared, claimed by the framework rather than by a recipe that would have
+        // had to take the GuiApp to do it: remembered under its name, wearing the window mark, commanded by its
+        // own bar and bound to the clipboard. Before the wiring's ATTACH, so a part built there finds them claimed.
+        shell.windows().claim(app, memory, shell.clipboard(), shell.windowMark());
 
         // The frame, in stage order. See FrameStage for why input precedes the clock.
         shell.hooks()
