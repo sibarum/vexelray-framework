@@ -84,6 +84,7 @@ final class TactrollerInputBackend implements InputBackend {
     public void bridge(Gui gui, PointerLock lock) {
         if (input != null) {
             bridge = new TactrollerInputBridge(input, gui.bus());
+            pointerFeel(input, gui);
         }
         pointerLock = lock;
         if (lock != null) {
@@ -155,6 +156,7 @@ final class TactrollerInputBackend implements InputBackend {
                 return WindowInput.NONE;
             }
             TactrollerInputBridge windowBridge = new TactrollerInputBridge(backend, windowGui.bus());
+            pointerFeel(backend, windowGui);
             PointerLock windowLock = tuning == null ? null : tuning.forAnotherWindow();
             if (windowLock != null) {
                 windowLock.attach(backend, windowGui);
@@ -185,6 +187,30 @@ final class TactrollerInputBackend implements InputBackend {
                 }
             };
         };
+    }
+
+    /** How far the wheel glides: the view closes half the distance to where a notch sent it every this long. */
+    private static final java.time.Duration WHEEL_HALF_LIFE = java.time.Duration.ofMillis(45);
+
+    /**
+     * What every window's pointer is owed beyond its events, said once for all of them so no window is the one that
+     * was missed: the wheel glides rather than jumping a notch per frame, and the GUI can carry the pointer along with
+     * something it animates — a cancelled card flying home with the hand on it — through this window's backend, in
+     * the CLIENT space it was just configured to report in.
+     */
+    private static void pointerFeel(Tactroller backend, Gui gui) {
+        gui.scrollGlide(WHEEL_HALF_LIFE);
+        if (backend.supportsPointerWarp()) {
+            gui.onPointerWarp((x, y) -> {
+                try {
+                    backend.warpPointer(Math.round(x), Math.round(y));
+                } catch (BackendException e) {
+                    // A pointer that stays put is a ride that yields at its next step, which is the right outcome;
+                    // there is nothing to report that the ride does not already show.
+                    LOG.debug("warpPointer refused: {}", e.getMessage());
+                }
+            });
+        }
     }
 
     @Override
