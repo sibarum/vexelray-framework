@@ -2,7 +2,10 @@ package dev.vexelray.framework.core;
 
 import dev.vexelray.framework.api.Stability;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -23,6 +26,12 @@ import java.util.function.IntConsumer;
  * {@link Lanes#interruptLane} sweep cannot reach it; not on an executor a lane could exhaust; a daemon, so it
  * never holds the process open.
  *
+ * <p><b>A halt says why, and what was stuck.</b> Before ending the process it writes a line saying the deadline
+ * passed, and every thread's stack as it stood, to standard error. Without that, a halt is an exit status of 1 and
+ * nothing else — a launcher reports the status, not the cause, and the wedged call is gone with the process. The
+ * writing is bounded like everything else here: it runs on a thread of its own, and the halt goes ahead after
+ * {@link #REPORT_BOUND_NANOS} whether it finished or not, since a wedged thread can be holding the stream.
+ *
  * <p><b>What it does not watch is the main thread.</b> A wedged window is the case the watchdog is for, but the
  * main thread legitimately blocks for as long as a person takes in a modal native dialog, and a halt fired at
  * somebody choosing a filename is the failure this class exists to prevent, not one it may cause. That needs a
@@ -34,17 +43,23 @@ public final class Watchdog implements AutoCloseable {
     /** The exit status of a halt: 1, which the launcher reserves for <i>it went wrong</i>. */
     public static final int HALT_STATUS = 1;
 
+    /** How long a halt waits for its report to be written before halting anyway. */
+    static final long REPORT_BOUND_NANOS = TimeUnit.SECONDS.toNanos(2);
+
     private static final long MAX_PERIOD_NANOS = TimeUnit.SECONDS.toNanos(1);
     private static final long MIN_PERIOD_NANOS = TimeUnit.MILLISECONDS.toNanos(5);
 
     private final Lanes lanes;
     private final IntConsumer halter;
+    private final Consumer<String> report;
     private final Object lock = new Object();
     private final Map<String, Long> reported = new HashMap<>();
 
     private Thread thread;
     private boolean closed;
     private long haltAt;
+    /** How long the deadline that is armed was set for, for the report. */
+    private long haltBound;
     private boolean armed;
 
     public Watchdog(Lanes lanes) {
@@ -53,8 +68,17 @@ public final class Watchdog implements AutoCloseable {
 
     /** With the halt supplied — the one thing a test cannot let happen. */
     Watchdog(Lanes lanes, IntConsumer halter) {
+        this(lanes, halter, text -> {
+            System.err.print(text);
+            System.err.flush();
+        });
+    }
+
+    /** With the halt and where its report goes supplied. */
+    Watchdog(Lanes lanes, IntConsumer halter, Consumer<String> report) {
         this.lanes = lanes;
         this.halter = halter;
+        this.report = report;
     }
 
     /**
@@ -86,6 +110,7 @@ public final class Watchdog implements AutoCloseable {
             long at = System.nanoTime() + nanos;
             if (!armed || at - haltAt < 0) {
                 haltAt = at;
+                haltBound = nanos;
                 armed = true;
                 lock.notifyAll();
             }
@@ -142,6 +167,7 @@ public final class Watchdog implements AutoCloseable {
                     return;
                 }
                 if (armed && System.nanoTime() - haltAt >= 0) {
+                    reportHalt(haltBound);
                     halter.accept(HALT_STATUS);
                     return;
                 }
@@ -151,6 +177,43 @@ public final class Watchdog implements AutoCloseable {
                 nextCheck = System.nanoTime() + periodNanos;
             }
         }
+    }
+
+    /**
+     * Say that the deadline passed and what every thread was doing, on a thread of its own, waiting for it at most
+     * {@link #REPORT_BOUND_NANOS}. The stacks are taken here, on the watchdog's thread, so they are the ones at the
+     * deadline even if the writing is slow.
+     */
+    private void reportHalt(long boundNanos) {
+        String text = haltReport(boundNanos, Thread.getAllStackTraces());
+        Thread writer = new Thread(() -> report.accept(text), "vexel-watchdog-report");
+        writer.setDaemon(true);
+        writer.start();
+        try {
+            TimeUnit.NANOSECONDS.timedJoin(writer, REPORT_BOUND_NANOS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();   // halting regardless: that is the point of the backstop
+        }
+    }
+
+    /** The report a halt writes: why, then every thread's stack, the main thread first, each whole. */
+    static String haltReport(long boundNanos, Map<Thread, StackTraceElement[]> stacks) {
+        StringBuilder out = new StringBuilder();
+        out.append("vexelray: the process did not end within ")
+                .append(TimeUnit.NANOSECONDS.toMillis(boundNanos))
+                .append(" ms of being asked to, so the watchdog is halting it (exit status ").append(HALT_STATUS)
+                .append("). Whatever is still running below is what it was waiting for.\n");
+        List<Thread> threads = new ArrayList<>(stacks.keySet());
+        threads.sort(Comparator.comparing((Thread t) -> !"main".equals(t.getName())).thenComparing(Thread::getName));
+        for (Thread t : threads) {
+            out.append('\n').append('"').append(t.getName()).append('"')
+                    .append(t.isDaemon() ? " daemon" : "")
+                    .append(" ").append(t.getState()).append('\n');
+            for (StackTraceElement frame : stacks.get(t)) {
+                out.append("    at ").append(frame).append('\n');
+            }
+        }
+        return out.toString();
     }
 
     private void check(long thresholdNanos, Consumer<Lanes.Stall> onStall) {

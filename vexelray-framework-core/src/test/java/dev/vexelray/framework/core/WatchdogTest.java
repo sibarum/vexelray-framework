@@ -2,6 +2,7 @@ package dev.vexelray.framework.core;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -97,7 +98,7 @@ final class WatchdogTest {
         try (Watchdog dog = new Watchdog(new Lanes(), s -> {
             status.set(s);
             halted.countDown();
-        })) {
+        }, text -> { })) {
             dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
             dog.haltAfter(50 * MS);
             assertTrue(halted.await(5, TimeUnit.SECONDS), "the backstop never fired");
@@ -119,11 +120,65 @@ final class WatchdogTest {
     @Test
     void aLaterRequestCannotRelaxTheDeadline() throws Exception {
         CountDownLatch halted = new CountDownLatch(1);
-        try (Watchdog dog = new Watchdog(new Lanes(), s -> halted.countDown())) {
+        try (Watchdog dog = new Watchdog(new Lanes(), s -> halted.countDown(), text -> { })) {
             dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
             dog.haltAfter(50 * MS);
             dog.haltAfter(TimeUnit.HOURS.toNanos(1));
             assertTrue(halted.await(5, TimeUnit.SECONDS), "a patient second caller postponed the backstop");
         }
+    }
+
+    @Test
+    void aHaltSaysWhyAndShowsWhatWasStuckBeforeHalting() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        Thread wedged = new Thread(() -> {
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "wedged-in-teardown");
+        wedged.start();
+        List<String> events = new CopyOnWriteArrayList<>();
+        CountDownLatch halted = new CountDownLatch(1);
+        try (Watchdog dog = new Watchdog(new Lanes(), s -> {
+            events.add("halt");
+            halted.countDown();
+        }, text -> events.add(text))) {
+            dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
+            dog.haltAfter(50 * MS);
+            assertTrue(halted.await(5, TimeUnit.SECONDS), "the backstop never fired");
+        } finally {
+            release.countDown();
+        }
+        assertEquals(2, events.size(), "one report, then the halt");
+        String report = events.get(0);
+        assertTrue(report.contains("did not end within 50 ms"), report);
+        assertTrue(report.contains("\"wedged-in-teardown\" WAITING"), "the stuck thread is named, with its state");
+        assertTrue(report.contains("CountDownLatch.await"), "and its stack shows where it is stuck");
+        assertEquals("halt", events.get(1));
+    }
+
+    @Test
+    void aReportThatCannotBeWrittenDoesNotStopTheHalt() throws Exception {
+        CountDownLatch halted = new CountDownLatch(1);
+        CountDownLatch never = new CountDownLatch(1);
+        long start = System.nanoTime();
+        try (Watchdog dog = new Watchdog(new Lanes(), s -> halted.countDown(), text -> {
+            try {
+                never.await();   // a stream a wedged thread is holding
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        })) {
+            dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
+            dog.haltAfter(50 * MS);
+            assertTrue(halted.await(10, TimeUnit.SECONDS), "a stuck report held the backstop");
+        } finally {
+            never.countDown();
+        }
+        long took = System.nanoTime() - start;
+        assertTrue(took < 50 * MS + Watchdog.REPORT_BOUND_NANOS + TimeUnit.SECONDS.toNanos(2),
+                "the halt waited " + TimeUnit.NANOSECONDS.toMillis(took) + " ms, past the report's bound");
     }
 }
