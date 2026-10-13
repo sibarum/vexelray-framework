@@ -11,12 +11,18 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | [**Pix**](apps/pix.md) | An image viewer: one picture, as large as the window allows, and the rest of its folder a key press away |
 | [**MainFrame**](apps/mainframe.md) | A terminal window for the shell you already have |
 | [**Calculator**](apps/calculator.md) | An ordinary-looking calculator that divides by zero |
+| [**Fluid Sim**](https://github.com/sibarum/vexelray-sim-fluid) | Fluid simulation experiments: dam breaks, mixing and heat, live on the GPU |
+| [**Rigid Sim**](https://github.com/sibarum/vexelray-sim-rigid) | Spheres that collide, bounce, spin and roll, live on the GPU |
 
 They are separate programs that know about each other: a text file in Vexplore opens in Vex and a picture in
 Pix, and Vex can show any file in Vexplore.
 
-**[Install them](install/)** with one line of PowerShell, on Windows, for your user only. None of them has been
-released yet.
+**[Install them](install/index.md)** with one line of PowerShell, on Windows, for your user only. This is 0.1.0, the
+first release:
+
+```powershell
+irm https://raw.githubusercontent.com/sibarum/vexelray-dist/main/install.ps1 | iex
+```
 
 ## The framework
 

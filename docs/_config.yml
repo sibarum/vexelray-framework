@@ -5,8 +5,8 @@ description: >-
 
 # The documents carry no front matter; these plugins (all on by default under
 # GitHub Pages) render them anyway, title each page from its first heading,
-# rewrite links between .md files to the .html pages they become, and serve
-# install/README.md (written by vexelray-installer) as the page for install/.
+# rewrite links between .md files to the .html pages they become, and serve a
+# folder's README.md as its page when it has no index.md.
 plugins:
   - jekyll-optional-front-matter
   - jekyll-titles-from-headings
