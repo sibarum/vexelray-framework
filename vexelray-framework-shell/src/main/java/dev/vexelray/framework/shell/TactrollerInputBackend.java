@@ -192,14 +192,19 @@ final class TactrollerInputBackend implements InputBackend {
     /** How far the wheel glides: the view closes half the distance to where a notch sent it every this long. */
     private static final java.time.Duration WHEEL_HALF_LIFE = java.time.Duration.ofMillis(45);
 
+    /** How long the focus ring takes to fade in round the node focus reaches, and out round the one it left. */
+    private static final java.time.Duration RING_FADE = java.time.Duration.ofMillis(120);
+
     /**
-     * What every window's pointer is owed beyond its events, said once for all of them so no window is the one that
-     * was missed: the wheel glides rather than jumping a notch per frame, and the GUI can carry the pointer along with
-     * something it animates — a cancelled card flying home with the hand on it — through this window's backend, in
-     * the CLIENT space it was just configured to report in.
+     * What every window's input is owed beyond its events, said once for all of them so no window is the one that
+     * was missed: the wheel glides rather than jumping a notch per frame, the focus ring fades rather than blinking
+     * from one control to the next, and the GUI can carry the pointer along with something it animates — a
+     * cancelled card flying home with the hand on it — through this window's backend, in the CLIENT space it was
+     * just configured to report in.
      */
     private static void pointerFeel(Tactroller backend, Gui gui) {
         gui.scrollGlide(WHEEL_HALF_LIFE);
+        gui.focusFade(RING_FADE);
         if (backend.supportsPointerWarp()) {
             gui.onPointerWarp((x, y) -> {
                 try {
