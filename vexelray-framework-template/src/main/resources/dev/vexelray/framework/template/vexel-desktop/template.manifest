@@ -113,14 +113,14 @@ slot vexelrayVersion
     label     vexelray version
     kind      text
     required  yes
-    preset    0.1.0-SNAPSHOT
+    preset    0.1.0
     help      the version of vexelray and vexelray-gui installed in your local Maven repository
 
 slot tactrollerVersion
     label     tactroller version
     kind      text
     required  yes
-    preset    1.0-SNAPSHOT
+    preset    1.0
 
 # ---- what to include ---------------------------------------------------------------
 
