@@ -79,13 +79,30 @@ final class Mirrors {
         return out;
     }
 
-    /** The {@code Class<?>[]} member, as the types it names. */
+    /**
+     * The {@code Class<?>[]} member, as the types it names. A class literal that does not resolve is left out: javac
+     * hands it over as the string {@code "<error>"} rather than as a type, and reports it itself. Count those with
+     * {@link #unresolved}.
+     */
     List<TypeMirror> types(AnnotationMirror mirror, String member) {
         List<TypeMirror> out = new ArrayList<>();
         for (AnnotationValue v : list(mirror, member)) {
-            out.add((TypeMirror) v.getValue());
+            if (v.getValue() instanceof TypeMirror type) {
+                out.add(type);
+            }
         }
         return out;
+    }
+
+    /** How many of the {@code Class<?>[]} member's class literals do not resolve to a type. */
+    int unresolved(AnnotationMirror mirror, String member) {
+        int n = 0;
+        for (AnnotationValue v : list(mirror, member)) {
+            if (!(v.getValue() instanceof TypeMirror)) {
+                n++;
+            }
+        }
+        return n;
     }
 
     /** The enum-array member, as the constants' names. */

@@ -1095,6 +1095,22 @@ class VexelProcessorTest {
                 """), "names lib.Device as a starter, and it is not a @Configuration class");
     }
 
+    /**
+     * A starter whose module left the class path — MainFrame dropping vexelray-codec and still naming its
+     * ImageStarter — used to crash the processor with a ClassCastException, which is all the build said. Now
+     * javac's own error stands, and the processor says what it most likely means.
+     */
+    @Test
+    void aStarterThatDoesNotResolveIsAnErrorNotACrash() {
+        List<String> errors = app("""
+                @VexelApp(name = "demo", title = "Demo", starters = {Starter.class, Gone.class})
+                public final class DemoApp {}
+                """);
+        assertTrue(errors.stream().anyMatch(e -> e.contains("Gone")), () -> "javac names the class:\n" + errors);
+        assertTrue(errors.stream().anyMatch(e -> e.contains("names a starter that does not resolve")),
+                () -> "and the processor says what that means:\n" + errors);
+    }
+
     @Test
     void thereIsOneApplication() {
         onlyError(app("""

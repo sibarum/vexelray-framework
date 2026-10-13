@@ -419,6 +419,12 @@ final class Declarations {
 
     /** Each starter is named by class literal, and has to be something the wiring can read providers off. */
     void starters(TypeElement app, AnnotationMirror vexelApp) {
+        if (mirrors.unresolved(vexelApp, "starters") > 0) {
+            // javac names the class; what it most often means is a dependency that was dropped or never added.
+            error(app, "@VexelApp " + Mirrors.simple(app) + " names a starter that does not resolve. A starter"
+                    + " comes from the module that declares it, so that module has to be on the class path; if it"
+                    + " was removed, remove the starter too");
+        }
         for (TypeMirror starter : mirrors.types(vexelApp, "starters")) {
             TypeElement type = Mirrors.element(starter);
             if (type == null || !mirrors.has(type, Configuration.class)) {
