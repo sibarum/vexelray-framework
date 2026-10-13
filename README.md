@@ -1,224 +1,174 @@
-# vexelray-framework
+# VexelRay
 
-An application framework for **GraalVM native-image desktop applications with realtime graphics** —
-compile-time dependency injection, typed configuration, and a frame-aware lifecycle for the VexelRay
-stack.
+<!-- image: hero — the VexelRay wordmark, and beneath it a screenshot strip of the suite's applications -->
 
-Everything Spring Boot does with runtime classpath scanning, reflection and generated proxies, this
-does with an annotation processor. An application compiles to a native binary with **no reachability
-metadata of the framework's own**, and startup costs what the equivalent hand-written `main` cost —
-which on this stack is the whole reason for being on native-image at all.
-
-- **Java 25 · Maven · GraalVM native-image**
-- Wires the sibling stack: [vexelray](../vexelray) (Vulkan engine),
-  [vexelray-gui](../vexelray-gui) (retained-mode GUI), [tactroller](../tactroller) (input),
-  [atchung](../atchung) (bus), [kronometer](../kronometer) (time)
-- The documents below are also published as a site, at <https://sibarum.github.io/vexelray-framework/>, which
-  is also the suite's home: a page per application under `docs/apps/`, and one set of install instructions for
-  all of them in `docs/install/`. The install page and its script are written by `vexelray-installer` from
-  [installer-suite.json](installer-suite.json), which names each application's own `installer.json`; regenerate
-  them when one of those changes, from this folder with the sibling checkouts beside it:
-  `java -jar ../vexelray-installer/installer-core/target/installer-core-0.1.0-SNAPSHOT-cli.jar --suite installer-suite.json --out docs/install`
-- [docs/architecture.md](docs/architecture.md) is the deep version of this document
-- [docs/v1.md](docs/v1.md) is what v1 means: an application needs no major refactor afterwards, so the bar is
-  whether the abstractions are final rather than whether the features are all there
-- [docs/TODO.md](docs/TODO.md) is what is known about and not done, split by whether it blocks v1
-- [docs/threading.md](docs/threading.md) is the rules — lanes, colour, ownership, channels, completion
-  and lifecycle, each carrying whether anything enforces it yet
-- [docs/status.html](docs/status.html) grades the v1 surfaces by whether their shape is final, and five capabilities by **where each one lives** — absent,
-  specified, in a sibling repo, or in the framework. Open it in a browser; it is a page rather than a
-  document because the answer is a matrix rather than prose
-
-## The problem
-
-`mainframe-template`'s scaffold — where a new VexelRay application used to start — was ~350 lines of
-wiring, and its own Javadoc explained why:
-
-> The **application edge** — the part a client of vexelray-gui has to write for itself... Every one of
-> those is a decision the framework deliberately does not take on an application's behalf.
-
-Four applications held near-identical copies. They had drifted: the flags parsed in different
-orders, `--capture`'s optional path was read three different ways, and two carried a comment warning the
-reader not to open `Settings` twice, because nothing stopped them:
-
-> One `Settings` for the whole application, shared rather than opened twice: two instances over the
-> same file each hold their own copy of it, so the second one to save would drop whatever the first
-> had added.
-
-That is a singleton-scope invariant maintained by vigilance. It is also the clearest one-sentence
-argument for a container.
-
-## The target
+**VexelRay is a Java stack for desktop applications that draw everything themselves, on the GPU, and ship as one
+native executable.** `vexelray-framework` is the way into it: you write the parts of your application, and the
+framework wires the window, the input, the clock, the frame loop, the threads and the shutdown for you.
 
 ```java
-@VexelApp(name = "text-editor", title = "Vex", width = 800, height = 592,
-          icon = "/editor.ico", starters = AutomationStarter.class)
-final class TextEditorApp {
-
-    public static void main(String[] args) {
-        VexelApplication.run(new TextEditorAppWiring(), args);
-    }
+@VexelApp(name = "notes", title = "Notes", width = 1180, height = 720)
+final class NotesApp {
 }
-```
 
-`TextEditorAppWiring` is generated from that annotation and the application's `@Configuration` classes while it
-compiles; nobody writes it. Input, clipboard, window memory, dialogs, the theme and the zoom range, pacing, wakes
-and argument parsing are defaults. The icon is named rather than provided, and an application that names none
-wears the framework's ([the application's mark](docs/architecture.md#the-applications-mark)). `starters` lists
-what configures the application beyond its own recipes; a generated project declares the annotation twice, a
-debug edition with the automation starter and a release edition without it. Overriding the look, the input backend, the clipboard, the liveness policy or the dialogs is a
-`@Provides` method returning that type: the wiring hands it back, the framework's is never opened, and
-there is no precedence documentation to read; a test hands back `Dialogs` that answer its questions. The rest are not replaceable yet ([docs/TODO.md](docs/TODO.md)).
-The types are interfaces — `InputBackend`, `ClipboardBackend` — because a provider returns one, and an
-override needs something it can be a second implementation of.
-
-The close gate is the exception that proves the direction: the framework owns the *place* it is
-registered (`Window.onClose`, on the main window or any other, at any time) and installs none of its own, because the default
-has to be that closing closes.
-
-```java
 @Configuration
-final class Editor {
+final class Recipes {
 
-    /**
-     * Phase GUI, inferred: it takes a Gui and a clock, so it cannot be built before either exists —
-     * and it is therefore buildable before there is a window, which is what lets a test build the tree.
-     */
     @Provides
-    Workspace workspace(Gui gui, KronoGui krono, SourceIndex index) {
-        return new TabbedWorkspace(gui, krono, index);
+    Model model() {
+        return new Model();
     }
 
-    /** Phase CONFIG: a bound setting and nothing else, so it is built first. */
     @Provides
-    Highlighter highlighter(@Setting(value = "theme", def = "editor") String theme) {
-        return new ThemedHighlighter(theme);
-    }
-
-    /**
-     * Only in a session, and only where tactroller's clipboard is on the build's classpath — so a
-     * scripted FRAMES run never constructs it, rather than constructing it and finding it null.
-     */
-    @Provides
-    @OnMode(RunMode.WINDOWED)
-    @ConditionalOnType("sibarum.tactroller.clipboard.Clipboard")
-    ClipboardBinding clipboards(Workspace workspace) {
-        return new EveryWindowClipboard(workspace.windows());
+    Ui ui(Gui gui, KronoGui clock, Model model) {   // built once the Gui and its clock exist
+        return new Ui(gui, clock, model);
     }
 }
 ```
 
-## Never a frozen GUI
-
-Components run off the main thread by default, on a shared lane that is not the GUI thread. A component that
-loops forever or blocks takes only its lane with it: the window keeps painting and taking input, the user can
-always close the application, and the application can end itself, ultimately by the operating system ending its
-process. What the framework does about a stalled lane is a policy the application can override; the default
-today is to report and exit, and the target is to offer the user a restart.
-
-**Most of it is built.** The lanes, the mailboxes, a thread group per component lane, a per-lane busy gauge, the
-watchdog that reports a stalled delivery and halts when its deadline passes, the bound on shutdown, and
-`LivenessPolicy`, the seam that takes the policy, all exist and are tested with no GPU. Still to do: the main
-thread is not watched (it legitimately blocks in a native dialog), offloaded work cannot be cancelled, and there is
-no restart ([docs/TODO.md](docs/TODO.md), *Build the liveness guarantee*). A frame hook that throws is stopped and
-reported rather than taking the loop down. [docs/v1.md](docs/v1.md#the-liveness-guarantee) is
-the guarantee, including what it does not promise, and
-[the design](docs/architecture.md#a-wedged-component-cannot-freeze-the-window) is the reasoning.
-
-## What is built
-
-| Module | State |
-| --- | --- |
-| `vexelray-framework-api` | **built** — the annotation vocabulary |
-| `vexelray-framework-core` | **built** — phases, launch, frame stages, pacing, disposal, lanes and the watchdog (58 tests) |
-| `vexelray-framework-shell` | **built** — the absorbed edge, the threads, the windows (`Windows`, `Window`, close gates), the dialogs (`Dialogs`), the window chrome and the application's mark, and `Apps`, how the suite's applications find and start each other (121 tests) |
-| `vexelray-framework-automation` | **built** — the driving socket, in its own module, and `AutomationStarter`, the first starter (5 tests) |
-| `vexelray-framework-template` | **built** — the project builder, arrived from `mainframe-template`, and `Generate`, which runs it from the command line (55 tests) |
-| `vexelray-framework-acceptance` | **built**, under `-Pacceptance` only — generates a project, builds it, and drives it through the automation socket |
-| `vexelray-framework-processor` | **built** (90 tests) — every rule the vocabulary calls a compile error that a declaration can decide, then the application's `Wiring`, generated. The template's is |
-
-Three applications ran on it first, each with its wiring hand-written in its own repo, and each was chosen so
-it could find what the others could not:
-
-| Application | What it proved |
-| --- | --- |
-| `calculator-vexel-demo` | `CalculatorWiring` — one window, a marched viewport, a device-backed component in `WINDOW` |
-| `text-editor-vexel-demo` | `TextEditorWiring` — three windows, an OS clipboard on all of them, unsaved documents behind a close gate, an application mark, and its own headless capture. It found the four gaps in [docs/architecture.md](docs/architecture.md#what-porting-the-text-editor-found) |
-| `vexelray-designer` | `DesignerWiring` — two windows on one device and one frame loop, the second ray-marched by the application into a target the host mints, and the only one of the three that lets the OS draw its frame. See [what it found](docs/architecture.md#what-porting-the-designer-found) |
-
-**All three have since been deleted, on purpose**, and their findings are the two *what porting … found*
-sections linked above. They were built to discover what the framework needed; keeping them ported after
-that cost a tax on every framework change, in three separate house styles, and the repeated attempts to
-make them cohere made no progress. The witness is [a generated
-project](docs/architecture.md#the-witness-is-the-project-builder-not-an-application) now — it has no
-conventions of its own to defend, and rebuilding a real application from it costs about a day.
-`calculator-vexel-demo` and `text-editor-vexel-demo` (now called Vex) were rebuilt exactly that way: each is a new
-application generated from the template, not the old hand-wired one restored, and the table above describes the
-deleted ones.
-
-The applications generated from it since are the witnesses now: Vex, the calculator, `vexplore` (a file
-explorer), `Pix` (an image viewer) and the fluid and rigid-body simulation demos, with `mainframe`, which uses the
-framework's pieces as a library. Each keeps a `docs/framework-notes.md` of what it had to work around, and
-[docs/TODO.md](docs/TODO.md) carries what they found. The suite's five applications build as Windows native
-executables and install together; see [the site](https://sibarum.github.io/vexelray-framework/).
-
-`-api` and `-core` are JDK-only, so the container's decisions are testable on a machine with no GPU.
-`-shell` is the only Vulkan-aware module.
-
-The processor's *generator* comes **last** on purpose: a code generator whose output has never been
-written by hand is a generator whose output nobody has checked the shape of. Its *checks* did not have to
-wait, because refusing what the vocabulary already calls wrong freezes nothing.
-
-## The vocabulary
-
-| Annotation | Does |
-| --- | --- |
-| `@VexelApp` | the application: its name (the settings directory), title, size, `icon` and `starters` |
-| `@Component` | an actor on a lane: the shared default lane unless it names one, built before the loop runs |
-| `@Subscribe` | a component method that receives a topic, through a mailbox of its own with a declared overflow |
-| `@Publishes` | which topics a type or method sends on, so a blocking send from the main thread is a compile error |
-| `@Configuration` / `@Provides` | recipes for types the application does not own; returns an interface |
-| `@Default` | the framework's answer *unless the application has one* |
-| `@MainThread` | may only be touched on the main thread — checked at compile time |
-| `@BeforeFrame(FrameStage)` | per-frame work, in a named stage |
-| `@OnMode(RunMode)` | exists only in some run modes |
-| `@ConditionalOnType` | contribute only if a type is on the compile classpath |
-| `@Setting` | bind one configuration value, by key |
-
-## Starting a project
-
-`vexelray-framework-template` writes a working `vexel-desktop` project. With the module built (`mvn install`,
-or `mvn -pl vexelray-framework-template package`) and nothing else:
-
-```bash
-java -cp vexelray-framework-template/target/classes dev.vexelray.framework.template.Generate \
-     --in ../ --name my-app --group dev.example
+```java
+public static void main(String[] args) {
+    VexelApplication.run(new NotesAppWiring(), args);
+}
 ```
 
-`--in` is the folder the project folder goes inside. Any other slot is `--<slot> value` (`--title`,
-`--packageName`, `--width`, …); `--help` lists them all. The project then builds against the installed siblings
-(see *Building*) with `cd my-app && mvn compile exec:exec`. On Windows with GraalVM 25, `mvn -Pnative package`
-builds `my-app-debug.exe` (a console, and the automation socket) and `mvn -Pnative-release package` builds
-`my-app.exe` (no console, and no socket linked at all); the project's own README says what each edition is and
-how to give it a mark of its own. `new vexel-desktop` in `mainframe` runs the same
-builder behind a terminal form; it is a second way in, not the only one.
+`NotesAppWiring` is not something you write. An annotation processor generates it while the project compiles: it
+works out what has to exist before what, builds each part once in that order, and refuses at compile time what
+would otherwise fail at startup or, worse, silently at runtime.
 
-Non-GUI code — a file-system layer, parsing, anything with logic worth testing — goes in sub-packages of the
-generated one with public types, and should be testable without a `Gui`. The template does this itself: what it
-writes is a small text editor, and its file policy and its Markdown highlighter are public classes in `text/`,
-tested with no window, while the classes the wiring builds stay package-private.
+- **Java 25, Maven, GraalVM native-image.** An application compiles to a native binary with no reflection
+  metadata of the framework's own, and starts as fast as a hand-written `main` would.
+- **Compile-time wiring, not runtime magic.** Dependency injection, typed settings and conditional parts in the
+  spirit of Spring Boot, done with an annotation processor instead of classpath scanning and proxies.
+- **Never a frozen window.** Your code runs off the main thread by default. A part that hangs takes only its own
+  thread with it; the window keeps painting and can always be closed.
+- **Sensible defaults.** Input, clipboard, window memory, dialogs, the theme, pacing and argument parsing are the
+  framework's. The theme, input, clipboard, dialogs and the liveness policy can each be replaced with a single
+  `@Provides` method; the rest are not replaceable yet.
 
-## Building
+## Get started
 
-The siblings install to the local Maven repo first, in dependency order
-(see [vexelray-gui/CLAUDE.md](../vexelray-gui/CLAUDE.md)):
+On Windows, with JDK 25, Maven and a Rust toolchain, after installing the stack's other repositories to your local
+Maven repository ([the guide](docs/getting-started.md#2-install-the-stack) says which, and in what order):
 
 ```bash
-cd ../supirvast && mvn install && cd ../vexelray && mvn install && cd ../tactroller && mvn install && cd ../vexelray-gui && mvn install
+mvn install
 ```
 
-Then this repo. `-api` and `-core` need none of them:
+```bash
+java -cp vexelray-framework-template/target/classes dev.vexelray.framework.template.Generate --in .. --name my-app --group dev.example
+```
 
 ```bash
-mvn test
+cd ../my-app && mvn compile exec:exec
+```
+
+That opens a working application: a small tabbed text editor with a file navigator, which is the starting point
+you change into whatever you are building. **[docs/getting-started.md](docs/getting-started.md)** walks through
+it properly: prerequisites, what the generated project contains, adding a part, and building the native
+executable.
+
+## How it fits together
+
+<!-- image: stack diagram — the layers below as stacked bands, your application on top -->
+
+```
+  your application          @VexelApp, @Configuration recipes, @Component actors
+  ─────────────────────────────────────────────────────────────────────────────
+  vexelray-framework        generated wiring · phases · frame loop · threads · windows · dialogs
+  ─────────────────────────────────────────────────────────────────────────────
+  vexelray-gui              retained-mode widgets, layout, theme, the Gui and its frame
+  kronometer                time and animation          atchung      the typed message bus
+  tactroller                every input device          vexelray     Vulkan engine, text, windowing
+  supirvast                 the shaders' language       dxgi-bridge  presentation on Windows
+  imagelib-wrapper          image decoding              intrabuf     the bus's serialization
+```
+
+Each one is its own repository. The framework sits on top and is the only one an application has to know about
+to get going; the others are where the widgets, the drawing and the input come from once you need them directly.
+
+**[docs/overview.md](docs/overview.md)** is the architecture at a readable altitude: what the framework owns, how
+a part's place in startup is worked out, what happens in a frame, and which thread runs what.
+
+## Documentation
+
+| Start here | |
+| --- | --- |
+| [Getting started](docs/getting-started.md) | From nothing to a running application, and the tour of what was generated |
+| [Overview](docs/overview.md) | The architecture: the stack, the wiring, phases, the frame, threads |
+
+| Reference | |
+| --- | --- |
+| [Threading conventions](docs/threading.md) | The rules: lanes, ownership, channels, lifecycle, and what enforces each |
+| [The component model](docs/components.md) | What a component is and what the framework owes it |
+| [Units of position and size](docs/units.md) | Every position and size number on the stack, and which space it is in |
+
+| Design and status | |
+| --- | --- |
+| [Architecture](docs/architecture.md) | The deep version, and the decision record: why each choice was made |
+| [What v1 means](docs/v1.md) | The bar for v1: an application built on it needs no major refactor afterwards |
+| [Readiness](docs/status.html) | The v1 surfaces graded by whether their shape is final (open in a browser) |
+| [TODO](docs/TODO.md) | What is known about and not done, split by whether it blocks v1 |
+
+The same documents are published at <https://sibarum.github.io/vexelray-framework/>, which is also the home of the
+applications built on the stack and their installer.
+
+## Built with it
+
+| Application | |
+| --- | --- |
+| [Vexplore](docs/apps/vexplore.md) | A file explorer that suggests instead of asking, and where every action can be undone |
+| [Vex](docs/apps/text-editor.md) | A tabbed text editor with a file navigator |
+| [Pix](docs/apps/pix.md) | An image viewer |
+| [Calculator](docs/apps/calculator.md) | A calculator and plotter |
+
+The fluid and rigid-body simulation demos are built on it too. The applications install together on Windows; see
+[the install page](docs/install/README.md).
+
+## Status
+
+**Before v1, and not yet released.** Every module below is built and tested, and the applications above run on it
+daily. What v1 still needs is for the remaining abstractions to be final, so that an application written against
+it will not need restructuring later; [docs/v1.md](docs/v1.md) is that bar and [docs/status.html](docs/status.html)
+is where each surface stands.
+
+Windows is the complete platform. The engine's Linux and macOS backends are skeletons.
+
+| Module | What it is |
+| --- | --- |
+| `vexelray-framework-api` | The annotations an application writes. JDK-only |
+| `vexelray-framework-core` | Phases, launch, frame stages, pacing, disposal, threads and the watchdog. JDK-only, testable with no GPU |
+| `vexelray-framework-processor` | The annotation processor: compile-time checks, then the generated wiring |
+| `vexelray-framework-shell` | The application edge: input, clipboard, window memory, the frame loop, windows, chrome, dialogs |
+| `vexelray-framework-automation` | The driving socket for tests and screenshots, linked only into debug builds |
+| `vexelray-framework-template` | The project generator, and the reference application it writes |
+| `vexelray-framework-acceptance` | Under `-Pacceptance`: generates a project, builds it, opens it and drives it |
+
+## Working on the framework
+
+`-api`, `-core`, `-processor` and `-template` need nothing else installed:
+
+```bash
+mvn test -pl vexelray-framework-api,vexelray-framework-core,vexelray-framework-processor,vexelray-framework-template
+```
+
+A bare `mvn test` goes on to `-shell` and stops there without the stack. Everything else needs the sibling
+repositories installed first, in the order
+[docs/getting-started.md](docs/getting-started.md#2-install-the-stack) gives. The acceptance run then generates a
+project, builds it, and drives a real window for a few seconds; its logs and screenshots land in
+`vexelray-framework-acceptance/target/acceptance/`:
+
+```bash
+mvn clean install -Pacceptance
+```
+
+[CLAUDE.md](CLAUDE.md) holds the constraints on this repository's own code (nothing reflects, nothing allocates in
+the frame, `-api` and `-core` stay JDK-only) and where each comes from.
+
+The install page and its script in `docs/install/` are generated by `vexelray-installer` from
+[installer-suite.json](installer-suite.json). Regenerate them when an application's `installer.json` changes, from
+this folder with the sibling checkouts beside it:
+
+```bash
+java -jar ../vexelray-installer/installer-core/target/installer-core-0.1.0-SNAPSHOT-cli.jar --suite installer-suite.json --out docs/install
 ```

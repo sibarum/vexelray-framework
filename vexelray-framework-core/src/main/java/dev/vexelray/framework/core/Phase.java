@@ -118,10 +118,11 @@ public enum Phase {
      *       may be set in any phase, and is read when a close arrives — and the framework installs no gate of its
      *       own: the default has to be that closing closes. A framework that interposed here
      *       would be deciding, for every application, that quitting is a question.</li>
-     *   <li><b>The automation socket.</b> Bound by {@code vexelray-framework-automation}'s {@code Driver},
-     *       called from an application's own {@code attach}, because a listening socket linked into every
-     *       native binary is the wrong trade for a framework whose selling point is what it does not
-     *       include.</li>
+     *   <li><b>The automation socket.</b> Bound by {@code vexelray-framework-automation}'s {@code Driver}, built
+     *       here by {@code AutomationStarter} only in an application that names that starter in its
+     *       {@code @VexelApp} (a generated project's debug edition does, its release edition does not), and only
+     *       when the launch asks for it, because a listening socket linked into every native binary is the
+     *       wrong trade for a framework whose selling point is what it does not include.</li>
      * </ul>
      */
     ATTACH,

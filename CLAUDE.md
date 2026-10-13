@@ -71,10 +71,11 @@ invented rather than needed. The load-bearing ones:
 mvn test
 ```
 
-The siblings, in dependency order, once `-shell` exists:
+The siblings, in dependency order, once `-shell` exists (`imagelib-wrapper` needs `./native/build.sh` run once
+first, with a Rust toolchain; see `docs/getting-started.md` §2):
 
 ```bash
-cd ../supirvast && mvn install && cd ../vexelray && mvn install && cd ../tactroller && mvn install && cd ../vexelray-gui && mvn install
+for r in intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui; do (cd ../$r && mvn install) || break; done
 ```
 
 The acceptance loop, with the siblings installed: generate a project from the builder, build it, and drive
