@@ -20,8 +20,44 @@ class GenerateTest {
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
 
+    /** A run against no local repository: whatever this machine has installed, nothing is said about it. */
     private int run(String... args) {
-        return Generate.run(args, new PrintStream(out), new PrintStream(err));
+        return Generate.run(args, new PrintStream(out), new PrintStream(err), null);
+    }
+
+    /**
+     * The stack missing is said before the project is written, by coordinate, and the project is still written,
+     * because the person may be about to install it, or building somewhere else.
+     */
+    @Test
+    void aStackThatIsNotInstalledIsNamedAndTheProjectIsStillWritten(@TempDir Path temp) throws IOException {
+        Path repository = Files.createDirectory(temp.resolve("repository"));
+        Path where = Files.createDirectory(temp.resolve("src"));
+        assertEquals(0, Generate.run(new String[] {"--in", where.toString(), "--name", "demo-app"},
+                new PrintStream(out), new PrintStream(err), repository), err.toString());
+
+        assertTrue(err.toString().contains("not installed: dev.vexelray.framework:vexelray-framework-shell:"),
+                err.toString());
+        assertTrue(Files.isRegularFile(where.resolve("demo-app/pom.xml")), "written anyway");
+    }
+
+    /** With everything installed, it says nothing about it. */
+    @Test
+    void anInstalledStackIsNotMentioned(@TempDir Path temp) throws IOException {
+        Path repository = Files.createDirectory(temp.resolve("repository"));
+        Template template = Catalogue.bundled().get("vexel-desktop");
+        Answers answers = Answers.of(Answers.presets(template).values()).filled(template);
+        for (String coordinate : Checks.missingArtifacts(template, answers, repository)) {
+            String[] gav = coordinate.split(":");
+            Path folder = repository.resolve(gav[0].replace('.', '/')).resolve(gav[1]).resolve(gav[2]);
+            Files.createDirectories(folder);
+            Files.writeString(folder.resolve(gav[1] + "-" + gav[2] + ".jar"), "");
+        }
+        Path where = Files.createDirectory(temp.resolve("src"));
+        assertEquals(0, Generate.run(new String[] {"--in", where.toString(), "--name", "demo-app"},
+                new PrintStream(out), new PrintStream(err), repository), err.toString());
+
+        assertTrue(!err.toString().contains("not installed"), err.toString());
     }
 
     @Test

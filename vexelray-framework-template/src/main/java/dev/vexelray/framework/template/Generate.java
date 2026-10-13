@@ -38,6 +38,14 @@ public final class Generate {
 
     /** The whole of {@link #main}, returning the exit code, so it can be tested without ending the JVM. */
     static int run(String[] args, PrintStream out, PrintStream err) {
+        return run(args, out, err, Checks.localRepository());
+    }
+
+    /**
+     * As {@link #run(String[], PrintStream, PrintStream)}, asking {@code repository} (null for none) whether the
+     * stack the project builds against is installed, so a test can say what is.
+     */
+    static int run(String[] args, PrintStream out, PrintStream err, Path repository) {
         try {
             Catalogue catalogue = Catalogue.bundled();
             Template template = catalogue.get(TEMPLATE);
@@ -71,6 +79,15 @@ public final class Generate {
             if (!problems.isEmpty()) {
                 problems.forEach(p -> err.println("problem: " + p));
                 return 1;
+            }
+            // Before writing, and a caution rather than a refusal (see Checks.missingArtifacts): a stack nobody
+            // has installed is the likeliest reason a new project will not build, and it is better said here in a
+            // line than discovered later in a page of Maven output.
+            List<String> absent = Checks.missingArtifacts(template, answers, repository);
+            if (!absent.isEmpty()) {
+                absent.forEach(a -> err.println("not installed: " + a));
+                err.println("the project is written anyway, but it will not build until those are installed"
+                        + " (mvn install in each repository; docs/getting-started.md, step 2)");
             }
 
             Blueprint blueprint = Scaffold.of(template, answers, catalogue);
