@@ -44,6 +44,6 @@ the editor's *Open in Vexplore* works.
 ## Status
 
 Browsing, the suggestion rail, the five actions and undo work. Rename, drag and drop, and inline previews
-are not done yet. It has not been released yet.
+are not done yet. It is part of the 0.1.0 prerelease.
 
 [Install the suite](../install/) · [Source](https://github.com/sibarum/vexplore)

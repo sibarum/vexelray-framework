@@ -45,6 +45,6 @@ open files, so the other applications have nothing to hand it.
 
 ## Status
 
-Evaluation, readings, plots and the settings work. It has not been released yet.
+Evaluation, readings, plots and the settings work. It is part of the 0.1.0 prerelease.
 
 [Install the suite](../install/) · [Source](https://github.com/sibarum/calculator-vexel-demo)

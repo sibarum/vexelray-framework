@@ -92,6 +92,16 @@ class VexelDesktopTest {
     }
 
     @Test
+    void anAgentIsToldTheRulesInTheProjectsOwnNames() {
+        Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
+        String agent = blueprint.text("CLAUDE.md");
+        assertNotNull(agent, "expected CLAUDE.md; got " + blueprint.paths());
+        assertTrue(agent.contains("# Working in Plot viewer"), agent);
+        assertTrue(agent.contains("`PlotViewerAppWiring`"), "the generated class, by its name");
+        assertTrue(agent.contains("target/logs/plot-viewer.log"));
+    }
+
+    @Test
     void theApplicationIsDeclaredOncePerEdition() {
         Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
         String debug = blueprint.text("src/edition-debug/java/dev/example/plotviewer/PlotViewerApp.java");

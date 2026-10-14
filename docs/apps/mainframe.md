@@ -33,7 +33,7 @@ Installing adds `mainframe` to your PATH. The other applications are on your PAT
 
 ## Status
 
-Windows PowerShell on Windows is the first target. The design is not tied to Windows. It has not been released
-yet.
+Windows PowerShell on Windows is the first target. The design is not tied to Windows. It is part of the 0.1.0
+prerelease.
 
 [Install the suite](../install/) · [Source](https://github.com/sibarum/mainframe)

@@ -148,6 +148,11 @@ fill always junitVersion   text     5.11.4
 file pom.xml
 file .gitignore                                            from gitignore
 file README.md
+
+# What a coding agent reads before it touches anything: the rules the code does not
+# show, and how to check a change by driving the window rather than by compiling it.
+
+file CLAUDE.md
 file docs/framework-notes.md
 file docs/TODO.md
 

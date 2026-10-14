@@ -50,6 +50,6 @@ only for types no other program has claimed.
 
 ## Status
 
-It has not been released yet.
+It is part of the 0.1.0 prerelease.
 
 [Install the suite](../install/) · [Source](https://github.com/sibarum/text-editor-vexel-demo)

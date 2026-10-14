@@ -43,6 +43,6 @@ own, which is the same viewer. `pix <file>` opens a picture and `pix <folder>` t
 ## Status
 
 Viewing and stepping through a folder work. Zoom, pan and rotate are not done yet, and nothing in Pix changes a
-file. It has not been released yet.
+file. It is part of the 0.1.0 prerelease.
 
 [Install the suite](../install/) · [Source](https://github.com/sibarum/Pix)
