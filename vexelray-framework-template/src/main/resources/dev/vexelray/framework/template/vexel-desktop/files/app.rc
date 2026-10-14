@@ -8,3 +8,8 @@
 // "new app" mark, and ${artifactId}.svg is its source. To make it yours, draw an SVG and render it at every size
 // Windows asks for (16 to 256 px) into this one .ico; vex-suite-common's tools/Ico.java does exactly that.
 1 ICON "${artifactId}.ico"
+
+// The manifest: PerMonitorV2 DPI awareness and the OS compatibility java.exe declares, so this executable is
+// drawn at the display's real pixels exactly as a JVM launch is, rather than rendered at 96 DPI and stretched by
+// Windows. Resource 1 of type 24 (RT_MANIFEST) is the one the loader reads for a process.
+1 24 "${artifactId}.manifest"

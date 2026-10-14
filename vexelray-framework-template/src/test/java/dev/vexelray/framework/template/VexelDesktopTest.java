@@ -135,6 +135,9 @@ class VexelDesktopTest {
                 blueprint.entry("src/main/rc/plot-viewer.svg").bytes()), "and its source");
 
         assertTrue(blueprint.text("src/main/rc/plot-viewer.rc").contains("1 ICON \"plot-viewer.ico\""));
+        assertTrue(blueprint.text("src/main/rc/plot-viewer.rc").contains("1 24 \"plot-viewer.manifest\""),
+                "the executable declares its DPI awareness, as java.exe does");
+        assertTrue(blueprint.text("src/main/rc/plot-viewer.manifest").contains("PerMonitorV2"));
         String pom = blueprint.text("pom.xml");
         assertTrue(pom.contains("<include>plot-viewer.ico</include>"), "on the class path for the window");
         assertTrue(pom.contains("/src/main/rc/plot-viewer.rc"), "compiled for the executable");
