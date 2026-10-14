@@ -17,8 +17,8 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 They are separate programs that know about each other: a text file in Vexplore opens in Vex and a picture in
 Pix, and Vex can show any file in Vexplore.
 
-**[Install them](install/index.md)** with one line of PowerShell, on Windows, for your user only. This is 0.1.0, the
-first release:
+**[Install them](install/index.md)** with one line of PowerShell, on Windows, for your user only. This is 0.1.0, an
+experimental prerelease:
 
 ```powershell
 irm https://raw.githubusercontent.com/sibarum/vexelray-dist/main/install.ps1 | iex

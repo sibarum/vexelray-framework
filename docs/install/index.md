@@ -12,7 +12,8 @@ no restart, nothing else to download first.
 You need Windows 10 or 11 (64-bit) and a graphics card with an up-to-date driver: everything here draws with
 Vulkan.
 
-This is **0.1.0**, the first release. Expect rough edges, and please [say what you find](#feedback).
+This is **0.1.0, an experimental prerelease**: early, not v1, and expect rough edges. Please
+[say what you find](#feedback).
 
 ## What you get
 

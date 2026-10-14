@@ -127,9 +127,10 @@ The fluid and rigid-body simulation demos are built on it too. The applications 
 
 ## Status
 
-**Before v1, and not yet released.** Every module below is built and tested, and the applications above run on it
-daily. What v1 still needs is for the remaining abstractions to be final, so that an application written against
-it will not need restructuring later; [docs/v1.md](docs/v1.md) is that bar and [docs/status.html](docs/status.html)
+**0.1.0 is an experimental prerelease, not v1.** It is tagged so that the applications above could be installed
+and tried, not as a version to build on: nothing in it is stable, and the next version may change any of it without
+notice. Every module below is built and tested, and the applications run on it daily. What v1 still needs is for
+the remaining abstractions to be final, so that an application written against it will not need restructuring later; [docs/v1.md](docs/v1.md) is that bar and [docs/status.html](docs/status.html)
 is where each surface stands.
 
 Windows is the complete platform. The engine's Linux and macOS backends are skeletons.
