@@ -3,6 +3,7 @@ package ${packageName};
 import ${packageName}.text.Markdown;
 import ${packageName}.text.TextFile;
 import dev.vexelray.gui.core.Gui;
+import dev.vexelray.gui.core.edit.History;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.text.Document;
 import dev.vexelray.gui.core.text.Span;
@@ -65,7 +66,9 @@ final class Buffer implements AutoCloseable {
         this.crlf = content.crlf();
         this.markup = markup;
         this.dirty = dirty;
-        this.field = new TextField(gui, "").multiline(true).lineNumbers(true).wordWrap(true);
+        // A document: its past is its own, so Ctrl+Z in one file never reaches into another, and its save mark
+        // says whether this file is saved rather than whether the window is.
+        this.field = new TextField(gui, "").history(new History()).multiline(true).lineNumbers(true).wordWrap(true);
         field.node().width(Length.FILL).height(Length.FILL).font(Type.MONO).textSize(Type.CODE);
 
         // Content this field has no past with, so text() rather than replace(): the history starts here, and the
