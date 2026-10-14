@@ -123,7 +123,7 @@ applications built on the stack and their installer.
 | [Calculator](docs/apps/calculator.md) | A calculator and plotter |
 
 The fluid and rigid-body simulation demos are built on it too. The applications install together on Windows; see
-[the install page](docs/install/index.md).
+[the install page](https://sibarum.github.io/).
 
 ## Status
 
