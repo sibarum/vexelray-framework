@@ -253,7 +253,7 @@ public final class VexelApplication {
         // The other windows, declared by name from here to the end of TREE. Each one's tree is built when it is
         // declared, beside this one and with no window; the windows themselves are claimed at ATTACH.
         shell.windows(new Windows(shell, new Window(NamedWindow.of(Windows.MAIN, info.title(), info.width(),
-                info.height()), gui, appearance.drawsOwnFrame() ? shell.titleBar() : null, true)));
+                info.height()), gui, appearance.drawsOwnFrame() ? shell.titleBar() : null, true, shell)));
         wiring.gui(shell);
 
         // ---- TREE: the widgets, the framework's title bar among them. No window needed. -------------------

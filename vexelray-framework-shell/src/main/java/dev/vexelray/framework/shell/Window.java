@@ -6,6 +6,7 @@ import dev.vexelray.gui.core.app.AppWindow;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.core.app.WindowSpec;
+import dev.vexelray.gui.core.edit.History;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
 import dev.vexelray.os.WindowConfig;
@@ -84,11 +85,33 @@ public final class Window {
      * @param shown whether the window is on screen once claimed unless a command says otherwise: true for the main
      *              window, which opens with the application, and false for a named one, which opens when asked
      */
-    Window(NamedWindow declared, Gui gui, TitleBar bar, boolean shown) {
+    Window(NamedWindow declared, Gui gui, TitleBar bar, boolean shown, Shell shell) {
         this.declared = declared;
         this.gui = gui;
         this.bar = bar;
         this.shown = shown;
+        // Undo for the whole window, bound before any widget exists so there is no window without it: Ctrl+Z,
+        // Ctrl+Shift+Z and Ctrl+Y everywhere in the tree, drops and pastes recorded into the same stack, and a
+        // failure shown rather than swallowed. A narrower history (a page's, a document's) outranks this one by
+        // claim scope, as Gui.history says.
+        gui.history(history).dropHistory(history);
+        UndoFeedback.install(gui, shell);
+    }
+
+    /** This window's undo and redo. See {@link #history()}. */
+    private final History history = new History();
+
+    /**
+     * <b>This window's undo history</b>, one per window and bound by the framework to Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y
+     * and to every drop and paste in its tree (docs/plans/undo.md §5, in {@code vexelray-gui}).
+     *
+     * <p>An application records its own commands here — {@code history().perform(change)} — so they undo with
+     * everything else, and marks it on save for the dirty dot. An Undo button or menu item calls
+     * {@code gui().undo(history())}, never {@code history().undo()}: the first takes the user to what will change
+     * before changing it, the second changes it wherever it is.
+     */
+    public History history() {
+        return history;
     }
 
     /** The name this window is known by: in the settings file, and on the automation socket. */

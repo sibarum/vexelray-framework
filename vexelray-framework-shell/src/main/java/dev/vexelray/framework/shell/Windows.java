@@ -124,7 +124,7 @@ public final class Windows {
             appearance.zoom().applyTo(gui);
         }
         TitleBar bar = appearance.drawsOwnFrame() ? new TitleBar(gui, WindowControls.NONE, window.title()) : null;
-        Window w = new Window(window, gui, bar, false);
+        Window w = new Window(window, gui, bar, false, shell);
         declared.add(w);
         return w;
     }

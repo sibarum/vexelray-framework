@@ -1348,6 +1348,18 @@ the palette, and Enter lets it go. One window-management use of the `GuiApp` was
 closed the main window through `app.controls()` — and it is `windows.main().close()` now, so a close gate would be
 asked there too. Since then, the only uses of `GuiApp` left on the stack are the device.
 
+**Then undo.** After 0.1.0 it was plain that undo worked only where an application had wired a `History` by hand
+(`vexelray-gui/docs/plans/undo.md`). Every `Window` now owns one, built and bound in its constructor so there is no
+window without it: Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y anywhere in the tree, and every drop and paste recorded into the
+same stack. `Window.history()` is where an application records its own commands and marks a save; an Undo button
+calls `gui().undo(history())`, which takes the user to what will change before changing it. A narrower history — a
+settings page's, a document's — still outranks the window's by claim scope, so MainFrame's workspaces page, which
+binds its own at `VISIBLE`, is unchanged. Each window also gets `UndoFeedback` on `Gui.onUndo`: a refused control is
+ringed where it stands, and anything else that fails is an error prompt through `Dialogs`, the same seam a test
+answers. The ring is timed by the main window's clock for every window, because only the main window has one; a
+named window's cue relies on that clock's loop being the one that draws it, which is so today (one `GuiApp`, one
+loop) and is not yet witnessed.
+
 ## What the long-running witness found
 
 W2 and the counter are event-driven: they do something and go quiet. The parking and wake machinery — the loop
