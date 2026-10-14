@@ -29,7 +29,8 @@ of.
 
 - **It states the effect first.** Before anything runs, the card gives the counts, the bytes, where they go, and
   what would be left alone and why.
-- **Every action can be undone**, with Ctrl+Z or the Undo button: move, copy, archive, delete and mark.
+- **Every action can be undone**, with Ctrl+Z or the Undo button: move, copy, archive, delete and mark. Ctrl+Y
+  does it again.
 - **Delete is recoverable.** It goes to Vexplore's own trash, not straight off the disk.
 - **A name that already exists is never overwritten.**
 - **It never freezes.** Large operations run off the drawing thread, so the window keeps answering.
