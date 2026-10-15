@@ -17,6 +17,7 @@ import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
+import dev.vexelray.text.FontSet;
 import sibarum.atchung.Atchung;
 import sibarum.probe.Log;
 
@@ -41,8 +42,8 @@ import java.time.Duration;
  * error beats a runtime error</i>. It is why these messages name the phase and the thing asked for rather than
  * simply failing.
  *
- * <p><b>What the wiring hands back.</b> Five of the framework's defaults are replaced by handing one back —
- * {@link #appearance(Appearance)}, {@link #input(InputBackend)}, {@link #clipboard(ClipboardBackend)},
+ * <p><b>What the wiring hands back.</b> Six of the framework's defaults are replaced by handing one back —
+ * {@link #appearance(Appearance)}, {@link #fonts(FontSet)}, {@link #input(InputBackend)}, {@link #clipboard(ClipboardBackend)},
  * {@link #liveness(LivenessPolicy)} and {@link #dialogs(Dialogs)} — each
  * accepted up to the phase before the framework reaches for its own, and each the framework's own answer when
  * nothing is. A generated wiring calls them for a {@code @Provides} method returning that type, which is the whole
@@ -67,6 +68,8 @@ public final class Shell {
     private final java.util.List<Placement> placements = new java.util.ArrayList<>();
 
     private Appearance appearance = Appearance.DEFAULT;
+    /** The application's own fonts, or null for the standard set. See {@link #fonts(FontSet)}. */
+    private FontSet fonts;
     private Settings settings;
     private Gui gui;
     private KronoGui krono;
@@ -320,6 +323,37 @@ public final class Shell {
     /** The look in force. Never null. */
     public Appearance appearance() {
         return appearance;
+    }
+
+    /**
+     * <b>This application's fonts, in place of vexelray-text's standard set</b>: the families its own build baked
+     * with vexelray-msdf-maven-plugin's {@code <families>}, so an application carries the faces it draws and no
+     * others. Overriding is a {@code @Provides} method returning the set:
+     *
+     * {@snippet :
+     * @Provides
+     * FontSet fonts() {
+     *     return FontSet.fromClassPath("/com/example/app/fonts/fonts.json").withFallback("sans", "mono");
+     * }
+     * }
+     *
+     * <p><b>Registered in {@link Phase#CONFIG}</b>, beside the appearance and on the same terms: every face is
+     * uploaded with the window at the start of {@link Phase#WINDOW} (vexelray-gui's docs/plans/font-families.md
+     * §1), and nothing measures text against a set that is not the one it will be drawn in. {@code null} is no
+     * opinion and leaves the standard set.
+     */
+    public Shell fonts(FontSet fonts) {
+        if (phase.compareTo(Phase.CONFIG) > 0) {
+            throw new IllegalStateException(
+                    "fonts must be registered in CONFIG, before anything measures text; this is " + phase);
+        }
+        this.fonts = fonts;
+        return this;
+    }
+
+    /** The application's own fonts, or null for vexelray-text's standard set. */
+    public FontSet fonts() {
+        return fonts;
     }
 
     /**

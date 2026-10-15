@@ -290,7 +290,7 @@ public final class VexelApplication {
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
         WindowConfig main = mainWindow(memory, info, appearance, mark);
         GuiApp app = disposer.register(new GuiApp(main, windows,
-                wiring.computeQueue() ? GuiApp.Compute.OWN_QUEUE : GuiApp.Compute.SHARED));
+                wiring.computeQueue() ? GuiApp.Compute.OWN_QUEUE : GuiApp.Compute.SHARED, shell.fonts()));
         shell.app(app);
         wiring.window(shell);
 

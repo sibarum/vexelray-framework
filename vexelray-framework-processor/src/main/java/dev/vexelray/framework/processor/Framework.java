@@ -26,6 +26,8 @@ final class Framework {
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";
     static final String LIVENESS = "dev.vexelray.framework.shell.LivenessPolicy";
     static final String DIALOGS = "dev.vexelray.framework.shell.Dialogs";
+    /** The application's fonts, as its own build baked them: vexelray-text's type, taken back as it is. */
+    static final String FONTS = "dev.vexelray.text.FontSet";
     /**
      * The one framework value that is a component's and not the main thread's, though it is Vulkan: the device's
      * compute queue of its own, lent to the one component that takes it (T3.1). The generated wiring asks for it
@@ -100,6 +102,8 @@ final class Framework {
     static final List<HandBack> HAND_BACKS = List.of(
             new HandBack(APPEARANCE, "appearance", Phase.CONFIG, "The look is applied before the first widget is"
                     + " constructed — \"a role resolves at the moment a widget writes a prop\"", false),
+            new HandBack(FONTS, "fonts", Phase.CONFIG, "The fonts are settled beside the look, before anything"
+                    + " measures text, and uploaded with the window at the start of WINDOW", false),
             new HandBack(INPUT, "input", Phase.TREE, "The input backend is opened at the start of WINDOW, before"
                     + " the window exists, and attached once it does", true),
             new HandBack(CLIPBOARD, "clipboard", Phase.WINDOW, "The clipboard is installed on the Gui at the start"
