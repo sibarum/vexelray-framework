@@ -106,9 +106,9 @@ and code where the doc states the intent, so they are defects rather than doc er
 - **"Multiples of its own em"** (`Node.translate`, `PropKey`, `RetainedNode`, `Rail`, `Tabs`, architecture.md §7).
   `emPx` is the flat root em, the same on every node and independent of `textSize`, which is the opposite of
   the CSS meaning. The text editor's FN-20 conversion is correct, but only because the doc is wrong.
-- **em and rem are identical in code** (`Length.java:25, 32`; architecture.md: "em = rem"). Yet krono treats
-  them as different units, and its doc says "rem scales with zoom, dp deliberately does not" as if em differed.
-  `Rail.slide` says "the panel's own em" and then "a rem or two".
+- **em and rem were identical in code.** **Fixed 2026-10-15 by U6:** em is now the node's own text size, and
+  every caller of the old em was moved to rem first. `Rail.slide`'s "the panel's own em" is still a float in root
+  ems, the translate case above.
 - **`Gui.zoom()` says anything that does not move with zoom "is still pinned to device pixels".** dp exists
   precisely not to move with zoom.
 - **`NativeWindow.width()` says "framebuffer width in pixels (after DPI scaling)".** The demo and the framework
@@ -174,7 +174,14 @@ returning the two `Length`s for a root-space point. It covers the context menu, 
 ghost, which today each write `dp(px / dpi)` and silently assume they are root children.
 *v1:* additive.
 
-**U6 — Decide what em means, and write it down.** em and rem are the same today. Either:
+**U6 — Decide what em means, and write it down.** **Ruled 2026-10-15: (b), done in two steps.** Every `Length.em`
+on the stack was first moved to `Length.rem`, which changed no pixel because the two were the same number; then `em`
+was given its new meaning, the node's own resolved text size, so nothing that existed moved. **Reason:** the
+typography entry in TODO wants widgets whose padding and gaps follow their own text, and a local em is the unit for
+that; two names for one number is what v1 calls legacy; and a meaning given to `em` after v1 would move pixels with
+no compile error, while giving it now, with no caller left on the old meaning, moves none. Text size is not
+inherited, so this is a local em and not a cascade: a node's em is the text size it declares, never its parent's.
+The options as first written:
 - **(a)** declare it permanent: em is the root em, there is no cascade, ever. Then make krono blend `em ↔ rem`,
   and consider deprecating one of the two names; or
 - **(b)** make em mean the node's own text size, as in CSS. That changes every widget's em padding (TreeView's

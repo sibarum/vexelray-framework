@@ -14,7 +14,7 @@ final class Recipes {
 
     @Provides
     Appearance look() {
-        return Appearance.of(Look.THEME, Length.em(${className}.MIN_W_EM), Length.em(${className}.MIN_H_EM));
+        return Appearance.of(Look.THEME, Length.rem(${className}.MIN_W_EM), Length.rem(${className}.MIN_H_EM));
     }
 
     @Provides

@@ -43,7 +43,7 @@ final class AppearanceTest {
     @Test
     void anAppearanceWithNoFloorReportsNone() {
         assertFalse(Appearance.of(Theme.DARK).hasMinSize());
-        assertTrue(Appearance.of(Theme.DARK, Length.em(46), Length.em(30)).hasMinSize());
+        assertTrue(Appearance.of(Theme.DARK, Length.rem(46), Length.rem(30)).hasMinSize());
     }
 
     // ---- the zoom range ---------------------------------------------------------------------------------
@@ -77,7 +77,7 @@ final class AppearanceTest {
     /** The zoom range is one part of an appearance, so setting it keeps the rest. */
     @Test
     void takingTheZoomRangeKeepsEverythingElse() {
-        Appearance base = Appearance.of(Theme.LIGHT, Length.em(46), Length.em(30))
+        Appearance base = Appearance.of(Theme.LIGHT, Length.rem(46), Length.rem(30))
                 .decorations(Decorations.SYSTEM)
                 .instruments(List.of());
         Appearance zoomed = base.zoom(1f, 2f, 1.5f);
@@ -169,7 +169,7 @@ final class AppearanceTest {
     @Test
     void applyingAnAppearanceLeavesTheSecondWindowsOwnLayoutFloorAlone() {
         try (Gui second = gui()) {
-            Appearance.of(Theme.LIGHT, Length.em(46), Length.em(30)).applyTo(second);
+            Appearance.of(Theme.LIGHT, Length.rem(46), Length.rem(30)).applyTo(second);
 
             second.frame(300f, 150f, AppearanceTest::noText);
             assertEquals(300f, second.root().layout().rect().w(), 0.5f,

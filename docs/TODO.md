@@ -36,8 +36,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       so eleven sites convert by hand and three of them are wrong (`SplitPane.size`, `SplitPane`'s drag
       limits, `Tooltip`'s gap). Every one is hidden while `dpi` is pinned to 1, and surfaces when E4 lands.
       **Why this blocks v1:** `SplitPane.sizeDp`/`onResize(Consumer<Float>)`, `Table.columnWidth` and the
-      `NodeLayout` record's components are public, and what em means (it is rem today) changes every
-      application's pixels if it changes later. The recommendation (U1–U9) is **not yet ruled**.
+      `NodeLayout` record's components are public. **U6 is ruled and built (2026-10-15):** em is the node's own
+      text size and rem the root, each caller of the old em having moved to rem first, so nothing moved. The rest
+      of the recommendation (U1–U5, U7–U9) is **not yet ruled**.
 
 - [ ] **The container now gives a component a thread and a mailbox; what is left is the colour rule.**
       `Shell.lanes()` owns the application's threads and the generated wiring puts each `@Component` on one of
