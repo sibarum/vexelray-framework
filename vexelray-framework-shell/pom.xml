@@ -100,5 +100,35 @@
             <groupId>dev.vexelray</groupId>
             <artifactId>vexelray-os-api</artifactId>
         </dependency>
+        <!-- FrameworkShader: the canvas shader every application on the framework draws with. Reachable through
+             -widget already; named because this module names Effects itself. -->
+        <dependency>
+            <groupId>dev.vexelray</groupId>
+            <artifactId>vexelray-shadelets</artifactId>
+        </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+              Pre-compile FrameworkShader to SPIR-V at build time, as vexelray-canvas does the core set:
+              META-INF/supirvast/shaders/canvas.frag.<hash>.spv in this jar. Without it the shader is lowered on
+              the main thread at every application's startup, and said to be. The plugin scans this module's
+              classes for shaders, so the composition is a class here with a public no-arg constructor.
+            -->
+            <plugin>
+                <groupId>dev.supirvast</groupId>
+                <artifactId>supirvast-maven-plugin</artifactId>
+                <version>${supirvast.version}</version>
+                <executions>
+                    <execution>
+                        <id>precompile-shaders</id>
+                        <goals>
+                            <goal>compile-shaders</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

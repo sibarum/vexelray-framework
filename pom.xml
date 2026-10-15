@@ -72,6 +72,8 @@
         <atchung.version>1.1-SNAPSHOT</atchung.version>
         <tactroller.version>1.1-SNAPSHOT</tactroller.version>
         <kronometer.version>1.1-SNAPSHOT</kronometer.version>
+        <!-- SupirVast: the plugin -shell pre-compiles FrameworkShader with. Must match vexelray's own. -->
+        <supirvast.version>0.2.1-SNAPSHOT</supirvast.version>
 
         <junit.version>5.11.4</junit.version>
     </properties>
@@ -121,6 +123,12 @@
             <dependency>
                 <groupId>dev.vexelray</groupId>
                 <artifactId>vexelray-os-api</artifactId>
+                <version>${vexelray.version}</version>
+            </dependency>
+            <!-- The canvas's effects: FrameworkShader composes the one a standard widget asks for. -->
+            <dependency>
+                <groupId>dev.vexelray</groupId>
+                <artifactId>vexelray-shadelets</artifactId>
                 <version>${vexelray.version}</version>
             </dependency>
             <!-- The channel a seam uses to say it dropped a capability rather than failing. Depends on nothing
