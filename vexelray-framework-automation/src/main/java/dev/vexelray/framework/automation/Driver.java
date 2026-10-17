@@ -8,6 +8,7 @@ import dev.vexelray.gui.core.app.LoopCounters;
 import java.util.Objects;
 import sibarum.probe.Log;
 import dev.vexelray.gui.automation.AutomationServer;
+import dev.vexelray.gui.inspector.link.InspectorLink;
 
 /**
  * The driving socket, wired once instead of in every application.
@@ -46,9 +47,12 @@ public final class Driver implements AutoCloseable {
     public static final String RECORDER = "recorder";
 
     private final AutomationServer server;
+    /** The Inspector's link beside the socket, or {@code null} when it is off or could not start. */
+    private final InspectorLink link;
 
-    private Driver(AutomationServer server) {
+    private Driver(AutomationServer server, InspectorLink link) {
         this.server = server;
+        this.link = link;
     }
 
     /**
@@ -67,7 +71,7 @@ public final class Driver implements AutoCloseable {
             want = System.getProperty(SETTING, "off");
         }
         if (want.isBlank() || want.equals("off") || want.equals("false")) {
-            return new Driver(null);
+            return new Driver(null, null);
         }
         try {
             int port = want.equals("on") || want.equals("true")
@@ -87,9 +91,11 @@ public final class Driver implements AutoCloseable {
             LoopCounters counters = Objects.requireNonNull(shell.app(), "the GuiApp the recorder stamps frames from");
             // Named after @VexelApp, so the discovery file and hello say "calculator" rather than the main class,
             // and ottermate --app calculator finds it (vexelray-gui docs/plans/discovery.md).
-            AutomationServer server = AutomationServer.start(new Windows(
-                    shell.windows()::views, shell.krono()::quiescentAtLastTick, counters), port,
-                    shell.info().name(), shell.info().title());
+            Windows windows = new Windows(shell.windows()::views, shell.krono()::quiescentAtLastTick, counters);
+            AutomationServer server = AutomationServer.start(windows, port, shell.info().name(), shell.info().title());
+            // The Inspector's link beside it, advertised in the discovery file before the line below is printed
+            // (vexelray-gui docs/plans/flight-recorder.md section 6). -Dautomation.link=off leaves it out.
+            InspectorLink link = InspectorLink.start(server, windows);
             // Standard output, and not the log: this line is protocol. ottermate --launch reads the port from it,
             // and stdout is where a program puts what it produces. The log gets the same fact in its own words.
             System.out.println("automation: localhost:" + server.port());
@@ -100,13 +106,13 @@ public final class Driver implements AutoCloseable {
             System.out.println("  drive it with ottermate --port " + server.port() + "  (vexelray-gui/"
                     + "vexelray-gui-automation-cli; build it there with: mvn -pl vexelray-gui-automation-cli install)");
             LOG.info("automation socket listening on localhost:{}", server.port());
-            return new Driver(server);
+            return new Driver(server, link);
         } catch (java.io.IOException | NumberFormatException e) {
             // An application that will not start because a debugging port was busy is a worse outcome than one
             // nobody can drive.
             Diagnostics.dropped("Driver.open", "the automation socket this launch asked for",
                     e.getMessage() + "; the application runs undriven and '" + want + "' bound nothing");
-            return new Driver(null);
+            return new Driver(null, null);
         }
     }
 
@@ -122,6 +128,9 @@ public final class Driver implements AutoCloseable {
 
     @Override
     public void close() {
+        if (link != null) {
+            link.close();
+        }
         if (server != null) {
             server.close();
         }
