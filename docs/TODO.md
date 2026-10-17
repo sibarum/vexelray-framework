@@ -941,6 +941,25 @@ generated project with no motion (FN-12: the template builds `Motion`). The rest
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
 
+- [ ] **On a machine whose only Vulkan is dzn (Vulkan over D3D12), the window hangs open and the first frame
+      fails** (`vexelray-present-dxgi` and `dxgi-bridge` for the frame; `vexelray-gui-core` `GuiApp` and
+      `vexelray-os-windows` `Win32Window` for the hang). Found 2026-10-16 from a report on an older computer:
+      dark window, **Not Responding**. Reproduced here with Microsoft's Compatibility Pack, dzn forced onto WARP and
+      the process CPU-capped; the steps, scripts and transcripts are `vexelray-gui/docs/guides/no-native-vulkan.md`.
+      Two separate faults. **The frame:** dzn makes the image the presenter shares with DXGI a simultaneous-access
+      texture, then emits render-target (or, in `GENERAL`, direct-queue-common) barrier layouts on it, which D3D12
+      refuses (debug layer error #1334), so `vkEndCommandBuffer` returns -1 at `DxgiPresenter.java:307`. The same
+      happens on dzn over a real GPU, and dzn draws offscreen correctly (`EffectsRenderTest` passes on it), so only the
+      shared image is the problem. **The hang:** the main window is shown when it is made, and nothing pumps its
+      messages again until `RUN`; device selection, the device, DXGI, the atlases and `ATTACH` all run in between,
+      which is about a second here and more than 5 on a slow enough machine. `Win32Window`'s comment at the
+      `createWindowExW` call still says the window is created hidden until the first frame, which the code below it
+      no longer does. Not a v1 blocker: no application code changes for either. **Ask:** a shared resource dzn
+      cannot mistranslate (a buffer has no layouts: draw into a private image, copy it to an exported buffer, and
+      have D3D12 copy that to the back buffer), at least when the driver is dzn; and pump the main window between
+      the bring-up stages, or keep it hidden until the first frame, which needs deciding against *no visual
+      discontinuity*. Report the barrier bug to Mesa as well, since machines will carry whatever dzn they have.
+
 - [x] **DXGI is the default presenter on Windows, and `dxgi-bridge` had no native-image metadata** — **fixed
       upstream.** VexelRay on Windows presents through DXGI and only DXGI: `vexelray-gui-core`'s Windows profile
       carries `vexelray-present-dxgi`, and `GuiApp` will not start there without it (the swapchain is too fragile
