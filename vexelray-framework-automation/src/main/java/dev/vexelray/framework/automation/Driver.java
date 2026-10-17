@@ -85,8 +85,11 @@ public final class Driver implements AutoCloseable {
             // The GuiApp is the loop's counters: without them every recorder row is frame 0, and frames and why
             // answer err. app() throws before the window exists, which Wiring.attach is after.
             LoopCounters counters = Objects.requireNonNull(shell.app(), "the GuiApp the recorder stamps frames from");
+            // Named after @VexelApp, so the discovery file and hello say "calculator" rather than the main class,
+            // and ottermate --app calculator finds it (vexelray-gui docs/plans/discovery.md).
             AutomationServer server = AutomationServer.start(new Windows(
-                    shell.windows()::views, shell.krono()::quiescentAtLastTick, counters), port);
+                    shell.windows()::views, shell.krono()::quiescentAtLastTick, counters), port,
+                    shell.info().name(), shell.info().title());
             // Standard output, and not the log: this line is protocol. ottermate --launch reads the port from it,
             // and stdout is where a program puts what it produces. The log gets the same fact in its own words.
             System.out.println("automation: localhost:" + server.port());
