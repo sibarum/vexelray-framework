@@ -4,6 +4,8 @@ import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.automation.Windows;
+import dev.vexelray.gui.core.app.LoopCounters;
+import java.util.Objects;
 import sibarum.probe.Log;
 import dev.vexelray.gui.automation.AutomationServer;
 
@@ -37,6 +39,12 @@ public final class Driver implements AutoCloseable {
      */
     public static final String SETTING = "automation";
 
+    /**
+     * The flight recorder's ring size in rows: {@code --recorder=<rows>}, handed on as the {@code -Drecorder}
+     * property the recorder reads ({@code Recorder.ROWS_PROPERTY}). Also one of {@code Launch.FRAMEWORK_KEYS}.
+     */
+    public static final String RECORDER = "recorder";
+
     private final AutomationServer server;
 
     private Driver(AutomationServer server) {
@@ -68,8 +76,17 @@ public final class Driver implements AutoCloseable {
             // The clock goes with the Gui, so settle waits out a transition as well as the frame loop: without it,
             // a click that starts a fade and a settle straight after photographed the fade part-way through and
             // said ok. The sampled form, because the driver answers on a thread of its own.
+            // The flight recorder sizes its ring from the property when Windows builds it, so a --recorder flag is
+            // handed on first, the same flag-over-property order as the setting above.
+            String rows = shell.launch().override(RECORDER);
+            if (rows != null) {
+                System.setProperty(RECORDER, rows);
+            }
+            // The GuiApp is the loop's counters: without them every recorder row is frame 0, and frames and why
+            // answer err. app() throws before the window exists, which Wiring.attach is after.
+            LoopCounters counters = Objects.requireNonNull(shell.app(), "the GuiApp the recorder stamps frames from");
             AutomationServer server = AutomationServer.start(new Windows(
-                    shell.windows()::views, shell.krono()::quiescentAtLastTick), port);
+                    shell.windows()::views, shell.krono()::quiescentAtLastTick, counters), port);
             // Standard output, and not the log: this line is protocol. ottermate --launch reads the port from it,
             // and stdout is where a program puts what it produces. The log gets the same fact in its own words.
             System.out.println("automation: localhost:" + server.port());
