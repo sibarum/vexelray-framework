@@ -28,6 +28,10 @@ final class Landmarks {
     static final String TAP_BUTTON = "button.tap";
     static final String TAP = "tap";
 
+    /** Frames and CPU while nothing is owed, then the frames one wake earns. */
+    static final String IDLE_BUTTON = "button.idle";
+    static final String IDLE = "idle";
+
     /** Rewritten by the probes to make the wake; its text is the trial number and means nothing else. */
     static final String TICK = "tick";
 

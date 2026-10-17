@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * application on a real window. It asserts almost nothing on purpose. What it produces is numbers, printed with a
  * {@code PACING} prefix, and what they mean is written up in {@code docs/architecture.md}.
  *
- * <p>Three questions, each about the design the loop exists for — park when idle, answer a wake at once, and
+ * <p>Four questions, each about the design the loop exists for — park when idle, answer a wake at once, and
  * hold an animation to the display:
  * <ol>
  *   <li><b>Does an animation run at the display's rate?</b> Frames across one 600 ms pulse, three times. At
@@ -36,6 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li><b>Does anything throttle the loop under more wakes than it can answer?</b> Three seconds of writes with
  *       no pause: the frame rate it plateaus at is the presenter's, if the presenter blocks, and the writes'
  *       failures say whether a full message queue throws on the writing thread.</li>
+ *   <li><b>What does the loop cost when nothing is owed, and what does one wake buy?</b> Four seconds of nothing,
+ *       counting frames and process CPU, then ten single writes from a parked loop, counting the frames each
+ *       earns. Unfocused should be none, focused the idle floor's five a second, and a wake exactly one.</li>
  * </ol>
  * The sleeps and the trial count are fixed, so two runs are comparable and the numbers are not tuned to the
  * machine.
@@ -97,6 +100,14 @@ class PacingMeasurementTest {
             d.ok("click " + d.ref("button.probe"));
             d.ok("await latency latency n=");
             System.out.println("PACING " + landmarked(d, "latency"));
+
+            // Before the storm, so nothing it queued is still draining: the loop with nothing owed, then single wakes.
+            // Twice, so a first run's class loading is visible as the difference between them.
+            for (int i = 1; i <= 2; i++) {
+                d.ok("click " + d.ref("button.idle"));
+                d.ok("await idle idle #" + i + " ");
+                System.out.println("PACING " + landmarked(d, "idle"));
+            }
 
             d.ok("click " + d.ref("button.storm"));
             d.ok("await storm storm frames");

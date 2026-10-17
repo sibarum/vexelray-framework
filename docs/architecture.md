@@ -1406,14 +1406,20 @@ per tick and nothing that grows per minute. The pulse and the clock's own repeat
 
 The GUI's design is a hybrid: retained, drawn on demand, parked when nothing is owed, and running at the display's
 rate the moment something animates. W3 suggested the wake half worked and the ceiling did not; three measurements
-on a generated application (`witnesses/pacing`, `PacingMeasurementTest`) test the design directly. The numbers
-are from one machine, whose display appears to run at 144 Hz.
+on a generated application (`witnesses/pacing`, `PacingMeasurementTest`) test the design directly, and a fourth
+(the *Idle* probe) tests the parked half. The numbers are from one machine, whose display appears to run at 144 Hz;
+they were re-taken on 2026-10-17, after the ceiling began holding against wakes, and the first measurements are
+kept in brackets where they differ.
 
 | Question | Result |
 | --- | --- |
-| Frames across one 600 ms pulse (three runs) | 88, 87, 87 in ~610 ms: **~143 a second** |
-| Wake to the first frame from a parked loop (15 trials) | median **1.03 ms**, p95 1.6 ms, min 0.75 ms |
-| Frames in 3 s under 35 million writes, one wake behind each | **434, ~145 a second**, 0 failures |
+| Frames across one 600 ms pulse (three runs) | 87, 88, 88 in ~610 ms: **~144 a second** |
+| Wake to the first frame from a parked loop (15 trials) | median **0.6 to 1.3 ms** across two runs, p95 1.0 to 2.0 ms (was 1.03 ms) |
+| Frames in 3 s under 35 to 41 million writes, one wake behind each | **402 to 430, 134 to 143 a second**, 0 failures (was 434) |
+| Frames in 4 s with nothing owed, unfocused | **0** |
+| Frames in 4 s with nothing owed, focused | **20, 5.0 a second**: the idle floor, exactly |
+| Frames earned by one write from a parked loop, counted over the next 100 ms (10 trials, two runs) | **1, every time** |
+| Process CPU over those 4 s | 31 to 125 ms, **0.8 to 3 % of one core**; see below |
 
 **What it says.**
 
@@ -1429,6 +1435,16 @@ are from one machine, whose display appears to run at 144 Hz.
   the message-queue overflow worry did not materialise: `Gui` coalesces its wakes ("the wake is a cell, not an
   event"), so the queue sees about one message a frame however many writes there are. A component that called
   `postWake` itself, per delivery, is not covered by that and was not measured.
+- **Parked means parked.** Unfocused, the loop ran no frame in four seconds; focused, it ran the floor's five a
+  second and nothing more. A write from a parked loop earned exactly one frame in all twenty trials, so neither a
+  text change nor the paint fades keeps the loop awake after the frame that drew it. Which of the two a run gets
+  depends on whether the launched window happened to come up in front; the probe reports either.
+- **The idle CPU is small and not zero, and the instrument is coarse.** Windows accounts thread CPU in 15.6 ms
+  ticks, so four seconds resolve to a few ticks: the readings are 2 to 8 of them. Of the Java threads, `main`
+  spent two ticks across the 20 floor frames (about 1.5 ms a frame) and the watchdog, the prober and a pool
+  worker a tick each; the process total in the second run was about 80 ms above the Java threads' sum, which is
+  the JVM's own threads or the drivers' and is not broken down further here. A minute-long run would be needed to
+  put a number on the unfocused residue that the ticks cannot hide.
 
 **Which changes an earlier claim.** The ceiling was written up as a bug whose fix was a wake object, on the
 reading that a wake storm would run the loop flat out. It would not. What the numbers leave open is the intent: a
@@ -1440,9 +1456,14 @@ polling thread, which samples the pointer and keys with `GetCursorPos` and `GetA
 `TactrollerInputBridge` takes a `snapshot()` once per frame, at `FrameStage.INPUT`, and a real OS input message
 ends the parked wait. Measured through that path (twenty clicks, each after the loop had parked): the time from the
 frame that took the click to the frame that drew its result, through the handler lane and back, is a median
-**1.3 ms** (p95 2.6 ms), of which the hop to the handler is about 0.2 ms. The two-frame structure costs about a
-millisecond because a frame's CPU work is small and the loop is parked between them. (Tactroller's own 125 Hz
-loop is still what a consumer that calls `start()` gets; the framework is not one.)
+**6.5 ms** (p95 7.4 ms, two runs), of which the hop to the handler is 0.1 to 0.2 ms. **That is one refresh, and it
+is the ceiling.** The first measurement here was 1.3 ms, taken while any wake could end the ceiling's park; since
+the loop holds the ceiling against wakes (`render-on-demand.md`, *the ceiling is a real ceiling*), the handler's
+write lands about 0.2 ms into a frame and the frame that draws it waits out the rest of the 6.94 ms gap from that
+frame's start. `render-on-demand.md` names this as the price of a ceiling that holds: at most one gap. Whether it
+costs anything on the glass is not measured: with FIFO present the earlier frame would have queued behind the click's
+own frame, so the difference may be less than a refresh. (Tactroller's own 125 Hz loop is still what a consumer that
+calls `start()` gets; the framework is not one.)
 
 **Smoothness, which is the goal, and one hiccup.** Across three pulses (about 260 frames) the frame gap has a
 median of **6.94 ms**, which is 144 Hz and is steady. But **every pulse has one or two late frames, gaps of 20 to

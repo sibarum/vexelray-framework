@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 final class Topics {
     static final String PROBE = "witness.probe";
     static final String STORM = "witness.storm";
+    static final String IDLE = "witness.idle";
 
     private Topics() {
     }
@@ -19,6 +20,8 @@ final class Topics {
 record Probe(int trials) { }
 
 record Storm(int millis) { }
+
+record Idle(int millis, int trials) { }
 
 /**
  * The two probes that need something other than the window's own thread to run them.
@@ -32,6 +35,8 @@ final class Prober {
 
     private final Meter meter;
     private final Ui ui;
+    /** How many idle runs have reported, so a driver awaiting the second does not read the first. */
+    private int idles;
 
     Prober(Meter meter, Ui ui) {
         this.meter = meter;
@@ -67,6 +72,74 @@ final class Prober {
         ui.latency("latency n=" + micros.length + " median " + sorted[sorted.length / 2] + "us p95 "
                 + sorted[(int) (sorted.length * 0.95)] + "us max " + sorted[sorted.length - 1] + "us min "
                 + sorted[0] + "us");
+    }
+
+    /**
+     * The other half of render on demand: what the loop costs when nothing is owed, and what one wake buys.
+     *
+     * <p>First {@code millis} of nothing, counting the frames the loop ran and the CPU the whole process spent. A
+     * focused window is held to the idle floor (five a second); an unfocused one should run none. Then
+     * {@code trials} single writes, each from a parked loop, counting the frames in the 100 ms after each: one wake
+     * should earn exactly one frame, and anything more is something the write started that keeps the loop awake.
+     * Under the lane's ten-second stall threshold at the lengths the driver asks for.
+     */
+    @Subscribe(topic = Topics.IDLE)
+    public void idle(Idle idle) {
+        sleep(500);   // the click that asked for this, and its hover, settle first
+        java.lang.management.ThreadMXBean threads = java.lang.management.ManagementFactory.getThreadMXBean();
+        java.util.Map<Long, Long> threadsBefore = new java.util.HashMap<>();
+        for (long id : threads.getAllThreadIds()) {
+            threadsBefore.put(id, threads.getThreadCpuTime(id));
+        }
+        long framesBefore = meter.frames();
+        long cpuBefore = cpuNanos();
+        long start = System.nanoTime();
+        sleep(idle.millis());
+        long wall = System.nanoTime() - start;
+        long idleFrames = meter.frames() - framesBefore;
+        long idleCpu = cpuNanos() - cpuBefore;
+        // Where the process's CPU went, by Java thread: the rest (the JVM's own threads and the drivers') is the
+        // difference between the process total and this sum.
+        java.util.List<String> spent = new java.util.ArrayList<>();
+        long javaSum = 0;
+        for (java.lang.management.ThreadInfo info : threads.getThreadInfo(threads.getAllThreadIds())) {
+            if (info == null) {
+                continue;
+            }
+            long now = threads.getThreadCpuTime(info.getThreadId());
+            long delta = now - threadsBefore.getOrDefault(info.getThreadId(), 0L);
+            if (now >= 0 && delta > 0) {
+                javaSum += delta;
+                spent.add(String.format("%07.2f %s", delta / 1e6, info.getThreadName()));
+            }
+        }
+        spent.sort(java.util.Comparator.reverseOrder());
+        sibarum.probe.Log.of("witness.idle").warn("IDLE-CPU process " + idleCpu / 1_000_000L + "ms java threads " + javaSum / 1_000_000L
+                + "ms :: " + String.join(" | ", spent));
+
+        int[] earned = new int[idle.trials()];
+        for (int i = 0; i < earned.length; i++) {
+            sleep(250 + ThreadLocalRandom.current().nextInt(100));
+            long before = meter.frames();
+            ui.tick(i);
+            sleep(100);
+            earned[i] = (int) (meter.frames() - before);
+        }
+        ui.idle(String.format("idle #%d frames %d in %dms (%.1f/s) cpu %.1fms (%.2f%%) wake frames %s",
+                ++idles, idleFrames, wall / 1_000_000L, idleFrames * 1e9 / wall, idleCpu / 1e6,
+                idleCpu < 0 ? -1.0 : 100.0 * idleCpu / wall, Arrays.toString(earned).replace(" ", "")));
+    }
+
+    private static long cpuNanos() {
+        return ProcessHandle.current().info().totalCpuDuration().map(java.time.Duration::toNanos).orElse(-1L);
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException stopped) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**

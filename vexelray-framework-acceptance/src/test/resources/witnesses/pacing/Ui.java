@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * The tree for the pacing measurements: a button and a readout for each probe, and the one node the probes write
  * to make a wake. Handlers run on the handler lane, which is where a send may wait.
  */
-@Publishes({Topics.PROBE, Topics.STORM})
+@Publishes({Topics.PROBE, Topics.STORM, Topics.IDLE})
 final class Ui {
 
     /** The template's pulse: a 600 ms out-and-back ramp, which is what a click starts in a real application. */
@@ -33,6 +33,7 @@ final class Ui {
 
     private static final Topic<Probe> PROBE = Topic.of(Topics.PROBE, Probe.class);
     private static final Topic<Storm> STORM = Topic.of(Topics.STORM, Storm.class);
+    private static final Topic<Idle> IDLE = Topic.of(Topics.IDLE, Idle.class);
 
     private final Gui gui;
     private final KronoGui krono;
@@ -41,6 +42,7 @@ final class Ui {
     private final Node pulse;
     private final Node latency;
     private final Node storm;
+    private final Node idle;
     private final Node tick;
     private final Node tap;
     private final AtomicInteger pulses = new AtomicInteger();
@@ -58,6 +60,7 @@ final class Ui {
         pulse = readout(Landmarks.PULSE, "pulse none", Type.SMALL);
         latency = readout(Landmarks.LATENCY, "latency none", Type.SMALL);
         storm = readout(Landmarks.STORM, "storm none", Type.SMALL);
+        idle = readout(Landmarks.IDLE, "idle none", Type.SMALL);
         tick = readout(Landmarks.TICK, "tick -", Type.SMALL);
         tap = readout(Landmarks.TAP, "tap none", Type.SMALL);
 
@@ -65,7 +68,8 @@ final class Ui {
                 button(Landmarks.TAP_BUTTON, "Tap", this::tapped),
                 button(Landmarks.PULSE_BUTTON, "Pulse", this::pulse),
                 button(Landmarks.PROBE_BUTTON, "Probe", () -> bus.publish(PROBE, new Probe(15))),
-                button(Landmarks.STORM_BUTTON, "Storm", () -> bus.publish(STORM, new Storm(3_000))));
+                button(Landmarks.STORM_BUTTON, "Storm", () -> bus.publish(STORM, new Storm(3_000))),
+                button(Landmarks.IDLE_BUTTON, "Idle", () -> bus.publish(IDLE, new Idle(4_000, 10))));
 
         Node card = gui.column()
                 .width(Length.AUTO).height(Length.AUTO)
@@ -74,7 +78,7 @@ final class Ui {
                 .corner(Type.CORNER)
                 .background(gui.theme().color(Role.PANEL))
                 .alignItems(AlignItems.CENTER)
-                .children(heading, figure, pulse, latency, storm, tick, tap, buttons);
+                .children(heading, figure, pulse, latency, storm, idle, tick, tap, buttons);
         gui.landmark(Landmarks.CARD, card);
 
         Node body = gui.row()
@@ -198,5 +202,9 @@ final class Ui {
 
     void storm(String text) {
         storm.text(text);
+    }
+
+    void idle(String text) {
+        idle.text(text);
     }
 }
