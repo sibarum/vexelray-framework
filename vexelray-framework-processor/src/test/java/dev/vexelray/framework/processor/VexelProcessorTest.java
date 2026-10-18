@@ -549,6 +549,32 @@ class VexelProcessorTest {
     }
 
     @Test
+    void anEmptyRecordIsAnEffectAndIsToldTheMarkerShapeRatherThanAnInterface() {
+        List<String> errors = app("""
+                public record Restored() {}
+                """, """
+                @Configuration
+                public final class AppConfig {
+                    @Provides public Restored restore() { return null; }
+                }
+                """);
+        onlyError(errors, "returns Restored, an empty record, which reads as a recipe run for its effect");
+        onlyError(errors, "return a package-private final class as a marker");
+        assertFalse(errors.get(0).contains("Return an interface"), errors.get(0));
+    }
+
+    @Test
+    void aVoidProviderIsToldTheMarkerShape() {
+        onlyError(app("""
+                @Configuration
+                public final class AppConfig {
+                    @Provides public void restore() {}
+                }
+                """), "returns void, so it provides nothing. A recipe run for its effect still has to return"
+                + " something for now: return a package-private final class as a marker");
+    }
+
+    @Test
     void providingAPrimitiveIsAValue() {
         onlyError(app("""
                 @Configuration

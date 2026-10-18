@@ -179,7 +179,8 @@ final class Declarations {
         String where = Mirrors.where(method);
         TypeMirror type = method.getReturnType();
         if (type.getKind() == TypeKind.VOID) {
-            error(method, "@Provides " + where + " returns void, so it provides nothing");
+            error(method, "@Provides " + where + " returns void, so it provides nothing. A recipe run for its"
+                    + " effect still has to return something for now: " + EFFECT_SHAPE);
             return;
         }
         TypeElement element = Mirrors.element(type);
@@ -198,13 +199,31 @@ final class Declarations {
             // stays refused whatever its visibility -- that objection is that it is a value, not who can see it.
             return;
         }
+        if (element.getKind() == ElementKind.RECORD && element.getRecordComponents().isEmpty()) {
+            // A record with nothing in it carries no value and no behaviour: it is a marker for a recipe run for
+            // its effect, and an interface would be the wrong advice -- there is nothing to implement twice.
+            error(method, "@Provides " + where + " returns " + Mirrors.simple(element) + ", an empty record,"
+                    + " which reads as a recipe run for its effect. A record is refused as a value whatever is in"
+                    + " it, so give the marker another shape: " + EFFECT_SHAPE);
+            return;
+        }
         String kind = element.getKind() == ElementKind.RECORD
                 ? "a record, and a record behind @Provides is the smell rather than the exception — a value is"
                   + " not the container's business"
                 : "a concrete " + element.getKind().toString().toLowerCase() + " of this application's own";
         error(method, "@Provides " + where + " returns " + Mirrors.simple(element) + ", " + kind + ". Return"
-                + " an interface, so the wiring can construct something else without touching a call site");
+                + " an interface, so the wiring can construct something else without touching a call site."
+                + " If the recipe is run for its effect rather than for what it returns, " + EFFECT_SHAPE);
     }
+
+    /**
+     * What a recipe run only for its effect returns until the wiring can run one for effect: the shape the
+     * applications already use (Vex's {@code Recipes.Restored}, Pix's window binding). Shared by the messages that
+     * would otherwise point such a recipe at an interface.
+     */
+    private static final String EFFECT_SHAPE = "return a package-private final class as a marker (`static final"
+            + " class Restored {}`, returned as `new Restored()`), or an AutoCloseable if the effect has to be"
+            + " undone when the application closes";
 
     void orphanDefault(ExecutableElement method) {
         if (!mirrors.has(method, Provides.class)) {
