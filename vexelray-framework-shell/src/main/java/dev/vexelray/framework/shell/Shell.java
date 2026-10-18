@@ -58,6 +58,8 @@ public final class Shell {
 
     private final Launch launch;
     private final AppInfo info;
+    /** What the application was built from; set by {@link VexelApplication} from the wiring before any phase runs. */
+    private BuildInfo build = BuildInfo.UNKNOWN;
     private final FrameHooks hooks = new FrameHooks();
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
@@ -113,6 +115,15 @@ public final class Shell {
     /** The facts from {@code @VexelApp}. */
     public AppInfo info() {
         return info;
+    }
+
+    /** What the application was built from: its coordinates and exact source, and the stack's ({@link BuildInfo}). */
+    public BuildInfo build() {
+        return build;
+    }
+
+    void build(BuildInfo build) {
+        this.build = build == null ? BuildInfo.UNKNOWN : build;
     }
 
     /** The phase currently being built. */

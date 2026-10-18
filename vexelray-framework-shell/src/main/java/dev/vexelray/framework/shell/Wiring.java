@@ -45,6 +45,15 @@ public abstract class Wiring {
     public abstract AppInfo info();
 
     /**
+     * What the application was built from, as a constant: the generated wiring bakes in the bill
+     * {@code vexelray-build-maven-plugin} wrote while the application compiled. {@link BuildInfo#UNKNOWN} when it was
+     * built without the plugin.
+     */
+    public BuildInfo build() {
+        return BuildInfo.UNKNOWN;
+    }
+
+    /**
      * Whether the device is made with a compute queue of its own, to be lent to one component
      * ({@link Shell#computeQueue}). Asked before the device exists, because a queue is taken when the device is made
      * and never after. The generated wiring says yes exactly when a component takes a {@code ComputeQueue}; every

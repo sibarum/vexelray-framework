@@ -107,6 +107,7 @@ class VexelProcessorTest {
                 package dev.vexelray.framework.shell;
                 public abstract class Wiring {
                     public abstract AppInfo info();
+                    public BuildInfo build() { return null; }
                     public boolean computeQueue() { return false; }
                     public String icon() { return null; }
                     public void config(Shell shell) {}
@@ -121,6 +122,11 @@ class VexelProcessorTest {
                 package dev.vexelray.framework.shell;
                 public record AppInfo(String name, String title, int width, int height,
                                       java.util.Set<String> settingKeys) {}
+                """),
+            Map.entry("dev.vexelray.framework.shell.BuildInfo", """
+                package dev.vexelray.framework.shell;
+                public record BuildInfo(String group, String artifact, String version, String source,
+                                        java.util.List<String> stack) {}
                 """),
             Map.entry("dev.vexelray.framework.shell.Placement", """
                 package dev.vexelray.framework.shell;
@@ -316,6 +322,41 @@ class VexelProcessorTest {
         assertEquals(true, run.computeQueue(), "the device is asked for a queue to lend");
         assertEquals(List.of(), run.phase("config"));
         assertEquals(List.of("compute queue lent"), run.phase("window"), "built when the device exists");
+    }
+
+    // --- build identity -------------------------------------------------------------------------------------
+
+    @Test
+    void theBuildBillIsBakedIntoTheWiringAsAConstant() throws Exception {
+        String bill = String.join("\n",
+                "group=dev.example", "artifact=demo", "version=0.1.0-SNAPSHOT",
+                "commit=ef816d9a", "dirty=true", "digest=0a1b2c3d4e5f", "source=ef816d9a+dirty.0a1b2c3d4e5f",
+                "stack.count=2",
+                "stack.1=dev.vexelray.gui:vexelray-gui-core:0.1.1-SNAPSHOT@1e057d6",
+                "stack.2=sibarum.atchung:atchung-probe:1.1-SNAPSHOT@4612f44") + "\n";
+        Compiled compiled = buildWith(Map.of(BuildBill.RESOURCE, bill), """
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.errors());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("public dev.vexelray.framework.shell.BuildInfo build() {\n"
+                + "        return new dev.vexelray.framework.shell.BuildInfo(\n"
+                + "                \"dev.example\", \"demo\", \"0.1.0-SNAPSHOT\",\n"
+                + "                \"ef816d9a+dirty.0a1b2c3d4e5f\",\n"
+                + "                java.util.List.of(\n"
+                + "                        \"dev.vexelray.gui:vexelray-gui-core:0.1.1-SNAPSHOT@1e057d6\",\n"
+                + "                        \"sibarum.atchung:atchung-probe:1.1-SNAPSHOT@4612f44\"));"), wiring);
+    }
+
+    @Test
+    void withoutABillTheWiringLeavesTheBuildUnknown() throws Exception {
+        Compiled compiled = buildWith(Map.of(), """
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.errors(), "a note, not an error: an application built without the plugin");
+        assertFalse(Files.readString(compiled.out().resolve("app/DemoAppWiring.java")).contains(" build() {"));
     }
 
     // --- @VexelApp(icon) -------------------------------------------------------------------------------------

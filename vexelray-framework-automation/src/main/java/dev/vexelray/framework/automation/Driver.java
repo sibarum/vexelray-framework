@@ -4,6 +4,7 @@ import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.automation.Capability;
+import dev.vexelray.gui.automation.Discovery;
 import dev.vexelray.gui.automation.Sockets;
 import dev.vexelray.gui.automation.Timeline;
 import dev.vexelray.gui.automation.Windows;
@@ -245,6 +246,9 @@ public final class Driver implements AutoCloseable {
             // sockets answer on threads of their own.
             Windows windows = new Windows(shell.windows()::views,
                     Timeline.of(shell.krono()::quiescentAtLastTick, shell.krono()::whyBusyAtLastTick), counters);
+            // What this build is, exactly, before any socket writes its discovery file: the coordinates and commit
+            // (plus any uncommitted change) the generated wiring baked in, and the stack's (vexelray-build/README.md).
+            Discovery.build(shell.build().facts());
             // Named after @VexelApp, so the discovery file and hello say "calculator" rather than the main class,
             // and ottermate --app calculator finds it (vexelray-gui docs/plans/discovery.md).
             sockets = new Sockets(windows, shell.info().name(), shell.info().title(), System.out, available)

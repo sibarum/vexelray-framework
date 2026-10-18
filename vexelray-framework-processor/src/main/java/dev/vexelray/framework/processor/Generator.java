@@ -634,6 +634,28 @@ final class Generator {
         }
         src.append("\n    @Override\n    public ").append(Framework.APP_INFO).append(" info() {\n")
                 .append("        return INFO;\n    }\n");
+        // What the application was built from: vexelray-build-maven-plugin wrote its bill into the class output before
+        // anything compiled, and it becomes a constant here, so nothing is read at run time and a native image needs
+        // no resource for it. Without the plugin the shell's default, BuildInfo.UNKNOWN, stands, and the build says so.
+        java.util.Properties bill = BuildBill.read(filer);
+        if (bill != null) {
+            src.append("\n    @Override\n    public ").append(Framework.BUILD_INFO).append(" build() {\n")
+                    .append("        return new ").append(Framework.BUILD_INFO).append("(\n                ")
+                    .append(literal(bill.getProperty("group", "-"))).append(", ")
+                    .append(literal(bill.getProperty("artifact", "-"))).append(", ")
+                    .append(literal(bill.getProperty("version", "-"))).append(",\n                ")
+                    .append(literal(bill.getProperty("source", "unknown"))).append(",\n                java.util.List.of(");
+            List<String> stack = BuildBill.stack(bill);
+            for (int i = 0; i < stack.size(); i++) {
+                src.append(i == 0 ? "\n                        " : ",\n                        ")
+                        .append(literal(stack.get(i)));
+            }
+            src.append("));\n    }\n");
+        } else {
+            report.printMessage(javax.tools.Diagnostic.Kind.NOTE, "the build identity of " + qualified
+                    + " is unknown: its pom does not run vexelray-build-maven-plugin's identify goal, so the"
+                    + " discovery file and hello will say source=unknown (see vexelray-build/README.md)");
+        }
         // A component takes the compute queue, so the device is made with one to lend it (T3.1). Graph has made sure
         // it is one component and no provider.
         if (order.stream().anyMatch(b -> b.args.stream().anyMatch(a -> a instanceof RootArg r

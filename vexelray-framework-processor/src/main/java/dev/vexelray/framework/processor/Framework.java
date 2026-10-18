@@ -18,6 +18,7 @@ final class Framework {
     static final String SHELL = "dev.vexelray.framework.shell.Shell";
     static final String WIRING = "dev.vexelray.framework.shell.Wiring";
     static final String APP_INFO = "dev.vexelray.framework.shell.AppInfo";
+    static final String BUILD_INFO = "dev.vexelray.framework.shell.BuildInfo";
     static final String PLACEMENT = "dev.vexelray.framework.shell.Placement";
     /** What generated code calls to place a component and register its mailboxes; see {@code Placements}. */
     static final String PLACEMENTS = "dev.vexelray.framework.shell.Placements";
