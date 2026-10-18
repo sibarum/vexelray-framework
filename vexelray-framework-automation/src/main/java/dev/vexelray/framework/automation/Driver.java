@@ -29,9 +29,9 @@ import sibarum.probe.Log;
  * <p><b>Off unless requested, and loopback-only when it is.</b> This hands anyone who can reach it full control
  * of the application's input, so it is a debugging instrument and not a service
  * ({@code vexelray-gui/docs/reference/automation.md} §5). Requested means a launch setting — {@code --automation}
- * for both on one port, {@code --automation.control} and {@code --automation.diagnostics} for each — or the
- * automation button this puts in the title bar, beside the key bindings, which switches either while the
- * application runs.
+ * for both on one port, {@code --automation.control} and {@code --automation.diagnostics} for each, or
+ * {@value #ENVIRONMENT} in an agent's environment — or the automation button this puts in the title bar, beside the
+ * key bindings, which switches either while the application runs.
  *
  * <p><b>A module of its own rather than part of {@code -shell}.</b> Absorbing it into the shell would put
  * {@code vexelray-gui-automation} on every application's compile path, and a listening socket linked into every
@@ -58,6 +58,15 @@ public final class Driver implements AutoCloseable {
      */
     public static final String RECORDER = "recorder";
 
+    /**
+     * The environment variable an agent's shell sets so every application it launches opens its socket without a
+     * flag: {@code VEXELRAY_AUTOMATION=0} for a free port. Read after the flag and the property, and only when neither
+     * names any automation setting ({@link #resolver}). A release edition has no automation module, so a shipped binary
+     * ignores it. Where a run's socket landed is in its discovery file, {@code ~/.vexelray/automation/<app>-<pid>.auto},
+     * which {@code Sockets} writes while it listens and {@code ottermate} reads with no {@code --port}.
+     */
+    public static final String ENVIRONMENT = "VEXELRAY_AUTOMATION";
+
     private final Shell shell;
     /** Built on first need — the launch asking, or the button clicked — because it needs the window. */
     private Sockets sockets;
@@ -76,21 +85,26 @@ public final class Driver implements AutoCloseable {
      *
      * <p>Each setting is resolved from the command line first and the system property second, so
      * {@code --automation=7654} works alongside the {@code -Dautomation=7654} the existing exec configurations pass.
-     * That ordering is {@code Setting}'s: a flag is more specific to this launch than a property.
+     * That ordering is {@code Setting}'s: a flag is more specific to this launch than a property. Last, and only when
+     * neither names any of the three settings, {@value #ENVIRONMENT} stands in for {@code automation}, so an agent's
+     * shell opens every application's socket without a flag ({@link #resolver}).
      */
     public static Driver open(Shell shell) {
+        return open(shell, System::getProperty, System::getenv);
+    }
+
+    /** {@link #open(Shell)} with the property and environment lookups handed in, so a test sets neither globally. */
+    static Driver open(Shell shell, Function<String, String> properties, Function<String, String> environment) {
         Driver driver = new Driver(shell);
         driver.button();
-        Function<String, String> asked = key -> {
-            String v = shell.launch().override(key);
-            return v != null ? v : System.getProperty(key);
-        };
+        Function<String, String> asked = resolver(shell.launch()::override, properties, environment);
         if (!Sockets.anyRequested(asked)) {
             return driver;
         }
         String want = SETTING + "=" + asked.apply(SETTING) + " " + Sockets.CONTROL_SETTING + "="
                 + asked.apply(Sockets.CONTROL_SETTING) + " " + Sockets.DIAGNOSTICS_SETTING + "="
-                + asked.apply(Sockets.DIAGNOSTICS_SETTING);
+                + asked.apply(Sockets.DIAGNOSTICS_SETTING)
+                + (fromEnvironment(shell.launch()::override, properties) ? " (from " + ENVIRONMENT + ")" : "");
         try {
             // Every value read before anything is built, so a port that is not a number is said without reaching
             // for a window that a launch which failed this early may not have.
@@ -115,6 +129,42 @@ public final class Driver implements AutoCloseable {
                             + (driver.sockets == null ? "" : " (" + driver.sockets.describe() + ")"));
         }
         return driver;
+    }
+
+    /**
+     * How each setting is read: the flag, then the property, and for {@link #SETTING} alone, the environment's
+     * {@value #ENVIRONMENT} last (mainframe {@code docs/stack-env.md} §1).
+     *
+     * <p><b>The environment counts only when the launch named no socket at all.</b> {@code --automation} puts both
+     * capabilities on one socket and wins over the other two ({@code Sockets.enableRequested}), so an environment
+     * value filling it in beside {@code --automation.control=7000} would override the launch's own, more specific,
+     * flag. The environment is the agent's shell saying "every application", and a launch that says anything about
+     * its sockets has said something more specific.
+     */
+    static Function<String, String> resolver(Function<String, String> flags, Function<String, String> properties,
+                                             Function<String, String> environment) {
+        Function<String, String> launch = key -> {
+            String v = flags.apply(key);
+            return v != null ? v : properties.apply(key);
+        };
+        if (!fromEnvironment(flags, properties)) {
+            return launch;
+        }
+        String fallback = environment.apply(ENVIRONMENT);
+        return key -> {
+            String v = launch.apply(key);
+            return v == null && key.equals(SETTING) && fallback != null && !fallback.isBlank() ? fallback.trim() : v;
+        };
+    }
+
+    /** Whether no flag or property names any automation setting, so {@value #ENVIRONMENT} is the one asked. */
+    private static boolean fromEnvironment(Function<String, String> flags, Function<String, String> properties) {
+        for (String key : new String[] {SETTING, Sockets.CONTROL_SETTING, Sockets.DIAGNOSTICS_SETTING}) {
+            if (flags.apply(key) != null || properties.apply(key) != null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

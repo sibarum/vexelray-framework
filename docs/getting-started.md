@@ -178,7 +178,11 @@ mvn -Pnative package -DskipTests
 ```
 
 writes `target/my-app-debug.exe`, with a console and the automation socket linked in, for testing. The socket only
-opens when a launch asks for it, with `--automation=<port>`.
+opens when a launch asks for it, with `--automation=<port>`, or `-Dautomation=<port>`, or, when the launch names no
+automation setting at all, the environment variable `VEXELRAY_AUTOMATION=<port>` (`0` for a free port), which an
+agent's shell sets so every application it starts can be driven. Each run's port is in its discovery file,
+`~/.vexelray/automation/<app>-<pid>.auto`, and `ottermate` with no `--port` reads it. The release edition has no
+socket to open, so it ignores all three.
 
 The difference is one annotation, written twice: `src/edition-debug` declares the app with the automation starter
 and `src/edition-release` without it. Keep the two identical apart from that.

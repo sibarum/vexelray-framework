@@ -11,7 +11,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import dev.vexelray.gui.automation.Sockets;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,7 +62,7 @@ final class DriverTest {
     @Test
     void aPortThatIsNotANumberIsReportedRatherThanThrown(@TempDir Path home) {
         Shell shell = shell(home, "--automation=wednesday");
-        try (Driver driver = Driver.open(shell)) {
+        try (Driver driver = Driver.open(shell, NONE, NONE)) {
             assertFalse(driver.bound(), "nothing was bound, so nothing can drive this application");
             assertEquals(1, Diagnostics.recorded().size(), "" + Diagnostics.recorded());
             String message = Diagnostics.recorded().get(0);
@@ -75,7 +78,7 @@ final class DriverTest {
     @Test
     void anApplicationThatAskedForNoSocketReportsNothing(@TempDir Path home) {
         Shell shell = shell(home);
-        try (Driver driver = Driver.open(shell)) {
+        try (Driver driver = Driver.open(shell, NONE, NONE)) {
             assertFalse(driver.bound(), "off by default");
             // The distinction the whole class rests on: a capability nobody asked for is not a dropped one,
             // and a diagnostic that fired on every ordinary launch would be filtered out before the real one
@@ -86,6 +89,68 @@ final class DriverTest {
             shell.disposer().close();
         }
     }
+
+    /**
+     * The agent's shell asks for a socket with nothing on the command line. Proved through a value the parse
+     * rejects, the one way to see a request reach the sockets with no window behind them, and the report names
+     * where the value came from, since nothing the reader typed contains it.
+     */
+    @Test
+    void theEnvironmentAsksWhenTheLaunchSaysNothing(@TempDir Path home) {
+        Shell shell = shell(home);
+        try (Driver driver = Driver.open(shell, NONE, Map.of(Driver.ENVIRONMENT, "wednesday")::get)) {
+            assertFalse(driver.bound());
+            assertEquals(1, Diagnostics.recorded().size(), "" + Diagnostics.recorded());
+            String message = Diagnostics.recorded().get(0);
+            assertTrue(message.contains("wednesday"), message);
+            assertTrue(message.contains(Driver.ENVIRONMENT), "the report names the environment: " + message);
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
+    /** A launch that says anything about its sockets, even off, has said more than the shell it runs in. */
+    @Test
+    void aFlagOrPropertyOutranksTheEnvironment(@TempDir Path home) {
+        Shell shell = shell(home, "--automation=off");
+        try (Driver driver = Driver.open(shell, NONE, Map.of(Driver.ENVIRONMENT, "wednesday")::get)) {
+            assertFalse(driver.bound());
+            assertEquals(List.of(), Diagnostics.recorded(), "the flag said off, so the environment was never read");
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
+    @Test
+    void theOrderIsFlagThenPropertyThenEnvironment() {
+        Function<String, String> env = Map.of(Driver.ENVIRONMENT, " 0 ")::get;
+        assertEquals("0", Driver.resolver(NONE, NONE, env).apply(Driver.SETTING), "trimmed, as Sockets reads it");
+        assertEquals("7000", Driver.resolver(NONE, Map.of(Driver.SETTING, "7000")::get, env).apply(Driver.SETTING));
+        assertEquals("7001", Driver.resolver(Map.of(Driver.SETTING, "7001")::get, Map.of(Driver.SETTING, "7000")::get,
+                env).apply(Driver.SETTING));
+        assertEquals(null, Driver.resolver(NONE, NONE, env).apply(Sockets.CONTROL_SETTING),
+                "the environment speaks for automation alone");
+        assertEquals(null, Driver.resolver(NONE, NONE, Map.of(Driver.ENVIRONMENT, " ")::get).apply(Driver.SETTING),
+                "blank is unset");
+    }
+
+    /**
+     * {@code --automation} wins over the per-capability settings inside {@code Sockets}, so an environment value
+     * filling it in would override a launch's own {@code --automation.control}.
+     */
+    @Test
+    void anyPerCapabilitySettingKeepsTheEnvironmentOut() {
+        Function<String, String> env = Map.of(Driver.ENVIRONMENT, "0")::get;
+        Function<String, String> control = Driver.resolver(Map.of(Sockets.CONTROL_SETTING, "7000")::get, NONE, env);
+        assertEquals(null, control.apply(Driver.SETTING));
+        assertEquals("7000", control.apply(Sockets.CONTROL_SETTING));
+        Function<String, String> diagnostics =
+                Driver.resolver(NONE, Map.of(Sockets.DIAGNOSTICS_SETTING, "off")::get, env);
+        assertEquals(null, diagnostics.apply(Driver.SETTING));
+    }
+
+    /** Neither a property nor an environment variable, so no test reads or writes the process's own. */
+    private static final Function<String, String> NONE = key -> null;
 
     /** Nothing in any phase. All this test needs from an application is that it has a {@code Launch}. */
     private static final class BareWiring extends Wiring {
