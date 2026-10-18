@@ -3,6 +3,7 @@ package dev.vexelray.framework.automation;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.shell.Shell;
+import dev.vexelray.gui.automation.Timeline;
 import dev.vexelray.gui.automation.Windows;
 import dev.vexelray.gui.core.app.LoopCounters;
 import java.util.Objects;
@@ -91,7 +92,9 @@ public final class Driver implements AutoCloseable {
             LoopCounters counters = Objects.requireNonNull(shell.app(), "the GuiApp the recorder stamps frames from");
             // Named after @VexelApp, so the discovery file and hello say "calculator" rather than the main class,
             // and ottermate --app calculator finds it (vexelray-gui docs/plans/discovery.md).
-            Windows windows = new Windows(shell.windows()::views, shell.krono()::quiescentAtLastTick, counters);
+            // With the reasons, so a settle that never goes quiet says which loop is running rather than that one is.
+            Windows windows = new Windows(shell.windows()::views,
+                    Timeline.of(shell.krono()::quiescentAtLastTick, shell.krono()::whyBusyAtLastTick), counters);
             AutomationServer server = AutomationServer.start(windows, port, shell.info().name(), shell.info().title());
             // The Inspector's link beside it, advertised in the discovery file before the line below is printed
             // (vexelray-gui docs/plans/flight-recorder.md section 6). -Dautomation.link=off leaves it out.
