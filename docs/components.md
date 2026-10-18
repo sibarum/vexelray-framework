@@ -224,6 +224,81 @@ one. Reactive *automation* (a user script that reacts rather than drives) is a d
 script is not compiled into the application: it is the wire protocol growing an event stream, which is
 additive. Say so, so the two are not built as one seam.
 
+### 10. Offload as a request with a reply-to (proposed 2026-10-18, not ruled)
+
+**Where it came from.** The capture rule (T2.5) was stuck between a heavy check and no check (build order, step 4),
+because offload today is callbacks: `GuiApp.offload(work, landed, failed)` takes three lambdas, and `Lanes.offload()`
+and `Gui.offload()` are `Executor`s taking a `Runnable`. A lambda can close over a component's mutable fields, and Java
+has no type that refuses one that does. The user asked why this is not a reply-to queue. It can be, and then there
+is nothing left to capture: the question goes away rather than being checked.
+
+**The shape.** Slow work is a *declared job*, not a lambda, and its result is a *message*, not a callback.
+
+```java
+@Job(topic = "file.read", reply = "file.opened")
+final class ReadFile {                                  // no mutable state: checked
+    ReadFile(FileSystem files) { ... }                  // injected like any part; must be Shareable or a declared service
+    Opened run(OpenFile request) throws IOException { ... }   // runs on the offload pool
+}
+record OpenFile(Path path) {}                           // request: deeply immutable, as any payload
+record Opened(Path path, String text) {}                // reply: deeply immutable, carries what the caller needs
+
+@Component
+final class Documents {
+    @Publishes("file.read") ...                         // asks
+    @Subscribe(topic = "file.opened")                   // hears back, on its own lane, in order
+    void opened(Opened o) { ... }
+}
+```
+
+- **The request is published** on the job's topic like any message, so it is a declared send and in the channel
+  graph. The job runs on the bounded offload pool (`Lanes.offload()`), not on a lane: it has no state to confine
+  and no order to keep, which is why a pool is right for it (the reasoning under *Nothing in the model covers work
+  that outlasts a frame*).
+- **The reply is the method's return value**, published on `reply`. Whoever subscribes receives it on *their own*
+  lane, so the "`landed` always runs on the main thread, and a callback written on the handler lane races" gap
+  closes too. The reply carries what the caller needs to correlate it (above, the path), so there are no request
+  ids.
+- **A main-thread consumer** hears back through the timeline door: the reply topic folded into a `Cell` by
+  `KronBridge`, which is build step 6 and which `kronometer` now tests (`KronBridgeTest.topicDrivesACellInADrivenLoop`).
+
+**What the processor checks, all of it declarations** (so *the processor reads declarations* stays true, and no
+Trees API is needed):
+- the request and reply types are deeply immutable (`Shareable`, the check `@Subscribe` payloads already get);
+- the job class holds no mutable state: final fields only, each `Shareable` or a part the wiring provides;
+- `topic` has one job, `reply` has at least one subscriber (or the job is for its effect; see below);
+- the job's reply is a declared send, so the blocking-cycle check (T4.4) sees it, which it cannot do for a lambda
+  today (TODO, *a send from `work` is invisible to T4.4*).
+
+**What it settles.** T2.5 is held by construction on the framework's path: a job cannot capture, because it is not a
+closure. The completion path (step 6) gets its API: the reply topic. Failure has one route, below, instead of a
+`failed` callback.
+
+**What it does not settle, and the proposal says so.**
+- **The raw executors stay reachable.** `Gui.offload()` and `GuiApp.offload(...)` are `vexelray-gui`'s, used below
+  the framework (widgets, MainFrame, which is hand-wired), and an application holding the `Gui` can still call them.
+  The processor cannot see a call. So they become the documented, unchecked escape hatch, and the framework stops
+  handing `Lanes.offload()` to application parts. Whether `Shell`'s `Gui` should hide `offload` is the *what `Shell`
+  hands over* decision, per accessor.
+- **Failure's shape is open.** `@Subscribe` payloads take no type arguments, so a generic `Reply<Q, R>` is out. Two
+  candidates: (a) a `failed` topic on `@Job` carrying a framework record (`JobFailed`: the job's name, the request's
+  `toString`, the failure's class and message), which is untyped about the request; or (b) the reply type is the
+  application's and has room for failure (`record Opened(Path path, String text, String error)`), which is typed and
+  puts the burden on every reply. Either way an `Error` is delivered as a failure and a `VirtualMachineError` is
+  rethrown after, as `GuiApp.offload` does since 2026-10-18.
+- **Cancellation** (a newer request makes an older one pointless) is the caller's: it drops a stale reply while it
+  drains, as `superseded()`'s deletion already ruled. A cancellation token is additive.
+- **A job for its effect** (write a file, reply nothing) is a `void run`, and wants the same answer as *a recipe
+  run for its effect*.
+
+**Why now and not after v1.** Under ruling 7 a check that rejects code v1 accepted is breaking, and applications
+written against v1 would write offload as lambdas into `Lanes.offload()`. Moving them later is the refactor v1 rules
+out. Adding `@Job` alone is additive; withdrawing the executors from application parts is not, so that half is the
+part to rule on before the freeze.
+
+**To rule on:** adopt this as the v1 offload API (`@Job`, the reply topic, and the executors withdrawn from
+application parts), and pick failure's shape, (a) or (b).
+
 ## Build order once the rulings are taken
 
 Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) orders the whole.
@@ -242,6 +317,8 @@ Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) ord
    anything. That is wrong: offload is an `Executor` and a `Callable`, and Java has no type that refuses a capturing
    lambda. What is left is a Trees-based check that resolves each captured name (accurate, and the heaviest
    piece in the processor) or a rule the reader keeps. See TODO, *Decide now. Two promises need a method body*.
+   **Proposed 2026-10-18 instead: section 10**, which makes slow work a declared job with a reply topic, so there is
+   no lambda to capture with and the check needs only declarations.
 5. **Supervision's missing halves:** the main-thread heartbeat that knows a dialog is up, and `Overrun` per
    lane.
 6. **The completion path:** route offload completions into the timeline through `KronBridge`.

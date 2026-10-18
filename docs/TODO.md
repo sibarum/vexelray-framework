@@ -234,9 +234,12 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         that dependents which tolerate it still build, and that the framework reports it once. Today the
         dependents are built with the `null` and nothing reports it; the consumers the wiring itself calls
         (`appearance`, `register`, the hooks) are guarded, and that is all.
-      - **Decide now.** **Types match exactly.** A parameter asking for an interface is resolved only by a provider
-        returning that interface, never by one returning a subtype. Deliberate for now — a subtype match is
-        the ambiguity `@Default` exists to rule out — but it is a decision nobody has argued.
+      - **Ruled 2026-10-18: types match exactly.** A parameter asking for an interface is resolved only by a provider
+        returning that interface, never by one returning a subtype. **Why:** the two directions are not symmetric.
+        Allowing a subtype later, and only where there is no exact match, turns errors into successes and changes
+        nothing that compiled; allowing it now means an application that adds a second subtype of something a
+        parameter asks for stops compiling on an ambiguity it never wrote. Exact is the one that keeps the door
+        open.
       - **Additive.** **One round.** The graph is taken in the round the `@VexelApp` is seen, which is every source of a
         clean build; anything another processor generates in a later round is not in it.
       - **Decide now.** **Two promises need a method body.** A `@Provides` calling another directly, and T2.5's capture
@@ -250,7 +253,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         each name to a local, a field or `this`, and runs `Shareable` on what it finds; and the heaviest piece in the
         processor, which has never run outside the annotation rounds), or leaving T2.5 as a rule the reader keeps. A
         syntactic check without attribution is not an option: it cannot tell a captured local from a class name.
-        **Not decided.**
+        **Not decided; a third option is proposed** ([components.md](components.md), section 10, 2026-10-18): slow
+        work as a declared `@Job` whose result is published on a reply topic, so there is no lambda to capture with
+        and the check reads declarations only. To rule on: adopt it, and failure's shape.
       - **Before v1, with the component model.** **Done 2026-10-02:** the copier's check half (a `@Subscribe` payload must be deeply immutable) and the blocking-cycle
         check (T4.4). **Additive, not built:** the generated copier, and the graph exposed as data.
 
