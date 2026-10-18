@@ -75,11 +75,21 @@ public enum Phase {
      * honest about: neither is read at construction, so either could be set later without breaking anything.
      * They are applied here because they are part of the {@code Appearance} the application declared in
      * {@link #CONFIG}, and one place that applies all of it is worth more than a distinction nobody can see.
+     *
+     * <p><b>The framework's phase, not the application's.</b> The {@code Gui} is not handed to an application part
+     * here — nor the clock, the title bar or the windows, each of which reaches it — but at {@link #TREE}, so a part
+     * that takes any of them is inferred into {@code TREE} and built after this phase has finished. That is what
+     * makes "the look and the clock are applied before your first widget" a fact of ordering rather than of
+     * care: no part can be handed the {@code Gui} while it is still being configured. A generated wiring builds
+     * nothing in this phase; a hand-written one still may, and {@code Shell} still answers it, since its
+     * accessors check existence rather than phase.
      */
     GUI,
 
     /**
-     * The widget tree: everything built out of {@link #GUI} and {@link #MODEL}.
+     * The widget tree: everything built out of {@link #GUI} and {@link #MODEL}. <b>The first phase an application
+     * part is handed the {@code Gui}</b>, its clock, the title bar and the windows, so every part that takes one of
+     * them is inferred here — which is every part that builds a widget.
      *
      * <p>The tree may be built before there is a window to show it in, and on this stack it always is. That is
      * not incidental: the application's own title bar is a widget, so it exists and lays out against no window

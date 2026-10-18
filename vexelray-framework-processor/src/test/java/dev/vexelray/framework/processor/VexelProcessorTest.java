@@ -1220,9 +1220,11 @@ class VexelProcessorTest {
         assertEquals(null, run.part("model"), "nothing is built before its phase");
         run.phase("config");
         assertEquals("app.Model", run.part("model").getClass().getName());
-        assertEquals(null, run.part("ui"), "the Ui is built in GUI, which has not run");
+        assertEquals(null, run.part("ui"), "the Ui is built in TREE, which has not run");
         run.phase("model");
         run.phase("gui");
+        assertEquals(null, run.part("ui"), "the Gui is configured in GUI and handed to parts only from TREE");
+        run.phase("tree");
         assertEquals("app.Ui", run.part("ui").getClass().getName());
     }
     @Test
@@ -1237,8 +1239,8 @@ class VexelProcessorTest {
                 "subscribed jobs String 64 FAIL"),
                 run.phase("config"));
         assertEquals(List.of(), run.phase("model"));
-        assertEquals(List.of("ui"), run.phase("gui"), "the Gui exists from GUI");
-        assertEquals(List.of(), run.phase("tree"));
+        assertEquals(List.of(), run.phase("gui"), "GUI is the framework's: no part is handed the Gui in it");
+        assertEquals(List.of("ui"), run.phase("tree"), "the Gui is handed to parts from TREE");
         assertEquals(List.of("window"), run.phase("window"), "the GuiApp exists from WINDOW");
         assertEquals(List.of("socket"), run.phase("attach"), "a part taking the whole Shell is built last");
 
@@ -1310,7 +1312,7 @@ class VexelProcessorTest {
                         return null;
                     }
                 }
-                """), "provides the Appearance, and takes something that exists only from GUI");
+                """), "provides the Appearance, and takes something that exists only from TREE");
     }
 
     /**
@@ -1344,7 +1346,8 @@ class VexelProcessorTest {
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
 
         assertEquals(List.of("input handed back"), run.phase("config"), "a provider taking nothing is CONFIG's");
-        assertEquals(List.of("clipboard handed back"), run.phase("gui"), "a provider taking the Gui is built in GUI");
+        assertEquals(List.of(), run.phase("gui"));
+        assertEquals(List.of("clipboard handed back"), run.phase("tree"), "a provider taking the Gui is built in TREE");
         run.shutdown();
         assertEquals(List.of(), run.phase("shutdown"), "the wiring registers neither: the shell owns both");
     }

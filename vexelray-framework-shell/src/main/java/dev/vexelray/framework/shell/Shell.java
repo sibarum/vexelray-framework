@@ -541,7 +541,10 @@ public final class Shell {
         return out;
     }
 
-    /** The GUI. Exists from {@link Phase#GUI}. */
+    /**
+     * The GUI. Exists from {@link Phase#GUI}, where the framework configures it; a generated wiring hands it to the
+     * application's parts from {@link Phase#TREE}, once that is done.
+     */
     public Gui gui() {
         return require(Phase.GUI, "the Gui", gui);
     }

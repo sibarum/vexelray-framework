@@ -80,11 +80,17 @@ public abstract class Wiring {
     public void model(Shell shell) {
     }
 
-    /** {@link Phase#GUI} — components needing the {@code Gui} or the clock, but not a window. */
+    /**
+     * {@link Phase#GUI} — the framework configures the {@code Gui} here. A generated wiring builds nothing in it:
+     * the {@code Gui}, the clock, the title bar and the windows are handed to application parts from {@code TREE}.
+     */
     public void gui(Shell shell) {
     }
 
-    /** {@link Phase#TREE} — the widgets. Buildable with no window, which is what makes a capture possible. */
+    /**
+     * {@link Phase#TREE} — the widgets, and anything else that takes the {@code Gui}, the clock, the title bar or
+     * the windows. Buildable with no window, which is what makes a capture possible.
+     */
     public void tree(Shell shell) {
     }
 

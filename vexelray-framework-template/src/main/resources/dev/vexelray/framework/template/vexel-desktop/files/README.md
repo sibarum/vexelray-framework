@@ -123,7 +123,7 @@ constraints structural instead of remembered:
 | `CONFIG` | the settings store and the look — values, before there is a `Gui` to apply them to |
 | `MODEL` | what the application knows, before there is anything to draw it with |
 | `GUI` | the `Gui` and the clock; the theme applied and the zoom range set, before the first widget |
-| `TREE` | the widgets. Buildable with no window, which is what lets a test build it with no GPU |
+| `TREE` | the widgets: the first phase a part is handed the `Gui`, so anything taking it lands here. Buildable with no window, which is what lets a test build it with no GPU |
 | `WINDOW` | the device and the window handle. Main-thread from here on |
 | `ATTACH` | anything that needed the handle: chrome controls, the close gate, the driving socket |
 

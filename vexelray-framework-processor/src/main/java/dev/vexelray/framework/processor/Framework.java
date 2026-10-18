@@ -41,7 +41,10 @@ final class Framework {
      *
      * @param type       the value's type
      * @param accessor   the {@code Shell} method returning it, or empty for the shell itself
-     * @param phase      the first phase it exists in — what {@code Shell.require} names for it
+     * @param phase      the first phase an application part is handed it, which is what a part taking it is
+     *                   inferred into. Usually the phase {@code Shell} has it from; the {@code Gui} and what reaches
+     *                   it are the exception, held by the shell from {@code GUI}, where the framework configures
+     *                   them, and handed to parts from {@code TREE}
      * @param onMain     whether it is the main thread's: T2.2 and T3.1 read this, since the framework's own types
      *                   cannot carry {@code @MainThread} without their repos learning this one exists
      */
@@ -69,12 +72,17 @@ final class Framework {
             // window to ask it in, and asks whichever dialogs end up answering.
             new Root(DIALOGS, "dialogs", Phase.CONFIG, false),
             new Root("dev.vexelray.gui.core.app.Settings", "settings", Phase.CONFIG, false),
-            new Root("dev.vexelray.gui.core.Gui", "gui", Phase.GUI, false),
-            new Root("dev.vexelray.gui.krono.KronoGui", "krono", Phase.GUI, false),
-            new Root("dev.vexelray.gui.widget.TitleBar", "titleBar", Phase.GUI, false),
+            // The Gui is configured in GUI -- the look, the clock, the minimum size, the zoom range -- and handed to
+            // the application at TREE, so a part that takes it is built after all of that by ordering, not by care.
+            // The other three move with it because each reaches the Gui: KronoGui.gui(), Window.gui() through
+            // Windows.main(), and the title bar is a widget on it. Left in GUI, any of them would be a way to the
+            // Gui one phase early, and GUI would still hold widget-building parts.
+            new Root("dev.vexelray.gui.core.Gui", "gui", Phase.TREE, false),
+            new Root("dev.vexelray.gui.krono.KronoGui", "krono", Phase.TREE, false),
+            new Root("dev.vexelray.gui.widget.TitleBar", "titleBar", Phase.TREE, false),
             // Not the main thread's, though a window is: every command on a Window only posts, and the framework
             // claims the window itself, so a recipe holding one is not coloured by a GuiApp it never took.
-            new Root("dev.vexelray.framework.shell.Windows", "windows", Phase.GUI, false),
+            new Root("dev.vexelray.framework.shell.Windows", "windows", Phase.TREE, false),
             // "Vulkan, the window and present stay on the main thread" -- vexelray-gui/CLAUDE.md.
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),
             // The exception to it, and the only one: a queue nothing on the main thread submits to.

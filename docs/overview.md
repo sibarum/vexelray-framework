@@ -108,7 +108,7 @@ phases, and every part is built in one:
 | `RUN` | The frame loop, and the shutdown in reverse order after it |
 
 **You never declare a phase.** A part's phase is the latest phase of anything it takes. A method taking a `Model`
-runs in `MODEL`; one taking a `Gui` runs in `GUI`; one taking the `Shell` runs last. Because the phase follows from
+runs in `MODEL`; one taking a `Gui` runs in `TREE`, after the framework has configured the `Gui` in `GUI`; one taking the `Shell` runs last. Because the phase follows from
 the code, it cannot disagree with it.
 
 *More: [architecture.md](architecture.md#1-phases--construction-order-is-a-correctness-constraint-not-a-scheduling-detail).*
