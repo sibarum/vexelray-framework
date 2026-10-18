@@ -13,6 +13,8 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | [**Calculator**](apps/calculator.md) | An ordinary-looking calculator that divides by zero |
 | [**Fluid Sim**](https://github.com/sibarum/vexelray-sim-fluid) | Fluid simulation experiments: dam breaks, mixing and heat, live on the GPU |
 | [**Rigid Sim**](https://github.com/sibarum/vexelray-sim-rigid) | Spheres that collide, bounce, spin and roll, live on the GPU |
+| [**Maistro**](https://github.com/sibarum/vexelray-maistro) | A desktop client for Claude Code: the conversation beside a mind map its replies grow |
+| [**VexelRay Inspector**](https://github.com/sibarum/vexelray-inspector) | DevTools for VexelRay applications, drawn as clockwork: a running app's frame loop, beat by beat |
 
 They are separate programs that know about each other: a text file in Vexplore opens in Vex and a picture in
 Pix, and Vex can show any file in Vexplore.
