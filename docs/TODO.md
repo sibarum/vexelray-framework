@@ -202,10 +202,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `KronBridge`) is unused, and everything that lands today takes the first one.
 
       **Found 2026-10-02, reading what `work` may do** (the callback that runs on the offload lane in
-      `GuiApp.offload(work, landed, failed)`). Two are defects and the rest are gaps in what is checked:
-      - **An `Error` loses the request.** `GuiApp.offload` (`vexelray-gui`, `GuiApp.java`) catches `Exception` around `work`. An
-        `Error` (out of memory, a failed assertion) escapes the wrapper, neither `landed` nor `failed` runs, and a
-        UI waiting on the result waits forever. A defect in the sibling repo, independent of the capture rule.
+      `GuiApp.offload(work, landed, failed)`). Gaps in what is checked (an `Error` from `work` used to reach neither callback; since 2026-10-18 it
+      reaches `failed`, wrapped in an `ExecutionException`, and a `VirtualMachineError` is rethrown after):
       - **A send from `work` is invisible to T4.4.** `@Publishes` goes on a type or a method and a lambda has no
         declaration, so the cycle check cannot see that `work` blocks sending to a mailbox whose owner is waiting on
         this very job. A blocking cycle through an offloaded task is a deadlock nothing reports.
@@ -530,19 +528,11 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
 
-- [ ] **The template ships a native-build wrapper** (`vexelray-framework-template`: `vexel-desktop`). Found
-      2026-10-17: `mvn -Pnative` fails from a plain shell, because `rc.exe` (the icon resource) and the MSVC
-      `link.exe` are only on PATH in a Visual Studio developer prompt, and under Git Bash coreutils' `link.exe`
-      shadows the real linker. Every generated application hits it. `vex-suite-common/native-build.cmd` already
-      solves it (vswhere finds `vcvars64.bat`, then `mvn %*`); the generated project should carry a copy, name it
-      in its `README.md` and `CLAUDE.md` next to the native build commands, and the pom's `rc.exe` step should
-      fail with a message pointing at it rather than "not recognized". Verified on mainframe and Pix.
-
-- [ ] **Automation from the environment, and a session file** (`vexelray-framework-automation`: `Driver`). Part
-      of the stack's environment plan, mainframe `docs/stack-env.md` §1: `automation` resolved from the flag, the
-      property, then `VEXELRAY_AUTOMATION`, so an agent's shell opens every application's socket without a flag;
-      and `~/.vexelray/automation/<app>-<pid>.port` written while the socket is bound, so `ottermate` can attach
-      with no port. The hint under the `automation:` line, naming `ottermate`, is already in.
+- [ ] **`VEXELRAY_AUTOMATION` opens the socket but does not set the log mode** (atchung `LogConfig`, or
+      `-shell`'s `Logs.start`). `Driver` reads the variable since 2026-10-18; `LogConfig.systemSetting` maps the
+      `automation` key to an environment variable named `AUTOMATION`, so a run asked for only through the
+      environment logs in DEV mode rather than AUTOMATION. Decide whether the variable should also make a release
+      binary, which has no socket, log as loudly.
 
 - [ ] **Settings and the session are one file per application, written whole, and nothing stops two processes
       overwriting each other** (`vexelray-gui-core`: `Settings`, `AppHome`, `WindowMemory`). Found 2026-10-05
@@ -779,12 +769,6 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       intention rather than an observation. Now that it does, the comment is the only place on the
       stack that still says the cursor moves.
 
-- [ ] **Fully-qualified names inline where every other file imports.** `Pacing` and `FrameHooks` write
-      `java.util.Objects.requireNonNull` and `java.util.Comparator` in place, and so do `Shell` and `Window` for
-      their `java.util` types. Cosmetic. The one
-      deliberate case should stay as it is: `InputBackend.perWindow` spells both `NativeWindow` types
-      out in full because *"importing either shadows the other."*
-
 ### Found by Vexplore
 
 The first application built on the generated template by someone other than its authors: a file explorer
@@ -879,30 +863,12 @@ blocks v1, and one thing worked better than expected: the processor's compile er
       than it was: the folder dialog it was found with (Vexplore's `Chooser`) is the framework's `Dialogs` since
       2026-10-11, which hold a question until there is a window, so only the device is left late-bound.
 
-- [ ] **A held modifier cannot be driven from outside.** `ottermate key` is press-and-release (`vexelray-gui-automation`).
-      An application that treats Shift and Control as intent signals, which is what a keyboard-first file explorer
-      is for, can only test the behaviour at the engine and with a flag that sets the state. `keydown <KEY>` and
-      `keyup <KEY>`, released at `quit`, would let a scene hold Shift, click, and photograph what the application
-      proposed. `Gui.modifiers()` itself needed nothing.
-      **A second witness, and a worse one:** `key` publishes its press with no modifiers at all
-      (`Automation.key`), so no chord can be pressed. Vex's every command is one (Ctrl+S, Ctrl+W, Ctrl+Tab), and
-      its shortcuts were checked by reading the claim rules rather than by pressing them (Vex FN-3). `key ctrl+s`
-      is a new argument form and additive, but the wire protocol is a frozen surface, and freezing it without
-      chords freezes a driver that cannot test the commonest kind of command: decide the form before v1.
-
-- [ ] **`await` waits on text, and a scene wants to wait on existence and on lanes.** `await <landmark> <text>` and
-      `click <landmark>` are what made Vexplore's three scenes deterministic and independent of layout, and both
-      needed the application to make each state change visible as text. `await <landmark>` alone ("it exists"), and
-      `settle` also waiting for the handler and offload lanes to drain (see the `settle` entry under **Upstream**),
-      would make that the default instead of a habit.
-
-      **A witness hit this as a flake, 2026-10-02.** `ComponentsWitnessTest.theDefaultPolicyExitsAnApplicationWhoseLaneIsWedgedThroughItsOwnCloseRoute`
-      calls `settle`, gets `ok v0`, and looks up `button.wedge.default` at once; the tree was not built yet, `find`
-      said nothing matched, and the test failed (once in four runs; it passed on a rerun with no change). The fix is the
-      same `await <landmark>` with no text, in `Support.Driver`, not a longer wait. **Since 2026-10-11** that is what
-      `Support.Driver.firstFrame` does (it polls `find` for the landmark), every witness starts with it, and the
-      `ok v0` itself is fixed upstream (`vexelray-gui` `1a40f59`: a new tree owes its first frame). The ask for
-      `await <landmark>` with no text stands, for a scene that is not a witness.
+- [ ] **`settle` does not wait for the handler and offload lanes.** The rest of this entry landed in
+      `vexelray-gui-automation`: chords in `key` (2026-10-12), and `await <landmark>` with no text, `keydown` and
+      `keyup` (2026-10-18, protocol 1.2; held keys are released at `quit`). What is left is `settle` also waiting for
+      the lanes to drain (see the `settle` entry under **Upstream**), so a click-settle-shot scene photographs the
+      answer rather than the state before it. `Support.Driver.firstFrame` still polls `find`, and could use the
+      no-text `await` once the witnesses run against an install that has it.
 
 ### Found by the rebuilt editor and calculator
 
@@ -922,8 +888,9 @@ generated project with no motion (FN-12: the template builds `Motion`). The rest
       an empty marker class (`Recipes.Restored`), which the wiring stores and exposes; Pix's window binding (above,
       *a part that needs the device later*) returns an `AutoCloseable` and had to merge two late-bound parts into one
       provider because two would be ambiguous. Three applications, one missing thing: a recipe the wiring runs for effect in
-      its inferred phase. Accepting `void` later removes an error, so it is additive; but the record rule's message
-      tells people to return an interface, which is the wrong advice for this case, and is worth fixing first.
+      its inferred phase. Accepting `void` later removes an error, so it is additive. The messages no longer send
+      such a recipe to an interface (2026-10-18): `void`, an empty record and the record rule each name the marker
+      class and the `AutoCloseable`.
 
 - [ ] **`onCommitLatest` makes a committer wait on another thread's listener** (atchung, Vex FN-4). Commit while
       holding a lock the listener takes and it deadlocks, with nothing thrown; and the order it keeps is among its own
