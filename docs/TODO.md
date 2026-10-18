@@ -530,6 +530,14 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
 
+- [ ] **The template ships a native-build wrapper** (`vexelray-framework-template`: `vexel-desktop`). Found
+      2026-10-17: `mvn -Pnative` fails from a plain shell, because `rc.exe` (the icon resource) and the MSVC
+      `link.exe` are only on PATH in a Visual Studio developer prompt, and under Git Bash coreutils' `link.exe`
+      shadows the real linker. Every generated application hits it. `vex-suite-common/native-build.cmd` already
+      solves it (vswhere finds `vcvars64.bat`, then `mvn %*`); the generated project should carry a copy, name it
+      in its `README.md` and `CLAUDE.md` next to the native build commands, and the pom's `rc.exe` step should
+      fail with a message pointing at it rather than "not recognized". Verified on mainframe and Pix.
+
 - [ ] **Automation from the environment, and a session file** (`vexelray-framework-automation`: `Driver`). Part
       of the stack's environment plan, mainframe `docs/stack-env.md` §1: `automation` resolved from the flag, the
       property, then `VEXELRAY_AUTOMATION`, so an agent's shell opens every application's socket without a flag;
