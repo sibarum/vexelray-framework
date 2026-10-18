@@ -412,7 +412,9 @@ final class Declarations {
         }
         if (!method.getThrownTypes().isEmpty()) {
             error(method, "@Subscribe " + where + " declares " + method.getThrownTypes() + ". A delivery has nowhere"
-                    + " to send a checked exception: handle it, or wrap it");
+                    + " to send a checked exception: handle it here, or publish what went wrong on a topic someone"
+                    + " subscribes to. Wrapping it in an unchecked exception ends the application, as any failure"
+                    + " nothing declared does");
         }
         if (method.getParameters().size() != 1) {
             error(method, "@Subscribe " + where + " takes " + method.getParameters().size() + " parameters, and"

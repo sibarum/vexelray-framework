@@ -214,14 +214,26 @@ public final class Placement implements WakeSource, AutoCloseable {
                 if (pump.drain(PARK_NANOS) > 0) {
                     wake.run();
                 }
-            } catch (RuntimeException e) {
-                // A subscriber threw. The component is the unit of failure, so this thread keeps its mailbox
-                // draining rather than dying silently and leaving publishers to fill a queue nobody reads --
-                // which is the wedged component the model answers with backpressure, arrived at by accident.
-                // Nothing here decides the application's policy: supervision is what would, and it does not
-                // exist yet, so the honest thing is to say so where somebody will see it.
-                dev.vexelray.diag.Diagnostics.dropped("component " + name, "one delivery",
-                        e + "; the component is still draining");
+            } catch (RuntimeException | Error e) {
+                // A subscriber threw, and nothing declared it. Ruled 2026-10-18: every failure is either declared
+                // and handled or it ends the application (components.md, section 10). A failure a handler expects
+                // is caught in the handler, where the compiler sees it (a @Subscribe declares no throws); what
+                // reaches here was not expected, so the message it was handling is lost and the component's
+                // state is whatever the throw left. Draining on past that is the silent loss ruling 5 refuses for
+                // a full mailbox, so it takes the same road: the process-wide fault policy, which halts.
+                //
+                // Except while stopping: the shutdown bound interrupts a lane that has not drained, and a handler
+                // that throws because it was interrupted then failed at the framework's request, not its own. The
+                // process is ending anyway, and halting would turn a clean exit into status 70.
+                if (!running) {
+                    dev.vexelray.diag.Diagnostics.dropped("component " + name, "a delivery while stopping",
+                            e.toString());
+                    return;
+                }
+                Atchung.fatal().fault(new IllegalStateException("component " + name
+                        + " threw from a delivery, and nothing declared the failure: " + e, e));
+                // Only a test's policy returns. End this thread with the throw rather than drain on past it.
+                throw e;
             }
         }
         // The last drain, after the flag went down: a stop that left a queued message undelivered would lose

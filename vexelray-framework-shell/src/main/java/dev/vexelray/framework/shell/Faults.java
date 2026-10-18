@@ -67,7 +67,7 @@ final class Faults {
     static String report(AppInfo info, Throwable cause) {
         return "vexelray: " + info.name() + " is stopping — the bus cannot continue honestly past this: "
                 + said(cause)
-                + "; a mailbox overflowed, so what follows is the last output that can be trusted";
+                + "; what follows is the last output that can be trusted";
     }
 
     /**

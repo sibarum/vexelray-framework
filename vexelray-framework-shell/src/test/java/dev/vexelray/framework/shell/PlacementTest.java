@@ -91,6 +91,42 @@ final class PlacementTest {
         }
     }
 
+    /**
+     * Ruled 2026-10-18: every failure is declared and handled, or it ends the application. A handler that throws
+     * declared nothing, so the throw goes to the process-wide fault policy (which halts in an application), and the
+     * component does not drain on past the message it lost. The policy here records instead of halting.
+     */
+    @Test
+    void aHandlerThatThrowsGoesToTheFaultPolicyAndDrainsNoFurther() throws Exception {
+        AtomicReference<Throwable> fault = new AtomicReference<>();
+        CountDownLatch faulted = new CountDownLatch(1);
+        sibarum.atchung.Atchung.onFatal(cause -> {
+            fault.set(cause);
+            faulted.countDown();
+        });
+        Shell shell = shell();
+        try {
+            AtomicInteger delivered = new AtomicInteger();
+            shell.place("fragile").subscribe(WORK, msg -> {
+                delivered.incrementAndGet();
+                throw new IllegalArgumentException("unexpected " + msg);
+            }, 8, Backpressure.BLOCK);
+            shell.startComponents();
+            shell.bus().publish(WORK, "first");
+
+            assertTrue(faulted.await(5, TimeUnit.SECONDS), "a throwing handler never reached the fault policy");
+            assertTrue(fault.get().getMessage().contains("fragile"), fault.get().getMessage());
+            assertTrue(fault.get().getCause() instanceof IllegalArgumentException, String.valueOf(fault.get()));
+
+            shell.bus().publish(WORK, "second");
+            Thread.sleep(200);
+            assertEquals(1, delivered.get(), "the component drained on past a failure nothing declared");
+        } finally {
+            sibarum.atchung.Atchung.onFatal(null);
+            shell.disposer().close();
+        }
+    }
+
     @Test
     void nothingRunsUntilTheFrameworkStartsIt() throws Exception {
         Shell shell = shell();

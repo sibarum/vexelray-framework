@@ -93,7 +93,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       the others, a stalled lane is named and not killed by the framework on its own, and richer policies are
       additive (superseded below: the default action is now not contractual). **Corrected 2026-10-01:**
       *a component's failure never stops the others* is true of a failure and false of falling behind, because a
-      full FAIL mailbox halts the process on purpose ([components.md](components.md), ruling 5). **Open:** the stall
+      full FAIL mailbox halts the process on purpose ([components.md](components.md), ruling 5). **Corrected again
+      2026-10-18, and now false of a failure too:** ruled that every failure is either declared and handled or ends
+      the application, so a handler that throws halts through the fault policy rather than being logged and drained
+      past (components.md, section 10). What stays true is that a *stall* is named and not killed. **Open:** the stall
       threshold and where it is set, whether lanes an application names are supervised the same way (the
       mechanism is per-lane, so probably), and what a report looks like to an application that wants to react.
 

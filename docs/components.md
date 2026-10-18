@@ -40,7 +40,8 @@ component is never `@MainThread`.
 | That no blocking cycle runs through it | processor, for declared sends | T4.4 |
 
 And what it owes the application: it never blocks the main thread, never touches the timeline (T3.2), and
-returns work through one of the two doors (T5.1). A wedged component loses its own lane and nothing else.
+returns work through one of the two doors (T5.1). A wedged component loses its own lane and nothing else; a
+component that throws ends the application, because nothing declared that failure (section 10).
 
 ## What exists, what is decided, what is not
 
@@ -280,12 +281,16 @@ closure. The completion path (step 6) gets its API: the reply topic. Failure has
   The processor cannot see a call. So they become the documented, unchecked escape hatch, and the framework stops
   handing `Lanes.offload()` to application parts. Whether `Shell`'s `Gui` should hide `offload` is the *what `Shell`
   hands over* decision, per accessor.
-- **Failure's shape is open.** `@Subscribe` payloads take no type arguments, so a generic `Reply<Q, R>` is out. Two
-  candidates: (a) a `failed` topic on `@Job` carrying a framework record (`JobFailed`: the job's name, the request's
-  `toString`, the failure's class and message), which is untyped about the request; or (b) the reply type is the
-  application's and has room for failure (`record Opened(Path path, String text, String error)`), which is typed and
-  puts the burden on every reply. Either way an `Error` is delivered as a failure and a `VirtualMachineError` is
-  rethrown after, as `GuiApp.offload` does since 2026-10-18.
+- **Failure. Ruled 2026-10-18: every failure is either declared and handled, or it ends the application.** The
+  user's words, and the reason is ruling 5's: a failure nobody handles is a lost result, and a lost result that the
+  application runs on past is the silent corruption a full mailbox already halts for. So there is no framework
+  failure type and no `failed` topic. A failure a job expects is part of its reply, a type the application declares
+  (`record Opened(Path path, String text, Problem problem)`), so the compiler makes the subscriber look at it, and
+  `run` declares no `throws` (checked by the processor), so javac makes the job catch what it expects. Anything else
+  that escapes `run`, an `Error` included, goes to the process-wide fault policy (`Atchung.fatal()`), which halts.
+  **Already applied to components (2026-10-18):** a `@Subscribe` that throws halts the same way rather than being
+  logged and drained past, except while its lane is stopping, when the throw is the framework's interrupt. The
+  `GuiApp.offload` callbacks are `vexelray-gui`'s escape hatch and keep their `failed` route.
 - **Cancellation** (a newer request makes an older one pointless) is the caller's: it drops a stale reply while it
   drains, as `superseded()`'s deletion already ruled. A cancellation token is additive.
 - **A job for its effect** (write a file, reply nothing) is a `void run`, and wants the same answer as *a recipe
@@ -297,7 +302,7 @@ out. Adding `@Job` alone is additive; withdrawing the executors from application
 part to rule on before the freeze.
 
 **To rule on:** adopt this as the v1 offload API (`@Job`, the reply topic, and the executors withdrawn from
-application parts), and pick failure's shape, (a) or (b).
+application parts). Failure's shape is ruled (above).
 
 ## Build order once the rulings are taken
 
