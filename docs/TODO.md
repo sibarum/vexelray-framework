@@ -902,7 +902,12 @@ generated project with no motion (FN-12: the template builds `Motion`). The rest
       Vex FN-5 and FN-13). Syntax colours set from a worker appear on the next caret blink, and a tab change once
       stayed undrawn until the pointer moved; `requestFrame()` after `setSpans` did not help. Suspected: vexelray-gui
       `8a74b41` (*a frame is drawn when something changed*), not bisected. Not a framework surface, but `Shell` hands
-      out `Gui`, so its draw-on-change contract bounds v1. **Unverified whether still true.**
+      out `Gui`, so its draw-on-change contract bounds v1. **Read 2026-10-18, and no lost draw found:** publish, wake,
+      the draw flag and the park were each traced, and `DrawOnChangeTest` (vexelray-gui `4774e69`) drives 500 bursts
+      of worker-published spans through a parked loop, and fails if the wake is cleared late. The likelier cause is
+      `settle` returning before the highlighter's `gui.async` has published: async work is not counted in `Owed`, and
+      `shot` always draws fresh, so an uncoloured shot means unpublished spans. That makes it the `settle` entry
+      below, not a draw defect. **Not checked:** the editor itself by eye (a caret blink seen by a person is not a shot).
 
 - [ ] **Widget gaps, each found once** (`vexelray-gui-widget`, Vex FN-8, 9, 11, 13, 17 to 20). `TextField.onChange` is
       one slot and fires on span-only changes; `Tabs`' own Close cannot be stopped for unsaved work, and the bar does
