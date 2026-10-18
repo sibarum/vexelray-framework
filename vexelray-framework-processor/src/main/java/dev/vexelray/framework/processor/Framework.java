@@ -21,7 +21,9 @@ final class Framework {
     static final String PLACEMENT = "dev.vexelray.framework.shell.Placement";
     /** What generated code calls to place a component and register its mailboxes; see {@code Placements}. */
     static final String PLACEMENTS = "dev.vexelray.framework.shell.Placements";
-    static final String APPEARANCE = "dev.vexelray.framework.shell.Appearance";
+    /** What generated code calls to report a {@code @Provides} method that returned null; see {@code Absences}. */
+    static final String ABSENCES = "dev.vexelray.framework.shell.Absences";
+    static final String APPEARANCE ="dev.vexelray.framework.shell.Appearance";
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";
     static final String LIVENESS = "dev.vexelray.framework.shell.LivenessPolicy";

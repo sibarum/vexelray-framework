@@ -135,6 +135,10 @@ class FrameworkTableTest {
         assertEquals(dev.vexelray.framework.shell.LivenessPolicy.class.getName(), Framework.LIVENESS);
         assertEquals(Framework.PLACEMENT, Placements.class.getMethod("of", Shell.class, String.class)
                 .getReturnType().getName());
+        assertEquals(dev.vexelray.framework.shell.Absences.class.getName(), Framework.ABSENCES);
+        for (String report : new String[]{"provided", "handedBack"}) {
+            dev.vexelray.framework.shell.Absences.class.getMethod(report, String.class, String.class, String[].class);
+        }
         Shell.class.getMethod("appearance", dev.vexelray.framework.shell.Appearance.class);
         for (Class<?> type : new Class<?>[]{String.class, int.class, long.class, float.class, boolean.class}) {
             Shell.class.getMethod("setting", String.class, type);

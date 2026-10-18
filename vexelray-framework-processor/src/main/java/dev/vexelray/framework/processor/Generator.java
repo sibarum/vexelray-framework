@@ -58,6 +58,9 @@ import java.util.Set;
  *       {@code ClipboardBackend} replaces the framework's own, and so has to exist by the phase the framework
  *       reaches for it in ({@link Framework#HAND_BACKS}); anything else {@code AutoCloseable} is closed in reverse
  *       at shutdown; a {@code @BeforeFrame} method on a built value's type is put in the frame array.</li>
+ *   <li><b>A provider answering null is reported once</b> ({@code Provides}): the null is still passed on, and the
+ *       wiring calls {@code Absences} where the provider is called, naming it and every part that takes its type —
+ *       through {@code -shell}, which logs, since the generated code and {@code -core} do not.</li>
  * </ul>
  *
  * <p>The output is plain Java — constructor calls and method calls in dependency order, a few {@code if}s on the
@@ -772,16 +775,61 @@ final class Generator {
                     + Mirrors.simple(m.method()) + ", " + m.capacity() + ", sibarum.atchung.Backpressure."
                     + m.overflow().name() + ");");
         }
+        // A provider may answer null, which means absent (Provides): reported here, once, since a provider is called
+        // once, naming what is then built with the null. A constructor cannot return null, and a primitive is never
+        // absent.
+        String absent = b.provider != null && !b.type.getKind().isPrimitive() ? absence(b, handBack) : null;
         if (!after.isEmpty()) {
             src.append(indent).append("if (").append(field).append(" != null) {\n");
             for (String line : after) {
                 src.append(indent).append("    ").append(line).append('\n');
             }
+            src.append(indent).append(absent != null ? "} else {\n" : "}\n");
+        } else if (absent != null) {
+            src.append(indent).append("if (").append(field).append(" == null) {\n");
+        }
+        if (absent != null) {
+            src.append(indent).append("    ").append(absent).append('\n');
             src.append(indent).append("}\n");
         }
         if (guard) {
             src.append("        }\n");
         }
+    }
+
+    /**
+     * The call reporting that provider {@code b} answered null: its name, its type, and every part that takes that
+     * type — each one that a mode guards named only when the run is in one of its modes, since only then is it
+     * built with the null. A hand-back's report also says the framework keeps its own.
+     */
+    private String absence(Binding b, Framework.HandBack handBack) {
+        TypeElement element = Mirrors.element(b.type);
+        StringBuilder call = new StringBuilder(Framework.ABSENCES)
+                .append(handBack != null ? ".handedBack(" : ".provided(")
+                .append(literal(b.where())).append(", ")
+                .append(literal(element != null ? Mirrors.simple(element) : b.type.toString()));
+        for (Binding d : bindings) {
+            boolean takes = false;
+            for (Arg a : d.args) {
+                takes |= a instanceof SlotArg s && s.slot == b.slot;
+            }
+            if (!takes) {
+                continue;
+            }
+            call.append(", ");
+            if (d.modes.equals(EVERY_MODE)) {
+                call.append(literal(d.where()));
+                continue;
+            }
+            call.append('(');
+            String or = "";
+            for (RunMode m : d.modes) {
+                call.append(or).append("shell.launch().mode() == dev.vexelray.framework.api.RunMode.").append(m.name());
+                or = " || ";
+            }
+            call.append(" ? ").append(literal(d.where())).append(" : null)");
+        }
+        return call.append(");").toString();
     }
 
     // --- names and literals ----------------------------------------------------------------------------------

@@ -15,9 +15,12 @@ import java.lang.annotation.Target;
  * stack this wires is full of optional ones: {@code Tactroller.open()} throws where there is no input backend
  * and {@code Clipboard.open()} where there is no clipboard, and the hand-written application edge answers both
  * by catching and returning {@code null}, on the stated grounds that "a window nobody can click is a degraded
- * window rather than a failed launch". A {@code null} here means <em>absent</em>: the value is never closed,
- * dependents that tolerate absence still build, and the framework reports it once rather than each provider
- * printing its own apology.
+ * window rather than a failed launch". A {@code null} here means <em>absent</em>: the value is never closed and
+ * its frame hooks never run, every part that takes its type is still built and is handed the {@code null} — so a
+ * dependent that does not tolerate absence fails in its own code — and the framework reports it once, rather than
+ * each provider printing its own apology: one {@code WARN} line on {@code framework.wiring}, written where the
+ * provider is called, naming it and each part then built with the null. A type the framework takes back
+ * ({@code Appearance}, an input or clipboard backend, ...) is left as the framework's own.
  *
  * <p>A provider for a type the framework also supplies wins over it silently, provided the framework's is
  * marked {@link Default}. Two non-default providers for one type will be a compile error.

@@ -146,6 +146,19 @@ class VexelProcessorTest {
                     }
                 }
                 """),
+            Map.entry("dev.vexelray.framework.shell.Absences", """
+                package dev.vexelray.framework.shell;
+                import java.util.*;
+                public final class Absences {
+                    public static final List<String> REPORTED = new ArrayList<>();
+                    public static void provided(String provider, String type, String... parts) {
+                        REPORTED.add(provider + " " + type + " " + Arrays.toString(parts));
+                    }
+                    public static void handedBack(String provider, String type, String... parts) {
+                        REPORTED.add(provider + " " + type + " kept " + Arrays.toString(parts));
+                    }
+                }
+                """),
             Map.entry("sibarum.atchung.Topic", """
                 package sibarum.atchung;
                 public record Topic<T>(String name, Class<T> payloadType) {
@@ -1350,6 +1363,58 @@ class VexelProcessorTest {
         assertEquals(List.of("clipboard handed back"), run.phase("tree"), "a provider taking the Gui is built in TREE");
         run.shutdown();
         assertEquals(List.of(), run.phase("shutdown"), "the wiring registers neither: the shell owns both");
+    }
+
+    /**
+     * {@code Provides}' promise: a provider answering null is absent, its dependents are still built with the null,
+     * and the framework reports it once — naming the provider and each part then built with it, a part guarded to
+     * another mode left out. A hand-back's report says the framework keeps its own. A provider answering a value
+     * reports nothing.
+     */
+    @Test
+    void aProviderAnsweringNullIsReportedOnceNamingWhatWasBuiltWithIt() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                final class Backend {}
+                """, """
+                final class User {
+                    User(Backend backend) { dev.vexelray.framework.shell.Shell.LOG.add("user got " + backend); }
+                }
+                """, """
+                final class Viewer {}
+                """, """
+                final class Present {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides Backend backend() { return null; }
+                    @Provides User user(Backend backend) { return new User(backend); }
+                    @OnMode(RunMode.WINDOWED) @Provides Viewer viewer(Backend backend) { return new Viewer(); }
+                    @Provides Present present() { return new Present(); }
+                    @Provides dev.vexelray.framework.shell.InputBackend input() { return null; }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("if (backend == null) {\n            dev.vexelray.framework.shell.Absences.provided("
+                + "\"Recipes.backend\", \"Backend\", \"Recipes.user\", (shell.launch().mode() =="
+                + " dev.vexelray.framework.api.RunMode.WINDOWED ? \"Recipes.viewer\" : null));"), wiring);
+        assertTrue(wiring.contains("} else {\n            dev.vexelray.framework.shell.Absences.handedBack("
+                + "\"Recipes.input\", \"InputBackend\");"), wiring);
+
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
+        @SuppressWarnings("unchecked")
+        List<String> reported = (List<String>) run.shellType().getClassLoader()
+                .loadClass("dev.vexelray.framework.shell.Absences").getField("REPORTED").get(null);
+        assertEquals(List.of("user got null"), run.phase("config"), "the null is still passed on");
+        assertEquals(List.of("Recipes.backend Backend [Recipes.user, null]", "Recipes.input InputBackend kept []"),
+                reported, "once each, the viewer left out: FRAMES does not build it");
+        for (String phase : List.of("model", "gui", "tree", "window", "attach")) {
+            run.phase(phase);
+        }
+        assertEquals(2, reported.size(), "a provider is called once, so it is reported once");
     }
 
     /** The liveness policy is handed back the same way, and is not closeable, so the shell has nothing to close. */
