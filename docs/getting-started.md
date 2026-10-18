@@ -171,21 +171,24 @@ From a Visual Studio developer prompt, with a GraalVM 25 JDK as `JAVA_HOME`:
 mvn -Pnative-release package -DskipTests
 ```
 
-writes `target/my-app.exe`, the edition you ship: no console window, and no automation socket linked in.
+writes `target/my-app.exe`, the build you ship: no console window.
 
 ```bash
 mvn -Pnative package -DskipTests
 ```
 
-writes `target/my-app-debug.exe`, with a console and the automation socket linked in, for testing. The socket only
-opens when a launch asks for it, with `--automation=<port>`, or `-Dautomation=<port>`, or, when the launch names no
+writes `target/my-app-debug.exe`, with a console, for testing: it prints the `automation: localhost:<port>` line.
+
+Both carry the automation sockets, remote control and diagnostics, and both start with them off. A person switches
+them on from the plug in the title bar, whose lamps show each socket open or not and anything connected now or
+earlier. A launch opens them when it asks, with `--automation=<port>`, or `-Dautomation=<port>`, or, when the launch names no
 automation setting at all, the environment variable `VEXELRAY_AUTOMATION=<port>` (`0` for a free port), which an
 agent's shell sets so every application it starts can be driven. Each run's port is in its discovery file,
-`~/.vexelray/automation/<app>-<pid>.auto`, and `ottermate` with no `--port` reads it. The release edition has no
-socket to open, so it ignores all three.
+`~/.vexelray/automation/<app>-<pid>.auto`, and `ottermate` with no `--port` reads it.
+`--automation.available=none` (or `control`, or `diagnostics`; `VEXELRAY_AUTOMATION_AVAILABLE` in the environment)
+takes them out of a run altogether, and with neither available the plug is not shown.
 
-The difference is one annotation, written twice: `src/edition-debug` declares the app with the automation starter
-and `src/edition-release` without it. Keep the two identical apart from that.
+The sockets come from one annotation: `src/main/java/.../MyAppApp.java` declares the app with the automation starter.
 
 The application's icon is `src/main/rc/my-app.ico`. It starts as the framework's "new app" mark; replace that one
 file and the window, the taskbar button and the `.exe` all change together. The generated project's README says how

@@ -162,11 +162,11 @@ file docs/TODO.md
 
 file src/main/java/${packagePath}/${className}.java  from App.java
 
-# The two editions of the one class the processor reads, @VexelApp's: the debug one
-# names the automation starter and the release one does not. The pom compiles one.
+# The one class the processor reads, @VexelApp's. It names the automation starter in
+# every build, the release one too: the sockets start off, and the title bar's plug
+# shows whether they are open and whether anything is or was connected.
 
-file src/edition-debug/java/${packagePath}/${className}App.java    from EditionDebug.java
-file src/edition-release/java/${packagePath}/${className}App.java  from EditionRelease.java
+file src/main/java/${packagePath}/${className}App.java  from AppDeclaration.java
 file src/main/java/${packagePath}/Recipes.java       from Recipes.java
 file src/main/java/${packagePath}/Ui.java            from Ui.java
 file src/main/java/${packagePath}/Model.java         from Model.java

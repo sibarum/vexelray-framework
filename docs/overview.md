@@ -217,13 +217,14 @@ one that answers by itself.
 
 *More: [architecture.md](architecture.md#5-chrome-placement-is-the-frameworks-chrome-appearance-is-the-applications).*
 
-## Debug and release editions
+## Automation in every build
 
-A generated project declares its `@VexelApp` twice. The debug edition adds the automation starter, which can open
-a local socket that `ottermate` uses to drive the application and take screenshots for tests. It opens only when a
-launch asks for it (`--automation=<port>`), so a debug build run normally listens on nothing. The release edition
-leaves it out, and its native build does not link the automation code at all, so the shipped executable cannot be
-driven from outside.
+A generated project's `@VexelApp` names the automation starter, in the release build as in the debug one. It
+brings two local sockets: remote control, which `ottermate`, a macro or an agent uses to drive the application and
+take screenshots, and diagnostics, which the Inspector reads. Both start off, so a run listens on nothing until a
+launch asks (`--automation=<port>`, `VEXELRAY_AUTOMATION`) or a person switches one on from the title bar's plug,
+whose lamps show what is open and what is or was connected. `--automation.available=none` takes them out of a run
+altogether.
 
 ## The modules
 

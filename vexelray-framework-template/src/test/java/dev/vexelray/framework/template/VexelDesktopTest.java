@@ -102,19 +102,20 @@ class VexelDesktopTest {
     }
 
     @Test
-    void theApplicationIsDeclaredOncePerEdition() {
+    void theApplicationIsDeclaredOnceWithItsAutomation() {
         Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
-        String debug = blueprint.text("src/edition-debug/java/dev/example/plotviewer/PlotViewerApp.java");
-        String release = blueprint.text("src/edition-release/java/dev/example/plotviewer/PlotViewerApp.java");
-        assertNotNull(debug, "expected the debug edition; got " + blueprint.paths());
-        assertNotNull(release, "expected the release edition; got " + blueprint.paths());
-        assertTrue(debug.contains("starters = AutomationStarter.class"), "the debug edition can be driven");
-        assertFalse(release.contains("starters =") || release.contains("import dev.vexelray.framework.automation"),
-                "the release edition links no socket");
+        String app = blueprint.text("src/main/java/dev/example/plotviewer/PlotViewerApp.java");
+        assertNotNull(app, "expected the @VexelApp declaration; got " + blueprint.paths());
+        assertTrue(app.contains("starters = AutomationStarter.class"),
+                "every build, the release one too, can be driven");
+        assertFalse(blueprint.paths().stream().anyMatch(p -> p.startsWith("src/edition-")),
+                "one declaration, not one per edition: " + blueprint.paths());
+        assertFalse(blueprint.text("pom.xml").contains("automation.scope"),
+                "the automation modules are on every build's class path");
         assertFalse(blueprint.text("src/main/java/dev/example/plotviewer/PlotViewer.java").contains("@VexelApp("),
-                "the entry class declares nothing, or the release build would have two @VexelApp classes");
+                "the entry class declares nothing, or the build would have two @VexelApp classes");
         assertTrue(blueprint.text("src/main/java/dev/example/plotviewer/PlotViewer.java")
-                .contains("new PlotViewerAppWiring()"), "main runs the wiring the processor makes from the edition");
+                .contains("new PlotViewerAppWiring()"), "main runs the wiring the processor makes from its declaration");
     }
 
     /**
@@ -244,7 +245,7 @@ class VexelDesktopTest {
             String text = blueprint.text(entry.path());
             // The package is the folder the file lands in, so a sub-package's file declares the sub-package.
             String folder = entry.path().substring(0, entry.path().lastIndexOf('/'))
-                    .replaceFirst("^src/(main|test|edition-debug|edition-release)/java/", "");
+                    .replaceFirst("^src/(main|test)/java/", "");
             String expected = "package " + folder.replace('/', '.') + ";";
             assertTrue(folder.startsWith("dev/example/plotviewer"), entry.path() + " is outside the project's package");
             assertTrue(text.startsWith(expected),

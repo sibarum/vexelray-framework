@@ -3,8 +3,8 @@
     "This program's own native-image metadata: the entry point the launcher reaches by JNI, and the JDK's",
     "locale and time-zone data a native run of the calculator was seen to read. Everything else registers",
     "itself: the libraries carry their own (Win32, tactroller, DXGI, the shaders, the font atlas), and the processor writes the icon's.",
-    "Add to it when a native run of this program fails on something the JVM run did not: run the debug",
-    "edition on a JVM under -agentlib:native-image-agent and keep only the entries naming this program."
+    "Add to it when a native run of this program fails on something the JVM run did not: run it on a JVM",
+    "under -agentlib:native-image-agent and keep only the entries naming this program."
   ],
   "reflection": [
     {

@@ -29,8 +29,8 @@ import java.util.List;
  * its title bar; and the restore, which takes the {@code Shell}, comes last, when the window and the dialogs exist.
  * There is no phase to declare and none to get wrong. Open the generated file after a build to see the order.
  *
- * <p>The driving socket is not here. It comes from {@code AutomationStarter}, which the debug edition of
- * {@code ${className}App} names in its {@code @VexelApp} (see {@link ${className}}).
+ * <p>The automation sockets are not here. They come from {@code AutomationStarter}, which {@code ${className}App}
+ * names in its {@code @VexelApp} (see {@link ${className}}).
  *
  * <h2>What is not here is the point</h2>
  *

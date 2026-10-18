@@ -141,7 +141,7 @@ Windows is the complete platform. The engine's Linux and macOS backends are skel
 | `vexelray-framework-core` | Phases, launch, frame stages, pacing, disposal, threads and the watchdog. JDK-only, testable with no GPU |
 | `vexelray-framework-processor` | The annotation processor: compile-time checks, then the generated wiring |
 | `vexelray-framework-shell` | The application edge: input, clipboard, window memory, the frame loop, windows, chrome, dialogs |
-| `vexelray-framework-automation` | The driving socket for tests and screenshots, linked only into debug builds |
+| `vexelray-framework-automation` | The automation sockets (remote control and diagnostics), in every build and off until asked for |
 | `vexelray-framework-template` | The project generator, and the reference application it writes |
 | `vexelray-framework-acceptance` | Under `-Pacceptance`: generates a project, builds it, opens it and drives it |
 

@@ -26,13 +26,15 @@ mvn test                                                  # the model, the file 
 
 ## A native executable
 
-Two editions, built with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and Visual Studio with the "Desktop
+Two builds, made with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and Visual Studio with the "Desktop
 development with C++" workload):
 
 ```
-native-build.cmd -Pnative-release package -DskipTests   # target/${artifactId}.exe        what ships: no console, no driving socket
-native-build.cmd -Pnative package -DskipTests           # target/${artifactId}-debug.exe  a console, and ottermate can drive it
+native-build.cmd -Pnative-release package -DskipTests   # target/${artifactId}.exe        what ships: no console
+native-build.cmd -Pnative package -DskipTests           # target/${artifactId}-debug.exe  a console: prints the automation port line
 ```
+
+Both carry the automation sockets, off until asked for ([Automation](#automation)), so ottermate can drive either.
 
 `native-build.cmd` is `mvn` inside a Visual Studio developer environment: native-image needs the MSVC `link.exe` and
 the icon step needs `rc.exe`, and neither is on `PATH` in a plain shell. Under Git Bash it is worse, since coreutils'
@@ -40,14 +42,10 @@ own `link.exe` comes first. The script finds `vcvars64.bat` with `vswhere`, load
 arguments it was given (`./native-build.cmd ...` from Git Bash). Plain `mvn` works too from a developer prompt; from
 anywhere else the icon step stops and says to use the script.
 
-`${className}App`, the class the processor reads, is written twice — `src/edition-debug` names `AutomationStarter`
-and `src/edition-release` does not — and the pom compiles one. Keep the two annotations identical apart from
-`starters`. Everything else is shared; an ordinary build, `exec:exec` and the tests are the debug edition.
-
 This program's own native-image metadata is `src/main/resources/META-INF/native-image/.../reachability-metadata.json`,
 and it is short because almost nothing is this program's: the libraries register their own, and the processor
-registers the icon. If a native run fails on something the JVM run did not (a `Missing...RegistrationError`), run the
-debug edition on a JVM under `-agentlib:native-image-agent=config-output-dir=...`, do the thing that failed, and add
+registers the icon. If a native run fails on something the JVM run did not (a `Missing...RegistrationError`), run it
+on a JVM under `-agentlib:native-image-agent=config-output-dir=...`, do the thing that failed, and add
 only the entries that name this program.
 
 ## The icon
@@ -165,6 +163,33 @@ happened at least once. If the build cannot resolve them, that is why.
 | `tactroller-atchung` | keyboard and pointer input onto an atchung bus (brings `atchung-core`) |
 | `tactroller-clipboard` | the OS clipboard, with no input-subsystem coupling |
 | `vexelray-os-*`, `tactroller-*` | picked by an OS-activated profile; exactly one activates |
+
+## Automation
+
+${title} can be driven and read from outside, by a script, a macro or an agent, through the framework's two loopback
+sockets: **remote control** (the keys, clicks and reads a person has) and **diagnostics** (the flight recorder, the
+log, the Inspector). Both are in every build, the release one too, and both start off.
+
+- **Switched on by hand**: the plug in the title bar opens the switches, one per socket, each with a port (blank for
+  a free one).
+- **Switched on at launch**, for an agent that means to: `--automation=0` (both, on a free port),
+  `--automation.control=<port>`, `--automation.diagnostics=<port>`, or `VEXELRAY_AUTOMATION=0` in the environment.
+- **Not there at all**: `--automation.available=none` (or `control`, or `diagnostics`), or
+  `VEXELRAY_AUTOMATION_AVAILABLE` in the environment. A socket that is not available cannot be switched on by
+  anything, and with neither available the plug is gone.
+
+Whatever turned it on, **the plug's lamps say what each socket is doing**, remote control's (red) left of the plug and
+diagnostics' (blue) right:
+
+| Lamp | Means |
+| --- | --- |
+| none | off, and nothing has connected to it this session |
+| ring | open, and nothing has connected yet |
+| filled ring | open, and something is connected now |
+| ring with a grey dot | open; something was connected and has gone |
+| grey dot | off, after something had connected to it this session |
+
+The plug's tooltip and the switches' window say the same in words, with the port and how many are connected.
 
 ## Taking a screenshot
 

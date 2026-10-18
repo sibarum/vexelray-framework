@@ -11,8 +11,9 @@ From a Visual Studio developer prompt, with a GraalVM 25 JDK as `JAVA_HOME`:
 mvn -Pnative-release package -DskipTests
 ```
 
-That writes `target/my-app.exe`, the edition you ship: it has no console window and no automation socket.
-[Getting started §6](../getting-started.md#6-build-a-native-executable) explains the two editions, and the
+That writes `target/my-app.exe`, the build you ship: it has no console window, and its automation sockets are off
+until the launch or the title bar's plug switches them on.
+[Getting started §6](../getting-started.md#6-build-a-native-executable) explains the two builds, and the
 generated README explains what to do when the native executable fails at something the JVM run did not.
 
 Before you publish, run the release executable yourself on a clean folder. A native image only contains what was
