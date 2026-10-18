@@ -91,6 +91,14 @@ public enum Phase {
      * part is handed the {@code Gui}</b>, its clock, the title bar and the windows, so every part that takes one of
      * them is inferred here — which is every part that builds a widget.
      *
+     * <p><b>Ruled 2026-10-18 (Vex FN-10), and why.</b> The {@code Gui} used to be handed out at {@link #GUI}, so
+     * every widget part was inferred there and nothing ever landed in this phase: a distinction the documentation
+     * drew and inference could not produce. Merging the two was the other answer. Handing the {@code Gui} out a
+     * phase later was chosen because it keeps the one distinction that matters, the look and the clock applied
+     * before the first widget, and makes it a fact of the ordering rather than of {@code VexelApplication}'s
+     * internals. Nothing moved for an application: this phase runs straight after {@link #GUI}, before
+     * {@link #WINDOW}.
+     *
      * <p>The tree may be built before there is a window to show it in, and on this stack it always is. That is
      * not incidental: the application's own title bar is a widget, so it exists and lays out against no window
      * controls at all until {@link #ATTACH} points it at some — <i>"until now the bar has been a working bar

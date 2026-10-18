@@ -230,10 +230,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         against `AutomationStarter` with the real processor, which covers the one starter there is; the
         processor is not on `-automation`'s own `annotationProcessorPaths`, so a starter's library-level checks
         run only when an application names it. Worth wiring when there is a second starter, and before a BOM.
-      - **Decide now.** **A provider returning `null` is passed on as `null`.** `@Provides` says absence is a supported answer,
-        that dependents which tolerate it still build, and that the framework reports it once. Today the
-        dependents are built with the `null` and nothing reports it; the consumers the wiring itself calls
-        (`appearance`, `register`, the hooks) are guarded, and that is all.
+      - **Ruled and built 2026-10-18: a provider returning `null` is passed on and reported once.** The generated
+        wiring calls `Absences` (`-shell`), one WARN on `framework.wiring` naming the provider and each part built
+        with the null (named in atchung's logging.md). **Why:** `@Provides` already promised it, an application returning null on purpose keeps
+        working, and a startup error would have needed an "optional" annotation to say which nulls are meant.
       - **Ruled 2026-10-18: types match exactly.** A parameter asking for an interface is resolved only by a provider
         returning that interface, never by one returning a subtype. **Why:** the two directions are not symmetric.
         Allowing a subtype later, and only where there is no exact match, turns errors into successes and changes
@@ -487,14 +487,6 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       the handler and offload pools are not grouped. `Context` has `exit` and `interrupt` and no `restart`.
       Verify the group sweep under native-image, untested. W2 gets the *wedge* button and the assertions that
       the window keeps painting and close exits within the bound.
-
-- [ ] **No part is ever inferred into `TREE`** (Vex FN-10). Every part that builds widgets takes the `Gui`, so it
-      is inferred into `GUI`; nothing the framework hands out first exists in `TREE`, and the generated wiring never
-      overrides `tree()`. `Phase.TREE`'s description (*the widgets, buildable with no window*) is true of what is
-      built in `GUI`. Not a defect, since `VexelApplication.tree` runs both. **Why this blocks v1:** phases are a
-      frozen contract, and a phase inference cannot produce is a distinction the documentation draws and the
-      mechanism does not. Either `TREE` gets a meaning a part can be inferred into, or it merges into `GUI`, and
-      either is cheaper now.
 
 - [ ] **A look is colour; shape, density and type are each widget's** (upstream, `vexelray-gui` and
       `vexelray-text`). Found by Vex's retheme to a design mockup (FN-14 to FN-17): every colour landed through the
