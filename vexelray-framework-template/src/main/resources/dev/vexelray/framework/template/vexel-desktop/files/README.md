@@ -26,13 +26,19 @@ mvn test                                                  # the model, the file 
 
 ## A native executable
 
-Two editions, built with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and a Visual Studio developer prompt,
-which native-image needs for `link.exe` and the icon step needs for `rc.exe`):
+Two editions, built with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and Visual Studio with the "Desktop
+development with C++" workload):
 
 ```
-mvn -Pnative-release package -DskipTests      # target/${artifactId}.exe        what ships: no console, no driving socket
-mvn -Pnative package -DskipTests              # target/${artifactId}-debug.exe  a console, and ottermate can drive it
+native-build.cmd -Pnative-release package -DskipTests   # target/${artifactId}.exe        what ships: no console, no driving socket
+native-build.cmd -Pnative package -DskipTests           # target/${artifactId}-debug.exe  a console, and ottermate can drive it
 ```
+
+`native-build.cmd` is `mvn` inside a Visual Studio developer environment: native-image needs the MSVC `link.exe` and
+the icon step needs `rc.exe`, and neither is on `PATH` in a plain shell. Under Git Bash it is worse, since coreutils'
+own `link.exe` comes first. The script finds `vcvars64.bat` with `vswhere`, loads it, and runs `mvn` with the
+arguments it was given (`./native-build.cmd ...` from Git Bash). Plain `mvn` works too from a developer prompt; from
+anywhere else the icon step stops and says to use the script.
 
 `${className}App`, the class the processor reads, is written twice — `src/edition-debug` names `AutomationStarter`
 and `src/edition-release` does not — and the pom compiles one. Keep the two annotations identical apart from

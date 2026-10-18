@@ -48,7 +48,13 @@ them even when a shortcut looks harmless:
 ```
 mvn compile exec:exec                       # run it
 mvn test                                    # unit tests, and the real window tree built headless
+native-build.cmd -Pnative package -DskipTests   # the native debug edition, target/${artifactId}-debug.exe
 ```
+
+**Native builds go through `native-build.cmd`**, not plain `mvn -Pnative...` (`./native-build.cmd` from Git Bash).
+It loads the Visual Studio environment that `rc.exe` and the MSVC `link.exe` need, which a plain shell lacks; under
+Git Bash, coreutils' `link.exe` would otherwise be found instead of the linker. README's *A native executable* has
+both editions.
 
 **A change to the window is not done until it has been seen.** "It compiles" and "the tests pass" are not evidence
 that it looks or behaves right. Drive it with `ottermate`, the stack's automation client (see the stack's

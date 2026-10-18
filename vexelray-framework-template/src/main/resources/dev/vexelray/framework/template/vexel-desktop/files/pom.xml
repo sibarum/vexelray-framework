@@ -158,7 +158,9 @@
                 </plugin>
                 <!-- The executable's icon: a resource linked into the program, so it has to exist as a compiled .res
                      before link time. rc.exe is the Windows SDK's resource compiler and must be on PATH, as it is in a
-                     Visual Studio developer prompt (which the native build already needs for link.exe). -->
+                     Visual Studio developer prompt (which the native build already needs for link.exe).
+                     native-build.cmd makes one and runs mvn in it, so it is looked for first: without it the failure
+                     would be exec's 'not recognized', which names neither the cause nor the fix. -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
@@ -170,6 +172,8 @@
                             <goals><goal>run</goal></goals>
                             <configuration>
                                 <target>
+                                    <available file="rc.exe" filepath="$${env.PATH}" property="rc.exe.found"/>
+                                    <fail unless="rc.exe.found" message="rc.exe, the Windows SDK's resource compiler (for the icon), is not on PATH, and neither is the MSVC link.exe that native-image needs: they are only there in a Visual Studio developer prompt. Run the native build through native-build.cmd, which loads that environment and then runs mvn with its arguments, e.g. native-build.cmd -Pnative package -DskipTests (./native-build.cmd from Git Bash)."/>
                                     <exec executable="rc.exe" searchpath="true" failonerror="true">
                                         <arg value="/nologo"/>
                                         <arg value="/fo"/>
@@ -284,13 +288,14 @@
           takes minutes. This program's own reachability metadata is under src/main/resources/META-INF/native-image/;
           the libraries and the processor bring the rest.
 
-            mvn -Pnative-release package -DskipTests  ->  target/${artifactId}.exe        what ships
-            mvn -Pnative package -DskipTests          ->  target/${artifactId}-debug.exe  for ottermate
+            native-build.cmd -Pnative-release package -DskipTests  ->  target/${artifactId}.exe        what ships
+            native-build.cmd -Pnative package -DskipTests          ->  target/${artifactId}-debug.exe  for ottermate
 
           release: Windows GUI subsystem (no console window ever) and no automation socket in the image.
           debug:   console subsystem (stdout is the `automation: localhost:<port>` protocol line) and automation.
           The plugins are declared once, in pluginManagement; the profiles only choose their inputs. Both run rc.exe
-          for the icon (src/main/rc), so run them from a Visual Studio developer prompt.
+          for the icon (src/main/rc) and link with MSVC, so run them through native-build.cmd (or plain mvn from a
+          Visual Studio developer prompt).
         -->
         <profile>
             <id>native</id>

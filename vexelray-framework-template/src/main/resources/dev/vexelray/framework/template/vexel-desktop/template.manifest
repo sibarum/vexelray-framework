@@ -198,6 +198,13 @@ file src/main/rc/${artifactId}.ico  from new-app.ico
 file src/main/rc/${artifactId}.svg  from new-app.svg
 file src/main/rc/${artifactId}.rc   from app.rc
 file src/main/rc/${artifactId}.manifest  from app.manifest
+
+# The native build needs rc.exe and the MSVC link.exe, which are on PATH only in a
+# Visual Studio developer prompt (and under Git Bash coreutils' link.exe shadows the
+# linker). This finds vcvars64 with vswhere and runs mvn inside it. It is written
+# with CR LF line endings whatever this copy has: see Scaffold.isBatchFile.
+
+file native-build.cmd
 file src/main/resources/META-INF/native-image/${groupId}/${artifactId}/reachability-metadata.json  from reachability-metadata.json
 
 file src/test/java/${packagePath}/ModelTest.java     from ModelTest.java  when tests

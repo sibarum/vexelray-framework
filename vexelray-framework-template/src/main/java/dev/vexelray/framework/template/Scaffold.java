@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * A template plus a set of answers, worked out into files.
@@ -55,7 +56,7 @@ public final class Scaffold {
             }
             String path = resolvePath(item.path(), answers, template);
             byte[] source = catalogue.read(template.id(), item.source());
-            entries.add(new Blueprint.Entry(path, render(source, answers, item.source())));
+            entries.add(new Blueprint.Entry(path, render(source, answers, item.source(), path)));
         }
         return new Blueprint(List.copyOf(entries), List.copyOf(notes));
     }
@@ -96,11 +97,13 @@ public final class Scaffold {
      * One file's bytes, with its placeholders filled in -- or exactly as they were,
      * when the file is not text.
      */
-    private static byte[] render(byte[] source, Answers answers, String name) {
+    private static byte[] render(byte[] source, Answers answers, String name, String path) {
         String text = decode(source);
         if (text == null) return source;
         try {
-            return answers.resolve(text).getBytes(StandardCharsets.UTF_8);
+            String resolved = answers.resolve(text);
+            if (isBatchFile(path)) resolved = crlf(resolved);
+            return resolved.getBytes(StandardCharsets.UTF_8);
         } catch (TemplateError e) {
             // The message from Answers says which placeholder; only this level
             // knows which file it was in, and that is the half that saves the time.
@@ -109,6 +112,25 @@ public final class Scaffold {
                     .because(e)
                     .build();
         }
+    }
+
+    /**
+     * A Windows batch file, which cmd.exe is the only reader of.
+     *
+     * <p>cmd.exe misreads a batch file with bare LF line endings (a {@code goto} or {@code call :label} can miss its
+     * label, a line straddling a 512-byte read is split), and which endings a template file has is decided by git,
+     * not by its author: the repository stores text as LF, and a checkout may or may not convert it. So the endings
+     * are decided here, by where the file lands. That is a fact about one format and its one reader, not a list of
+     * extensions to keep up to date; every other file is written with the endings it came with.
+     */
+    private static boolean isBatchFile(String path) {
+        String lower = path.toLowerCase(Locale.ROOT);
+        return lower.endsWith(".cmd") || lower.endsWith(".bat");
+    }
+
+    /** {@code text} with every line ending, whatever it was, as CR LF. */
+    private static String crlf(String text) {
+        return text.replace("\r\n", "\n").replace('\r', '\n').replace("\n", "\r\n");
     }
 
     private static String hints(TemplateError e) {

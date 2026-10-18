@@ -1,7 +1,11 @@
 package dev.vexelray.framework.template;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -200,6 +204,39 @@ class TemplateTest {
         Answers answers = Answers.of(Map.of("artifactId", "plotter"));
         TemplateError e = assertThrows(TemplateError.class, () -> answers.resolve("${artifactID}"));
         assertTrue(String.join(" ", e.hints()).contains("artifactId"), e.hints().toString());
+    }
+
+    /**
+     * cmd.exe is a batch file's only reader and it misreads bare LF, while the source's endings are whatever git
+     * checked out; so a {@code .cmd} or {@code .bat} is written CR LF, and nothing else has its endings touched.
+     */
+    @Test
+    void aBatchFileIsWrittenWithCrLfAndNothingElseIsChanged(@TempDir Path temp) throws IOException {
+        Path folder = Files.createDirectories(temp.resolve("eol"));
+        Files.writeString(folder.resolve(Catalogue.MANIFEST), """
+                template  eol
+                title     Line endings
+                summary   one of each
+                slot name
+                    required  yes
+                    preset    x
+                file build.cmd
+                file run.BAT
+                file notes.txt
+                """);
+        Path files = Files.createDirectories(folder.resolve("files"));
+        Files.writeString(files.resolve("build.cmd"), "@echo off\nrem ${name}\r\nmvn %*\n");
+        Files.writeString(files.resolve("run.BAT"), "a\rb\n");
+        Files.writeString(files.resolve("notes.txt"), "one\ntwo\r\n");
+
+        Catalogue catalogue = Catalogue.including(temp);
+        Template template = catalogue.get("eol");
+        Answers answers = Answers.of(Map.of("name", "demo")).filled(template);
+        Blueprint blueprint = Scaffold.of(template, answers, catalogue);
+
+        assertEquals("@echo off\r\nrem demo\r\nmvn %*\r\n", blueprint.text("build.cmd"));
+        assertEquals("a\r\nb\r\n", blueprint.text("run.BAT"));
+        assertEquals("one\ntwo\r\n", blueprint.text("notes.txt"));
     }
 
     @Test

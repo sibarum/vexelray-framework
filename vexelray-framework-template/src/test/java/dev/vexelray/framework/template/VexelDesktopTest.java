@@ -118,6 +118,33 @@ class VexelDesktopTest {
     }
 
     /**
+     * A native build from a plain shell has no {@code rc.exe} or MSVC {@code link.exe}, so the project carries the
+     * wrapper that loads them, names it where the native commands are, and the pom's icon step says to use it
+     * rather than failing on exec's "not recognized". The wrapper is cmd.exe's, so it is CR LF throughout, whatever
+     * endings the template's copy was checked out with.
+     */
+    @Test
+    void theNativeBuildCarriesItsWrapperAndPointsAtIt() {
+        Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
+        String wrapper = blueprint.text("native-build.cmd");
+        assertNotNull(wrapper, "expected native-build.cmd; got " + blueprint.paths());
+        assertTrue(wrapper.contains("vcvars64.bat") && wrapper.contains("mvn %*"), wrapper);
+        assertFalse(wrapper.replace("\r\n", "").contains("\n") || wrapper.replace("\r\n", "").contains("\r"),
+                "a batch file is CR LF throughout");
+
+        String pom = blueprint.text("pom.xml");
+        int check = pom.indexOf("<fail unless=\"rc.exe.found\"");
+        assertTrue(check > 0 && check < pom.indexOf("<exec executable=\"rc.exe\""),
+                "rc.exe is looked for before it is run");
+        assertTrue(pom.substring(check, pom.indexOf("/>", check)).contains("native-build.cmd"),
+                "and its absence names the wrapper");
+        assertTrue(pom.contains("filepath=\"${env.PATH}\""), "searched for on PATH, as exec would");
+
+        assertTrue(blueprint.text("README.md").contains("native-build.cmd -Pnative-release package"));
+        assertTrue(blueprint.text("CLAUDE.md").contains("native-build.cmd -Pnative package"));
+    }
+
+    /**
      * One mark, three readers: the window (from the class path, via {@code @VexelApp(icon)}), the executable (via the
      * {@code .rc}), and the person who will redraw it (the {@code .svg}). And it is the framework's own, byte for
      * byte, so a project that never replaces it looks the same as one that names no icon at all.
