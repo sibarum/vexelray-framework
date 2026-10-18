@@ -27,9 +27,13 @@ final class Logs {
     /** Configure logging for {@code info}'s application from what this launch said. */
     static void start(AppInfo info, Launch launch) {
         Map<String, String> settings = new HashMap<>();
-        String automation = launch.override("automation");
-        if (automation != null) {
-            settings.put("automation", automation);
+        // Either socket alone is a driven run too: diagnostics asked for at launch is the one run that most needs
+        // the probe this mode arms, since nothing can arm it later.
+        for (String key : new String[] {"automation", "automation.control", "automation.diagnostics"}) {
+            String automation = launch.override(key);
+            if (automation != null) {
+                settings.put(key, automation);
+            }
         }
         String level = launch.override("log");
         if (level != null) {

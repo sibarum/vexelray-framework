@@ -82,7 +82,8 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
      * question rather than a quiet launch. {@link #usage} lists these separately from the application's own
      * keys in the meantime, so that at least the two categories are not presented as one.
      */
-    public static final Set<String> FRAMEWORK_KEYS = Set.of("profile", "automation", "recorder", "log");
+    public static final Set<String> FRAMEWORK_KEYS = Set.of("profile", "automation", "automation.control",
+            "automation.diagnostics", "recorder", "log");
 
     public Launch {
         overrides = Map.copyOf(overrides);
