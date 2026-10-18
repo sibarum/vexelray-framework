@@ -12,8 +12,10 @@ import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.app.LoopCounters;
 import dev.vexelray.gui.inspector.link.InspectorLink;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import sibarum.probe.Log;
 
@@ -26,12 +28,15 @@ import sibarum.probe.Log;
  * debugging port that must not stop an application launching. It is the clearest remaining case of the
  * duplication this framework exists to remove.
  *
- * <p><b>Off unless requested, and loopback-only when it is.</b> This hands anyone who can reach it full control
- * of the application's input, so it is a debugging instrument and not a service
+ * <p><b>Off unless requested, loopback-only when it is, and never out of sight.</b> Remote control hands whatever
+ * connects full control of the application's input, so it is off by default
  * ({@code vexelray-gui/docs/reference/automation.md} §5). Requested means a launch setting — {@code --automation}
  * for both on one port, {@code --automation.control} and {@code --automation.diagnostics} for each, or
  * {@value #ENVIRONMENT} in an agent's environment — or the automation button this puts in the title bar, beside the
- * key bindings, which switches either while the application runs.
+ * key bindings, which switches either while the application runs. Release builds carry it too, since macros and
+ * agents use the same hand a person does; what keeps that honest is that the button is also each socket's lamp,
+ * showing whether it is open and whether anything is, or has been, connected. {@link #AVAILABLE} takes either socket,
+ * or both, out of a run altogether.
  *
  * <p><b>A module of its own rather than part of {@code -shell}.</b> Absorbing it into the shell would put
  * {@code vexelray-gui-automation} on every application's compile path, and a listening socket linked into every
@@ -67,13 +72,30 @@ public final class Driver implements AutoCloseable {
      */
     public static final String ENVIRONMENT = "VEXELRAY_AUTOMATION";
 
+    /**
+     * What this run may switch on at all: {@code all} (the default), {@code none}, {@code control} or
+     * {@code diagnostics} ({@link Sockets#available(String)}). With {@code none} there is no automation button and
+     * nothing can switch a socket on, by launch or by hand. One of {@code Launch.FRAMEWORK_KEYS}.
+     */
+    public static final String AVAILABLE = Sockets.AVAILABLE_SETTING;
+
+    /**
+     * {@link #AVAILABLE} from the environment, read after the flag and the property: {@code
+     * VEXELRAY_AUTOMATION_AVAILABLE=none} keeps every application started from that environment unreachable.
+     */
+    public static final String AVAILABLE_ENVIRONMENT = "VEXELRAY_AUTOMATION_AVAILABLE";
+
     private final Shell shell;
+    private final Set<Capability> available;
     /** Built on first need — the launch asking, or the button clicked — because it needs the window. */
-    private Sockets sockets;
+    private volatile Sockets sockets;
+    /** The title bar's button, redrawn after every change to the sockets, once they are built. */
+    private final List<Runnable> lampWatchers = new java.util.concurrent.CopyOnWriteArrayList<>();
     private boolean closed;
 
-    private Driver(Shell shell) {
+    private Driver(Shell shell, Set<Capability> available) {
         this.shell = shell;
+        this.available = available;
     }
 
     /**
@@ -88,6 +110,10 @@ public final class Driver implements AutoCloseable {
      * That ordering is {@code Setting}'s: a flag is more specific to this launch than a property. Last, and only when
      * neither names any of the three settings, {@value #ENVIRONMENT} stands in for {@code automation}, so an agent's
      * shell opens every application's socket without a flag ({@link #resolver}).
+     *
+     * <p>{@link #AVAILABLE} is read first, the same way, with {@value #AVAILABLE_ENVIRONMENT} last. A socket the launch
+     * asks for that the run does not offer is not opened, and that is said; a value that is not one of the words offers
+     * nothing, since whoever wrote it meant to shut something.
      */
     public static Driver open(Shell shell) {
         return open(shell, System::getProperty, System::getenv);
@@ -95,7 +121,7 @@ public final class Driver implements AutoCloseable {
 
     /** {@link #open(Shell)} with the property and environment lookups handed in, so a test sets neither globally. */
     static Driver open(Shell shell, Function<String, String> properties, Function<String, String> environment) {
-        Driver driver = new Driver(shell);
+        Driver driver = new Driver(shell, available(shell.launch()::override, properties, environment));
         driver.button();
         Function<String, String> asked = resolver(shell.launch()::override, properties, environment);
         if (!Sockets.anyRequested(asked)) {
@@ -111,6 +137,12 @@ public final class Driver implements AutoCloseable {
             for (String key : List.of(SETTING, Sockets.CONTROL_SETTING, Sockets.DIAGNOSTICS_SETTING)) {
                 Sockets.requested(asked.apply(key));
             }
+            // And a socket the run does not offer is refused here, for the same reason: nothing is opened.
+            for (Capability c : Sockets.asked(asked)) {
+                if (!driver.available.contains(c)) {
+                    throw new IllegalStateException(Sockets.refusal(c, driver.available));
+                }
+            }
             driver.sockets().enableRequested(asked);
             int port = driver.port();
             if (port >= 0) {
@@ -121,7 +153,7 @@ public final class Driver implements AutoCloseable {
                         + "vexelray-gui-automation-cli; build it there with: mvn -pl vexelray-gui-automation-cli install)");
             }
             LOG.info("automation: {}", driver.sockets().describe());
-        } catch (java.io.IOException | NumberFormatException e) {
+        } catch (java.io.IOException | NumberFormatException | IllegalStateException e) {
             // An application that will not start because a debugging port was busy is a worse outcome than one
             // nobody can drive. The button still switches it on, at another port.
             Diagnostics.dropped("Driver.open", "the automation socket this launch asked for",
@@ -129,6 +161,29 @@ public final class Driver implements AutoCloseable {
                             + (driver.sockets == null ? "" : " (" + driver.sockets.describe() + ")"));
         }
         return driver;
+    }
+
+    /** What this run offers: {@link #AVAILABLE} from the flag, the property, then {@value #AVAILABLE_ENVIRONMENT}. */
+    static Set<Capability> available(Function<String, String> flags, Function<String, String> properties,
+                                     Function<String, String> environment) {
+        String v = flags.apply(AVAILABLE);
+        if (v == null) {
+            v = properties.apply(AVAILABLE);
+        }
+        if (v == null) {
+            v = environment.apply(AVAILABLE_ENVIRONMENT);
+        }
+        try {
+            return Sockets.available(v);
+        } catch (IllegalArgumentException e) {
+            Diagnostics.dropped("Driver.open", "the automation sockets", e.getMessage() + "; offering none");
+            return EnumSet.noneOf(Capability.class);
+        }
+    }
+
+    /** What this run may switch on: neither, one, or both. */
+    public Set<Capability> available() {
+        return available;
     }
 
     /**
@@ -192,12 +247,27 @@ public final class Driver implements AutoCloseable {
                     Timeline.of(shell.krono()::quiescentAtLastTick, shell.krono()::whyBusyAtLastTick), counters);
             // Named after @VexelApp, so the discovery file and hello say "calculator" rather than the main class,
             // and ottermate --app calculator finds it (vexelray-gui docs/plans/discovery.md).
-            sockets = new Sockets(windows, shell.info().name(), shell.info().title())
+            sockets = new Sockets(windows, shell.info().name(), shell.info().title(), System.out, available)
                     // The Inspector's link beside whichever socket serves diagnostics (vexelray-gui
                     // docs/plans/flight-recorder.md section 6). -Dautomation.link=off leaves it out.
                     .attach(Capability.DIAGNOSTICS, server -> InspectorLink.start(server, windows));
+            // The button was put up before the sockets existed; from here on it follows them.
+            sockets.watch(s -> lampWatchers.forEach(Runnable::run));
+            lampWatchers.forEach(Runnable::run);
         }
         return sockets;
+    }
+
+    /**
+     * Where {@code c} stands: the sockets', or off (unavailable) before they are built. Read without this object's
+     * lock, since it is asked from whatever thread changed the sockets, which may be holding theirs.
+     */
+    private Sockets.State state(Capability c) {
+        Sockets s = sockets;
+        if (s != null) {
+            return s.state(c);
+        }
+        return available.contains(c) ? Sockets.State.OFF : Sockets.State.UNAVAILABLE;
     }
 
     /** Whether a socket is actually listening, for either capability. */
@@ -216,15 +286,34 @@ public final class Driver implements AutoCloseable {
 
     /**
      * The automation button, after whatever the bar already shows — the framework's tools, the key bindings — in a
-     * window whose frame the GUI draws. A native frame has no bar to put it in.
+     * window whose frame the GUI draws. A native frame has no bar to put it in, and a run that offers neither socket
+     * ({@link #AVAILABLE}) has nothing for it to switch.
+     *
+     * <p>The button is the sockets' lamps ({@code AutomationWindow}): beside the plug, each socket shows whether its
+     * port is open and whether anything is, or was this session, connected to it, so whether anything can drive or
+     * read this application is in its title bar at a glance.
      */
     private void button() {
-        if (!shell.appearance().drawsOwnFrame()) {
+        if (!shell.appearance().drawsOwnFrame() || available.isEmpty()) {
             return;
         }
         List<WindowInstrument> tools = new ArrayList<>(shell.titleBar().instruments());
         tools.add(WindowInstrument.automation("Remote control and diagnostics",
-                controls -> AutomationWindow.window(shell.app(), shell.gui(), sockets()).show()));
+                controls -> AutomationWindow.window(shell.app(), shell.gui(), sockets()).show(),
+                () -> AutomationWindow.lamps(shell.gui(), state(Capability.CONTROL), state(Capability.DIAGNOSTICS)),
+                new WindowInstrument.Live() {
+                    @Override
+                    public Runnable watch(Runnable changed) {
+                        lampWatchers.add(changed);
+                        return () -> lampWatchers.remove(changed);
+                    }
+
+                    @Override
+                    public String tooltip() {
+                        Sockets s = sockets;
+                        return s == null ? null : AutomationWindow.describe(s);
+                    }
+                }));
         shell.titleBar().instruments(List.copyOf(tools));
     }
 

@@ -11,9 +11,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import dev.vexelray.gui.automation.Capability;
 import dev.vexelray.gui.automation.Sockets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -147,6 +149,41 @@ final class DriverTest {
         Function<String, String> diagnostics =
                 Driver.resolver(NONE, Map.of(Sockets.DIAGNOSTICS_SETTING, "off")::get, env);
         assertEquals(null, diagnostics.apply(Driver.SETTING));
+    }
+
+    /** A run that offers no socket opens none, whatever the launch asks for, and says so. */
+    @Test
+    void aSocketTheRunDoesNotOfferIsNotOpenedAndThatIsSaid(@TempDir Path home) {
+        Shell shell = shell(home, "--automation=0", "--automation.available=none");
+        try (Driver driver = Driver.open(shell, NONE, NONE)) {
+            assertFalse(driver.bound());
+            assertEquals(Set.of(), driver.available());
+            assertEquals(1, Diagnostics.recorded().size(), "" + Diagnostics.recorded());
+            String message = Diagnostics.recorded().get(0);
+            assertTrue(message.contains("not available in this run (automation.available=none)"), message);
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
+    @Test
+    void whatARunOffersIsReadFlagThenPropertyThenEnvironment() {
+        Function<String, String> env = Map.of(Driver.AVAILABLE_ENVIRONMENT, "none")::get;
+        assertEquals(Capability.both(), Driver.available(NONE, NONE, NONE), "both, unless somebody says otherwise");
+        assertEquals(Set.of(), Driver.available(NONE, NONE, env));
+        assertEquals(Set.of(Capability.DIAGNOSTICS),
+                Driver.available(NONE, Map.of(Driver.AVAILABLE, "diagnostics")::get, env));
+        assertEquals(Set.of(Capability.CONTROL), Driver.available(Map.of(Driver.AVAILABLE, "control")::get,
+                Map.of(Driver.AVAILABLE, "diagnostics")::get, env));
+        assertEquals(List.of(), Diagnostics.recorded());
+    }
+
+    /** Whoever wrote a value that is not one of the words meant to shut something, so nothing is offered. */
+    @Test
+    void aValueThatIsNotOneOfTheWordsOffersNothing() {
+        assertEquals(Set.of(), Driver.available(Map.of(Driver.AVAILABLE, "contrl")::get, NONE, NONE));
+        assertEquals(1, Diagnostics.recorded().size(), "" + Diagnostics.recorded());
+        assertTrue(Diagnostics.recorded().get(0).contains("contrl"), Diagnostics.recorded().get(0));
     }
 
     /** Neither a property nor an environment variable, so no test reads or writes the process's own. */
