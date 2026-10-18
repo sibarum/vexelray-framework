@@ -4,7 +4,9 @@ import dev.vexelray.framework.api.FrameStage;
 
 import dev.vexelray.framework.api.Stability;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Every per-frame hook the application has, flattened into one array in stage order, walked once a frame.
@@ -66,8 +68,8 @@ public final class FrameHooks {
         if (sealed) {
             throw new IllegalStateException("frame hooks are sealed; add before the first frame");
         }
-        pending.add(new Entry(java.util.Objects.requireNonNull(stage, "stage"),
-                java.util.Objects.requireNonNull(hook, "hook")));
+        pending.add(new Entry(Objects.requireNonNull(stage, "stage"),
+                Objects.requireNonNull(hook, "hook")));
         return this;
     }
 
@@ -81,7 +83,7 @@ public final class FrameHooks {
         if (sealed) {
             return this;
         }
-        pending.sort(java.util.Comparator.comparingInt(e -> e.stage().ordinal()));
+        pending.sort(Comparator.comparingInt(e -> e.stage().ordinal()));
         hooks = new Runnable[pending.size()];
         stages = new FrameStage[pending.size()];
         for (int i = 0; i < pending.size(); i++) {

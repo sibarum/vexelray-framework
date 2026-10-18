@@ -12,6 +12,7 @@ import dev.vexelray.os.Icon;
 import dev.vexelray.os.WindowConfig;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -219,7 +220,7 @@ public final class Window {
      * @throws IllegalStateException if this window already has a gate
      */
     public Window onClose(CloseGate gate) {
-        java.util.Objects.requireNonNull(gate, "gate");
+        Objects.requireNonNull(gate, "gate");
         synchronized (this) {
             if (gated) {
                 throw new IllegalStateException("window '" + key() + "' already has a close gate; a second would "

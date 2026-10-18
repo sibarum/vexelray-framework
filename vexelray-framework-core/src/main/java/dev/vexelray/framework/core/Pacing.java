@@ -3,6 +3,7 @@ package dev.vexelray.framework.core;
 import dev.vexelray.framework.api.Stability;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The composition of every {@link DeadlineSource} in the application: park until the earliest of them.
@@ -24,7 +25,7 @@ public final class Pacing implements DeadlineSource {
         if (sealed) {
             throw new IllegalStateException("pacing is sealed; add before the first frame");
         }
-        pending.add(java.util.Objects.requireNonNull(source, "source"));
+        pending.add(Objects.requireNonNull(source, "source"));
         return this;
     }
 

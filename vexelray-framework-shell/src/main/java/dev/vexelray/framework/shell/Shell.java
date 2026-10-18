@@ -22,6 +22,8 @@ import sibarum.atchung.Atchung;
 import sibarum.probe.Log;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * What the framework has built so far, and where the wiring hands things back.
@@ -65,7 +67,7 @@ public final class Shell {
     private final Lanes lanes;
     private final Watchdog watchdog;
     /** Components placed but not yet started. See {@link #place} for why those are two different moments. */
-    private final java.util.List<Placement> placements = new java.util.ArrayList<>();
+    private final List<Placement> placements = new ArrayList<>();
 
     private Appearance appearance = Appearance.DEFAULT;
     /** The application's own fonts, or null for the standard set. See {@link #fonts(FontSet)}. */
@@ -514,9 +516,9 @@ public final class Shell {
      * {@link #setting(String, String)}, for a list. A list given on the command line or as a property is split on
      * commas; the file keeps its own separator. There is no default: an absent list is empty.
      */
-    public java.util.List<String> settingList(String key) {
+    public List<String> settingList(String key) {
         for (String given : given(key)) {
-            return given.isBlank() ? java.util.List.of() : java.util.List.of(given.split(",", -1));
+            return given.isBlank() ? List.of() : List.of(given.split(",", -1));
         }
         return settings().getList(key);
     }
@@ -526,8 +528,8 @@ public final class Shell {
      * A list rather than the first one present, so a value that does not parse at one level falls through to the
      * next level rather than straight to the file. Startup code, not frame code — the allocation is once per key.
      */
-    private java.util.List<String> given(String key) {
-        java.util.List<String> out = new java.util.ArrayList<>(2);
+    private List<String> given(String key) {
+        List<String> out = new ArrayList<>(2);
         String flag = launch.override(key);
         if (flag != null) {
             out.add(flag);
