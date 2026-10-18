@@ -183,7 +183,7 @@
             <plugin>
                 <groupId>dev.vexelray.build</groupId>
                 <artifactId>vexelray-build-maven-plugin</artifactId>
-                <version>0.1.0-SNAPSHOT</version>
+                <version>${buildVersion}</version>
                 <executions>
                     <execution>
                         <goals>
