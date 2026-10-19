@@ -280,7 +280,7 @@ class GeneratedProjectTest {
             assertTrue(Files.isRegularFile(logFile), "no log file at " + logFile + "\n" + tail(log));
             String written = Files.readString(logFile);
             assertTrue(written.contains("starting " + ARTIFACT + ": mode=AUTOMATION"), "no startup banner:\n" + written);
-            assertTrue(written.contains("automation socket listening on localhost:" + port), written);
+            assertTrue(written.contains("automation: control=localhost:" + port), "no socket line:\n" + written);
             assertTrue(written.contains("phase ATTACH"), "TRACE and DEBUG reach the file in this mode:\n" + written);
             // The mark it names was found and decoded: a failure is reported, not thrown, so this is where it shows.
             assertFalse(written.contains("the application's icon") || written.contains("the framework's icon"),

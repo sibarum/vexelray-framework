@@ -530,14 +530,6 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
 
-- [ ] **The acceptance witnesses do not build since the template moved the `@VexelApp` class** (`-acceptance`'s
-      `Support.generate`). Found 2026-10-19 adding the bus graph's witness check. b8e4ebc put the `@VexelApp` class in
-      `src/main/java`, and `Support.generate` still looks for it under `src/edition-debug/java/` ("no debug @VexelApp
-      class"), then deletes it with the rest of the builder's editor, so the witness has no application and no
-      wiring. Every W-witness fails at its first step. Looking in `main` as well and keeping that class beside the
-      entry class is enough for `ComponentsWitnessTest`, which then passes, checked by hand; `GeneratedProjectTest`'s
-      running editor fails separately, not looked at.
-
 - [ ] **`VEXELRAY_AUTOMATION` opens the socket but does not set the log mode** (atchung `LogConfig`, or
       `-shell`'s `Logs.start`). `Driver` reads the variable since 2026-10-18; `LogConfig.systemSetting` maps the
       `automation` key to an environment variable named `AUTOMATION`, so a run asked for only through the
