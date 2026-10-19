@@ -288,6 +288,7 @@ public final class VexelApplication {
         Icon mark = Mark.of(wiring, info);
         installMark(mark);
         shell.windowMark(Mark.window(wiring, info, mark));
+        installBackgroundMark(Mark.background(wiring, info));
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
         WindowConfig main = mainWindow(memory, info, appearance, mark);
@@ -435,6 +436,22 @@ public final class VexelApplication {
         } catch (RuntimeException e) {
             Diagnostics.dropped("VexelApplication.installMark", "the application's icon",
                     e + "; its windows wear the OS default instead");
+        }
+    }
+
+    /**
+     * Put the application's background mark on the process: what a hidden window wears, and a background run's
+     * notification-area icon while every window is hidden. Not fatal, for the reason {@link #installMark} is not.
+     */
+    private static void installBackgroundMark(Icon icon) {
+        if (icon == null) {
+            return;
+        }
+        try {
+            NativePlatform.current().setBackgroundIcon(icon);
+        } catch (RuntimeException e) {
+            Diagnostics.dropped("VexelApplication.installBackgroundMark", "the application's background icon",
+                    e + "; a hidden window keeps its own mark instead");
         }
     }
 }

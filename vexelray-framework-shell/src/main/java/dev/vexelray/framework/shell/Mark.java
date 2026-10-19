@@ -65,10 +65,37 @@ final class Mark {
         return icon != null ? icon : primary;
     }
 
+    /**
+     * The mark the application wears while nothing of it is on screen: the suite's background icon, its mark dimmed
+     * inside a dashed rim of its hue, which a hidden window wears and a background run's notification-area icon
+     * wears while every window is hidden ({@code NativePlatform.setBackgroundIcon}).
+     *
+     * <p>Found by name, like {@link #window}: {@code pix-background.ico} beside {@code pix.ico}. An application that
+     * names no mark gets the framework's, {@code new-app-background.ico}, beside its {@code new-app.ico}. One without
+     * a variant, or whose mark is built in code, has none, and its hidden windows keep their mark; {@code null}.
+     */
+    static Icon background(Wiring wiring, AppInfo info) {
+        if (info.icon() != null) {
+            return null;
+        }
+        String named = wiring.icon();
+        Class<?> anchor = named != null ? wiring.getClass() : Mark.class;
+        String variant = variant(named != null ? named : FRAMEWORK, "-background");
+        if (variant == null || anchor.getResource(variant) == null) {
+            return null;
+        }
+        return load(anchor, variant, "the application's background icon " + variant);
+    }
+
     /** {@code pix.ico} to {@code pix-window.ico}, keeping any path; {@code null} for a name with no extension. */
     static String windowVariant(String name) {
+        return variant(name, "-window");
+    }
+
+    /** {@code suffix} put before the extension, keeping any path; {@code null} for a name with no extension. */
+    static String variant(String name, String suffix) {
         int dot = name.lastIndexOf('.');
-        return dot <= name.lastIndexOf('/') + 1 ? null : name.substring(0, dot) + "-window" + name.substring(dot);
+        return dot <= name.lastIndexOf('/') + 1 ? null : name.substring(0, dot) + suffix + name.substring(dot);
     }
 
     /** {@code name} beside {@code anchor}, decoded by its extension; {@code null}, reported, if it cannot be. */

@@ -376,6 +376,7 @@ class VexelProcessorTest {
         String metadata = Files.readString(compiled.out().resolve(GENERATED_METADATA));
         assertTrue(metadata.contains("\"glob\": \"app/demo.ico\""), metadata);
         assertTrue(metadata.contains("\"glob\": \"app/demo-window.ico\""), "and the other windows' variant: " + metadata);
+        assertTrue(metadata.contains("\"glob\": \"app/demo-background.ico\""), "and the hidden one's: " + metadata);
     }
 
     @Test

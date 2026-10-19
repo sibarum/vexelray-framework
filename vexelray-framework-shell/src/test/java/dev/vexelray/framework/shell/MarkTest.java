@@ -86,6 +86,27 @@ class MarkTest {
     }
 
     @Test
+    void theBackgroundVariantIsNamedBesideTheMark() {
+        assertEquals("/pix-background.ico", Mark.variant("/pix.ico", "-background"));
+        assertNull(Mark.variant("icon", "-background"), "no extension");
+    }
+
+    @Test
+    void aHiddenApplicationWearsItsBackgroundVariant() {
+        // suite-mark-background.ico is a test resource beside this class, and new-app-background.ico the framework's.
+        assertEquals(10, Mark.background(naming("suite-mark.ico"), BARE).images().size());
+        assertEquals(10, Mark.background(naming(null), BARE).images().size(), "named none: the framework's");
+    }
+
+    @Test
+    void withoutABackgroundVariantAHiddenWindowKeepsItsMark() {
+        assertNull(Mark.background(naming("not-there.ico"), BARE), "no variant: none, and not reported");
+        Icon own = Icon.of(1, 1, new int[] {0xFF00FF00});
+        assertNull(Mark.background(naming("suite-mark.ico"), BARE.withIcon(own)),
+                "a mark built in code has no file to find a variant beside");
+    }
+
+    @Test
     void aMarkHandedBackInCodeWins() {
         Icon own = Icon.of(1, 1, new int[] {0xFF00FF00});
         assertSame(own, Mark.of(naming(Mark.FRAMEWORK), BARE.withIcon(own)));

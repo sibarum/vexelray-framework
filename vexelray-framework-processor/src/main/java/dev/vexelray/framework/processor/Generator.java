@@ -664,8 +664,9 @@ final class Generator {
         }
         // The mark, by name: the shell decodes it at WINDOW, beside this class, so the name is resolved exactly as
         // Declarations.icon found it. Registered for native-image here too, so no application writes that by hand --
-        // and its window variant with it (pix-window.ico beside pix.ico, see the shell's Mark.window), which the
-        // shell looks for and is not obliged to find: a glob that matches nothing registers nothing.
+        // and its window and background variants with it (pix-window.ico and pix-background.ico beside pix.ico, see
+        // the shell's Mark.window and Mark.background), which the shell looks for and is not obliged to find: a glob
+        // that matches nothing registers nothing.
         String icon = mirrors.string(vexelApp, "icon");
         if (!icon.isEmpty()) {
             src.append("\n    @Override\n    public String icon() {\n        return ").append(literal(icon))
@@ -673,7 +674,8 @@ final class Generator {
             String path = Declarations.iconPath(app, icon);
             int dot = path.lastIndexOf('.');
             nativeResource(app, qualified, dot <= path.lastIndexOf('/') + 1 ? List.of(path)
-                    : List.of(path, path.substring(0, dot) + "-window" + path.substring(dot)));
+                    : List.of(path, path.substring(0, dot) + "-window" + path.substring(dot),
+                            path.substring(0, dot) + "-background" + path.substring(dot)));
         }
 
         // What was built, readable by whoever holds the wiring: a test, or a capture that has just called
