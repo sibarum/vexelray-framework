@@ -235,8 +235,11 @@ declared with `@Publishes` is not in the graph)*
 **T4.5 — The message graph is declared in the wiring.** An emergent graph cannot be checked, rendered,
 or reasoned about; a declared one can. This, rather than any restriction on the graph's shape, is what
 keeps the design from being cornered: §4.4 catches the blocking cycle that a topology rule would miss. *(processor —
-the declarations are the graph and `Channels` reads them to run T4.1, T4.4 and T4.7; exposing the graph as
-generated data, for inspection and rendering, is additive and not built)*
+the declarations are the graph and `Channels` reads them to run T4.1, T4.4 and T4.7. **Exposed 2026-10-19**:
+the generated wiring carries the graph as a constant, `BUS_GRAPH`, answered by `Wiring.busGraph()`, in the text
+vexelray-inspector's `docs/bus-circuit.md` fixes (version 1), so the Inspector can draw it as a circuit. It holds what
+the checks hold plus one thing they drop: a type that declares a send and is not a component, which is a sender all
+the same)*
 
 **T4.6 — Two `Gui` trees may not share a bus.** `Gui`'s topics are `static final` class-level names, so
 every instance subscribes to the same `vexelray.gui.mutations` and two trees on one bus each receive the
@@ -335,15 +338,14 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **1 Lanes** | T1.2, T1.3, T1.4, T1.5 | | | | T1.1 |
 | **2 Colour** | T2.1, T2.2, T2.3, T2.4 | T2.5 | | | |
 | **3 Ownership** | T3.1, T3.7 | T3.3, T3.6 | | T3.4 | T3.2, T3.5 |
-| **4 Channels** | T4.1, T4.2, T4.3, T4.4, T4.7 | T4.5 | T4.6 | | |
+| **4 Channels** | T4.1, T4.2, T4.3, T4.4, T4.5, T4.7 | | T4.6 | | |
 | **5 Completion** | T5.3 | | | | T5.1, T5.2, T5.4 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4, T6.5 | | | T6.3 | |
 
-Three readings worth taking from it. **Four of the thirty-three rules still say `processor`**, down from
-fourteen, and what the remaining four have in common is the useful thing to know about them: none can be
+Three readings worth taking from it. **Three of the thirty-three rules still say `processor`**, down from
+fourteen, and what the remaining three have in common is the useful thing to know about them: none can be
 decided from a declaration alone. T3.6 waits on the component
-tree (§3.4), T4.5 is held in all but exposing the graph (`@Subscribe` and `@Publishes` declare the
-two ends of a channel, which is what T4.1, T4.3, T4.4 and T4.7 needed), T2.5 wants a method body, and what is left of T3.3 is a send nobody declared, which no declaration shows. **`open` is two rules,
+tree (§3.4), T2.5 wants a method body, and what is left of T3.3 is a send nobody declared, which no declaration shows. **`open` is two rules,
 and §2 is now empty of them** — the colour section was the one place where an unanswered question would
 have been classified into every application type by the processor, and T2.4 is answered. What is left open is the
 component tree and its teardown (T3.4, T6.3), which is where the remaining design work actually is; supervision

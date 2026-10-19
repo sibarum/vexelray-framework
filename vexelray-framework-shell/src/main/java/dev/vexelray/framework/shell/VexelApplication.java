@@ -107,6 +107,7 @@ public final class VexelApplication {
 
         Shell shell = new Shell(launch, info);
         shell.build(wiring.build());
+        shell.busGraph(wiring.busGraph());
         try (Disposer disposer = shell.disposer()) {
             build(wiring, shell, disposer, info, launch, windows);
         }
@@ -152,6 +153,7 @@ public final class VexelApplication {
         Logs.start(info, launch);
         Shell shell = new Shell(launch, info);
         shell.build(wiring.build());
+        shell.busGraph(wiring.busGraph());
         try {
             toTree(wiring, shell, shell.disposer(), info);
             // Components run here too. A tree built headlessly is still a running application as far as its

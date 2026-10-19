@@ -1,6 +1,7 @@
 package dev.vexelray.framework.processor;
 
 import dev.vexelray.framework.api.BeforeFrame;
+import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.Overflow;
 import dev.vexelray.framework.api.Publishes;
@@ -16,11 +17,14 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * The message graph, as far as declarations reach: every {@code @Subscribe} mailbox, every {@code @Publishes}
@@ -54,6 +58,14 @@ final class Channels {
 
         String where() {
             return Mirrors.where(method);
+        }
+
+        /**
+         * {@code class#method}: the component that owns the mailbox, which for an inherited method is the subclass
+         * the wiring constructs, not the type that declares it. The pump's name for it and the graph's.
+         */
+        String name() {
+            return component.getQualifiedName() + "#" + Mirrors.simple(method);
         }
     }
 
@@ -262,6 +274,65 @@ final class Channels {
             e = e.getEnclosingElement();
         }
         return e instanceof TypeElement type && components.contains(type) ? type : null;
+    }
+
+    // --- the graph, as text ----------------------------------------------------------------------------------
+
+    /**
+     * T4.5's "exposing the graph": what this class holds, written as version 1 of the bus-graph text
+     * (vexelray-inspector {@code docs/bus-circuit.md} §1), for the generated wiring's {@code BUS_GRAPH}.
+     *
+     * <p>Wider than what the checks walk in one place: {@link #blockingCycles} drops a send whose owner is not a
+     * component, because only components are nodes of that rule, but a {@code Ui} that publishes is a sender the
+     * Inspector draws, so here it is a {@code publisher}. A {@code @Publishes} on a component this build does not
+     * construct ({@code @ConditionalOnType}) is left out, as its mailboxes are. Each section is sorted, so two builds
+     * of the same declarations give the same text.
+     */
+    String text(Collection<TypeElement> components) {
+        Set<TypeElement> live = new LinkedHashSet<>(components);
+        List<String> chips = new ArrayList<>();
+        List<String> pins = new ArrayList<>();
+        for (TypeElement c : live) {
+            chips.add("component " + c.getQualifiedName() + " lane="
+                    + mirrors.string(mirrors.find(c, Component.class), "lane"));
+            for (Mailbox m : mailboxes(c)) {
+                pins.add("mailbox " + m.name() + " topic=" + m.topic() + " type="
+                        + Mirrors.element(m.payload()).getQualifiedName() + " overflow=" + m.overflow().name()
+                        + " capacity=" + m.capacity());
+            }
+        }
+        Set<String> others = new TreeSet<>();
+        Set<String> sends = new TreeSet<>();
+        for (Element publisher : publishers) {
+            TypeElement type = enclosingType(publisher);
+            if (type == null
+                    || (!live.contains(type) && mirrors.has(type, Component.class))) {
+                continue;
+            }
+            if (!live.contains(type)) {
+                others.add("publisher " + type.getQualifiedName() + " lane=-");
+            }
+            for (String topic : mirrors.strings(mirrors.find(publisher, Publishes.class), "value")) {
+                sends.add("publishes " + type.getQualifiedName() + " topic=" + topic);
+            }
+        }
+        Collections.sort(chips);
+        Collections.sort(pins);
+        StringBuilder out = new StringBuilder("# vexelray bus graph 1\n");
+        for (List<String> section : List.of(chips, List.copyOf(others), pins, List.copyOf(sends))) {
+            for (String line : section) {
+                out.append(line).append('\n');
+            }
+        }
+        return out.toString();
+    }
+
+    private static TypeElement enclosingType(Element element) {
+        Element e = element;
+        while (e != null && !(e instanceof TypeElement)) {
+            e = e.getEnclosingElement();
+        }
+        return (TypeElement) e;
     }
 
     /** T4.7. */

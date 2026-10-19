@@ -54,6 +54,17 @@ public abstract class Wiring {
     }
 
     /**
+     * The message graph the application declares, as the bus-graph text (vexelray-inspector
+     * {@code docs/bus-circuit.md}, version 1): its components, its other publishers, every {@code @Subscribe} mailbox
+     * and every {@code @Publishes} topic. The generated wiring answers a constant, possibly with nothing in it but its
+     * header; {@code null}, the default, is a hand-written wiring, which declares no graph at all. The automation
+     * module hands it to the Inspector's {@code bus graph}.
+     */
+    public String busGraph() {
+        return null;
+    }
+
+    /**
      * Whether the device is made with a compute queue of its own, to be lent to one component
      * ({@link Shell#computeQueue}). Asked before the device exists, because a queue is taken when the device is made
      * and never after. The generated wiring says yes exactly when a component takes a {@code ComputeQueue}; every

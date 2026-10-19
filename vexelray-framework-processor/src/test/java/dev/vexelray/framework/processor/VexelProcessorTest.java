@@ -108,6 +108,7 @@ class VexelProcessorTest {
                 public abstract class Wiring {
                     public abstract AppInfo info();
                     public BuildInfo build() { return null; }
+                    public String busGraph() { return null; }
                     public boolean computeQueue() { return false; }
                     public String icon() { return null; }
                     public void config(Shell shell) {}
@@ -948,6 +949,60 @@ class VexelProcessorTest {
                 """, sink("Message")), "Message is an interface that is not sealed");
     }
 
+    // --- the declared graph, as text (T4.5) ---------------------------------------------------------------------
+
+    @Test
+    void theWiringCarriesTheDeclaredGraphAsTheBusGraphText() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                public record Job(int id) {}
+                """, """
+                public record Ping(int n) {}
+                """, """
+                @Component(lane = "worker")
+                public final class Worker {
+                    @Subscribe(topic = "witness.job", overflow = Overflow.BLOCK, capacity = 8) public void onJob(Job j) {}
+                    @Publishes("witness.ping") public void reply() {}
+                }
+                """, """
+                @Component
+                public final class Echo {
+                    @Subscribe(topic = "witness.ping") public void onPing(Ping p) {}
+                }
+                """, """
+                @Publishes({"witness.ping", "witness.job"})
+                public final class Ui {}
+                """, """
+                @Component(lane = "ghost") @ConditionalOnType("does.not.Exist") @Publishes("witness.job")
+                public final class Ghost {}
+                """);
+        assertEquals("""
+                # vexelray bus graph 1
+                component app.Echo lane=<default>
+                component app.Worker lane=worker
+                publisher app.Ui lane=-
+                mailbox app.Echo#onPing topic=witness.ping type=app.Ping overflow=FAIL capacity=64
+                mailbox app.Worker#onJob topic=witness.job type=app.Job overflow=BLOCK capacity=8
+                publishes app.Ui topic=witness.job
+                publishes app.Ui topic=witness.ping
+                publishes app.Worker topic=witness.ping
+                """, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).busGraph(),
+                "a publisher that is not a component is a chip too; a method's send is its type's; a component this"
+                        + " build does not construct is not drawn");
+    }
+
+    @Test
+    void anApplicationThatDeclaresNoChannelHasAnEmptyGraphRatherThanNone() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals("# vexelray bus graph 1\n",
+                compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).busGraph());
+    }
+
     // --- T4.4: no blocking edge on a cycle ---------------------------------------------------------------------
 
     @Test
@@ -1689,6 +1744,11 @@ class VexelProcessorTest {
         /** What the wiring answers {@code Wiring.computeQueue}: whether the device is made with a queue to lend. */
         boolean computeQueue() throws Exception {
             return (boolean) wiring.getClass().getSuperclass().getMethod("computeQueue").invoke(wiring);
+        }
+
+        /** What the wiring answers {@code Wiring.busGraph}: the declared message graph, as text. */
+        String busGraph() throws Exception {
+            return (String) wiring.getClass().getSuperclass().getMethod("busGraph").invoke(wiring);
         }
 
         String info() throws Exception {

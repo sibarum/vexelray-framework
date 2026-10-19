@@ -149,8 +149,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       edge and a sample on one topic, or one topic name with two payload types), T4.3 (a mailbox per method),
       and T4.7 (main-thread code declaring a send on a `BLOCK` topic). **Not built:** the rest of the seam. A
       `@Subscribe` that is not on a component (an extension or a macro, which is the whole point of the entry),
-      registration in `ATTACH` and teardown through the `Disposer` for something that is not a placement, `Fold`,
-      and the graph exposed as generated data (T4.5's additive half; the blocking-cycle check, T4.4, is built). The three
+      registration in `ATTACH` and teardown through the `Disposer` for something that is not a placement, and `Fold`
+      (the blocking-cycle check, T4.4, is built, and the graph is exposed as generated data, T4.5, 2026-10-19: the
+      wiring's `BUS_GRAPH`, for the Inspector's bus circuit). The three
       `@Subscribe` defaults (FAIL, 64, registered at construction and started with the lane) were
       accepted as recommended on 2026-10-01 and are frozen, capacity included ([components.md](components.md),
       ruling 5), because changing 64 later changes whether an application dies under a burst.
@@ -260,7 +261,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         work as a declared `@Job` whose result is published on a reply topic, so there is no lambda to capture with
         and the check reads declarations only. To rule on: adopt it, and failure's shape.
       - **Before v1, with the component model.** **Done 2026-10-02:** the copier's check half (a `@Subscribe` payload must be deeply immutable) and the blocking-cycle
-        check (T4.4). **Additive, not built:** the generated copier, and the graph exposed as data.
+        check (T4.4). **Additive, not built:** the generated copier. **Done 2026-10-19:** the graph exposed as data (the wiring's
+        `BUS_GRAPH`, vexelray-inspector `docs/bus-circuit.md`).
 
 - [ ] **`vexelray-engine` is a second composition root, and `GuiApp` is the first.** The new module (in
       `../vexelray`) exists because *"six demos each carry a copy of eighty lines of
@@ -527,6 +529,14 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
+
+- [ ] **The acceptance witnesses do not build since the template moved the `@VexelApp` class** (`-acceptance`'s
+      `Support.generate`). Found 2026-10-19 adding the bus graph's witness check. b8e4ebc put the `@VexelApp` class in
+      `src/main/java`, and `Support.generate` still looks for it under `src/edition-debug/java/` ("no debug @VexelApp
+      class"), then deletes it with the rest of the builder's editor, so the witness has no application and no
+      wiring. Every W-witness fails at its first step. Looking in `main` as well and keeping that class beside the
+      entry class is enough for `ComponentsWitnessTest`, which then passes, checked by hand; `GeneratedProjectTest`'s
+      running editor fails separately, not looked at.
 
 - [ ] **`VEXELRAY_AUTOMATION` opens the socket but does not set the log mode** (atchung `LogConfig`, or
       `-shell`'s `Logs.start`). `Driver` reads the variable since 2026-10-18; `LogConfig.systemSetting` maps the

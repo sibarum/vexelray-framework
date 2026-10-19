@@ -310,8 +310,9 @@ Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) ord
 
 1. **Remove the imperative path** (rulings 1 and 2), and make T1.3 held. A deletion, so it comes first.
 2. **The cycle check (T4.4) is done, 2026-10-02**, on the data `Channels` already had: nodes are components, an edge
-   is a declared send to a mailbox, and a cycle with a blocking edge is a compile error. **Exposing the graph as
-   generated data (the rest of T4.5) is parked as additive**, until something consumes it. The stated limit stands
+   is a declared send to a mailbox, and a cycle with a blocking edge is a compile error. **The graph is exposed as
+   generated data (the rest of T4.5), 2026-10-19**, now that something consumes it: the generated wiring's
+   `BUS_GRAPH`, in vexelray-inspector's bus-graph text (`docs/bus-circuit.md`), which the Inspector draws as a circuit. The stated limit stands
    and is on `@Publishes`: only a *declared* send is in the graph.
 3. **The copier** (T2.4). **The check half is done, 2026-10-02** (`Shareable`): a `@Subscribe` payload must be
    deeply immutable, and anything else is refused, naming the first thing that stops it. **The generated copier is

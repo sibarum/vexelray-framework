@@ -83,6 +83,24 @@ class ComponentsWitnessTest {
         assertEquals(3, generated.split("private dev\\.vexelray\\.framework\\.shell\\.Placement ", -1).length - 1,
                 "four components on three lanes should be three placements\n" + generated);
         assertTrue(generated.contains("shell.liveness("), "the liveness policy was not handed back\n" + generated);
+
+        // The declared graph, for the Inspector's bus circuit (vexelray-inspector docs/bus-circuit.md): four chips on
+        // three lanes, the Ui that publishes and is no component, a pin per @Subscribe, and the Ui's four sends.
+        String p = project.packageName() + ".";
+        for (String line : List.of(
+                "# vexelray bus graph 1",
+                "component " + p + "Echo lane=<default>",
+                "component " + p + "Isolated lane=isolated",
+                "component " + p + "Wedger lane=<default>",
+                "component " + p + "Worker lane=worker",
+                "publisher " + p + "Ui lane=-",
+                "mailbox " + p + "Echo#ping topic=witness.ping type=" + p + "Ping overflow=FAIL capacity=64",
+                "mailbox " + p + "Worker#job topic=witness.job type=" + p + "Job overflow=BLOCK capacity=8",
+                "mailbox " + p + "Wedger#wedge topic=witness.wedge.default type=" + p + "Wedge overflow=COALESCE_LATEST",
+                "publishes " + p + "Ui topic=witness.job",
+                "publishes " + p + "Ui topic=witness.wedge.isolated")) {
+            assertTrue(generated.contains("\"" + line), "the bus graph has no \"" + line + "\"\n" + generated);
+        }
     }
 
     // --- recover: a wedge is reported, contained and freed ---------------------------------------------------

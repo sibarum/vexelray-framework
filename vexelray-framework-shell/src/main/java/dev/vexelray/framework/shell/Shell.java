@@ -60,6 +60,8 @@ public final class Shell {
     private final AppInfo info;
     /** What the application was built from; set by {@link VexelApplication} from the wiring before any phase runs. */
     private BuildInfo build = BuildInfo.UNKNOWN;
+    /** The declared message graph, or null; set beside {@link #build} from the wiring. See {@link Wiring#busGraph}. */
+    private String busGraph;
     private final FrameHooks hooks = new FrameHooks();
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
@@ -124,6 +126,18 @@ public final class Shell {
 
     void build(BuildInfo build) {
         this.build = build == null ? BuildInfo.UNKNOWN : build;
+    }
+
+    /**
+     * The message graph the application declares, as the bus-graph text, or {@code null} when its wiring was written
+     * by hand and declares none ({@link Wiring#busGraph}).
+     */
+    public String busGraph() {
+        return busGraph;
+    }
+
+    void busGraph(String busGraph) {
+        this.busGraph = busGraph;
     }
 
     /** The phase currently being built. */

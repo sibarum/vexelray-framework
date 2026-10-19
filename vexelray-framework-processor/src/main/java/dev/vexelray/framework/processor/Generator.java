@@ -656,6 +656,17 @@ final class Generator {
                     + " is unknown: its pom does not run vexelray-build-maven-plugin's identify goal, so the"
                     + " discovery file and hello will say source=unknown (see vexelray-build/README.md)");
         }
+        // The declared message graph (Channels.text), for the Inspector's bus circuit: a constant, so a native image
+        // carries it with no resource and no reflection, handed to the shell like the build identity above, which the
+        // automation module passes on to BusGraph. Always written, since a wiring that declares no channel has an empty
+        // graph, which is an answer; a hand-written wiring has none.
+        src.append("\n    /** The message graph this application declares (vexelray-inspector docs/bus-circuit.md, version 1). */\n")
+                .append("    static final String BUS_GRAPH =");
+        String[] lines = channels.text(graph.componentsSeen()).split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            src.append(i == 0 ? "\n            " : "\n            + ").append(literal(lines[i] + "\n"));
+        }
+        src.append(";\n\n    @Override\n    public String busGraph() {\n        return BUS_GRAPH;\n    }\n");
         // A component takes the compute queue, so the device is made with one to lend it (T3.1). Graph has made sure
         // it is one component and no provider.
         if (order.stream().anyMatch(b -> b.args.stream().anyMatch(a -> a instanceof RootArg r
