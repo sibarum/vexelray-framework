@@ -237,7 +237,9 @@ or reasoned about; a declared one can. This, rather than any restriction on the 
 keeps the design from being cornered: §4.4 catches the blocking cycle that a topology rule would miss. *(processor —
 the declarations are the graph and `Channels` reads them to run T4.1, T4.4 and T4.7. **Exposed 2026-10-19**:
 the generated wiring carries the graph as a constant, `BUS_GRAPH`, answered by `Wiring.busGraph()`, in the text
-vexelray-inspector's `docs/bus-circuit.md` fixes (version 1), so the Inspector can draw it as a circuit. It holds what
+vexelray-inspector's `docs/bus-circuit.md` fixes (version 1), so the Inspector can draw it as a circuit; the automation
+module declares it to `BusGraph`, which answers the socket's `bus graph`, and each mailbox is named on its pump by its
+`class#method`, so the bus's probe rows say which pin a message reached. It holds what
 the checks hold plus one thing they drop: a type that declares a send and is not a component, which is a sender all
 the same)*
 

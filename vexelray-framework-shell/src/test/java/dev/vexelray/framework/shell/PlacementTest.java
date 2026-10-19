@@ -168,6 +168,28 @@ final class PlacementTest {
         }
     }
 
+    /**
+     * The generated wiring names each mailbox {@code class#method}, and the name reaches atchung's pump, whose probe
+     * rows carry it (vexelray-inspector docs/bus-circuit.md, section 3). The pump refuses a name a row could not
+     * carry, which is how a test without the probe can see the name arrive.
+     */
+    @Test
+    void aDeclaredMailboxIsNamedOnThePump() throws Exception {
+        Shell shell = shell();
+        try {
+            Placement component = Placements.of(shell, "named");
+            CountDownLatch delivered = new CountDownLatch(1);
+            Placements.mailbox(component, "app.Worker#job", WORK, msg -> delivered.countDown(), 8, Backpressure.FAIL);
+            assertThrows(IllegalArgumentException.class, () -> Placements.mailbox(component, "app.Worker #job", WORK,
+                    msg -> { }, 8, Backpressure.FAIL), "a name with a space never reached the pump");
+            shell.startComponents();
+            shell.bus().publish(WORK, "go");
+            assertTrue(delivered.await(5, TimeUnit.SECONDS), "a named mailbox delivers as an unnamed one does");
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
     @Test
     void stoppingDrainsWhatWasQueuedBeforeItCloses() throws Exception {
         Shell shell = shell();

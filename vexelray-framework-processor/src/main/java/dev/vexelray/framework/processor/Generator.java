@@ -804,7 +804,7 @@ final class Generator {
             after.add("    " + lane + " = " + Framework.PLACEMENTS + ".of(shell, "
                     + literal(declarations.lane(b.component)) + ");");
             after.add("}");
-            after.add(Framework.PLACEMENTS + ".mailbox(" + lane + ", sibarum.atchung.Topic.of("
+            after.add(Framework.PLACEMENTS + ".mailbox(" + lane + ", " + literal(m.name()) + ", sibarum.atchung.Topic.of("
                     + literal(m.topic()) + ", "
                     + Mirrors.element(m.payload()).getQualifiedName() + ".class), " + field + "::"
                     + Mirrors.simple(m.method()) + ", " + m.capacity() + ", sibarum.atchung.Backpressure."

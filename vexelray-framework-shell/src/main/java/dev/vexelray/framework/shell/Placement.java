@@ -131,11 +131,22 @@ public final class Placement implements WakeSource, AutoCloseable {
      */
     <T> Placement subscribe(Topic<T> topic, Subscriber<T> subscriber, int capacity,
                             Backpressure policy, Fold<T> fold) {
+        return subscribe(null, topic, subscriber, capacity, policy, fold);
+    }
+
+    /**
+     * As {@link #subscribe(Topic, Subscriber, int, Backpressure, Fold)}, into a mailbox named {@code mailbox}: a
+     * declared one's {@code class#method}, which the bus's probe rows then carry ({@code enqueue}, {@code deliver},
+     * {@code drop}), so a reader can say which mailbox a message reached and not only its topic. {@code null} for an
+     * unnamed one.
+     */
+    <T> Placement subscribe(String mailbox, Topic<T> topic, Subscriber<T> subscriber, int capacity,
+                            Backpressure policy, Fold<T> fold) {
         if (running) {
             throw new IllegalStateException(
                     "component " + name + " is already running; a mailbox is added before it starts, not after");
         }
-        mailboxes.add(pump.subscribe(topic, watched(subscriber), capacity, policy, fold));
+        mailboxes.add(pump.subscribe(mailbox, topic, watched(subscriber), capacity, policy, fold));
         return this;
     }
 

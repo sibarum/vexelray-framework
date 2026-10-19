@@ -4,6 +4,7 @@ import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.automation.Capability;
+import dev.vexelray.gui.automation.BusGraph;
 import dev.vexelray.gui.automation.Discovery;
 import dev.vexelray.gui.automation.Sockets;
 import dev.vexelray.gui.automation.Timeline;
@@ -249,6 +250,12 @@ public final class Driver implements AutoCloseable {
             // What this build is, exactly, before any socket writes its discovery file: the coordinates and commit
             // (plus any uncommitted change) the generated wiring baked in, and the stack's (vexelray-build/README.md).
             Discovery.build(shell.build().facts());
+            // And what it declares on its bus: the graph the processor wrote into the wiring, for the Inspector's bus
+            // circuit and the socket's bus graph (vexelray-inspector docs/bus-circuit.md). A hand-written wiring has
+            // none, and declares nothing, so bus graph says so.
+            if (shell.busGraph() != null) {
+                BusGraph.declare(shell.busGraph());
+            }
             // Named after @VexelApp, so the discovery file and hello say "calculator" rather than the main class,
             // and ottermate --app calculator finds it (vexelray-gui docs/plans/discovery.md).
             sockets = new Sockets(windows, shell.info().name(), shell.info().title(), System.out, available)

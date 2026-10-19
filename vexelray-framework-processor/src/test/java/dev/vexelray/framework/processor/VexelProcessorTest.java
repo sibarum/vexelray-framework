@@ -134,9 +134,11 @@ class VexelProcessorTest {
                 public final class Placement {
                     public final String name;
                     public Placement(String name) { this.name = name; }
-                    public <T> Placement subscribe(sibarum.atchung.Topic<T> topic, java.util.function.Consumer<T> on,
+                    public <T> Placement subscribe(String mailbox, sibarum.atchung.Topic<T> topic,
+                                                   java.util.function.Consumer<T> on,
                                                    int capacity, sibarum.atchung.Backpressure policy) {
-                        Shell.LOG.add("subscribed " + topic.name() + " " + topic.payloadType().getSimpleName() + " "
+                        Shell.LOG.add("subscribed " + mailbox + " " + topic.name() + " "
+                                + topic.payloadType().getSimpleName() + " "
                                 + capacity + " " + policy);
                         return this;
                     }
@@ -146,10 +148,10 @@ class VexelProcessorTest {
                 package dev.vexelray.framework.shell;
                 public final class Placements {
                     public static Placement of(Shell shell, String lane) { return shell.place(lane); }
-                    public static <T> void mailbox(Placement placement, sibarum.atchung.Topic<T> topic,
+                    public static <T> void mailbox(Placement placement, String mailbox, sibarum.atchung.Topic<T> topic,
                                                    java.util.function.Consumer<T> on, int capacity,
                                                    sibarum.atchung.Backpressure policy) {
-                        placement.subscribe(topic, on, capacity, policy);
+                        placement.subscribe(mailbox, topic, on, capacity, policy);
                     }
                 }
                 """),
@@ -733,8 +735,8 @@ class VexelProcessorTest {
                 """);
         assertEquals(List.of(), compiled.errors());
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
-        assertEquals(List.of("placed compose", "subscribed edits Edit 8 FAIL",
-                "subscribed cursor Edit 64 COALESCE_LATEST"), run.phase("config"));
+        assertEquals(List.of("placed compose", "subscribed app.Composer#edited edits Edit 8 FAIL",
+                "subscribed app.Composer#moved cursor Edit 64 COALESCE_LATEST"), run.phase("config"));
     }
 
     @Test
@@ -1346,7 +1348,7 @@ class VexelProcessorTest {
         // CONFIG: the look is applied the moment it exists; the model takes only a setting; the worker takes the
         // model, a CONFIG value, and its lane is placed and its mailbox registered as it is built.
         assertEquals(List.of("look", "appearance applied", "model 4", "preview", "worker", "placed work",
-                "subscribed jobs String 64 FAIL"),
+                "subscribed app.Worker#job jobs String 64 FAIL"),
                 run.phase("config"));
         assertEquals(List.of(), run.phase("model"));
         assertEquals(List.of(), run.phase("gui"), "GUI is the framework's: no part is handed the Gui in it");

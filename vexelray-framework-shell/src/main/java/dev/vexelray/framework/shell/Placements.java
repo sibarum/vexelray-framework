@@ -28,15 +28,19 @@ public final class Placements {
         return shell.place(lane);
     }
 
-    /** Add a mailbox to {@code placement}: {@code topic} drained on its lane, with its bound and loss policy. */
-    public static <T> void mailbox(Placement placement, Topic<T> topic, Subscriber<T> subscriber, int capacity,
-                                   Backpressure policy) {
-        placement.subscribe(topic, subscriber, capacity, policy);
+    /**
+     * Add a mailbox to {@code placement}: {@code topic} drained on its lane, with its bound and loss policy, named
+     * {@code mailbox}: the {@code @Subscribe} method's {@code class#method}, which the bus's probe rows carry and the
+     * Inspector matches to a pin of the declared graph (vexelray-inspector docs/bus-circuit.md, section 3).
+     */
+    public static <T> void mailbox(Placement placement, String mailbox, Topic<T> topic, Subscriber<T> subscriber,
+                                   int capacity, Backpressure policy) {
+        placement.subscribe(mailbox, topic, subscriber, capacity, policy, null);
     }
 
     /**
-     * As {@link #mailbox(Placement, Topic, Subscriber, int, Backpressure)}, with a {@link Fold}: the mailbox holds
-     * cells, so a write supersedes the queued write to the same cell instead of queueing beside it.
+     * As {@link #mailbox(Placement, String, Topic, Subscriber, int, Backpressure)}, unnamed, with a {@link Fold}: the
+     * mailbox holds cells, so a write supersedes the queued write to the same cell instead of queueing beside it.
      *
      * <p>For a host whose events declare their own loss class rather than a Java annotation per method - the
      * Pontif runtime, where a sort says it is a sample and one lane's single mailbox then folds those and leaves
