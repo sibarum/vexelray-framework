@@ -17,6 +17,10 @@ changing anything, and `Recipes.java` before adding a part.
   without a window.
 - **`Landmarks.java`** names everything an automation script may refer to. A new control a test needs to reach gets
   a landmark there, not a string literal.
+- **Icons** come from the suite's set, `dev.vexelray.gui.icons.Icon`, first. An icon it does not have, and only this
+  application draws, goes in `src/main/icons/small` or `large` (SVG, or a black-on-white or transparent PNG), and the
+  build bakes it into `${className}Icon`, which goes anywhere an `Icon` does. Never draw an icon in code or load an
+  image for one. The pom's `app-icons` profile says how.
 - **The stack** (vexelray, vexelray-gui, vexelray-framework, tactroller, atchung, kronometer, ...) is usually checked
   out in the folder above this one. **Treat it as read-only.** Its source and javadoc are the documentation; read
   them instead of guessing an API. If something you need is missing there, do not patch the stack. Write it up in

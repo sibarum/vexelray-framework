@@ -537,6 +537,15 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       own `GetCommandLineW` (vexelray-os already reads it, in `CommandLine`) would be exact on both, behind a
       `NativePlatform.commandLine()`.
 
+- [ ] **The template's navigator marks its row actions with text glyphs** (`Navigator.java`: `"›"` for Open,
+      `"»"` for Show this folder). Since 2026-10-20 an icon the suite's set lacks is an application's own baked
+      set (`src/main/icons`, the pom's `app-icons` profile, `vexelray-gui-icons/README.md`), and Vex's navigator
+      already moved: `Icon.CHEVRON_RIGHT` and its own `TextEditorIcon.MAKE_ROOT`. The template should follow, which
+      means either shipping art in every new project or a `make-root`-like icon joining the suite's set; which one
+      is the question. The rest of the stack's glyph-icons are listed by app: the inspector's fan (a drawing in three
+      metals, animated, so not a one-colour field), Vex's and the template's unsaved dot, and PictureViewer's Loop,
+      which borrows `REFRESH`.
+
 - [ ] **`VEXELRAY_AUTOMATION` opens the socket but does not set the log mode** (atchung `LogConfig`, or
       `-shell`'s `Logs.start`). `Driver` reads the variable since 2026-10-18; `LogConfig.systemSetting` maps the
       `automation` key to an environment variable named `AUTOMATION`, so a run asked for only through the
