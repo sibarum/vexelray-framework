@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if page.title and page.title != site.title %}{{ page.title }} | {% endif %}{{ site.title }}</title>
+<meta name="description" content="{{ page.description | default: site.description | strip_newlines | escape }}">
+<link rel="canonical" href="{{ page.url | absolute_url }}">
+<link rel="icon" href="https://sibarum.github.io/img/logo.svg">
+{% comment %}
+  The same dark design as https://sibarum.github.io (its index, technology and licenses pages): their tokens, header
+  and footer, with styles for what Markdown renders to. Every page in docs/ is written without front matter and gets
+  this layout by default; status.html is a page of its own and is copied as it is.
+{% endcomment %}
+<style>
+  :root {
+    --bg: #050608;
+    --bg-2: #0b0d12;
+    --panel: #10131a;
+    --line: #1f2430;
+    --line-2: #2c3342;
+    --text: #f2f4f8;
+    --body: #c8cfdb;
+    --muted: #9aa3b5;
+    --dim: #5f6879;
+    --blue: #2563eb;
+    --cyan: #3ee0ff;
+    --violet: #8b5cf6;
+    --grad: linear-gradient(100deg, var(--cyan), var(--blue) 55%, var(--violet));
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow-x: hidden; }
+  a { color: var(--cyan); }
+  a:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+  @media (min-width: 720px) { .wrap { padding: 0 32px; } }
+
+  .top { position: sticky; top: 0; z-index: 10; background: rgba(5, 6, 8, 0.78); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+  .top .wrap { display: flex; align-items: center; gap: 20px; min-height: 56px; max-width: 1200px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; font-size: 0.95rem; flex: none; }
+  .brand img { width: 26px; height: 26px; }
+  .top nav { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 22px; font-size: 0.88rem; padding: 8px 0; }
+  .top nav a { color: var(--muted); text-decoration: none; }
+  .top nav a:hover, .top nav a[aria-current] { color: var(--text); }
+  @media (max-width: 560px) {
+    .top .wrap { flex-wrap: wrap; }
+    .top nav { margin-left: 0; justify-content: flex-start; padding-top: 0; }
+  }
+
+  .crumb { padding: clamp(32px, 6vw, 56px) 0 0; font: 700 0.78rem/1 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; }
+  .crumb a { color: var(--cyan); text-decoration: none; }
+
+  /* What Markdown renders to */
+  .doc { max-width: 78ch; padding: 14px 0 56px; color: var(--body); }
+  .doc > :first-child { margin-top: 0; }
+  .doc h1 { font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1; letter-spacing: -0.045em; font-weight: 900; color: var(--text); margin: 12px 0 20px; }
+  .doc h2 { font-size: clamp(1.4rem, 3vw, 1.85rem); line-height: 1.15; letter-spacing: -0.03em; font-weight: 900; color: var(--text); margin: 48px 0 12px; padding-top: 30px; border-top: 1px solid var(--line); }
+  .doc h3 { font-size: 1.15rem; letter-spacing: -0.015em; font-weight: 800; color: var(--text); margin: 30px 0 8px; }
+  .doc h4 { font-size: 1rem; font-weight: 800; color: var(--text); margin: 24px 0 6px; }
+  .doc p, .doc ul, .doc ol { margin: 0 0 16px; }
+  .doc li { margin: 4px 0; }
+  .doc li > ul, .doc li > ol { margin-bottom: 0; }
+  .doc strong { color: var(--text); }
+  .doc hr { border: 0; border-top: 1px solid var(--line); margin: 36px 0; }
+  .doc img { max-width: 100%; height: auto; border: 1px solid var(--line-2); }
+
+  .doc blockquote { margin: 0 0 18px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line-2); border-left: 3px solid var(--cyan); color: var(--muted); }
+  .doc blockquote > :last-child { margin-bottom: 0; }
+
+  .doc table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.92rem; margin: 18px 0 22px; }
+  .doc th, .doc td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .doc thead th { font: 700 0.7rem var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); border-bottom-color: var(--line-2); }
+  .doc thead th:empty { padding: 0; }
+  .doc td:first-child { color: var(--text); }
+
+  .doc code { font: 0.86em var(--mono); color: #d7e3ff; background: rgba(62, 224, 255, 0.08); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+  .doc pre { margin: 0 0 18px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 6px; overflow-x: auto; font: 0.86rem/1.6 var(--mono); color: var(--body); }
+  .doc pre code { font: inherit; color: inherit; background: none; padding: 0; overflow-wrap: normal; }
+  .doc .highlight { margin: 0 0 18px; }
+  .doc .highlight pre { margin: 0; }
+  .doc kbd { font: 0.82em var(--mono); color: var(--text); background: var(--bg-2); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; }
+
+  /* Rouge's token classes, in the site's colours */
+  .highlight .c, .highlight .c1, .highlight .cm, .highlight .cs, .highlight .cd { color: var(--dim); font-style: italic; }
+  .highlight .cp { color: var(--muted); }
+  .highlight .k, .highlight .kd, .highlight .kn, .highlight .kr, .highlight .kc, .highlight .kp, .highlight .kv { color: #b69cff; }
+  .highlight .kt { color: #7fd4ff; }
+  .highlight .s, .highlight .s1, .highlight .s2, .highlight .sb, .highlight .sc, .highlight .sh, .highlight .sx, .highlight .se, .highlight .si { color: #a8e07a; }
+  .highlight .m, .highlight .mi, .highlight .mf, .highlight .mh, .highlight .il { color: #f0b86e; }
+  .highlight .nf, .highlight .fm, .highlight .nc, .highlight .ne { color: var(--cyan); }
+  .highlight .na, .highlight .nd, .highlight .nt { color: #7fd4ff; }
+  .highlight .nb, .highlight .bp, .highlight .nv, .highlight .vg { color: #e8d48a; }
+  .highlight .o, .highlight .ow, .highlight .p { color: var(--muted); }
+  .highlight .err { color: #f0705f; }
+
+  footer { border-top: 1px solid var(--line); padding: 26px 0 40px; font-size: 0.84rem; color: var(--dim); }
+  footer p { margin: 0 0 6px; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="https://sibarum.github.io/"><img src="https://sibarum.github.io/img/logo.svg" alt="">VexelRay</a>
+    <nav aria-label="Links">
+      <a href="https://sibarum.github.io/#apps">Applications</a>
+      <a href="https://sibarum.github.io/technology.html">Technology</a>
+      <a href="{{ '/' | relative_url }}" aria-current="page">Framework</a>
+      <a href="https://github.com/sibarum/vexelray-framework">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  {% unless page.url == "/" %}<div class="crumb"><a href="{{ '/' | relative_url }}">Framework docs</a></div>{% endunless %}
+  <article class="doc">
+{{ content }}
+  </article>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>The VexelRay framework's documentation, under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. <a href="https://github.com/sibarum/vexelray-framework/blob/main/docs/{{ page.path }}">This page on GitHub</a> &middot; <a href="https://github.com/sibarum/vexelray-framework/issues/new">Open an issue</a> &middot; <a href="https://sibarum.github.io/licenses.html">Licenses and notices</a></p>
+  </div>
+</footer>
+</body>
+</html>

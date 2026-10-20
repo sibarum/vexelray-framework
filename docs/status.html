@@ -2,71 +2,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VexelRay Framework Readiness</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="icon" href="https://sibarum.github.io/img/logo.svg">
+
 
 <style>
-  /* ---- Dark-first palette, taken from the VexelRay logo: near-black navy ground,
-         violet -> cyan identity. Light theme swaps the roles through the same tokens. ---- */
+  /* ---- The site's dark design (sibarum.github.io: its index, technology and licenses pages), in this page's
+         token names. ---- */
   :root {
-    --ground:      #07060f;
-    --surface:     #0f0d1c;
-    --surface-2:   #17142c;
-    --line:        #272248;
-    --line-soft:   #1c1836;
-    --ink:         #edeaf7;
-    --ink-2:       #a9a2c6;
-    --ink-3:       #6d6690;
+    --ground:      #050608;
+    --surface:     #10131a;
+    --surface-2:   #0b0d12;
+    --line:        #2c3342;
+    --line-soft:   #1f2430;
+    --ink:         #f2f4f8;
+    --ink-2:       #9aa3b5;
+    --ink-3:       #5f6879;
     --violet:      #8b5cf6;
-    --cyan:        #2fd8ee;
+    --cyan:        #3ee0ff;
     --green:       #46c98a;
     --amber:       #e0ab43;
     --coral:       #f0705f;
-    --track:       #201c3c;
+    --track:       #1a1f2a;
     --shadow:      0 1px 0 rgba(255,255,255,.03) inset;
     --stage-0: var(--ink-3);
     --stage-1: var(--violet);
     --stage-2: var(--cyan);
     --stage-3: var(--green);
-  }
-
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) {
-      --ground:    #f6f5fa;
-      --surface:   #ffffff;
-      --surface-2: #f1eff8;
-      --line:      #ded9ef;
-      --line-soft: #e9e5f4;
-      --ink:       #17142a;
-      --ink-2:     #56507a;
-      --ink-3:     #86809f;
-      --violet:    #6437d6;
-      --cyan:      #0f7f97;
-      --green:     #1f8d5d;
-      --amber:     #9a6a06;
-      --coral:     #c2402f;
-      --track:     #e7e3f3;
-      --shadow:    0 1px 2px rgba(23,20,42,.05);
-    }
-  }
-
-  :root[data-theme="light"] {
-    --ground:    #f6f5fa;
-    --surface:   #ffffff;
-    --surface-2: #f1eff8;
-    --line:      #ded9ef;
-    --line-soft: #e9e5f4;
-    --ink:       #17142a;
-    --ink-2:     #56507a;
-    --ink-3:     #86809f;
-    --violet:    #6437d6;
-    --cyan:      #0f7f97;
-    --green:     #1f8d5d;
-    --amber:     #9a6a06;
-    --coral:     #c2402f;
-    --track:     #e7e3f3;
-    --shadow:    0 1px 2px rgba(23,20,42,.05);
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
@@ -74,7 +38,7 @@
   body {
     background: var(--ground);
     color: var(--ink);
-    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--sans);
     font-size: 15px;
     line-height: 1.6;
     margin: 0;
@@ -89,13 +53,13 @@
   }
 
   h1, h2, h3 {
-    font-family: Archivo, "IBM Plex Sans", sans-serif;
+    font-family: var(--sans);
     text-wrap: balance;
     margin: 0;
   }
 
   .eyebrow {
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-family: var(--mono);
     font-size: 11px;
     font-weight: 500;
     letter-spacing: .16em;
@@ -103,7 +67,7 @@
     color: var(--ink-3);
   }
 
-  code, .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace; }
+  code, .mono { font-family: var(--mono); }
 
   code {
     font-size: .88em;
@@ -129,13 +93,13 @@
     line-height: 1.04;
   }
   .mark .ray {
-    background: linear-gradient(96deg, var(--violet), var(--cyan));
+    background: linear-gradient(100deg, var(--cyan), #2563eb 55%, var(--violet));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   .mark .kicker {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: var(--mono);
     font-size: 11px;
     letter-spacing: .18em;
     text-transform: uppercase;
@@ -157,7 +121,7 @@
     padding-top: 4px;
   }
   .fact {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: var(--mono);
     font-size: 12px;
     color: var(--ink-2);
     border: 1px solid var(--line);
@@ -201,7 +165,7 @@
   .dim-title h2 { font-size: clamp(21px, 3.2vw, 26px); font-weight: 700; letter-spacing: -.015em; }
 
   .verdict {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: var(--mono);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: .1em;
@@ -239,7 +203,7 @@
   .row.s2 { --fill: var(--cyan); }
   .row.s3 { --fill: var(--green); }
   .stage {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: var(--mono);
     font-size: 11.5px;
     letter-spacing: .05em;
     color: var(--fill);
@@ -264,7 +228,7 @@
   .col.gap { background: var(--surface-2); border-color: var(--line-soft); }
   .col h3 {
     font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
-    font-family: "IBM Plex Mono", monospace; font-weight: 600;
+    font-family: var(--mono); font-weight: 600;
     color: var(--ink-3); margin-bottom: 11px;
   }
   .col.built h3 { color: var(--green); }
@@ -287,15 +251,15 @@
   table { border-collapse: collapse; width: 100%; min-width: 560px; }
   th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; vertical-align: top; }
   thead th {
-    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .13em;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em;
     text-transform: uppercase; color: var(--ink-3); font-weight: 600;
     background: var(--surface-2);
   }
   tbody tr:last-child td { border-bottom: 0; }
-  td.repo { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink); white-space: nowrap; }
+  td.repo { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; }
   td.note { color: var(--ink-2); }
   .pill {
-    display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    display: inline-block; font-family: var(--mono); font-size: 11px;
     letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
     border: 1px solid currentColor;
   }
@@ -312,7 +276,7 @@
   }
   .step:first-child { border-top: 0; }
   .step .num {
-    font-family: Archivo, sans-serif; font-weight: 800; font-size: 26px;
+    font-family: var(--sans); font-weight: 800; font-size: 26px;
     line-height: 1; color: var(--ink-3); font-variant-numeric: tabular-nums;
     padding-top: 2px;
   }
@@ -320,7 +284,7 @@
   .step.done .num { color: var(--green); }
   .step.done h3, .step.done p { color: var(--ink-3); }
   .landed {
-    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600;
     letter-spacing: .12em; text-transform: uppercase; color: var(--green);
     border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
     border-radius: 3px; padding: 1px 6px; margin-left: 8px; vertical-align: 2px;
@@ -346,11 +310,25 @@
   footer {
     margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line);
     display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between;
-    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-3);
     letter-spacing: .04em;
   }
 
+  .top { position: sticky; top: 0; z-index: 10; background: rgba(5, 6, 8, 0.78); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line-soft); }
+  .top .bar { display: flex; align-items: center; gap: 20px; min-height: 56px; max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+  @media (min-width: 720px) { .top .bar { padding: 0 32px; } }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; font-size: 0.95rem; flex: none; }
+  .brand img { width: 26px; height: 26px; }
+  .top nav { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 22px; font-size: 0.88rem; padding: 8px 0; }
+  .top nav a { color: var(--ink-2); text-decoration: none; }
+  .top nav a:hover, .top nav a[aria-current] { color: var(--ink); }
+  @media (max-width: 560px) {
+    .top .bar { flex-wrap: wrap; }
+    .top nav { margin-left: 0; justify-content: flex-start; padding-top: 0; }
+  }
+
   @media (max-width: 760px) {
+    .fact, .verdict { white-space: normal; max-width: 100%; }
     .legend { grid-template-columns: 1fr 1fr; }
     .cols { grid-template-columns: 1fr; }
     .row { grid-template-columns: minmax(0, 1fr) 96px; }
@@ -362,6 +340,18 @@
     .step .num { font-size: 20px; }
   }
 </style>
+
+<header class="top">
+  <div class="bar">
+    <a class="brand" href="https://sibarum.github.io/"><img src="https://sibarum.github.io/img/logo.svg" alt="">VexelRay</a>
+    <nav aria-label="Links">
+      <a href="https://sibarum.github.io/#apps">Applications</a>
+      <a href="https://sibarum.github.io/technology.html">Technology</a>
+      <a href="./" aria-current="page">Framework</a>
+      <a href="https://github.com/sibarum/vexelray-framework">GitHub</a>
+    </nav>
+  </div>
+</header>
 
 <div class="wrap">
 
