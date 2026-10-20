@@ -184,7 +184,6 @@ public final class Relaunch {
         List<String> command = drop(Launch.RESTART_AFTER)
                 .set(Launch.RESTART_AFTER, Long.toString(ProcessHandle.current().pid())).command();
         ProcessBuilder pb = new ProcessBuilder(command)
-                .redirectInput(ProcessBuilder.Redirect.from(nul()))
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                 .redirectError(ProcessBuilder.Redirect.DISCARD);
         Map<String, String> env = pb.environment();
@@ -196,6 +195,9 @@ public final class Relaunch {
             }
         });
         Process p = pb.start();
+        // Nothing to read, as from the null device: its input is a pipe closed at once, which is the end of it on
+        // every OS without naming any OS's null device.
+        p.getOutputStream().close();
         LOG.info("restarting: pid {} started, waiting for {} to exit", p.pid(), ProcessHandle.current().pid());
         LOG.debug("restart command: {}", command);
         return p;
@@ -232,10 +234,6 @@ public final class Relaunch {
         } catch (java.util.concurrent.ExecutionException e) {
             LOG.debug("waiting for pid {}: {}", before, e.getMessage());
         }
-    }
-
-    private static java.io.File nul() {
-        return new java.io.File(System.getProperty("os.name", "").startsWith("Windows") ? "NUL" : "/dev/null");
     }
 
     private static List<String> without(List<String> args, String key) {
