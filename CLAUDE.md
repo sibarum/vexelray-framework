@@ -75,7 +75,7 @@ The siblings, in dependency order, once `-shell` exists (`imagelib-wrapper` need
 first, with a Rust toolchain; see `docs/getting-started.md` §2):
 
 ```bash
-for r in intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui; do (cd ../$r && mvn install) || break; done
+for r in vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui; do (cd ../$r && mvn install) || break; done
 ```
 
 The acceptance loop, with the siblings installed: generate a project from the builder, build it, and drive

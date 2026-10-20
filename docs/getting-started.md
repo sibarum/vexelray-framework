@@ -19,20 +19,22 @@ into your own. Allow about half an hour, most of it the first build of the stack
 The stack is not on Maven Central yet. Each piece is its own repository, and they are built and installed to your
 local Maven repository (`~/.m2`) once, side by side in one folder:
 
-<!-- image: dependency graph of the ten repositories, arrows showing which needs which -->
+<!-- image: dependency graph of the eleven repositories, arrows showing which needs which -->
 
 ```bash
 mkdir vexelray && cd vexelray
 ```
 
 ```bash
-for r in intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui vexelray-framework; do git clone https://github.com/sibarum/$r.git; done
+for r in vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui vexelray-framework; do git clone https://github.com/sibarum/$r.git; done
 ```
 
-Then install them, **in this order**, because each needs the ones before it:
+Then install them, **in this order**, because each needs the ones before it. [The repositories](repositories.md)
+says more about each, and lists the optional ones that add pictures and video, shipping, and simulations.
 
 | Repository | What it is |
 | --- | --- |
+| `vexelray-build` | The Maven plugin that stamps each build with its exact source. Every other build uses it |
 | `intrabuf` | Serialization the message bus carries its envelopes in |
 | `atchung` | The typed message bus, and the logger nearly every repository uses |
 | `supirvast` | The expression language the engine's shaders are written in |
@@ -40,7 +42,7 @@ Then install them, **in this order**, because each needs the ones before it:
 | `kronometer` | Time and animation |
 | `tactroller` | Input: keyboard, pointer, clipboard |
 | `vexelray` | The engine: Vulkan, 2D drawing, text, windowing |
-| `imagelib-wrapper` | Image decoding, every format a GUI shows, in Rust behind a small Java API |
+| `imagelib-wrapper` | Image decoding, in Rust behind a small Java API. Your application does not link it; `vexelray-gui`'s icon plugin reads icon art with it |
 | `vexelray-gui` | The widgets, layout and theme |
 | `vexelray-framework` | This repository |
 
@@ -51,10 +53,10 @@ repository.
 (cd imagelib-wrapper && ./native/build.sh)
 ```
 
-Then all ten:
+Then all eleven:
 
 ```bash
-for r in intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui vexelray-framework; do (cd $r && mvn install -DskipTests) || break; done
+for r in vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui vexelray-framework; do (cd $r && mvn install -DskipTests) || break; done
 ```
 
 `-DskipTests` only makes the first install quicker; drop it to run each repository's suite as you go. When you pull

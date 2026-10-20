@@ -22,10 +22,12 @@ the buttons and the title bar are drawn by the stack.
 | Engine | `vexelray` | Vulkan, 2D drawing in signed distance fields, text, native windows |
 | Shaders | `supirvast` | The expression language the engine's shaders are written in |
 
-Underneath those, three more repositories do one job each: `intrabuf` (the serialization the bus carries),
-`dxgi-bridge` (presentation on Windows) and `imagelib-wrapper` (image decoding). An application written from the
+Underneath those, four more repositories do one job each: `intrabuf` (the serialization the bus carries),
+`dxgi-bridge` (presentation on Windows), `imagelib-wrapper` (image decoding, which `vexelray-gui`'s build uses) and
+`vexelray-build` (the Maven plugin that stamps every build with its source). An application written from the
 template depends on the framework and on a few `vexelray-gui` modules for its widgets; the rest arrives with them.
-[Getting started](getting-started.md#2-install-the-stack) installs all ten.
+[Getting started](getting-started.md#2-install-the-stack) installs all eleven, and [the repositories](repositories.md)
+lists the optional ones too.
 
 ## What the framework owns, and what you write
 

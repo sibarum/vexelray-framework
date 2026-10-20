@@ -53,6 +53,7 @@ The framework is before v1. [The source and the tour are on GitHub](https://gith
 | --- | --- |
 | [Build your own](developers/index.md) | For developers: from an empty folder to a published application, with an LLM or by hand |
 | [Getting started](getting-started.md) | From nothing to a running application, and a tour of what was generated |
+| [The repositories](repositories.md) | Which repositories an application needs, which add something, and which to leave out |
 | [Overview](overview.md) | The architecture at a readable altitude: the stack, the wiring, phases, the frame, threads |
 | [What v1 means](v1.md) | The bar: an application built on v1 needs no major refactor afterwards |
 | [Readiness](status.html) | The v1 surfaces graded by whether their shape is final, and where each capability lives |
