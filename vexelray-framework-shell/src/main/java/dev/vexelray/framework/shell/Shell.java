@@ -21,6 +21,7 @@ import dev.vexelray.text.FontSet;
 import sibarum.atchung.Atchung;
 import sibarum.probe.Log;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,6 +63,10 @@ public final class Shell {
     private BuildInfo build = BuildInfo.UNKNOWN;
     /** The declared message graph, or null; set beside {@link #build} from the wiring. See {@link Wiring#busGraph}. */
     private String busGraph;
+    /** What main was handed, as the OS holds it; set by {@link VexelApplication} before any phase runs. */
+    private List<String> arguments = List.of();
+    /** The restart a closed main window starts, once the loop has ended; null for none. See {@link #restart}. */
+    private volatile Relaunch restarting;
     private final FrameHooks hooks = new FrameHooks();
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
@@ -138,6 +143,48 @@ public final class Shell {
 
     void busGraph(String busGraph) {
         this.busGraph = busGraph;
+    }
+
+    void arguments(List<String> arguments) {
+        this.arguments = List.copyOf(arguments);
+    }
+
+    /**
+     * How this process was started, to start it again with something changed ({@link Relaunch}). A fresh value each
+     * call; {@link Relaunch#unavailable} says when this process cannot say how it was started.
+     */
+    public Relaunch relaunch() {
+        return Relaunch.current(arguments);
+    }
+
+    /**
+     * Quit, and start {@code how} once this process has finished: the main window is closed by the route its close
+     * button takes, so the application's close gate is asked first (unsaved work), and a gate that cancels cancels the
+     * restart with the quit. The new process waits for this one to exit before it opens anything ({@link Relaunch}).
+     *
+     * @throws IllegalStateException when {@code how} cannot be started ({@link Relaunch#unavailable}), or before
+     *                               {@link Phase#ATTACH}
+     */
+    public void restart(Relaunch how) {
+        how.unavailable().ifPresent(why -> {
+            throw new IllegalStateException("cannot restart: " + why);
+        });
+        Window main = windows().main();
+        main.close(() -> restarting = how, () -> LOG.info("restart cancelled: the window stayed open"));
+    }
+
+    /** Start the restart a closed main window asked for, if any. After the loop has ended. */
+    void startRestart() {
+        Relaunch how = restarting;
+        restarting = null;
+        if (how == null) {
+            return;
+        }
+        try {
+            how.start();
+        } catch (IOException | RuntimeException e) {
+            LOG.error("could not restart: {}", e.getMessage());
+        }
     }
 
     /** The phase currently being built. */

@@ -100,16 +100,24 @@ public final class VexelApplication {
         // Before the bus exists, let alone anything publishing on it. See Faults for why the framework owns
         // this answer and why it is still a halt.
         Faults.install(info);
-        Launch launch = parseOrExit(args, info);
+        String[] argv = osArguments(args);
+        Launch launch = parseOrExit(argv, info);
         // First thing after the flags are known: the mode (an automation run is the loudest) and the level
         // come from them, and the probe decides once, at class load, from the mode.
         Logs.start(info, launch);
+        // A restart waits for the process it replaces before opening anything: the settings that process saves on
+        // the way out, and its window's placement, are this one's to read (Relaunch).
+        Relaunch.awaitPredecessor(launch);
 
         Shell shell = new Shell(launch, info);
         shell.build(wiring.build());
         shell.busGraph(wiring.busGraph());
+        shell.arguments(java.util.Arrays.asList(argv));
         try (Disposer disposer = shell.disposer()) {
             build(wiring, shell, disposer, info, launch, windows);
+            // The loop has ended. A restart the main window's close asked for starts now, before this process
+            // closes, and waits for it to finish closing.
+            shell.startRestart();
         }
     }
 
@@ -149,7 +157,7 @@ public final class VexelApplication {
     public static Shell tree(Wiring wiring, String[] args) {
         AppInfo info = wiring.info();
         Faults.install(info);
-        Launch launch = parseOrExit(args, info);
+        Launch launch = parseOrExit(osArguments(args), info);
         Logs.start(info, launch);
         Shell shell = new Shell(launch, info);
         shell.build(wiring.build());
@@ -176,7 +184,7 @@ public final class VexelApplication {
 
     private static Launch parseOrExit(String[] args, AppInfo info) {
         try {
-            return Launch.parse(osArguments(args), info.name(), info.settingKeys());
+            return Launch.parse(args, info.name(), info.settingKeys());
         } catch (IllegalArgumentException e) {
             System.err.println(e.getMessage());
             System.err.println(Launch.usage(info.name(), info.settingKeys()));

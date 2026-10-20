@@ -9,7 +9,8 @@ import dev.vexelray.gui.automation.Discovery;
 import dev.vexelray.gui.automation.Sockets;
 import dev.vexelray.gui.automation.Timeline;
 import dev.vexelray.gui.automation.Windows;
-import dev.vexelray.gui.automation.window.AutomationWindow;
+import dev.vexelray.framework.shell.Relaunch;
+import dev.vexelray.gui.automation.window.AutomationButton;
 import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.app.LoopCounters;
 import dev.vexelray.gui.inspector.link.InspectorLink;
@@ -22,8 +23,8 @@ import java.util.function.Function;
 import sibarum.probe.Log;
 
 /**
- * The automation sockets, wired once instead of in every application: remote control and diagnostics, switched on by
- * the launch or by hand while the application runs.
+ * The automation sockets, wired once instead of in every application: remote control and diagnostics, opened by the
+ * launch, and the title-bar button that restarts an application into a debug run that opens them, or out of one.
  *
  * <p>This method was near-identical in {@code calculator-vexel-demo}, {@code text-editor-vexel-demo},
  * {@code vexelray-designer} and the {@code mainframe-template} scaffold, down to the same comment about a
@@ -34,11 +35,13 @@ import sibarum.probe.Log;
  * connects full control of the application's input, so it is off by default
  * ({@code vexelray-gui/docs/reference/automation.md} §5). Requested means a launch setting — {@code --automation}
  * for both on one port, {@code --automation.control} and {@code --automation.diagnostics} for each, or
- * {@value #ENVIRONMENT} in an agent's environment — or the automation button this puts in the title bar, beside the
- * key bindings, which switches either while the application runs. Release builds carry it too, since macros and
- * agents use the same hand a person does; what keeps that honest is that the button is also each socket's lamp,
- * showing whether it is open and whether anything is, or has been, connected. {@link #AVAILABLE} takes either socket,
- * or both, out of a run altogether.
+ * {@value #ENVIRONMENT} in an agent's environment. The automation button this puts in the title bar, beside the key
+ * bindings, opens them by restarting: <i>Restart in debug mode</i> starts the application again with both on one free
+ * port, the probe armed from frame 0, and the Inspector attached ({@link #restartInDebugMode}). Sockets are not
+ * switched while an application runs, because the probe the Inspector reads is decided at launch. Release builds carry
+ * the button too, since macros and agents use the same hand a person does; what keeps that honest is that a debug
+ * run's button is a different mark, and each socket's lamp, showing whether it is open and whether anything is, or has
+ * been, connected. {@link #AVAILABLE} takes either socket, or both, out of a run altogether.
  *
  * <p><b>A module of its own rather than part of {@code -shell}.</b> Absorbing it into the shell would put
  * {@code vexelray-gui-automation} on every application's compile path, and a listening socket linked into every
@@ -89,10 +92,8 @@ public final class Driver implements AutoCloseable {
 
     private final Shell shell;
     private final Set<Capability> available;
-    /** Built on first need — the launch asking, or the button clicked — because it needs the window. */
+    /** Built when the launch asks for a socket, because it needs the window. */
     private volatile Sockets sockets;
-    /** The title bar's button, redrawn after every change to the sockets, once they are built. */
-    private final List<Runnable> lampWatchers = new java.util.concurrent.CopyOnWriteArrayList<>();
     private boolean closed;
 
     private Driver(Shell shell, Set<Capability> available) {
@@ -124,11 +125,25 @@ public final class Driver implements AutoCloseable {
     /** {@link #open(Shell)} with the property and environment lookups handed in, so a test sets neither globally. */
     static Driver open(Shell shell, Function<String, String> properties, Function<String, String> environment) {
         Driver driver = new Driver(shell, available(shell.launch()::override, properties, environment));
-        driver.button();
         Function<String, String> asked = resolver(shell.launch()::override, properties, environment);
         if (!Sockets.anyRequested(asked)) {
+            driver.button();
             return driver;
         }
+        driver.bind(asked, properties);
+        // The button after the sockets, since which button it is says whether they opened: a debug run's, or the
+        // offer to become one.
+        driver.button();
+        if (driver.sockets != null && driver.sockets.on(Capability.DIAGNOSTICS)
+                && Boolean.parseBoolean(asked.apply(INSPECTOR))) {
+            driver.openInspector();
+        }
+        return driver;
+    }
+
+    /** Open the sockets {@code asked} names, or say why not; an application starts either way. */
+    private void bind(Function<String, String> asked, Function<String, String> properties) {
+        Driver driver = this;
         String want = SETTING + "=" + asked.apply(SETTING) + " " + Sockets.CONTROL_SETTING + "="
                 + asked.apply(Sockets.CONTROL_SETTING) + " " + Sockets.DIAGNOSTICS_SETTING + "="
                 + asked.apply(Sockets.DIAGNOSTICS_SETTING)
@@ -157,12 +172,11 @@ public final class Driver implements AutoCloseable {
             LOG.info("automation: {}", driver.sockets().describe());
         } catch (java.io.IOException | NumberFormatException | IllegalStateException e) {
             // An application that will not start because a debugging port was busy is a worse outcome than one
-            // nobody can drive. The button still switches it on, at another port.
+            // nobody can drive. The button still offers a restart into a debug run, on a free port.
             Diagnostics.dropped("Driver.open", "the automation socket this launch asked for",
                     e.getMessage() + "; '" + want + "' bound nothing it had not bound before"
                             + (driver.sockets == null ? "" : " (" + driver.sockets.describe() + ")"));
         }
-        return driver;
     }
 
     /** What this run offers: {@link #AVAILABLE} from the flag, the property, then {@value #AVAILABLE_ENVIRONMENT}. */
@@ -262,23 +276,8 @@ public final class Driver implements AutoCloseable {
                     // The Inspector's link beside whichever socket serves diagnostics (vexelray-gui
                     // docs/plans/flight-recorder.md section 6). -Dautomation.link=off leaves it out.
                     .attach(Capability.DIAGNOSTICS, server -> InspectorLink.start(server, windows));
-            // The button was put up before the sockets existed; from here on it follows them.
-            sockets.watch(s -> lampWatchers.forEach(Runnable::run));
-            lampWatchers.forEach(Runnable::run);
         }
         return sockets;
-    }
-
-    /**
-     * Where {@code c} stands: the sockets', or off (unavailable) before they are built. Read without this object's
-     * lock, since it is asked from whatever thread changed the sockets, which may be holding theirs.
-     */
-    private Sockets.State state(Capability c) {
-        Sockets s = sockets;
-        if (s != null) {
-            return s.state(c);
-        }
-        return available.contains(c) ? Sockets.State.OFF : Sockets.State.UNAVAILABLE;
     }
 
     /** Whether a socket is actually listening, for either capability. */
@@ -298,34 +297,174 @@ public final class Driver implements AutoCloseable {
     /**
      * The automation button, after whatever the bar already shows — the framework's tools, the key bindings — in a
      * window whose frame the GUI draws. A native frame has no bar to put it in, and a run that offers neither socket
-     * ({@link #AVAILABLE}) has nothing for it to switch.
+     * ({@link #AVAILABLE}) has nothing to offer.
      *
-     * <p>The button is the sockets' lamps ({@code AutomationWindow}): beside the plug, each socket shows whether its
-     * port is open and whether anything is, or was this session, connected to it, so whether anything can drive or
-     * read this application is in its title bar at a glance.
+     * <p><b>Which button says which run this is.</b> A debug run ({@link #debugRun}) wears a bug with the
+     * sockets' lamps ({@code AutomationButton}), and its menu lists the ports, opens the Inspector, and restarts without
+     * the sockets. Any other run wears the plug, and its menu has one thing on it: restart in debug mode. There are no
+     * switches, because a socket opened later reaches an application whose probe was decided at launch and is off, so
+     * the Inspector would attach to a run with nothing to stream.
      */
     private void button() {
         if (!shell.appearance().drawsOwnFrame() || available.isEmpty()) {
             return;
         }
         List<WindowInstrument> tools = new ArrayList<>(shell.titleBar().instruments());
-        tools.add(WindowInstrument.automation("Remote control and diagnostics",
-                controls -> AutomationWindow.window(shell.app(), shell.gui(), sockets()).show(),
-                () -> AutomationWindow.lamps(shell.gui(), state(Capability.CONTROL), state(Capability.DIAGNOSTICS)),
-                new WindowInstrument.Live() {
-                    @Override
-                    public Runnable watch(Runnable changed) {
-                        lampWatchers.add(changed);
-                        return () -> lampWatchers.remove(changed);
-                    }
-
-                    @Override
-                    public String tooltip() {
-                        Sockets s = sockets;
-                        return s == null ? null : AutomationWindow.describe(s);
-                    }
-                }));
+        if (debugRun()) {
+            tools.add(AutomationButton.instrument(shell.gui(), sockets, menu -> {
+                menu.item(OPEN_INSPECTOR, this::openInspector);
+                menu.item(RESTART_NORMALLY, this::restartNormally);
+            }));
+        } else {
+            tools.add(WindowInstrument.automation("Restart in debug mode, to inspect or drive this application",
+                    menu -> menu.item(RESTART_IN_DEBUG_MODE, this::restartInDebugMode)));
+        }
         shell.titleBar().instruments(List.copyOf(tools));
+    }
+
+    /**
+     * Whether this is a debug run: its diagnostics socket opened at launch, so the Inspector can attach and its probe
+     * was armed from the start. A run with remote control alone is driven, by an agent or a macro, and is not one: it
+     * still offers to restart into one.
+     */
+    public synchronized boolean debugRun() {
+        return sockets != null && sockets.on(Capability.DIAGNOSTICS);
+    }
+
+    /** The menu's words, which are also its landmarks ({@code menu.restart-in-debug-mode}). */
+    static final String RESTART_IN_DEBUG_MODE = "Restart in debug mode";
+    static final String RESTART_NORMALLY = "Restart without debugging";
+    static final String OPEN_INSPECTOR = "Open the Inspector";
+
+    /**
+     * Open the Inspector once this launch's diagnostics socket listens: {@code --automation.inspector}, which a restart
+     * into a debug run passes, so one click ends with the application restarted and the Inspector attached to it.
+     */
+    public static final String INSPECTOR = "automation.inspector";
+
+    /**
+     * What starts the Inspector: {@code -Dvexelray.inspector=<command>} or {@value #INSPECTOR_ENVIRONMENT}, split at
+     * spaces (a word in double quotes keeps its own), with {@code {attach}} standing for its {@code --attach=pid:<n>},
+     * which is added at the end when the command does not place it. By default {@code vexelray-inspector}, which the
+     * installer puts on the path. From a checkout: {@code mvn.cmd -q -f <inspector>/pom.xml compile exec:exec
+     * "-Dapp.args={attach}"}.
+     */
+    public static final String INSPECTOR_PROPERTY = "vexelray.inspector";
+
+    /** {@link #INSPECTOR_PROPERTY} from the environment, read after the property. */
+    public static final String INSPECTOR_ENVIRONMENT = "VEXELRAY_INSPECTOR";
+
+    /**
+     * The probe a restart into a debug run arms, when nobody chose one: the driven run's lanes and the bus, so the
+     * Inspector's bus circuit has rows (vexelray-inspector FN-4), traced into the file the run's mode would use.
+     */
+    static final String DEBUG_LANES = "frame,input,layout,app,bus";
+
+    /** Set in a restart into a debug run, so the restart out of it knows which probe settings were its own. */
+    static final String DEBUG_RESTART_ENVIRONMENT = "VEXELRAY_DEBUG_RESTART";
+
+    private static final List<String> PROBE_ENVIRONMENT = List.of("PROBE", "PROBE_FORMAT", "PROBE_OUT");
+
+    /** The settings that make a run a debug run, wherever the launch gave them. */
+    private static final String[] DEBUG_KEYS = {SETTING, Sockets.CONTROL_SETTING, Sockets.DIAGNOSTICS_SETTING, INSPECTOR};
+
+    /** Quit, and start again with both sockets on one free port and the Inspector attached. */
+    void restartInDebugMode() {
+        Relaunch how = shell.relaunch().drop(DEBUG_KEYS).set(SETTING, "0").set(INSPECTOR, "true")
+                .environment(DEBUG_RESTART_ENVIRONMENT, "1");
+        if (System.getenv("PROBE") == null && System.getProperty("probe") == null) {
+            how = how.environment("PROBE", DEBUG_LANES).environment("PROBE_FORMAT", "csv");
+            java.nio.file.Path trace = sibarum.probe.Logging.config().probeFile();
+            if (trace != null) {
+                how = how.environment("PROBE_OUT", trace.toString());
+            }
+        }
+        restart(how);
+    }
+
+    /** Quit, and start again with no socket, and none of the probe settings the restart into this run added. */
+    void restartNormally() {
+        Relaunch how = shell.relaunch().drop(DEBUG_KEYS).environment(ENVIRONMENT, null)
+                .environment(DEBUG_RESTART_ENVIRONMENT, null);
+        if (System.getenv(DEBUG_RESTART_ENVIRONMENT) != null) {
+            for (String name : PROBE_ENVIRONMENT) {
+                how = how.environment(name, null);
+            }
+        }
+        restart(how);
+    }
+
+    private void restart(Relaunch how) {
+        try {
+            shell.restart(how);
+        } catch (IllegalStateException e) {
+            shell.dialogs().info("Cannot restart", e.getMessage());
+        }
+    }
+
+    /** Start the Inspector, attached to this process. Its own process; it outlives this one. */
+    void openInspector() {
+        String command = System.getProperty(INSPECTOR_PROPERTY);
+        if (command == null || command.isBlank()) {
+            command = System.getenv(INSPECTOR_ENVIRONMENT);
+        }
+        List<String> argv = inspectorCommand(command, ProcessHandle.current().pid());
+        ProcessBuilder pb = new ProcessBuilder(argv)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD);
+        // This run's probe settings are this run's: an Inspector that inherited them would trace into its file.
+        for (String name : PROBE_ENVIRONMENT) {
+            pb.environment().remove(name);
+        }
+        pb.environment().remove(DEBUG_RESTART_ENVIRONMENT);
+        try {
+            Process p = pb.start();
+            LOG.info("the Inspector: pid {}, {}", p.pid(), argv);
+        } catch (java.io.IOException e) {
+            LOG.warn("could not start the Inspector ({}): {}", argv, e.getMessage());
+            shell.dialogs().info("Cannot open the Inspector", "'" + String.join(" ", argv) + "' did not start: "
+                    + e.getMessage() + ". Set " + INSPECTOR_ENVIRONMENT + " to the command that starts it.");
+        }
+    }
+
+    /** {@code command} as words, with {@code --attach=pid:<pid>} where it says {@code {attach}}, or at the end. */
+    static List<String> inspectorCommand(String command, long pid) {
+        String attach = "--attach=pid:" + pid;
+        List<String> words = new ArrayList<>();
+        StringBuilder word = new StringBuilder();
+        boolean quoted = false;
+        boolean any = false;
+        String c = command == null || command.isBlank() ? "vexelray-inspector" : command.trim();
+        for (int i = 0; i < c.length(); i++) {
+            char ch = c.charAt(i);
+            if (ch == '"') {
+                quoted = !quoted;
+                any = true;
+            } else if (Character.isWhitespace(ch) && !quoted) {
+                if (any) {
+                    words.add(word.toString());
+                    word.setLength(0);
+                    any = false;
+                }
+            } else {
+                word.append(ch);
+                any = true;
+            }
+        }
+        if (any) {
+            words.add(word.toString());
+        }
+        boolean placed = false;
+        for (int i = 0; i < words.size(); i++) {
+            if (words.get(i).contains("{attach}")) {
+                words.set(i, words.get(i).replace("{attach}", attach));
+                placed = true;
+            }
+        }
+        if (!placed) {
+            words.add(attach);
+        }
+        return List.copyOf(words);
     }
 
     @Override

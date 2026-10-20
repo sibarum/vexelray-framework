@@ -83,7 +83,15 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
      * keys in the meantime, so that at least the two categories are not presented as one.
      */
     public static final Set<String> FRAMEWORK_KEYS = Set.of("profile", "automation", "automation.control",
-            "automation.diagnostics", "automation.available", "recorder", "log");
+            "automation.diagnostics", "automation.available", "automation.inspector", "recorder", "log",
+            "restart.after");
+
+    /**
+     * {@code --restart.after=<pid>}: this launch is a restart of process {@code pid}, and waits for it to have exited
+     * before opening anything, so the settings, the window's placement and every file the old process held are its
+     * own again first. Written by {@code Relaunch}, never by a person.
+     */
+    public static final String RESTART_AFTER = "restart.after";
 
     public Launch {
         overrides = Map.copyOf(overrides);

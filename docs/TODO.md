@@ -530,6 +530,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
 
+- [ ] **`Relaunch` has only been seen under the JVM** (`-shell`, 2026-10-19). In a native image it restarts the image
+      with its arguments and never calls `ManagementFactory`, but the call is still reachable, so build a native
+      release and restart it in debug mode once. The JVM path rebuilds the launcher from the input arguments, the
+      class path and `sun.java.command`, because `ProcessHandle.Info.arguments()` is empty on Windows; the process's
+      own `GetCommandLineW` (vexelray-os already reads it, in `CommandLine`) would be exact on both, behind a
+      `NativePlatform.commandLine()`.
+
 - [ ] **`VEXELRAY_AUTOMATION` opens the socket but does not set the log mode** (atchung `LogConfig`, or
       `-shell`'s `Logs.start`). `Driver` reads the variable since 2026-10-18; `LogConfig.systemSetting` maps the
       `automation` key to an environment variable named `AUTOMATION`, so a run asked for only through the

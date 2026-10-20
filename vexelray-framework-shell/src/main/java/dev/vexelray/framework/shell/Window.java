@@ -81,6 +81,11 @@ public final class Window {
     private volatile CloseGate gate;
     /** Guarded by {@code this}: whether {@link #gate} has been set, which it may be once. */
     private boolean gated;
+    /**
+     * Told how the next close goes, once: {@code [proceeded, cancelled]}, or null. Set by {@link #close(Runnable,
+     * Runnable)}, taken by the close it asked for.
+     */
+    private volatile Runnable[] outcome;
 
     /**
      * @param shown whether the window is on screen once claimed unless a command says otherwise: true for the main
@@ -237,12 +242,32 @@ public final class Window {
      * on the handler lane; package-private so a test can stand in for the route.
      */
     void requested(Runnable proceed, Runnable cancel) {
+        Runnable[] told = outcome;
+        outcome = null;
+        Runnable go = told == null ? proceed : () -> {
+            told[0].run();
+            proceed.run();
+        };
+        Runnable stay = told == null ? cancel : () -> {
+            told[1].run();
+            cancel.run();
+        };
         CloseGate g = gate;
         if (g == null) {
-            proceed.run();
+            go.run();
         } else {
-            g.ask(proceed, cancel);
+            g.ask(go, stay);
         }
+    }
+
+    /**
+     * {@link #close()}, told whether it happened: {@code proceeded} once the gate (if any) has let it, before the
+     * window goes, or {@code cancelled} if the gate kept it open. What a restart needs, since it must not start a
+     * second process for a window that stayed.
+     */
+    void close(Runnable proceeded, Runnable cancelled) {
+        outcome = new Runnable[] {proceeded, cancelled};
+        close();
     }
 
     /**

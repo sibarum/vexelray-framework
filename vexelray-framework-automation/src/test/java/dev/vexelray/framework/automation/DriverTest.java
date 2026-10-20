@@ -37,6 +37,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 final class DriverTest {
 
+    /** What starts the Inspector beside a debug run: the installed one by default, or the command given. */
+    @Test
+    void theInspectorIsStartedAttachedToThisProcess() {
+        assertEquals(List.of("vexelray-inspector", "--attach=pid:42"), Driver.inspectorCommand(null, 42));
+        assertEquals(List.of("C:/Program Files/Inspector/vexelray-inspector.exe", "--attach=pid:42"),
+                Driver.inspectorCommand("\"C:/Program Files/Inspector/vexelray-inspector.exe\"", 42),
+                "a quoted word keeps its spaces");
+        assertEquals(List.of("mvn.cmd", "-q", "-f", "C:/inspector/pom.xml", "compile", "exec:exec",
+                        "-Dapp.args=--attach=pid:42"),
+                Driver.inspectorCommand("mvn.cmd -q -f C:/inspector/pom.xml compile exec:exec \"-Dapp.args={attach}\"",
+                        42), "{attach} says where it goes, and then it is not added again");
+    }
+
     /** Its own settings directory name, redirected to a temp dir so no test writes into a developer's home. */
     private static final String NAME = "vexelray-framework-drivertest";
 

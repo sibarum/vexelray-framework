@@ -12,7 +12,7 @@ mvn -Pnative-release package -DskipTests
 ```
 
 That writes `target/my-app.exe`, the build you ship: it has no console window, and its automation sockets are off
-until the launch or the title bar's plug switches them on.
+until the launch asks for them, or the title bar's plug restarts it in debug mode with them on.
 [Getting started §6](../getting-started.md#6-build-a-native-executable) explains the two builds, and the
 generated README explains what to do when the native executable fails at something the JVM run did not.
 
