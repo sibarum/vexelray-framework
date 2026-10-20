@@ -64,7 +64,7 @@ final class TactrollerInputBackend implements InputBackend {
             return;
         }
         try {
-            input.attach(sibarum.tactroller.api.NativeWindow.ofHwnd(windowHandle));
+            input.attach(windowHandle);
             input.setCoordinateSpace(CoordinateSpace.CLIENT);
         } catch (BackendException e) {
             Diagnostics.dropped("InputBackend.attach", "pointer input for the main window",
@@ -144,7 +144,7 @@ final class TactrollerInputBackend implements InputBackend {
             Tactroller backend;
             try {
                 backend = Tactroller.open();
-                backend.attach(sibarum.tactroller.api.NativeWindow.ofHwnd(window.osHandle()));
+                backend.attach(window.osHandle());
                 backend.setCoordinateSpace(CoordinateSpace.CLIENT);
             } catch (BackendException e) {
                 // The one of these that used to say nothing at all, and the one that most needed to. A second
