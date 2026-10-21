@@ -569,12 +569,18 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         a render and reads it back synchronously. A recorder must not cause frames, and must not stall the loop.
         So the readback copies into a ring of staging buffers and is mapped a frame or more later, on a worker.
         That is a presenter feature in `vexelray`, inside the frame budget.
-      - **Open: the codec.** `ffmpeg-wrapper` decodes only, and its pinned build carries no encoders. The choice is
-        between an encoder in that build (FFV1 or PNG-in-MKV stay lossless for text; H.264 would mean openh264,
-        since x264 is GPL) and Media Foundation's H.264 on Windows, which ships with the OS.
-      - **Open: what a frame *is* on a loop that draws on change.** An idle window presents nothing, so a video
-        needs variable frame rate or repeated frames. A *contentful* redraw is a presented frame whose pixels differ
-        from the last one. Many animation frames will qualify, so the stills mode wants a cap or a minimum step.
+      - **Decided 2026-10-21: AV1, in Matroska/WebM.** Why it fits (the recommendation's reasons, not yet weighed):
+        it is royalty-free, with BSD-licensed encoders, where x264 is GPL. It has coding tools made for screen
+        content, palette mode and intra block copy, which are what flat UI and text need. And Matroska stamps every
+        frame with its own time, so a loop that presents nothing while idle is recorded as it happened, with no
+        repeated frames. It means adding an encoder and a muxer to `ffmpeg-wrapper`'s pinned build, which today
+        decodes only.
+      - **Open: which encoder.** SVT-AV1 (`libsvtav1`) is the one built for real time, and has a screen-content mode.
+        libaom is the reference and slow. rav1e is Rust, which the toolchain already has for `imagelib-wrapper`.
+        Its screen-content support is not checked. Hardware AV1 encoders exist only on recent GPUs, so a fallback
+        to software is needed anyway. Whatever is chosen has to keep up at window size on a laptop CPU.
+      - **Open: when the stills mode takes a still.** A *contentful* redraw is a presented frame whose pixels
+        differ from the last one. Many animation frames will qualify, so it wants a cap or a minimum step.
 
 - [ ] **The template's navigator marks its row actions with text glyphs** (`Navigator.java`: `"›"` for Open,
       `"»"` for Show this folder). Since 2026-10-20 an icon the suite's set lacks is an application's own baked
