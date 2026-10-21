@@ -537,6 +537,25 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       own `GetCommandLineW` (vexelray-os already reads it, in `CommandLine`) would be exact on both, behind a
       `NativePlatform.commandLine()`.
 
+- [ ] **A light/dark switch in the title bar, for an application that declares both looks** (`-shell`'s
+      `Appearance` and title bar, probably as a `WindowInstrument`; `-template`). Asked for 2026-10-21, after the
+      scheduler retrospective.
+      - **Ruled 2026-10-21: the application authors both themes, and the framework derives neither.** Reason:
+        writing a design system takes under five minutes, and the two hand-tuned pairs on the stack
+        (`Palette.DARK`/`LIGHT`, Vex's `Look`) show that a light theme is not a reflection of a dark one. The
+        light page sits at L 0.975, where a mirror gives 0.809. The accent goes from 0.6925 to 0.56, where a
+        mirror gives 0.31. Shadow alpha goes from 0.55 to 0.18. A derived theme would be a guess that somebody
+        then tunes by hand.
+      - So the button appears only when `Appearance` carries a second theme, and an application with one theme
+        has none. `Appearance` is `EXPERIMENTAL`, so a new component behind a wither is additive.
+      - The choice is remembered beside the zoom (`WindowMemory`). It applies to every window that took the
+        application's theme, never to one with its own (`applyTo`'s rule). The swap is `Gui.theme`, which
+        fades under a `PaintMotion`, so nothing changes in one frame.
+      - **The catch is a colour kept as a `Color` rather than a `Role`**, because a retheme cannot reach it.
+        The template's own `Look.EMPHASIS` is one, and so are Vex's scope colours, which is why Vex's theme
+        menu only takes effect at the next start. The template should make each of its own colours a role, and
+        test each role's contrast against the page in both looks.
+
 - [ ] **The template's navigator marks its row actions with text glyphs** (`Navigator.java`: `"›"` for Open,
       `"»"` for Show this folder). Since 2026-10-20 an icon the suite's set lacks is an application's own baked
       set (`src/main/icons`, the pom's `app-icons` profile, `vexelray-gui-icons/README.md`), and Vex's navigator
