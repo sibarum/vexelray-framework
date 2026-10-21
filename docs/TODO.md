@@ -556,6 +556,26 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         menu only takes effect at the next start. The template should make each of its own colours a role, and
         test each role's contrast against the page in both looks.
 
+- [ ] **The camera records as well as photographs, for a person and for ottermate** (`vexelray-gui-core`'s
+      `WindowInstrument` and `WindowControls`, `vexelray-gui-nfd`'s `SaveScreenshot`, `vexelray`'s presenter,
+      `ffmpeg-wrapper`, ottermate). Asked for 2026-10-21, after the scheduler retrospective, which had to build a
+      slow-motion switch, burst screenshots and a frame-step script to check that nothing changes in one frame.
+      - **What the user sees:** the camera opens a menu (`WindowInstrument.menu`, the seam the automation plug
+        already uses): *Take screenshot*, and *Record video to file…*. While recording, the mark and the tooltip say
+        so (`Live`) and a click stops it. Later, *Take stills of contentful redraws*.
+      - **Recommended, not ruled: one frame tap, three sinks.** A tap hands every frame the window *presents*, with
+        its present time, to a sink. The sinks are a video file, a still per redraw, and ottermate's `film`
+        (largest step between frames, the retrospective's spike detector). `capture` cannot be the tap: it forces
+        a render and reads it back synchronously. A recorder must not cause frames, and must not stall the loop.
+        So the readback copies into a ring of staging buffers and is mapped a frame or more later, on a worker.
+        That is a presenter feature in `vexelray`, inside the frame budget.
+      - **Open: the codec.** `ffmpeg-wrapper` decodes only, and its pinned build carries no encoders. The choice is
+        between an encoder in that build (FFV1 or PNG-in-MKV stay lossless for text; H.264 would mean openh264,
+        since x264 is GPL) and Media Foundation's H.264 on Windows, which ships with the OS.
+      - **Open: what a frame *is* on a loop that draws on change.** An idle window presents nothing, so a video
+        needs variable frame rate or repeated frames. A *contentful* redraw is a presented frame whose pixels differ
+        from the last one. Many animation frames will qualify, so the stills mode wants a cap or a minimum step.
+
 - [ ] **The template's navigator marks its row actions with text glyphs** (`Navigator.java`: `"›"` for Open,
       `"»"` for Show this folder). Since 2026-10-20 an icon the suite's set lacks is an application's own baked
       set (`src/main/icons`, the pom's `app-icons` profile, `vexelray-gui-icons/README.md`), and Vex's navigator
