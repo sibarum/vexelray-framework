@@ -66,7 +66,7 @@ class GenerateTest {
         Path project = temp.resolve("demo-app");
         assertTrue(Files.isRegularFile(project.resolve("pom.xml")));
         assertNotNull(find(project, "Recipes.java"), "the main package should hold Recipes.java");
-        assertTrue(out.toString().contains("next: cd demo-app"), out.toString());
+        assertTrue(out.toString().contains("next: cd " + project + " "), out.toString());
     }
 
     @Test

@@ -36,6 +36,12 @@ native-build.cmd -Pnative package -DskipTests           # target/${artifactId}-d
 
 Both carry the automation sockets, off until asked for ([Automation](#automation)), so ottermate can drive either.
 
+On Linux there is one build, with no console subsystem or icon step to choose, and plain `mvn`:
+
+```
+mvn -Pnative-linux package -DskipTests                  # target-linux/${artifactId}
+```
+
 `native-build.cmd` is `mvn` inside a Visual Studio developer environment: native-image needs the MSVC `link.exe` and
 the icon step needs `rc.exe`, and neither is on `PATH` in a plain shell. Under Git Bash it is worse, since coreutils'
 own `link.exe` comes first. The script finds `vcvars64.bat` with `vswhere`, loads it, and runs `mvn` with the
@@ -129,8 +135,9 @@ Open `target/generated-sources/annotations/.../${className}AppWiring.java` after
 
 ### Threading, in one paragraph
 
-The GUI loop runs on its own thread. Every handler — a click, a key, a submitted path — runs on a worker, and every
-read and write of a file runs on the offload lane, so a slow disk is never a frozen window. Workers meet at `Model`,
+The GUI loop runs on the main thread, which owns Vulkan, the window and present. Every handler — a click, a key, a
+submitted path — runs on the handler lane, and every read and write of a file runs on the offload lane, so a slow
+disk is never a frozen window (the lanes are named in the framework's `docs/threading.md`). They meet at `Model`,
 whose compare-and-set puts concurrent changes in an order. A listener registered with `Model.onChange` fires on the
 committing thread; writing a node's props from there is correct, because a prop written off the GUI thread is applied
 by the next drain. Two rules keep it deadlock-free, and both are written on `Workspace`: nothing commits to the model
@@ -140,7 +147,7 @@ reads the model.
 ### Spans
 
 `Markdown.spans` is a pure function from text to `Span`s — foreground, background, underline — and `Buffer` runs it
-on a worker after each edit and hands the result to the field. The text is never changed; the field draws the
+on the offload lane (`gui.async`) after each edit and hands the result to the field. The text is never changed; the field draws the
 colours and moves each span with its text as you type. A `.txt` file gets none.
 
 ### Motion

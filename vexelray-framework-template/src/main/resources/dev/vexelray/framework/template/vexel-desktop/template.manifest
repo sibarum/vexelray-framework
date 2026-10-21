@@ -1,11 +1,12 @@
 # A VexelRay desktop application. This is the reference one.
 #
 # It began as the shape calculator-vexel-demo taught -- the application edge, the
-# threading model, the build, and the two documents a project of this kind keeps --
-# and that application has since been deleted along with the other two ports, on
-# purpose: keeping them ported cost a tax on every framework change. So the shape
-# is no longer copied from anywhere. It is stated here, and this tree is what the
-# framework is verified against rather than a sketch of something else.
+# threading model, the build, and the two documents a project of this kind keeps.
+# The hand-wired ports were deleted on purpose (keeping them ported cost a tax on
+# every framework change), and Calculator, Vex and MainFrame were later rebuilt
+# from this template rather than the other way round. So the shape is copied from
+# nowhere. It is stated here, and this tree is what the framework is verified
+# against rather than a sketch of something else.
 #
 # What a new project is, is a small text editor: tabs over the files it has open, a
 # navigator over a folder, and Markdown shown in colour. An editor because it is the
@@ -224,6 +225,7 @@ file src/test/java/${packagePath}/text/MarkdownTest.java from MarkdownTest.java 
 # the host OS, so checking for all three would warn about two that are correctly
 # absent.
 
+needs dev.vexelray.build:vexelray-build-maven-plugin:${buildVersion}
 needs dev.vexelray.framework:vexelray-framework-shell:${frameworkVersion}
 needs dev.vexelray.framework:vexelray-framework-automation:${frameworkVersion}
 needs dev.vexelray.framework:vexelray-framework-processor:${frameworkVersion}

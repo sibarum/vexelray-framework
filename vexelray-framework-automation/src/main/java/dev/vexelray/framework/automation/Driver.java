@@ -211,20 +211,33 @@ public final class Driver implements AutoCloseable {
      * value filling it in beside {@code --automation.control=7000} would override the launch's own, more specific,
      * flag. The environment is the agent's shell saying "every application", and a launch that says anything about
      * its sockets has said something more specific.
+     *
+     * <p><b>A blank flag or property says nothing.</b> A generated pom passes {@code -Dautomation=${automation}}
+     * on every {@code exec:exec}, empty unless the person set it, and an empty value counting as "the launch named
+     * a socket" would shut the environment out of every run from a checkout.
      */
     static Function<String, String> resolver(Function<String, String> flags, Function<String, String> properties,
                                              Function<String, String> environment) {
+        Function<String, String> flag = unlessBlank(flags);
+        Function<String, String> property = unlessBlank(properties);
         Function<String, String> launch = key -> {
-            String v = flags.apply(key);
-            return v != null ? v : properties.apply(key);
+            String v = flag.apply(key);
+            return v != null ? v : property.apply(key);
         };
-        if (!fromEnvironment(flags, properties)) {
+        if (!fromEnvironment(flag, property)) {
             return launch;
         }
         String fallback = environment.apply(ENVIRONMENT);
         return key -> {
             String v = launch.apply(key);
             return v == null && key.equals(SETTING) && fallback != null && !fallback.isBlank() ? fallback.trim() : v;
+        };
+    }
+
+    private static Function<String, String> unlessBlank(Function<String, String> source) {
+        return key -> {
+            String v = source.apply(key);
+            return v == null || v.isBlank() ? null : v;
         };
     }
 

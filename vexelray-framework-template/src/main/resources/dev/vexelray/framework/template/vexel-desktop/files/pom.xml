@@ -31,8 +31,11 @@
         -->
         <app.args></app.args>
 
-        <!-- The automation driver: "off", "on" for the default port, or a port number. -->
-        <automation>off</automation>
+        <!--
+          The automation driver: "off", "on" for the default port, or a port number. Empty says nothing, so
+          VEXELRAY_AUTOMATION in the environment decides, and with that unset the sockets stay off.
+        -->
+        <automation></automation>
 
         <!--
           Extra JVM flags for exec:exec, split on whitespace. Needed because a -D on the mvn command line sets a
@@ -336,6 +339,29 @@
                         <groupId>org.graalvm.buildtools</groupId>
                         <artifactId>native-maven-plugin</artifactId>
                         <extensions>true</extensions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- Linux: mvn -Pnative-linux package -DskipTests  ->  target-linux/${artifactId}. No linker options and no
+             rc.exe; a Linux executable has no subsystem and no icon of its own. Vex, Calculator and MainFrame each
+             carried this profile by hand before the template did. -->
+        <profile>
+            <id>native-linux</id>
+            <properties>
+                <native.imageName>${artifactId}</native.imageName>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <buildArgs combine.self="override">
+                                <buildArg>--no-fallback</buildArg>
+                            </buildArgs>
+                        </configuration>
                     </plugin>
                 </plugins>
             </build>

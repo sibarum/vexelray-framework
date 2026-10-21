@@ -149,6 +149,14 @@ final class DriverTest {
                 "blank is unset");
     }
 
+    /** A generated pom passes {@code -Dautomation=} empty on every run, and that must leave the environment in. */
+    @Test
+    void aBlankPropertyLeavesTheEnvironmentIn() {
+        Function<String, String> env = Map.of(Driver.ENVIRONMENT, "0")::get;
+        assertEquals("0", Driver.resolver(NONE, Map.of(Driver.SETTING, "")::get, env).apply(Driver.SETTING));
+        assertEquals("0", Driver.resolver(Map.of(Driver.SETTING, " ")::get, NONE, env).apply(Driver.SETTING));
+    }
+
     /**
      * {@code --automation} wins over the per-capability settings inside {@code Sockets}, so an environment value
      * filling it in would override a launch's own {@code --automation.control}.

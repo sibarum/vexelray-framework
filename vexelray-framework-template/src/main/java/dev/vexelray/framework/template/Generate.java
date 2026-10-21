@@ -104,7 +104,9 @@ public final class Generate {
             }
             out.println("wrote " + blueprint.size() + " files to " + dir);
             blueprint.notes().forEach(n -> out.println("note: " + n));
-            out.println("next: cd " + dir.getFileName() + " && mvn compile exec:exec");
+            // The folder as --in named it, not its bare name: with --in .. the project is a sibling of where the
+            // command ran, and "cd my-app" from there goes nowhere.
+            out.println("next: cd " + dir + " && mvn compile exec:exec");
             return 0;
         } catch (IOException | RuntimeException e) {
             err.println(e.getMessage() == null ? e.toString() : e.getMessage());

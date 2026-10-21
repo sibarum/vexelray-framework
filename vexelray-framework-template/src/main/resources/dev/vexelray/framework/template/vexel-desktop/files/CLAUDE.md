@@ -34,8 +34,8 @@ them even when a shortcut looks harmless:
 - **Nothing reflects.** No `Class.forName`, no runtime annotation reads, no reflective serialization. This compiles to
   a GraalVM native image, and the framework's wiring is generated at compile time so that nothing needs reflection.
 - **Nothing in the frame loop allocates, logs or blocks.** No disk, no network, no locks there.
-- **Vulkan, the window and present stay on the main thread.** Handlers run on workers, and disk work goes to the
-  offload lane. README's *Threading, in one paragraph* is the whole model, and its two lock rules are written on
+- **Vulkan, the window and present stay on the main thread.** Handlers run on the handler lane, and disk work goes to
+  the offload lane (`gui.async`). README's *Threading, in one paragraph* is the whole model, and its two lock rules are written on
   `Workspace`: nothing commits to the model while holding the workspace lock, and nothing reached from a model
   listener takes it.
 - **All input comes through tactroller.** No polling the OS keyboard, and no native listener of your own.
@@ -86,5 +86,6 @@ When a run fails, read `target/logs/${appName}.log` (`target-linux/logs/` on Lin
 - **One slice at a time**: a change from the model to the screen, with its test and its `ottermate` check. Not
   several features at once.
 - **Copy a precedent.** The template's own files, and the applications generated from it (Vex, Calculator,
-  MainFrame), have solved most problems once. Find how they did it before inventing a way.
+  MainFrame, Scheduler), have solved most problems once. Find how they did it before inventing a way. Scheduler
+  is the one to read for motion: it keeps its nodes and changes them, so nothing on screen changes in one frame.
 - **For anything that touches `Recipes.java`, threads or the model's shape, propose the change before making it.**
