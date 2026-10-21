@@ -579,6 +579,23 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         libaom is the reference and slow. rav1e is Rust, which the toolchain already has for `imagelib-wrapper`.
         Its screen-content support is not checked. Hardware AV1 encoders exist only on recent GPUs, so a fallback
         to software is needed anyway. Whatever is chosen has to keep up at window size on a laptop CPU.
+      - **Asked 2026-10-21: a stepped recording.** Kronometer drives the clock while recording, and each
+        presented frame advances logical time by exactly one video frame, however long it took to draw, read back
+        and encode. The window may stutter for the person watching it, but the file plays perfectly smoothly.
+        `KronoGui.tick(Dur)`, "for a scripted or headless run", is the seam, and a stepped frame can afford a
+        synchronous readback because the frame budget no longer applies.
+        - **Prerequisite: one clock for everything that moves.** `InputDispatcher` steps the wheel glide and the
+          focus ring's fade from `System.nanoTime()`, not from the kernel, so a stepped recording would play them
+          at the wrong speed. The scheduler hit the same thing in slow motion (its FN-7, and the retrospective's
+          global time scale). What is drawn reads the frame's time. Key repeat and double-click stay on the wall,
+          because they measure a hand.
+        - **The catch is input.** Logical time drifts from the wall, so a person's own timing is warped: a pause in
+          which twenty slow frames were drawn plays back as a third of a second. A script driving in logical time
+          (ottermate) does not have this problem.
+        - **Recommended, not ruled: idle runs on the wall, motion runs on the step.** While nothing is animating,
+          logical time follows the wall, and Matroska's per-frame times keep the pause as long as it was. While
+          something is animating, time advances one step per frame. A person's pauses survive, every animation is
+          smooth, and the only cost is that input arriving mid-animation waits for the next stepped frame.
       - **Open: when the stills mode takes a still.** A *contentful* redraw is a presented frame whose pixels
         differ from the last one. Many animation frames will qualify, so it wants a cap or a minimum step.
 
