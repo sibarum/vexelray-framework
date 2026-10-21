@@ -48,11 +48,14 @@ would otherwise fail at startup or, worse, silently at runtime.
 
 ## Get started
 
-On Windows, with JDK 25, Maven and a Rust toolchain, after installing the stack's other repositories to your local
-Maven repository ([the guide](docs/getting-started.md#2-install-the-stack) says which, and in what order):
+**New here? The [developer guide](https://sibarum.github.io/vexelray-framework/developers/) is the place to start.**
+It takes you from an empty folder to a published application, and every other page links from it.
+
+On Windows (from Git Bash) or Linux, with JDK 25, Maven and a Rust toolchain, this clones the stack's other
+repositories beside this one and installs all of them to your local Maven repository, in dependency order:
 
 ```bash
-mvn install
+./bootstrap.sh
 ```
 
 ```bash
@@ -154,8 +157,7 @@ mvn test -pl vexelray-framework-api,vexelray-framework-core,vexelray-framework-p
 ```
 
 A bare `mvn test` goes on to `-shell` and stops there without the stack. Everything else needs the sibling
-repositories installed first, in the order
-[docs/getting-started.md](docs/getting-started.md#2-install-the-stack) gives. The acceptance run then generates a
+repositories installed first: `./bootstrap.sh` (and `./bootstrap.sh --from <repo>` after pulling one). The acceptance run then generates a
 project, builds it, and drives a real window for a few seconds; its logs and screenshots land in
 `vexelray-framework-acceptance/target/acceptance/`:
 

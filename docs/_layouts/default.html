@@ -107,7 +107,14 @@
     <nav aria-label="Links">
       <a href="https://sibarum.github.io/#apps">Applications</a>
       <a href="https://sibarum.github.io/technology.html">Technology</a>
+      <a href="https://sibarum.github.io/design.html">Design</a>
+      {% if page.url contains '/developers/' %}
+      <a href="{{ '/' | relative_url }}">Framework</a>
+      <a href="{{ '/developers/' | relative_url }}" aria-current="page">Developers</a>
+      {% else %}
       <a href="{{ '/' | relative_url }}" aria-current="page">Framework</a>
+      <a href="{{ '/developers/' | relative_url }}">Developers</a>
+      {% endif %}
       <a href="https://github.com/sibarum/vexelray-framework">GitHub</a>
     </nav>
   </div>

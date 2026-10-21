@@ -1,0 +1,31 @@
+name: Docs links
+
+# Every link in docs/ resolves: relative links to a file and a heading that exist, and external URLs answering
+# below 400. The developer guide is the one place to start, so a broken link in it is a broken build. Weekly too,
+# because a link elsewhere can break without this repository changing (a renamed file in vexelray-gui, say).
+
+on:
+  push:
+    paths: [docs/**, tools/LinkCheck.java, .github/workflows/docs-links.yml]
+  pull_request:
+    paths: [docs/**, tools/LinkCheck.java, .github/workflows/docs-links.yml]
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Check every link in docs/
+        run: java tools/LinkCheck.java docs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

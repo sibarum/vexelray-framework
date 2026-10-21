@@ -975,10 +975,10 @@ generated project with no motion (FN-12: the template builds `Motion`). The rest
       below, not a draw defect. **Not checked:** the editor itself by eye (a caret blink seen by a person is not a shot).
 
 - [ ] **Widget gaps, each found once** (`vexelray-gui-widget`, Vex FN-8, 9, 11, 13, 17 to 20). `TextField.onChange` is
-      one slot and fires on span-only changes; `Tabs`' own Close cannot be stopped for unsaved work, and the bar does
-      not handle more tabs than fit; `History.mark()` marks now, not a version; `SplitPane` cannot collapse a pane;
+      one slot and fires on span-only changes; `Tabs`' own Close cannot be stopped for unsaved work (the bar now scrolls
+      when the tabs do not fit); `History.mark()` marks now, not a version; `SplitPane` cannot collapse a pane;
       the dialogs' title bar offers minimise and maximise; a late publication into a closed `Gui` throws;
-      `wordWrap(false)` is ignored on a label, a node does not clip its own glyphs, and there is no ellipsis; no
+      a node does not clip its own glyphs, and there is no ellipsis (`wordWrap(false)` on a label now holds); no
       current-line or active-gutter role; `TreeView` has one item per row; a sliding tab indicator is sixty lines
       every application with tabs writes. Additive; the units half of FN-20 is [units.md](units.md).
 
@@ -1025,19 +1025,6 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       unfocused multi-window application is never drawn. **Ask:** do not park while `wakePosted` is set (it is
       already recorded, and read only for the frame ceiling), beside the existing refusal to park on a queued task.
       That is what landed.
-
-- [ ] **A driver that connects at once is told no window is open** (`vexelray-gui-automation`, and where
-      `Driver.open` sits). Found by W1. The socket opens at `ATTACH`, before the loop has bound its main window, so
-      every verb first answers `err no window is open yet` (`Windows.views()` is empty until the claim). A client
-      waits for a landmark to appear, which every witness does (`Support.Driver.firstFrame`). **Ask:** open the
-      socket once the main window is bound, or have a verb wait for it rather than refuse.
-
-      **The other half is fixed upstream** (`vexelray-gui` `1a40f59`): `settle` answered `ok v0` before a window's
-      first frame, because `Gui.onWork` re-armed the *frame owed* flag over a tree never drawn — at startup, and for
-      every window opened later (W2 chose its tool window 3 ms after it opened, and `find` saw an empty tree, which is
-      also how a *does not contain* check passes against nothing). A new tree now owes its first frame. The witnesses
-      still await a window's own landmark after choosing it; that costs nothing and was written before the fix, and
-      they have not yet been run against an install that includes it.
 
 - [ ] **On macOS, a modal dialog on the GUI thread is reported as a stall** (`vexelray-gui-core`
       `GuiApp.reportStall`). The screenshot button opens a native save dialog (`vexelray-gui-nfd`'s

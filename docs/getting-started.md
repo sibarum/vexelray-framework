@@ -7,30 +7,43 @@ into your own. Allow about half an hour, most of it the first build of the stack
 
 | | |
 | --- | --- |
-| **Windows 10 or 11** | The engine's Windows backend is the complete one; Linux and macOS are skeletons |
+| **Windows 10 or 11, or Linux** | Windows is the most complete. Linux builds and runs; macOS is a skeleton |
 | **A GPU with a Vulkan driver** | Any recent NVIDIA, AMD or Intel driver has one |
 | **JDK 25** | A GraalVM 25 JDK if you also want native executables (step 6) |
-| **Maven** and **Git** | On `PATH`. Git for Windows also brings the Bash the commands below are written for |
+| **Maven** and **Git** | On `PATH`. On Windows, Git for Windows also brings the Bash the commands below are written for |
 | **A Rust toolchain** | From [rustup.rs](https://rustup.rs). One repository's image decoders are Rust, built from source |
-| **Visual Studio Build Tools** | Rust's default Windows toolchain links with them; native-image needs `link.exe` and the icon step `rc.exe` |
+| **Visual Studio Build Tools** | Windows only. Rust's default Windows toolchain links with them; native-image needs `link.exe` and the icon step `rc.exe` |
 
 ## 2. Install the stack
 
 The stack is not on Maven Central yet. Each piece is its own repository, and they are built and installed to your
-local Maven repository (`~/.m2`) once, side by side in one folder:
-
-<!-- image: dependency graph of the eleven repositories, arrows showing which needs which -->
+local Maven repository (`~/.m2`) once, side by side in one folder. One script does it:
 
 ```bash
 mkdir vexelray && cd vexelray
 ```
 
 ```bash
-for r in vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui vexelray-framework; do git clone https://github.com/sibarum/$r.git; done
+git clone https://github.com/sibarum/vexelray-framework.git
 ```
 
-Then install them, **in this order**, because each needs the ones before it. [The repositories](repositories.md)
-says more about each, and lists the optional ones that add pictures and video, shipping, and simulations.
+```bash
+./vexelray-framework/bootstrap.sh
+```
+
+It checks for the tools above, clones the other ten repositories beside `vexelray-framework`, builds
+`imagelib-wrapper`'s native library for your OS, and runs `mvn install` in each, **in dependency order**. Each
+build's output goes to `vexelray-framework/target/bootstrap/`, and the first failure stops it and names its log.
+`--tests` runs each repository's tests as it goes; `--check` only says what is missing.
+
+When you pull a newer version of one repository, reinstall it and everything after it:
+
+```bash
+./vexelray-framework/bootstrap.sh --from vexelray
+```
+
+The order, and what each repository is. [The repositories](repositories.md) says more about each, and lists the
+optional ones that add pictures and video, shipping, and simulations.
 
 | Repository | What it is |
 | --- | --- |
@@ -46,21 +59,9 @@ says more about each, and lists the optional ones that add pictures and video, s
 | `vexelray-gui` | The widgets, layout and theme |
 | `vexelray-framework` | This repository |
 
-`imagelib-wrapper` has one step before its install: its native library is built from source and is not in the
-repository.
-
-```bash
-(cd imagelib-wrapper && ./native/build.sh)
-```
-
-Then all eleven:
-
-```bash
-for r in vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui vexelray-framework; do (cd $r && mvn install -DskipTests) || break; done
-```
-
-`-DskipTests` only makes the first install quicker; drop it to run each repository's suite as you go. When you pull
-a newer version of one of them, `mvn install` it again, and then the ones after it in the table.
+`imagelib-wrapper`'s native library is built from source by its OS module and is not in the repository. The
+script runs `imagelib-wrapper-windows/native/build.sh` (or `-linux/`) before that repository's install; run it by
+hand if you install without the script.
 
 ## 3. Generate a project
 
@@ -70,7 +71,8 @@ From the `vexelray-framework` folder:
 java -cp vexelray-framework-template/target/classes dev.vexelray.framework.template.Generate --in .. --name my-app --group dev.example
 ```
 
-That writes `../my-app`. `--name` is the folder and the Maven artifactId; the Java package becomes
+That writes `../my-app`, and its last line is the command that runs it. On Linux the classes are in
+`target-linux/classes` instead. `--name` is the folder and the Maven artifactId; the Java package becomes
 `dev.example.myapp` and the main class `MyApp` unless you say otherwise. Other options include `--title`,
 `--width`, `--height`, `--packageName` and `--className`; `--help` lists them all with their defaults.
 
@@ -111,7 +113,7 @@ Read these in this order:
 | File | What it is |
 | --- | --- |
 | `MyApp.java` | The entry point and a few constants (name, title, size, icon). Nothing else |
-| `MyAppApp.java` | The `@VexelApp` declaration, written twice: see [step 6](#6-build-a-native-executable) |
+| `MyAppApp.java` | The `@VexelApp` declaration: the name, the window, and the starters (the automation sockets, [step 6](#6-build-a-native-executable)) |
 | `Recipes.java` | **What the application is made of.** One `@Provides` method per part. New parts go here |
 | `Model.java`, `Doc.java` | All of the application's state, as one immutable value that changes by being replaced |
 | `Ui.java` | The window's contents. Holds no state; it redraws from the model |
@@ -167,25 +169,37 @@ and `--theme=dark` on the command line overrides it for one launch.
 
 ## 6. Build a native executable
 
-From a Visual Studio developer prompt, with a GraalVM 25 JDK as `JAVA_HOME`:
+With a GraalVM 25 JDK as `JAVA_HOME`, on Windows through the generated `native-build.cmd` (`./native-build.cmd` from
+Git Bash). It is `mvn` inside a Visual Studio developer environment: native-image needs MSVC's `link.exe` and the
+icon step `rc.exe`, and under Git Bash coreutils' own `link.exe` would be found first. Plain `mvn` works only from a
+Visual Studio developer prompt.
 
 ```bash
-mvn -Pnative-release package -DskipTests
+./native-build.cmd -Pnative-release package -DskipTests
 ```
 
 writes `target/my-app.exe`, the build you ship: no console window.
 
 ```bash
-mvn -Pnative package -DskipTests
+./native-build.cmd -Pnative package -DskipTests
 ```
 
 writes `target/my-app-debug.exe`, with a console, for testing: it prints the `automation: localhost:<port>` line.
 
-Both carry the automation sockets, remote control and diagnostics, and both start with them off. A person switches
-them on from the plug in the title bar, whose lamps show each socket open or not and anything connected now or
-earlier. A launch opens them when it asks, with `--automation=<port>`, or `-Dautomation=<port>`, or, when the launch names no
-automation setting at all, the environment variable `VEXELRAY_AUTOMATION=<port>` (`0` for a free port), which an
-agent's shell sets so every application it starts can be driven. Each run's port is in its discovery file,
+On Linux there is one build, with plain `mvn`:
+
+```bash
+mvn -Pnative-linux package -DskipTests
+```
+
+writes `target-linux/my-app`.
+
+Every build carries the automation sockets, remote control and diagnostics, and starts with them off. A person turns
+them on from the plug in the title bar, which restarts the application with them open; its lamps show each socket
+open or not and anything connected now or earlier. A launch opens them when it asks, with `--automation=<port>`, or
+`-Dautomation=<port>`, or, when the launch names no automation setting at all, the environment variable
+`VEXELRAY_AUTOMATION=<port>` (`0` for a free port), which an agent's shell sets so every application it starts can
+be driven. That includes `mvn compile exec:exec`, whose `automation` property is empty unless you set it. Each run's port is in its discovery file,
 `~/.vexelray/automation/<app>-<pid>.auto`, and `ottermate` with no `--port` reads it.
 `--automation.available=none` (or `control`, or `diagnostics`; `VEXELRAY_AUTOMATION_AVAILABLE` in the environment)
 takes them out of a run altogether, and with neither available the plug is not shown.
@@ -200,8 +214,9 @@ to render one from an SVG.
 
 `ottermate` drives a running application the way a person does: keys, clicks, reading what is on screen, and
 screenshots taken from the application's own GPU device. It is how a VexelRay application is tested end to end. It
-lives at `vexelray-gui/vexelray-gui-automation-cli/ottermate` (`ottermate.cmd` from cmd or PowerShell), and the
-examples assume that folder is on your `PATH`:
+lives at `vexelray-gui/vexelray-gui-automation-cli/ottermate` (`ottermate.cmd` from cmd or PowerShell), built by
+`vexelray-gui`'s install in step 2, and the examples assume that folder is on your `PATH`. If it says it is not
+built, run `mvn -pl vexelray-gui-automation-cli package` in `vexelray-gui`.
 
 ```bash
 ottermate shot out.png --launch mvn.cmd compile exec:exec -Dautomation=0
@@ -211,8 +226,10 @@ ottermate shot out.png --launch mvn.cmd compile exec:exec -Dautomation=0
 ottermate --size 1600x900 --zoom 1.5 shot big.png --launch mvn.cmd compile exec:exec -Dautomation=0
 ```
 
-Its guide is `vexelray-gui/docs/guides/ottermate.md`. The names a script may rely on are the ones in your project's
-`Landmarks.java`.
+Its guide is [ottermate.md](https://github.com/sibarum/vexelray-gui/blob/master/docs/guides/ottermate.md) in
+`vexelray-gui`. The names a script may rely on are the ones in your project's `Landmarks.java`. The window
+remembers its last size, so a changed default size never shows on a machine that has run the app before: give
+`--size` whenever you compare screenshots.
 
 ## 8. Logging
 
@@ -230,7 +247,7 @@ LOG.warn("could not save {}", path, exception);
 
 ## Where next
 
-- **[Build your own](developers/index.md)**: turning the generated project into your application,
+- **[Developer guide](developers/index.md)**: turning the generated project into your application,
   [with a coding agent](developers/with-an-llm.md) or [by hand in Vex](developers/in-vex.md), and
   [shipping it](developers/shipping.md).
 - **[overview.md](overview.md)**: how the framework is put together, at a readable altitude.

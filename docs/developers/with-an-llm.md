@@ -1,7 +1,8 @@
 # Building with an LLM
 
 The VexelRay stack was largely written by a coding agent working alongside its author, and it is laid out for one.
-Every repository has a `CLAUDE.md` that states the rules the code does not show. A generated project gets one too.
+The framework and the GUI each have a `CLAUDE.md` that states the rules the code does not show, and a generated
+project gets one too.
 And `ottermate` lets an agent drive and photograph the window it built, so it can check its own work instead of
 reporting that it compiled.
 
@@ -150,7 +151,7 @@ fails, before it starts changing code.
 
 | Symptom | Usually |
 | --- | --- |
-| `Could not resolve dependencies` for `dev.vexelray...` | A stack repository was never installed, or a newer one was pulled and not reinstalled. `mvn install` it, and everything after it in [the table](../getting-started.md#2-install-the-stack) |
+| `Could not resolve dependencies` for `dev.vexelray...` | A stack repository was never installed, or a newer one was pulled and not reinstalled. `bootstrap.sh --from <repo>` reinstalls it and everything after it ([Getting started §2](../getting-started.md#2-install-the-stack)) |
 | The window freezes, nothing is thrown | A lock held while committing to the model, or one taken from a model listener. Both rules are written on the generated `Workspace` |
 | It works under `mvn exec:exec` and not as a native executable | A missing native-image registration. The generated README's *A native executable* section has the fix |
 | The agent keeps rewriting the same thing | Stop it. Clear the session, and start again with a smaller request and the file it should copy |

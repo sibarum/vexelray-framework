@@ -25,6 +25,7 @@ before this repo sees it.
 | **mainframe** | A terminal over ConPTY. **Rebuilt from the template in October 2026**, so treat it like any other generated application; its `docs/framework-notes.md` is where a gap found while building it gets written down. Its old `mainframe-template` (the typed shell and its `new vexel-desktop` builder) is gone, archived at the tag `archive/pre-v1`: a project is generated with `vexelray-framework-template`'s `Generate` ([getting-started.md](docs/getting-started.md) §3). **Read the template's `files/App.java` and `files/Recipes.java`**: they are what a correct application looks like (there is no `Wiring.java` to read: the processor writes it) |
 | **calculator-vexel-demo** | **Rebuilt from the template in October 2026**: a calculator and plotter over `cott-engine`, written fresh rather than restored. Treat it like any other generated application. Its `docs/framework-notes.md` is where a gap found while building it gets written down. The old hand-wired calculator is gone, and its findings are in [architecture.md](docs/architecture.md) |
 | **text-editor-vexel-demo** | **Rebuilt from the template in October 2026**: a tabbed editor with a file navigator, written fresh rather than restored (the grammars and highlighting tables came over from the old one's history). Treat it like any other generated application. Its `docs/framework-notes.md` is where a gap found while building it gets written down — FN-20 started [units.md](docs/units.md). What the *old*, hand-wired editor found is in [architecture.md](docs/architecture.md)'s *what porting the text editor found* |
+| **vexelray-scheduler** | A home-visit schedule that explains itself, generated from the template in October 2026 (the app is the `vexelray-scheduler-app` module). **The precedent for motion**: it keeps its nodes and changes them, and its `docs/framework-notes.md` FN-1 to FN-7 are the motion gaps it worked around |
 | **vexelray-designer** | No longer tracked. Still on disk, still a `Wiring`, and useful to read — but it is not the reference for anything and nothing here should be shaped to keep it compiling |
 
 ## Where the design comes from
@@ -34,7 +35,8 @@ feature, find the comment it derives from — if there isn't one, be suspicious 
 invented rather than needed. The load-bearing ones:
 
 - **`Phase`** — construction-order constraints from `mainframe-template`'s scaffold comments (theme
-  before widgets, clock before widgets, handle only after the window).
+  before widgets, clock before widgets, handle only after the window). That template is archived at the tag
+  `archive/pre-v1`; `Phase.java`'s javadoc is where the constraints are written now.
 - **`MainThread`** — `vexelray-gui/CLAUDE.md`, under *constraints that are not visible in the code*:
   "Vulkan, the window and present stay on the main thread."
 - **`FrameStage`** — the `pump / tick / poll` order, and the documented reason for it.
@@ -65,18 +67,23 @@ invented rather than needed. The load-bearing ones:
 
 ## Building
 
-`-api` and `-core` need no siblings installed:
+`-api`, `-core`, `-processor` and `-template` need no siblings installed; a bare `mvn test` goes on to `-shell` and
+stops there without them:
 
 ```bash
-mvn test
+mvn test -pl vexelray-framework-api,vexelray-framework-core,vexelray-framework-processor,vexelray-framework-template
 ```
 
-The siblings, in dependency order, once `-shell` exists (`imagelib-wrapper` needs `./native/build.sh` run once
-first, with a Rust toolchain; see `docs/getting-started.md` §2):
+The siblings, in dependency order, cloned beside this repo if missing (it also builds `imagelib-wrapper`'s native
+library for the host OS, which needs a Rust toolchain). After changing a sibling, `--from <repo>` reinstalls it and
+everything after it:
 
 ```bash
-for r in vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper vexelray-gui; do (cd ../$r && mvn install) || break; done
+./bootstrap.sh
 ```
+
+`bootstrap.sh` is the one place the order is written. Every guide points at it; keep it that way rather than
+copying the list into another document.
 
 The acceptance loop, with the siblings installed: generate a project from the builder, build it, and drive
 it through its automation socket. It opens a real window for a few seconds; the logs, the generated tree and

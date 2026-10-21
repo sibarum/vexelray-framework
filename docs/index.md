@@ -51,7 +51,7 @@ The framework is before v1. [The source and the tour are on GitHub](https://gith
 
 | Document | What it is |
 | --- | --- |
-| [Build your own](developers/index.md) | For developers: from an empty folder to a published application, with an LLM or by hand |
+| [**Developer guide**](developers/index.md) | **Start here.** From an empty folder to a published application, with an LLM or by hand, and a table of where everything else is |
 | [Getting started](getting-started.md) | From nothing to a running application, and a tour of what was generated |
 | [The repositories](repositories.md) | Which repositories an application needs, which add something, and which to leave out |
 | [Overview](overview.md) | The architecture at a readable altitude: the stack, the wiring, phases, the frame, threads |

@@ -5,14 +5,16 @@ executable, and publish it with an installer people can run in one line, as the 
 
 ## 1. The executable
 
-From a Visual Studio developer prompt, with a GraalVM 25 JDK as `JAVA_HOME`:
+With a GraalVM 25 JDK as `JAVA_HOME`, through the generated `native-build.cmd`, which loads the Visual Studio
+environment the linker and the icon step need:
 
 ```bash
-mvn -Pnative-release package -DskipTests
+./native-build.cmd -Pnative-release package -DskipTests
 ```
 
 That writes `target/my-app.exe`, the build you ship: it has no console window, and its automation sockets are off
-until the launch asks for them, or the title bar's plug restarts it in debug mode with them on.
+until the launch asks for them, or the title bar's plug restarts it in debug mode with them on. On Linux,
+`mvn -Pnative-linux package -DskipTests` writes `target-linux/my-app`.
 [Getting started §6](../getting-started.md#6-build-a-native-executable) explains the two builds, and the
 generated README explains what to do when the native executable fails at something the JVM run did not.
 
@@ -58,10 +60,11 @@ Generate the installer, and publish the executable as a GitHub release. Publishi
 with permission to write to `you/my-app`:
 
 ```bash
-java -jar ../vexelray-installer/installer-core/target/installer-core-0.1.1-SNAPSHOT-cli.jar --config installer.json --version 0.1.0 --out dist --publish
+java -jar ../vexelray-installer/installer-core/target/installer-core-*-cli.jar --config installer.json --version 0.1.0 --out dist --publish
 ```
 
-(The jar's name carries the installer's own version. Use whichever `-cli.jar` your build wrote.) Leave out
+(The jar's name carries the installer's own version, so the shell's `*` picks whichever `-cli.jar` your build
+wrote.) Leave out
 `--publish` to see what would be written first.
 
 Commit what it wrote to `dist` (`install.ps1`, `uninstall.ps1`, `update.ps1`, `manifest.json` and a README) to the
@@ -77,8 +80,11 @@ jars instead of executables are all options; the [installer's README](https://gi
 lists them, and `"fileAssociations"` in [Vex's installer.json](https://github.com/sibarum/text-editor-vexel-demo/blob/main/installer.json)
 is a worked example.
 
+For Linux, add a `linux` section beside `windows`, naming the `target-linux/my-app` executable. The same run then
+also writes `install.sh`, `uninstall.sh` and `update.sh`; the installer's README shows the section.
+
 ## 3. Telling people
 
-Say what it is, what it needs (Windows 10 or 11, a GPU with an up-to-date Vulkan driver), and that it is built on
+Say what it is, what it needs (Windows 10 or 11 or Linux, a GPU with an up-to-date Vulkan driver), and that it is built on
 a framework before v1. If you would like it listed alongside the suite's applications,
 [open an issue](https://github.com/sibarum/vexelray-framework/issues/new) with a link and a screenshot.
