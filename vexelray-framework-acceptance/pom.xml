@@ -44,6 +44,11 @@
         </dependency>
     </dependencies>
 
+    <properties>
+        <!-- Where the generated projects are written; see acceptance.dir below. -->
+        <acceptance.root>${project.build.directory}/acceptance</acceptance.root>
+    </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -56,7 +61,10 @@
                         <acceptance.maven>${maven.home}</acceptance.maven>
                         <acceptance.repository>${settings.localRepository}</acceptance.repository>
                         <acceptance.version>${project.version}</acceptance.version>
-                        <acceptance.dir>${project.build.directory}/acceptance</acceptance.dir>
+                        <!-- -Dacceptance.root moves it: a generated project's deepest file (native-image metadata)
+                             is nearly 270 characters from the root of a checkout on a VMware shared folder, which the
+                             Windows host behind it refuses past about 245. Point it at a local directory there. -->
+                        <acceptance.dir>${acceptance.root}</acceptance.dir>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

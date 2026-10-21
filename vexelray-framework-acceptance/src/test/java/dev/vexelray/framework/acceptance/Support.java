@@ -142,8 +142,24 @@ final class Support {
 
         /** Where javac put the wiring the processor generated. */
         Path wiring() {
-            return dir.resolve("target/generated-sources/annotations/" + packageName.replace('.', '/') + "/"
-                    + appClass + "Wiring.java");
+            return dir.resolve(BUILD_DIRECTORY + "/generated-sources/annotations/" + packageName.replace('.', '/')
+                    + "/" + appClass + "Wiring.java");
+        }
+    }
+
+    /**
+     * What a generated project's build directory is called here: {@code target}, or {@code target-linux} on Linux,
+     * where the template's pom builds into a directory of its own as this repository's does. Read from this module's
+     * own build, which the same profile named.
+     */
+    static final String BUILD_DIRECTORY = buildDirectory();
+
+    private static String buildDirectory() {
+        try {
+            return Path.of(Support.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent()
+                    .getFileName().toString();
+        } catch (java.net.URISyntaxException e) {
+            throw new IllegalStateException("cannot locate the acceptance module's own output", e);
         }
     }
 

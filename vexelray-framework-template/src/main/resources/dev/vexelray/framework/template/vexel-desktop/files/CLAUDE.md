@@ -72,7 +72,7 @@ A script is one command per line: `settle`, `tree`, `click <landmark>`, `type <t
 `await <landmark> <text>`, `shot <file.png>`. It stops at the first failure. Screenshots come only from `ottermate`.
 Never add a `--capture` flag, a robot or a screen grab to the application.
 
-When a run fails, read `target/logs/${appName}.log` before changing code. Under automation it is at trace level.
+When a run fails, read `target/logs/${appName}.log` (`target-linux/logs/` on Linux) before changing code. Under automation it is at trace level.
 
 ## The two documents
 
