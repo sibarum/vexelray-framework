@@ -1,6 +1,8 @@
 package dev.vexelray.framework.shell;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.charset.StandardCharsets;
@@ -18,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Finding a sibling application through the installer's records, against records shaped the way
  * {@code install.ps1} writes them: {@code ConvertTo-Json} from Windows PowerShell 5.1, two-space indent, every
- * backslash doubled, and an apostrophe as {@code '}.
+ * backslash doubled, and an apostrophe as {@code '}. Linux's {@code install.sh} writes the same record.
  */
 final class AppsTest {
 
@@ -71,6 +73,47 @@ final class AppsTest {
         Path exe = Files.writeString(tmp.resolve("mf.exe"), "MZ");
         record(tmp, "mainframe", commands("mf", exe));
         assertEquals(Optional.of(exe), Apps.find(tmp, "mainframe"));
+    }
+
+    /**
+     * The records are in the installer's folder of the OS's per-user data folder. Which folder that is, is the
+     * platform module's ({@code NativePlatform.userDataDir}), tested there.
+     */
+    @Test
+    void theRecordsAreInTheInstallersFolderOfThePlatformsDataFolder() {
+        Path installs = Path.of("/data/ann", "vexelray-installer", "installs");
+        assertEquals(Optional.of(installs), Apps.registryDir(null, Optional.of(Path.of("/data/ann"))));
+        assertEquals(Optional.of(installs), Apps.registryDir(" ", Optional.of(Path.of("/data/ann"))),
+                "a blank override is no override");
+    }
+
+    @Test
+    void theInstallersOverrideComesFirst() {
+        assertEquals(Optional.of(Path.of("/tmp/regs")),
+                Apps.registryDir("/tmp/regs", Optional.of(Path.of("/data/ann"))));
+        assertEquals(Optional.of(Path.of("/tmp/regs")), Apps.registryDir("/tmp/regs", Optional.empty()),
+                "even where the platform names no data folder");
+    }
+
+    @Test
+    void aPlatformWithNoDataFolderHasNoRecords() {
+        assertEquals(Optional.empty(), Apps.registryDir(null, Optional.empty()));
+    }
+
+    /** A Linux record: forward slashes, and a jar's command is its launcher, a shell script started directly. */
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void spawnStartsALinuxLauncherScript(@TempDir Path tmp) throws Exception {
+        Path bin = Files.createDirectories(tmp.resolve("opt").resolve("text-editor"));
+        Path marker = tmp.resolve("ran");
+        Path launcher = Files.writeString(bin.resolve("text-editor"),
+                "#!/bin/sh\nprintf '%s' \"$1\" > '" + marker + "'\n");
+        assertTrue(launcher.toFile().setExecutable(true), "the installer makes it executable");
+        record(tmp.resolve("installs"), "text-editor", commands("text-editor", launcher));
+        Process p = Apps.spawn(tmp.resolve("installs"), "text-editor", "a b.txt").orElseThrow();
+        assertTrue(p.waitFor(30, TimeUnit.SECONDS), "it ran and finished");
+        assertEquals(0, p.exitValue());
+        assertEquals("a b.txt", Files.readString(marker));
     }
 
     @Test

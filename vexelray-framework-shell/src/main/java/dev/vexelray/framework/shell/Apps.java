@@ -1,6 +1,7 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
+import dev.vexelray.os.NativePlatform;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -17,11 +18,11 @@ import java.util.Optional;
  * {@code vexelray-installer}, into a folder of its own.
  *
  * <p><b>Where the answer comes from.</b> The installer writes one record per install,
- * {@code <registryDir>\<id>.json}, and each lists {@code commands.<name>.path}: the absolute path of every
+ * {@code <registryDir>/<id>.json}, and each lists {@code commands.<name>.path}: the absolute path of every
  * executable that install placed. Only the install knows where an application went, and a native image cannot
- * carry it (a resource is fixed when the exe is built), so the records are the shared file. The directory is
- * {@code %LOCALAPPDATA%\vexelray-installer\installs}, or {@code INSTALL_REGISTRY_DIR} when that is set, which is
- * the installer's own override for tests.
+ * carry it (a resource is fixed when the exe is built), so the records are the shared file. The record is the same
+ * on Windows and on Linux; only the folder differs. The installer puts it in the OS's per-user data folder, which
+ * the platform module says ({@link NativePlatform#userDataDir()}), so nothing here knows which OS it is on.
  *
  * <p><b>What this does not do.</b> It does not say what arguments one application passes another: that is the
  * applications' own business, agreed between them, since the suite is built in lock-step and a framework convention
@@ -29,7 +30,7 @@ import java.util.Optional;
  * new window, which outlives the one that started it. Such a start is ephemeral, and should neither restore nor
  * write a saved session (see {@code docs/TODO.md}, <i>settings and the session</i>).
  *
- * <p>Windows only, as the installer is. Elsewhere there is no record to find, and {@link #find} is empty.
+ * <p>Where the installer has no target (macOS, so far) there is no record to find, and {@link #find} is empty.
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class Apps {
@@ -40,16 +41,21 @@ public final class Apps {
     private Apps() {
     }
 
-    /** Where the installer keeps its records on this machine. */
-    public static Path registryDir() {
-        String override = System.getenv(REGISTRY_ENV);
+    /**
+     * Where the installer keeps its records on this machine: {@code INSTALL_REGISTRY_DIR} when that is set, else
+     * {@code vexelray-installer/installs} in the OS's per-user data folder ({@link NativePlatform#userDataDir()}).
+     * Empty where the platform names no such folder.
+     */
+    public static Optional<Path> registryDir() {
+        return registryDir(System.getenv(REGISTRY_ENV), NativePlatform.current().userDataDir());
+    }
+
+    /** As {@link #registryDir()}, with the override and the OS's per-user data folder given. */
+    static Optional<Path> registryDir(String override, Optional<Path> userDataDir) {
         if (override != null && !override.isBlank()) {
-            return Path.of(override);
+            return Optional.of(Path.of(override));
         }
-        String local = System.getenv("LOCALAPPDATA");
-        Path base = local != null && !local.isBlank() ? Path.of(local)
-                : Path.of(System.getProperty("user.home"), "AppData", "Local");
-        return base.resolve("vexelray-installer").resolve("installs");
+        return userDataDir.map(d -> d.resolve("vexelray-installer").resolve("installs"));
     }
 
     /**
@@ -57,7 +63,7 @@ public final class Apps {
      * decides what to say about that.
      */
     public static Optional<Path> find(String id) {
-        return find(registryDir(), id);
+        return registryDir().flatMap(dir -> find(dir, id));
     }
 
     /**
@@ -96,14 +102,16 @@ public final class Apps {
      * Start the application installed as {@code id} with {@code args}, as a new process with its own window.
      * Empty when it is not installed.
      *
-     * <p>Started directly, with no {@code cmd.exe} in between: a native exe needs no shell quoting, and each
-     * argument arrives as one argument however many spaces it has. Its output goes nowhere, because nothing
-     * would read it and a full pipe would stall it.
+     * <p>Started directly, with no shell in between: a native executable needs no shell quoting, and each
+     * argument arrives as one argument however many spaces it has. On Linux a jar's command is its launcher, a
+     * shell script the installer made executable, and the kernel starts that by its {@code #!} line just the same.
+     * Its output goes nowhere, because nothing would read it and a full pipe would stall it.
      *
      * @throws IOException if it is installed and could not be started
      */
     public static Optional<Process> spawn(String id, String... args) throws IOException {
-        return spawn(registryDir(), id, args);
+        Optional<Path> dir = registryDir();
+        return dir.isEmpty() ? Optional.empty() : spawn(dir.get(), id, args);
     }
 
     /** As {@link #spawn(String, String...)}, against {@code registryDir}. */
