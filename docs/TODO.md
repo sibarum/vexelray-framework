@@ -573,12 +573,52 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         it is royalty-free, with BSD-licensed encoders, where x264 is GPL. It has coding tools made for screen
         content, palette mode and intra block copy, which are what flat UI and text need. And Matroska stamps every
         frame with its own time, so a loop that presents nothing while idle is recorded as it happened, with no
-        repeated frames. It means adding an encoder and a muxer to `ffmpeg-wrapper`'s pinned build, which today
-        decodes only.
-      - **Open: which encoder.** SVT-AV1 (`libsvtav1`) is the one built for real time, and has a screen-content mode.
-        libaom is the reference and slow. rav1e is Rust, which the toolchain already has for `imagelib-wrapper`.
-        Its screen-content support is not checked. Hardware AV1 encoders exist only on recent GPUs, so a fallback
-        to software is needed anyway. Whatever is chosen has to keep up at window size on a laptop CPU.
+        repeated frames. The pinned build already held the encoders and the Matroska muxer, so no library was
+        added.
+      - **Built 2026-10-21: the encoder, SVT-AV1 in real-time mode, with the GPU's as an option.**
+        `ffmpeg-wrapper`'s `Ffmpeg.record` (a `Recording`: RGBA8 frames with their times in, AV1 in `.mkv` or
+        `.webm` out) and `vexelray-codec-video`'s `Recorder` (offered frames from any thread, never waits, encodes
+        on its own thread, drops and counts what it cannot queue). At 1080p it takes about 7 ms a frame in software
+        and 4 ms with NVENC, on the Core Ultra 7 255HX laptop. `Encoder.HARDWARE` tries NVENC, then Quick Sync, then
+        AMF, and falls back to SVT-AV1. libaom was ruled out as too slow. rav1e was not measured. Windows is built
+        and tested. The Linux build script compiles the encoder in too, but has not been run on Linux yet, and
+        VAAPI is not wired, so Intel and AMD GPUs on Linux record in software. Whether SVT-AV1's screen-content
+        detection engages on a real window is not measured.
+      - **Decided 2026-10-21: a window resized while recording stays on one canvas.** The recording is opened at
+        the screen's size, and each frame goes at its top left, unscaled, on black. A larger frame is cut to fit.
+        AV1 can change size from frame to frame, but Matroska's track header holds one size and players differ on
+        which they believe. The canvas plays everywhere. Its black added 4% to the file, but the encoder works on
+        the whole canvas, so CPU follows the screen's size, not the window's: about three times as much for a
+        quarter-screen window. The tap
+        hands over each frame at the window's size and the screen's size at the start, and the recorder handles
+        the rest.
+      - **Built 2026-10-21: the frame tap, the camera's menu, the save dialog and a `record` verb.** A person can
+        start and stop a recording, and so can a script. What is where:
+        - `vexelray`: `WindowPresenter.tap(FrameTap)`, and `FrameTapRing`, shared by `DxgiPresenter` and
+          `WindowedPresenter`. Each presented frame is copied, in its own command buffer, into one of three mapped
+          host-cached buffers, and handed over in order once its fence has signalled (`vkGetFenceStatus`, which
+          never blocks). A frame that finds every buffer held is skipped, not waited for. The swapchain now asks for
+          `TRANSFER_SRC`. `PresenterTapTest` covers the swapchain path on a real window.
+        - `vexelray-gui-core`: `WindowControls.tap` and `workArea`. `WindowRecorder` is the seam a codec module
+          fills through `ServiceLoader`, so the GUI links no encoder. `WindowRecording` holds the process's one
+          recording: start, stop, the camera's `LIVE`, a file finished when its window closes, and a shutdown hook.
+          `WindowInstrument.camera` and its filled-lens mark. An instrument's `menu` is now told its window.
+        - `vexelray-gui-nfd`: `SaveRecording`, the menu (*Take screenshot…*, *Record video to file…* or
+          *Stop recording*) and the save dialog. `SaveScreenshot.instrument()` returns it when a recorder is on
+          the class path.
+        - `vexelray-gui-automation`: `record <path>`, `record stop` and `record`. There is no ottermate `film`
+          sink yet.
+        - `vexelray-codec-video`: `WindowVideoRecorder`, encoding BGRA straight from the mapped buffer, with the
+          last frame held until the stop (`Recording.repeat`).
+        - `ffmpeg-wrapper`: a cluster closes every second and every packet is flushed, so a killed process leaves a
+          file that plays.
+
+        Checked on the video player under ottermate on Windows (DXGI): 1080p video in a 1280x760 window, 182
+        frames in 7.3 s, none dropped. The frame recorded at the moment of a `shot` matched the screenshot at 38 dB.
+        Stopping from the menu, closing the window and killing the process each leave a file that plays. **Not
+        run on Linux.** The native save dialog was not driven, because a background run must not raise one at the
+        person, so *Record video to file…* has been clicked by no one yet. `-Dvexelray.vulkan.validation` was
+        not available, so the copies have not been checked by the validation layer.
       - **Asked 2026-10-21: a stepped recording.** Kronometer drives the clock while recording, and each
         presented frame advances logical time by exactly one video frame, however long it took to draw, read back
         and encode. The window may stutter for the person watching it, but the file plays perfectly smoothly.
