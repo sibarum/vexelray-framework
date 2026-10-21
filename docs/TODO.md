@@ -546,6 +546,14 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       metals, animated, so not a one-colour field), Vex's and the template's unsaved dot, and PictureViewer's Loop,
       which borrows `REFRESH`.
 
+- [ ] **The template's `.gitignore` is five lines** (`-template`, `vexel-desktop/files/gitignore`): `target/`,
+      `capture*.png` and three IDEs. It misses `.claude/`, which every sibling repo ignores by hand, along with the
+      JVM's crash and profiling dumps, the native build's leftovers beside `target/`, and OS files. Found
+      2026-10-20 in `vexelray-scheduler`, whose root `.gitignore` (`49a16b5`) is the one to copy: sections per
+      source, `!**/src/**/target/` as `vexelray-gui` has it, and captures by name rather than a blanket `*.png`.
+      Its Lean section is that repo's own and can stay there. The applications already generated (mainframe, Vex,
+      the calculator, Vexplore, the inspector) keep their copies until someone updates each by hand.
+
 - [ ] **`VEXELRAY_AUTOMATION` opens the socket but does not set the log mode** (atchung `LogConfig`, or
       `-shell`'s `Logs.start`). `Driver` reads the variable since 2026-10-18; `LogConfig.systemSetting` maps the
       `automation` key to an environment variable named `AUTOMATION`, so a run asked for only through the
