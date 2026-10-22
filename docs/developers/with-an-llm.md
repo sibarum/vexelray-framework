@@ -147,6 +147,13 @@ which step went wrong. `key` takes chords too (`key CTRL+S`), so every shortcut 
 the application logs everything at trace level to `target/logs/<app>.log`. Ask the agent to read that log when a run
 fails, before it starts changing code.
 
+## At the end of a milestone
+
+Ask for the retrospective as its own request, in the same session, before you describe the next milestone. The
+generated `CLAUDE.md` tells the agent to write one, but an agent that is told the work is done tends to move on.
+[Looking back at a milestone](retrospective.md) has the request to paste and what to check in the answer. The section
+to read closely is the agent's own mistakes, because that is the one it leaves out.
+
 ## When it gets stuck
 
 | Symptom | Usually |

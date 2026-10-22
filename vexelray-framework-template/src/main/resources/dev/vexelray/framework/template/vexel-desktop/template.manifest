@@ -156,6 +156,7 @@ file README.md
 
 file CLAUDE.md
 file docs/framework-notes.md
+file docs/retrospective.md
 file docs/TODO.md
 
 # A file's source is a plain name inside files/, and its path is where it lands, so

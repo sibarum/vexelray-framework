@@ -27,6 +27,7 @@ looking for something, look in the table below first.
 | Understand how the framework works | [Overview](../overview.md), then [Architecture](../architecture.md) for the deep version |
 | Tell a gap in the framework from a mistake of mine | [TODO.md](../TODO.md), and [what v1 means](../v1.md) |
 | Report something missing or wrong | Write it in your project's `docs/framework-notes.md`, then [open an issue](https://github.com/sibarum/vexelray-framework/issues/new) |
+| Look back at a finished milestone | [Looking back at a milestone](retrospective.md): the retrospective, in your project's `docs/retrospective.md` |
 
 ## What you are signing up for
 
@@ -50,9 +51,10 @@ looking for something, look in the table below first.
 | | by hand, in Vex | **[Coding in Vex](in-vex.md)** |
 | | when it needs a view of its own | **[Building a custom view](custom-view.md)** and **[Making it move](motion.md)** |
 | 5 | Check it the way a person would, with `ottermate` | [Getting started §7](../getting-started.md#7-drive-it-and-take-screenshots), and the [ottermate guide](https://github.com/sibarum/vexelray-gui/blob/master/docs/guides/ottermate.md) |
-| 6 | Build the executable and give people a one-line installer | **[Shipping it](shipping.md)** |
+| 6 | At the end of each milestone, read it back and write down what it showed | **[Looking back at a milestone](retrospective.md)** |
+| 7 | Build the executable and give people a one-line installer | **[Shipping it](shipping.md)** |
 
-Most people do step 4 both ways: an agent for the large, well-described changes, and an editor for reading what it
+Steps 4 to 6 repeat once per milestone. Most people do step 4 both ways: an agent for the large, well-described changes, and an editor for reading what it
 wrote and for the small fixes that are quicker to make than to explain.
 
 ## What the template gives you

@@ -7,7 +7,9 @@ would break an application that compiled before. Most of it is what the ports tu
 [the text editor found](architecture.md#what-porting-the-text-editor-found), and what
 [the designer found](architecture.md#what-porting-the-designer-found) — where the gaps each port
 closed, and the reasoning behind each, are recorded — and, since October, what the applications generated from the
-template wrote in their own `docs/framework-notes.md`.
+template wrote in their own `docs/framework-notes.md`. Since 2026-10-22 each milestone of an application ends in a
+[retrospective](developers/retrospective.md) in its `docs/retrospective.md`, and its numbered proposals come here,
+under *Found by \<application\>*, each linking back to the section it came from.
 
 Keep an entry short enough that it does not need editing, and delete it when it is done rather than
 ticking it. An entry whose fix belongs in a sibling repo says which one; the ones under **Upstream**

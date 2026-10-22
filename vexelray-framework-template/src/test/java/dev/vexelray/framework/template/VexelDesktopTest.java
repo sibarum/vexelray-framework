@@ -89,6 +89,7 @@ class VexelDesktopTest {
         assertNotNull(blueprint.entry("pom.xml"));
         assertNotNull(blueprint.entry(".gitignore"));
         assertNotNull(blueprint.entry("docs/framework-notes.md"));
+        assertNotNull(blueprint.entry("docs/retrospective.md"));
     }
 
     @Test
