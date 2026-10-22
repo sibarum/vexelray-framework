@@ -1,8 +1,12 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.core.Launch;
+import dev.vexelray.os.NativePlatform;
+import sibarum.probe.LogConfig;
 import sibarum.probe.Logging;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,5 +44,31 @@ final class Logs {
             settings.put("log.level", level);
         }
         Logging.configure(info.name(), null, settings);
+        keepStandardError();
+    }
+
+    /**
+     * Give standard error somewhere to go when the process has none, and read in what an earlier one left there.
+     *
+     * <p>The installed build is a GUI-subsystem program, so it starts with no standard error. Before this, what was
+     * only ever written there was lost, and a crash left no trace: a native fault's report from the image's runtime,
+     * the stack {@code Fatal.HALT} prints after {@link Faults} has logged its one line. Now {@code System.err}
+     * becomes log records, and native standard error goes to a file of this process's own, which the next start
+     * reads into the log ({@link Logging#recoverStandardError}).
+     */
+    private static void keepStandardError() {
+        LogConfig config = Logging.config();
+        if (!config.fileEnabled()) {
+            return;
+        }
+        Logging.recoverStandardError();
+        Path file = config.stderrFile(ProcessHandle.current().pid());
+        try {
+            if (NativePlatform.current().redirectStandardError(file)) {
+                Logging.captureStandardError(file);
+            }
+        } catch (RuntimeException e) {
+            Diagnostics.dropped("Logs.keepStandardError", "standard error kept in the log", e.toString());
+        }
     }
 }
