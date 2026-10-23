@@ -341,6 +341,10 @@ public final class VexelApplication {
         if (!shell.dialogsDecided()) {
             shell.frameworkDialogs(disposer.register(new NativeDialogs(app, modals, shell.lanes().handlers())));
         }
+        // A machine that cannot draw this application five times a second is offered simplified graphics, through
+        // whichever Dialogs the application asks with. Always on, for the same reason as the stall report below: a
+        // slow machine does not throw, it only reads as a bad application. See SlowFrames for when, and what follows.
+        app.slowFramesOffer(new SlowFramesPrompt(shell.dialogs()));
         // The window exists at last, so the bar can be given controls that actually work and the instruments
         // that use them. Both in one place, because an instrument without real controls is the exact failure
         // automation.md 7 records: "every other window had a screenshot button that neither worked nor
