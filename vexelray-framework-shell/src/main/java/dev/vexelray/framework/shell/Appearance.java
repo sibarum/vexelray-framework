@@ -41,7 +41,11 @@ import java.util.List;
  * @param minWidth    the narrowest the layout stays coherent at — a floor, not the design size. {@code null}
  *                    for no floor, which is what an application that has not thought about it should get
  *                    rather than a number the framework invented
- * @param minHeight   the shortest, on the same terms
+ * @param minHeight   the shortest, on the same terms: what cannot scroll (title bar, status bar, a body worth
+ *                    scrolling), not the content's height. A window under it scrolls as a whole, so one as tall
+ *                    as content a growing body already scrolls shows two scrollbars side by side whenever a saved
+ *                    size or a short screen opens the window under it (vexelray-gui's
+ *                    docs/reference/scrolling.md §2, §3)
  * @param decorations whether the application draws its own frame ({@link Decorations#CLIENT}, and then it gets
  *                    a framework title bar) or the OS draws it ({@link Decorations#SYSTEM})
  * @param instruments the framework tools in the title bar. By default a screenshot button that asks where to
