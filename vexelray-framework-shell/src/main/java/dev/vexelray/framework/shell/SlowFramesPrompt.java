@@ -14,8 +14,8 @@ import java.util.function.Consumer;
  * that answers, a kiosk that answers nothing) is the one asked here too. A question, not an error: nothing has failed,
  * and the user has a real choice, so it says what it costs and what it does not.
  *
- * <p>The switch is live: nothing the user has open is lost, and if it does not help, it is taken back by itself
- * ({@link SlowFrames}). Kept, it is saved for every VexelRay application on this machine.
+ * <p>The switch is live: nothing the user has open is lost. If it helps, it is saved for every VexelRay application on
+ * this machine; if it does not, it stays on for the session and is not saved ({@link SlowFrames}).
  */
 final class SlowFramesPrompt implements SlowFrames.Offer {
 
@@ -36,9 +36,8 @@ final class SlowFramesPrompt implements SlowFrames.Offer {
         return Modal.of("This is drawing slowly",
                         "This machine is managing about " + perSecond + (perSecond == 1 ? " frame" : " frames")
                                 + " a second. Simplified graphics draws without shading effects or animation,"
-                                + " which is often much faster.\n\nSwitch now? Nothing you have open is lost. If it"
-                                + " helps, every VexelRay application will start with it; if it does not, it is"
-                                + " turned off again.")
+                                + " which is much less work for the machine.\n\nSwitch now? Nothing you have open is"
+                                + " lost. If it helps, every VexelRay application will start with it.")
                 .severity(Modal.Severity.QUESTION)
                 .defaultButton("Switch to simplified graphics", () -> answer.accept(SlowFrames.Answer.SWITCH))
                 .button("Don't ask again", () -> answer.accept(SlowFrames.Answer.NEVER))
