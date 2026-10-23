@@ -19,11 +19,18 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 They are separate programs that know about each other: a text file in Vexplore opens in Vex and a picture in
 Pix, and Vex can show any file in Vexplore.
 
-**[Install them](https://sibarum.github.io/)** with one line of PowerShell, on Windows, for your user only. This is 0.1.0, an
-experimental prerelease:
+**[Install them](https://sibarum.github.io/)** with one line, for your user only. This is 0.1.1, an experimental
+prerelease. On Windows, in PowerShell:
 
 ```powershell
 irm https://sibarum.github.io/install.ps1 | iex
+```
+
+On Linux, in a terminal, with no `sudo`. These are snapshot builds (0.1.2-SNAPSHOT) of Vex, Pix, MainFrame,
+Calculator and VexelRay Inspector; the others are not on Linux yet:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/sibarum/vexelray-dist/main/preflight/install.sh | sh
 ```
 
 ## The framework
