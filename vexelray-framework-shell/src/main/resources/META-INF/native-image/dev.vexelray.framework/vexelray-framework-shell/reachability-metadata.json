@@ -7,7 +7,10 @@
       "glob": "dev/vexelray/framework/shell/new-app-background.ico"
     },
     {
-      "glob": "dev/vexelray/framework/shell/vexelray-logo-*.png"
+      "glob": "dev/vexelray/framework/shell/vexelray-logo.pair"
+    },
+    {
+      "glob": "dev/vexelray/framework/shell/vexelray-logo-*.vxpx"
     }
   ]
 }

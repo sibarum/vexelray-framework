@@ -111,6 +111,35 @@
     <build>
         <plugins>
             <!--
+              The VexelRay mark as an art pair, for the About window to condense: its shape as a two-range
+              distance field and its colour at each display scale, baked from the drawing the logo is made from.
+              The orb is lifted out of the shape, since the window lands a live one where it sits.
+            -->
+            <plugin>
+                <groupId>dev.vexelray.gui</groupId>
+                <artifactId>vexelray-gui-icons-maven-plugin</artifactId>
+                <version>${vexelray.gui.version}</version>
+                <executions>
+                    <execution>
+                        <id>about-art</id>
+                        <goals>
+                            <goal>pair</goal>
+                        </goals>
+                        <configuration>
+                            <pairs>
+                                <pair>
+                                    <art>src/main/rc/vexelray-logo.svg</art>
+                                    <name>dev/vexelray/framework/shell/vexelray-logo</name>
+                                    <sizes>52,104,156,208</sizes>
+                                    <field>128</field>
+                                    <lift>orb</lift>
+                                </pair>
+                            </pairs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
               Pre-compile FrameworkShader to SPIR-V at build time, as vexelray-canvas does the core set:
               META-INF/supirvast/shaders/canvas.frag.<hash>.spv in this jar. Without it the shader is lowered on
               the main thread at every application's startup, and said to be. The plugin scans this module's

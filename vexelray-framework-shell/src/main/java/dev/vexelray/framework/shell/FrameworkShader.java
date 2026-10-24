@@ -3,6 +3,7 @@ package dev.vexelray.framework.shell;
 import dev.vexelray.canvas.CanvasShader;
 import dev.vexelray.canvas.shadelet.Composition;
 import dev.vexelray.canvas.shadelet.CoreShadelets;
+import dev.vexelray.shadelets.Condense;
 import dev.vexelray.shadelets.Effects;
 import dev.vexelray.text.FieldType;
 import dev.vexelray.text.FontSet;
@@ -13,7 +14,8 @@ import java.util.Set;
 /**
  * The canvas shader every application on the framework draws with: the core set, and the effects the framework's own
  * widgets ask for. Today that is {@link Effects#WEIGHT}, which the theme's {@code IconEffects.STANDARD} thickens an
- * {@code IconButton}'s icon with under the pointer; without it the icon stays still and the first hover says so once.
+ * {@code IconButton}'s icon with under the pointer, without which the icon stays still and the first hover says so once;
+ * and {@code Condense}'s source and painters, which the About window's marks and orb are drawn with ({@link AboutIntro}).
  *
  * <p>Only what a standard widget names, not {@link Effects#ALL}: every shadelet composed in is a branch in the one
  * fragment stage every pixel runs. An effect only the application draws is the application's to compose.
@@ -46,6 +48,7 @@ public final class FrameworkShader extends CanvasShader.Composed {
     }
 
     private static Composition withEffects(FieldType text) {
-        return CoreShadelets.composition(text).with(List.of(Effects.WEIGHT));
+        return CoreShadelets.composition(text)
+                .with(List.of(Effects.WEIGHT, Condense.MTSDF, Condense.CONDENSE, Condense.ORB));
     }
 }

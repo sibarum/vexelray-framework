@@ -271,7 +271,9 @@ public final class VexelApplication {
         wiring.tree(shell);
         // The About window, which the mark on every title bar opens. Last in TREE, so it is declared after every
         // window of the application's, and an application that declared its own "about" keeps it. See About.
-        return About.declare(shell, info, shell.build());
+        // The icon it names is where its art pair is found; one it built in code has none.
+        return About.declare(shell, info, shell.build(), wiring.getClass(),
+                info.icon() == null ? wiring.icon() : null);
     }
 
     private static void build(Wiring wiring, Shell shell, Disposer disposer, AppInfo info, Launch launch,
@@ -365,7 +367,7 @@ public final class VexelApplication {
         // The mark on every bar opens the About window, as the native caption's icon opens the system menu. Here, once
         // every bar wears its mark, and with the logo uploaded, since its sizes are textures too.
         if (about != null) {
-            about.attach(app);
+            about.attach(app, mark);
             String tip = "About " + About.name(info, shell.build());
             Runnable open = about.window()::show;
             shell.titleBar().onMark(tip, open);

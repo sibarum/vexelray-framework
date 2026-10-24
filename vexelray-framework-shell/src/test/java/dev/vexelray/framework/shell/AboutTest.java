@@ -57,14 +57,16 @@ class AboutTest {
                 "An Application Whose Proper Name Runs On For A While", "2026-10-24T10:00:00Z",
                 "https://example.dev/NOTICES.txt",
                 Map.of(BuildInfo.FRAMEWORK, "https://github.com/sibarum/vexelray-framework/issues"));
-        // Its opening width and narrower, at zoom 1. The logo (96dp, which no zoom changes) is the one width of its own
-        // left, so the narrowest is the logo and the padding; the acceptance run adds a zoomed one.
+        // Its opening width and narrower, at zoom 1. Under the window's minimum the page is laid out at the minimum and
+        // the window scrolls as a whole, which was asked for; nothing inside it may scroll sideways on its own. The
+        // acceptance run adds a zoomed one.
         for (float[] size : new float[][] {{440f, 480f}, {300f, 480f}, {160f, 480f}}) {
             dev.vexelray.diag.Diagnostics.reset();
             try (dev.vexelray.gui.core.Gui g = new dev.vexelray.gui.core.Gui(sibarum.atchung.Atchung.create())) {
-                dev.vexelray.gui.core.Node logo = g.box().size(dev.vexelray.gui.core.layout.Length.dp(96),
-                        dev.vexelray.gui.core.layout.Length.dp(96));
-                g.root().children(About.content(g, About.name(INFO, worst), worst, logo));
+                dev.vexelray.gui.core.Node mark = g.box().size(About.MARK, About.MARK);
+                About.minimum(g);
+                About.Page page = About.content(g, About.name(INFO, worst), worst, mark);
+                g.root().children(page.body(), page.foot());
                 g.frame(size[0], size[1], dev.vexelray.gui.core.text.TextFaces.standard());
                 List<String> unasked = dev.vexelray.diag.Diagnostics.recorded().stream()
                         .filter(m -> m.startsWith("a horizontal scrollbar nobody asked for")).toList();
