@@ -96,7 +96,7 @@ final class About {
             }
         }
         String name = name(info, build);
-        Window window = windows.named(NamedWindow.of(KEY, "About " + name, 440, 420).satellite());
+        Window window = windows.named(NamedWindow.of(KEY, "About " + name, 440, 480).satellite());
         Gui g = window.gui();
 
         Node logo = g.box().role("about-logo").size(LOGO, LOGO).scroll(false, false);
@@ -106,21 +106,27 @@ final class About {
             about.showLogo();
         });
 
-        Node title = text(g, name).role("about-name").textSize(Length.rem(1.5f)).fontWeight(600).textColor(Role.INK);
-        Node coordinates = text(g, build.coordinates()).role("about-coordinates").textColor(Role.DIM);
+        // Every text here is as wide as the window and wraps inside it, because none of it has a width of its own: a
+        // name, a version and a source are the build's, as long as the build makes them, and a line that can only
+        // widen is a horizontal scrollbar the first time one is long ("+ uncommitted changes" was).
+        Node title = line(g, name).role("about-name").textSize(Length.rem(1.5f)).fontWeight(600).textColor(Role.INK);
+        Node coordinates = line(g, build.coordinates()).role("about-coordinates").textColor(Role.DIM);
 
         Tooltip tips = new Tooltip(g);
-        Node facts = g.column().role("about-facts").gap(Length.rem(0.3f)).margin(Length.rem(0.6f));
+        Node facts = g.column().role("about-facts").width(Length.FILL).gap(Length.rem(0.3f))
+                .padding(Length.rem(0.6f), Length.ZERO);
         for (Map.Entry<String, String> fact : facts(build).entrySet()) {
-            Node value = text(g, fact.getValue()).role("about-" + fact.getKey().toLowerCase(java.util.Locale.ROOT))
-                    .textColor(Role.INK);
+            Node value = g.text(fact.getValue()).role("about-" + fact.getKey().toLowerCase(java.util.Locale.ROOT))
+                    .width(Length.grow(1f)).textColor(Role.INK);
             if (fact.getKey().equals("Build") && build.known()) {
                 // The short commit reads; the exact source, digest and all, is what a bug report wants.
                 tips.attach(value, build.source());
             }
-            facts.append(g.row().gap(Length.rem(0.8f)).alignItems(AlignItems.CENTER).children(
-                    text(g, fact.getKey()).width(Length.rem(4.5f)).textColor(Role.DIM)
-                            .align(TextLayout.HAlign.RIGHT, TextLayout.VAlign.MIDDLE),
+            // The labels take a share of the row rather than a width, so the gutter between label and value stays
+            // near the middle of the window however wide it is.
+            facts.append(g.row().width(Length.FILL).gap(Length.rem(0.8f)).children(
+                    g.text(fact.getKey()).width(Length.percent(38f)).textColor(Role.DIM)
+                            .align(TextLayout.HAlign.RIGHT, TextLayout.VAlign.TOP),
                     value));
         }
 
@@ -134,15 +140,18 @@ final class About {
                 .onPress(() -> Links.open(issues));
         report.node().role("about-issues");
         g.landmark("about-issues", report.node());
-        Node links = g.row().gap(Length.rem(0.6f)).children(licenses.node(), report.node());
+        // One above the other: a button is the one thing here that cannot wrap, and side by side they were the widest
+        // thing on the page.
+        Node links = g.column().alignItems(AlignItems.CENTER).gap(Length.rem(0.4f))
+                .children(licenses.node(), report.node());
 
         Node body = g.column().width(Length.FILL).height(Length.FILL).alignItems(AlignItems.CENTER)
                 .padding(Length.rem(1.5f), Length.rem(1.5f)).gap(Length.rem(0.35f))
                 .children(logo, title, coordinates, facts, links);
         String framework = frameworkVersion(build);
         if (framework != null) {
-            body.append(text(g, "Built on the VexelRay Framework " + framework).role("about-framework")
-                    .textSize(Length.rem(0.75f)).textColor(Role.FAINT).margin(Length.rem(0.6f)));
+            body.append(line(g, "Built on the VexelRay Framework " + framework).role("about-framework")
+                    .textSize(Length.rem(0.75f)).textColor(Role.FAINT).padding(Length.rem(0.6f), Length.ZERO));
         }
         TitleBar bar = window.titleBar();
         g.root().background(Role.PAGE).children(bar.node(), body);
@@ -238,8 +247,9 @@ final class About {
         return beside != null && Files.isRegularFile(beside) ? beside.toString() : address;
     }
 
-    private static Node text(Gui g, String s) {
-        return g.text(s).wordWrap(false);
+    /** A centred line as wide as the body, wrapping when what it says is wider. */
+    private static Node line(Gui g, String s) {
+        return g.text(s).width(Length.FILL).align(TextLayout.HAlign.CENTER, TextLayout.VAlign.TOP);
     }
 
     /** {@code image}'s straight {@code 0xAARRGGBB} pixels as the straight RGBA8 bytes a texture takes. */
