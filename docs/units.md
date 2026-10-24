@@ -1,7 +1,7 @@
 # Units of position and size
 
 An audit of every public API on the stack that takes or returns a position, size, offset or scale, done on
-2026-10-05 after the text editor's [FN-20](../../text-editor-vexel-demo/docs/framework-notes.md) put it as
+2026-10-05 after the text editor's [FN-20](https://github.com/sibarum/text-editor-vexel-demo/blob/develop/docs/framework-notes.md) put it as
 *"the public geometry API speaking three units"*. It turned out to be more than three. Below: what exists, what is
 wrong today, why most of it is invisible, and a recommended unified system. **Nothing here is ruled yet.** The
 proposal at the end is a recommendation for the user to accept, change or reject, and each decision in it says

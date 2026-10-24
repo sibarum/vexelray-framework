@@ -902,7 +902,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
 ### Found by Vexplore
 
 The first application built on the generated template by someone other than its authors: a file explorer
-(`../vexplore`, with [its own notes](../../vexplore/docs/framework-notes.md)). Generating it, building it,
+(`../vexplore`, with [its own notes](https://github.com/sibarum/vexplore/blob/develop/docs/framework-notes.md)). Generating it, building it,
 reaching a screenshot and driving it with `ottermate` all worked, and the layout came out close to the design on
 the first build — so what follows is friction, not failure. Ordered by how early a newcomer meets it. None
 of it would break an application compiled before it lands, which is why it is here and not above; **the first
@@ -980,7 +980,7 @@ onboarding is the goal.
       project starts on the component. The `-template` acceptance run will show whether the template still builds.
       **Done:** `Ui` uses `Button`; FN-0 is gone. The acceptance run builds and drives it.
 
-**Second round (actions and modifier keys)** — [FN-12 to FN-15](../../vexplore/docs/framework-notes.md). Nothing here
+**Second round (actions and modifier keys)** — [FN-12 to FN-15](https://github.com/sibarum/vexplore/blob/develop/docs/framework-notes.md). Nothing here
 blocks v1, and one thing worked better than expected: the processor's compile errors (a record behind `@Provides`;
 `GuiApp` injected into something that is not `@MainThread`) were each right and each named the fix.
 
@@ -1002,8 +1002,8 @@ blocks v1, and one thing worked better than expected: the processor's compile er
 
 ### Found by the rebuilt editor and calculator
 
-Vex (the text editor, [its notes](../../text-editor-vexel-demo/docs/framework-notes.md)) and the calculator
-([its notes](../../calculator-vexel-demo/docs/framework-notes.md)) were generated from the template in October 2026
+Vex (the text editor, [its notes](https://github.com/sibarum/text-editor-vexel-demo/blob/develop/docs/framework-notes.md)) and the calculator
+([its notes](https://github.com/sibarum/calculator-vexel-demo/blob/develop/docs/framework-notes.md)) were generated from the template in October 2026
 and rebuilt fresh. What took their requirements unmodified is the larger half (the generator, phase inference, one
 `Settings`, window memory, the title bar, the close gate's place, `Launch.rest()`, the dialogs, the logging), and an
 editor with tabs, a navigator, a close gate and a remembered session has no line of application edge. What they
@@ -1101,7 +1101,7 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       reliable for work that should not block.
 
 - [ ] **The layout has no wrapping row, and the palette has one accent** (`vexelray-gui-core`). Found by
-      Vexplore ([FN-5, FN-6](../../vexplore/docs/framework-notes.md)). Chips that flow onto the next line are
+      Vexplore ([FN-5, FN-6](https://github.com/sibarum/vexplore/blob/develop/docs/framework-notes.md)). Chips that flow onto the next line are
       counted two to a row by hand, which is right at one zoom and wrong at another; the design wants teal for
       *selected* and amber for *the application is speaking*, and gets the second by borrowing `Palette.action`,
       whose documented meaning is the fill of a filled control. `Role` being an open functional interface made the
