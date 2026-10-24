@@ -9,6 +9,7 @@ import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.WindowControls;
+import dev.vexelray.gui.core.app.AppHome;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
@@ -25,6 +26,7 @@ import dev.vexelray.os.WindowConfig;
 import sibarum.kronometer.Dur;
 import sibarum.kronometer.anim.Ease;
 
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -221,6 +223,7 @@ public final class VexelApplication {
     private static void toTree(Wiring wiring, Shell shell, Disposer disposer, AppInfo info) {
         // ---- CONFIG: the settings store, and the look. Both are values; neither needs a Gui. -------------
         shell.phase(Phase.CONFIG);
+        adoptFormerHome(info.name(), wiring.formerNames());
         shell.settings(Settings.open(info.name()));
         wiring.config(shell);
 
@@ -295,6 +298,7 @@ public final class VexelApplication {
         // is shown wearing it rather than corrected into it a frame later. See AppInfo.icon for why the same
         // mark is then named on the window's own config as well. The application's if it named one, the
         // framework's if not: see Mark.
+        installAppId(wiring.appId());
         Icon mark = Mark.of(wiring, info);
         installMark(mark);
         shell.windowMark(Mark.window(wiring, info, mark));
@@ -450,6 +454,44 @@ public final class VexelApplication {
         } catch (RuntimeException e) {
             Diagnostics.dropped("VexelApplication.installMark", "the application's icon",
                     e + "; its windows wear the OS default instead");
+        }
+    }
+
+    /**
+     * After a rename, what the application kept under a former name becomes its own: the first former name with a
+     * settings directory moves to the current name's, before anything opens it, and only while the current one does
+     * not exist. Not fatal: a directory that cannot be moved costs the user their settings, reported, and nothing else.
+     */
+    private static void adoptFormerHome(String name, List<String> formerNames) {
+        AppHome home = AppHome.of(name);
+        for (String former : formerNames) {
+            try {
+                if (home.adopt(former)) {
+                    LOG.info("renamed: the settings of {} are now {}'s ({})", former, name, home.dir());
+                    return;
+                }
+            } catch (RuntimeException e) {
+                Diagnostics.dropped("VexelApplication.adoptFormerHome", "the settings kept under " + former,
+                        e + "; " + name + " starts with its own");
+                return;
+            }
+        }
+    }
+
+    /**
+     * Name the process's windows after the application, so the desktop shows them under its desktop entry and icon.
+     * Before the first window, since a desktop decides whose a window is when it appears. Not fatal, for the reason
+     * {@link #installMark} is not.
+     */
+    private static void installAppId(String id) {
+        if (id == null) {
+            return;
+        }
+        try {
+            NativePlatform.current().setApplicationId(id);
+        } catch (RuntimeException e) {
+            Diagnostics.dropped("VexelApplication.installAppId", "the application id",
+                    e + "; the desktop cannot match its windows to its desktop entry");
         }
     }
 

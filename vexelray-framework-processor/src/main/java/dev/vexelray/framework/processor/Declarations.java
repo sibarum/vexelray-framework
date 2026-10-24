@@ -25,6 +25,7 @@ import javax.tools.Diagnostic;
 import javax.tools.StandardLocation;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -478,6 +479,47 @@ final class Declarations {
                     + " resource " + path + " on the class output or the class path. The name is resolved as"
                     + " Class.getResource resolves one: relative to " + Mirrors.simple(app) + "'s package, or"
                     + " absolute with a leading /. A file in src/main/resources/" + path + " is one it finds");
+        }
+    }
+
+    /**
+     * The name and the names it had before agree with the installer. The installer records the install under its
+     * {@code id}, and the application finds its own record (and its settings directory) by its {@code @VexelApp} name,
+     * so the two are one value; a rename changes both, and lists the old one in {@code formerNames} and in the
+     * installer's {@code replaces} alike. Not the other way round: a former name may never have been an install id,
+     * when only the settings directory was renamed. vexelray-build reads {@code installer.json} into the bill, where this finds
+     * it; without one, only the former names themselves are checked.
+     */
+    void names(TypeElement app, AnnotationMirror vexelApp, Filer filer) {
+        String name = mirrors.string(vexelApp, "name");
+        List<String> former = mirrors.strings(vexelApp, "formerNames");
+        for (String f : former) {
+            if (f.isBlank() || f.equals(name) || f.matches(".*[/\\\\].*") || f.equals(".") || f.equals("..")) {
+                error(app, "@VexelApp " + Mirrors.simple(app) + " lists \"" + f + "\" among its formerNames, and a former"
+                        + " name is a settings directory name other than its own: one path segment, not blank");
+                return;
+            }
+        }
+        java.util.Properties bill = BuildBill.read(filer);
+        String installerId = bill == null ? null : bill.getProperty("installer.id");
+        if (installerId == null) {
+            return;
+        }
+        if (!installerId.equals(name)) {
+            error(app, "@VexelApp " + Mirrors.simple(app) + " is named \"" + name + "\", but its installer.json has the id \""
+                    + installerId + "\". They are one value: the application finds its install record, for updates, by its"
+                    + " name. Make them the same, and when it is a rename, list the old one in formerNames and in"
+                    + " installer.json's replaces");
+            return;
+        }
+        String replaces = bill.getProperty("installer.replaces", "");
+        List<String> listed = replaces.isBlank() ? List.of() : List.of(replaces.split(","));
+        java.util.Set<String> installer = new java.util.TreeSet<>(listed);
+        installer.removeAll(former);
+        if (!installer.isEmpty()) {
+            error(app, "@VexelApp " + Mirrors.simple(app) + " does not list " + installer + " among its formerNames, but"
+                    + " its installer.json replaces " + (installer.size() == 1 ? "it" : "them") + ". A rename needs both:"
+                    + " the installer moves the install, and the framework moves the settings directory");
         }
     }
 

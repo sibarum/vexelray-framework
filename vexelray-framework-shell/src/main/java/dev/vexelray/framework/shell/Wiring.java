@@ -54,6 +54,26 @@ public abstract class Wiring {
     }
 
     /**
+     * The name the application's windows go by on the desktop, which a dock matches against its installed desktop
+     * entry to show its icon ({@code NativePlatform.setApplicationId}). The generated wiring bakes in the bill's
+     * {@code app.id}: {@code <groupId>.<artifactId>} unless the pom overrides it ({@code vexelray-build/README.md}).
+     * Otherwise the coordinates of {@link #build()}, and {@code null} when those are unknown too, which leaves the
+     * windows without one.
+     */
+    public String appId() {
+        BuildInfo b = build();
+        return "-".equals(b.group()) || "-".equals(b.artifact()) ? null : b.group() + "." + b.artifact();
+    }
+
+    /**
+     * The names the application had before ({@code @VexelApp(formerNames)}), whose settings directory the shell moves
+     * to the current name's on the first launch after a rename. None, the default, for an application never renamed.
+     */
+    public java.util.List<String> formerNames() {
+        return java.util.List.of();
+    }
+
+    /**
      * The message graph the application declares, as the bus-graph text (vexelray-inspector
      * {@code docs/bus-circuit.md}, version 1): its components, its other publishers, every {@code @Subscribe} mailbox
      * and every {@code @Publishes} topic. The generated wiring answers a constant, possibly with nothing in it but its

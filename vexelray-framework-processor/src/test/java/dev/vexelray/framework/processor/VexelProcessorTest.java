@@ -108,6 +108,8 @@ class VexelProcessorTest {
                 public abstract class Wiring {
                     public abstract AppInfo info();
                     public BuildInfo build() { return null; }
+                    public String appId() { return null; }
+                    public java.util.List<String> formerNames() { return java.util.List.of(); }
                     public String busGraph() { return null; }
                     public boolean computeQueue() { return false; }
                     public String icon() { return null; }
@@ -353,6 +355,60 @@ class VexelProcessorTest {
     }
 
     @Test
+    void theBillsAppIdIsBakedInWhereThePomOverrodeIt() throws Exception {
+        String bill = String.join("\n",
+                "group=dev.example", "artifact=demo-vexel-demo", "version=0.1.0-SNAPSHOT",
+                "commit=ef816d9a", "dirty=false", "digest=", "source=ef816d9a", "app.id=dev.example.demo",
+                "stack.count=0") + "\n";
+        Compiled compiled = buildWith(Map.of(BuildBill.RESOURCE, bill), """
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.errors());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("public String appId() {\n        return \"dev.example.demo\";"), wiring);
+    }
+
+    @Test
+    void formerNamesAreBakedInAndMustMatchWhatTheInstallerReplaces() throws Exception {
+        String bill = String.join("\n", "group=dev.example", "artifact=demo", "version=0.1", "commit=c", "dirty=false",
+                "digest=", "source=c", "app.id=dev.example.demo", "installer.id=demo", "installer.replaces=old,older",
+                "stack.count=0") + "\n";
+        Compiled agreed = buildWith(Map.of(BuildBill.RESOURCE, bill), """
+                @VexelApp(name = "demo", title = "Demo", formerNames = {"older", "old"})
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), agreed.errors());
+        assertTrue(Files.readString(agreed.out().resolve("app/DemoAppWiring.java"))
+                .contains("public java.util.List<String> formerNames() {\n        return java.util.List.of(\"older\", \"old\");"));
+
+        Compiled missing = buildWith(Map.of(BuildBill.RESOURCE, bill), """
+                @VexelApp(name = "demo", title = "Demo", formerNames = "old")
+                public final class DemoApp {}
+                """);
+        assertTrue(missing.errors().stream().anyMatch(e -> e.contains("does not list [older]")), missing.errors().toString());
+
+        Compiled settingsOnly = buildWith(Map.of(BuildBill.RESOURCE, bill), """
+                @VexelApp(name = "demo", title = "Demo", formerNames = {"old", "older", "demo-vexel-demo"})
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), settingsOnly.errors(), "a former name that was never an install id is fine");
+
+        Compiled renamedOnlyHere = buildWith(Map.of(BuildBill.RESOURCE, bill), """
+                @VexelApp(name = "fresh", title = "Demo", formerNames = {"old", "older"})
+                public final class DemoApp {}
+                """);
+        assertTrue(renamedOnlyHere.errors().stream().anyMatch(e -> e.contains("has the id \"demo\"")),
+                renamedOnlyHere.errors().toString());
+
+        Compiled self = buildWith(Map.of(), """
+                @VexelApp(name = "demo", title = "Demo", formerNames = "demo")
+                public final class DemoApp {}
+                """);
+        assertTrue(self.errors().stream().anyMatch(e -> e.contains("formerNames")), self.errors().toString());
+    }
+
+    @Test
     void withoutABillTheWiringLeavesTheBuildUnknown() throws Exception {
         Compiled compiled = buildWith(Map.of(), """
                 @VexelApp(name = "demo", title = "Demo")
@@ -360,6 +416,7 @@ class VexelProcessorTest {
                 """);
         assertEquals(List.of(), compiled.errors(), "a note, not an error: an application built without the plugin");
         assertFalse(Files.readString(compiled.out().resolve("app/DemoAppWiring.java")).contains(" build() {"));
+        assertFalse(Files.readString(compiled.out().resolve("app/DemoAppWiring.java")).contains(" appId() {"));
     }
 
     // --- @VexelApp(icon) -------------------------------------------------------------------------------------

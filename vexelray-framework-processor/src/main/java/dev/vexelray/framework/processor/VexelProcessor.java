@@ -171,6 +171,7 @@ public final class VexelProcessor extends AbstractProcessor {
         AnnotationMirror vexelApp = mirrors.find(type, VexelApp.class);
         declarations.starters(type, vexelApp);
         declarations.icon(type, vexelApp, processingEnv.getFiler());
+        declarations.names(type, vexelApp, processingEnv.getFiler());
         for (TypeMirror starter : mirrors.types(vexelApp, "starters")) {
             TypeElement config = Mirrors.element(starter);
             if (config != null && config.getKind() == ElementKind.CLASS && mirrors.has(config, Configuration.class)) {

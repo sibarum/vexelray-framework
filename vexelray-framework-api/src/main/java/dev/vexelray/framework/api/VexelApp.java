@@ -24,9 +24,11 @@ import java.lang.annotation.Target;
  * reference — which is what all three ported applications write. Today the class it names is hand-written; the
  * annotation changes nothing about the call, only about who types the class.
  *
- * <p><b>{@link #name()} is not cosmetic.</b> It is the settings directory — {@code $HOME/.{name}/} — so it is
- * the one value here that, changed after a release, loses a user's window placement and open files. The other
- * three are first-run defaults, which window memory overwrites the moment there is anything remembered.
+ * <p><b>{@link #name()} is not cosmetic.</b> It is the settings directory — {@code $HOME/.{name}/} — and the id
+ * the installer records the install under, so changing it after a release is a rename: list the old name in
+ * {@link #formerNames()}, and in the installer's {@code replaces}, or the user loses their window placement and
+ * open files. The other three are first-run defaults, which window memory overwrites the moment there is anything
+ * remembered.
  *
  * <p><b>Checked and generated.</b> {@code vexelray-framework-processor} allows one per compilation, requires every
  * starter to be a {@link Configuration}, and generates the {@code <Name>Wiring} the {@code main} above names, beside
@@ -43,6 +45,14 @@ public @interface VexelApp {
      * remembered under. Stable across releases, or the user loses their placement.
      */
     String name();
+
+    /**
+     * The names this application had before, oldest or newest first, it does not matter. On its first launch under
+     * {@link #name()}, the settings directory of a former name moves to the new one, if the new one does not exist
+     * yet, so a rename keeps what the user had. The installer's {@code replaces} lists the same names, and the
+     * processor checks that it does, when vexelray-build has read {@code installer.json} into the build bill.
+     */
+    String[] formerNames() default {};
 
     /** The main window's title. */
     String title();

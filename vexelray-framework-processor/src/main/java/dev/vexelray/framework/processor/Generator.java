@@ -651,6 +651,13 @@ final class Generator {
                         .append(literal(stack.get(i)));
             }
             src.append("));\n    }\n");
+            // The name its windows go by on the desktop, which the pom may have set apart from the coordinates. A bill
+            // from before the plugin wrote it leaves Wiring's default, the coordinates, which is the same thing.
+            String appId = bill.getProperty("app.id");
+            if (appId != null && !appId.isBlank()) {
+                src.append("\n    @Override\n    public String appId() {\n        return ").append(literal(appId.trim()))
+                        .append(";\n    }\n");
+            }
         } else {
             report.printMessage(javax.tools.Diagnostic.Kind.NOTE, "the build identity of " + qualified
                     + " is unknown: its pom does not run vexelray-build-maven-plugin's identify goal, so the"
@@ -678,6 +685,14 @@ final class Generator {
         // and its window and background variants with it (pix-window.ico and pix-background.ico beside pix.ico, see
         // the shell's Mark.window and Mark.background), which the shell looks for and is not obliged to find: a glob
         // that matches nothing registers nothing.
+        List<String> former = mirrors.strings(vexelApp, "formerNames");
+        if (!former.isEmpty()) {
+            src.append("\n    @Override\n    public java.util.List<String> formerNames() {\n        return java.util.List.of(");
+            for (int i = 0; i < former.size(); i++) {
+                src.append(i == 0 ? "" : ", ").append(literal(former.get(i)));
+            }
+            src.append(");\n    }\n");
+        }
         String icon = mirrors.string(vexelApp, "icon");
         if (!icon.isEmpty()) {
             src.append("\n    @Override\n    public String icon() {\n        return ").append(literal(icon))
