@@ -79,8 +79,17 @@ final class WindowsTest {
         // Two trees on one bus each receive the other's mutations, and the main window drew the calculator's
         // settings for it (FN-2). The lanes are shared, so a window is not a set of threads.
         assertNotSame(shell.bus(), w.gui().bus(), "a second window's tree is on the application's bus");
-        // Gui wraps the handler lane it is given, so the offload lane is the one that can be compared.
-        assertSame(shell.lanes().offload(), w.gui().offload(), "a second window has an offload lane of its own");
+        // Gui wraps both lanes it is given (each hop carries its cause, vexelray-gui af5bfd1), so they are compared by
+        // where their work runs rather than by identity: on the application's offload thread, not one of the window's.
+        assertEquals(threadOf(shell.lanes().offload()), threadOf(w.gui().offload()),
+                "a second window has an offload lane of its own");
+    }
+
+    /** The name of the thread {@code lane} runs a task on. */
+    private static String threadOf(java.util.concurrent.Executor lane) {
+        java.util.concurrent.CompletableFuture<String> name = new java.util.concurrent.CompletableFuture<>();
+        lane.execute(() -> name.complete(Thread.currentThread().getName().replaceAll("-\\d+$", "")));
+        return name.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).join();
     }
 
     @Test

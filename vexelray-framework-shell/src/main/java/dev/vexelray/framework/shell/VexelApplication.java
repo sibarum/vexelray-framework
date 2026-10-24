@@ -109,6 +109,9 @@ public final class VexelApplication {
 
         Shell shell = new Shell(launch, info);
         shell.build(wiring.build());
+        // Before anything from the stack runs: a part installed over the one this was built against fails only when the
+        // code that differs first runs, so its cause is said here, where the crash's reader will find it (StackCheck).
+        StackCheck.report(shell.build(), VexelApplication.class.getClassLoader());
         shell.busGraph(wiring.busGraph());
         shell.arguments(java.util.Arrays.asList(argv));
         try (Disposer disposer = shell.disposer()) {
