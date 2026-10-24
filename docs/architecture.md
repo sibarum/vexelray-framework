@@ -1598,7 +1598,7 @@ reconciler rather than a rule for the application to keep. A resize or zoom is r
 window that slid its contents on every drag of the edge would be seasick, and that was the documented reason
 `Transitions` was opt-in at all. A node moved on every frame (a split dragged, a subtree grown by a ramp) is followed after
 two frames rather than chased, because a second clock on a position the hand is steering leaves it trailing. And
-a container whose children are a view over data says `recycles(true)`, so a virtualised list's realized rows do not
+a container that owns its children's motion says `childMotion(false)`, so a virtualised list's realized rows do not
 fade in as it scrolls. **What it costs:** default motion asks code to keep its nodes and change them, so a list rebuilt from
 new nodes is briefly twice its height, and a page swapped by `remove()` and `append()` shows both pages for 140 ms. The
 first is what `Node.keyed` is for, and the motion guide's traps table names both.

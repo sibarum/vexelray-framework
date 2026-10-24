@@ -30,7 +30,7 @@ import sibarum.kronometer.anim.Ease;
  *       ramp: vexelray-gui's {@code Displacement.settle} follows those rather than chasing them.</li>
  *   <li><b>A node added</b> fades up and rises a little into its place; <b>one removed</b> fades out where it stands
  *       before it leaves, and stops taking the pointer at once ({@link Presence}). A virtualised list's rows are a
- *       view the user scrolled, not additions, and its container says so ({@code Node.recycles}).</li>
+ *       view the user scrolled, not additions, and its container says so ({@code Node.childMotion(false)}).</li>
  *   <li><b>A zoom step</b> glides ({@code Gui.zoomGlide}): the zoom keys re-lay the whole window, which in one frame is
  *       the largest jump a window can make (the scheduler's FN-6). {@code Gui.zoom(float)} stays at once.</li>
  * </ul>

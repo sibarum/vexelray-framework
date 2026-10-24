@@ -24,13 +24,23 @@ README's *Motion* section is the short version of this page.
 Since 2026-10-24 moves, arrivals and departures are on by default in every window the framework builds, the main one
 and every named one alike. Three things are deliberately not motion, so a whole window can be enrolled without
 seasickness: a resize or a zoom (the window moving under the user's hand), a node moved on every frame by a drag or
-by someone else's ramp (followed, not chased, after its first two frames), and the rows of a virtualised list, whose
-container says `recycles(true)` (`ListView`, and so `Table` and `Select`, already do). A node whose colour is data
-rather than state (a cell coloured by its value) says `paintCuts(true)`.
+by someone else's ramp (followed, not chased, after its first two frames), and the children of a container that says
+`childMotion(false)`. `ListView` (and so `Table` and `Select`) says it, because its rows are a view the user scrolls,
+and so do `TreeView` and `Board`, which move their own rows. Say it on a container of yours that animates its
+children itself, or whose children track something drawn. A node whose colour is data rather than state (a cell
+coloured by its value) says `paintCuts(true)`, and a colour an application ramps by hand, frame by frame, is followed
+rather than faded behind. A node shown again with `visible(true)` appears where it is; it does not slide from where
+it was hidden.
 
-**What default motion asks of you: keep the nodes and change them.** A list rebuilt from new nodes on every change is
-every row leaving and every row arriving, and since a leaving row keeps its place until it has faded, the list is
-briefly twice its height. Draw a list with `Node.keyed` and it keeps, moves, adds and removes rows by key.
+**A panel rebuilt whole is a replacement.** Removing everything a container holds and appending new nodes is the
+commonest way to redraw one, and the framework treats it as a replacement: the old children are lifted out of the
+flow and fade out where they stood, in half the time, and the new ones take their places and fade in after. No
+doubling, and no two pages seen through each other. A container that keeps any child is edited, not replaced: a
+removed row keeps its place while it fades, and then the gap closes.
+
+**What default motion still asks of you: keep the nodes and change them.** A row that is rebuilt cannot slide to its
+new place, because the node that would move is not the one on screen. Draw a list with `Node.keyed` and it keeps,
+moves, adds and removes rows by key.
 
 Everything else cuts unless you make it move. The rest of this page is how.
 
@@ -162,9 +172,10 @@ camera records as well as photographs*). Until it lands, the burst is the check,
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Nothing slides | Your own `gui.motion(...)` replaced the framework's and does not enrol the node | `followSubtree(gui.root(), ...)` on yours, or attach none |
-| A list doubles its height for a moment, then shrinks | The view rebuilds its children: every row leaves and every row arrives | `Node.keyed`: keep a node per key and change it ([Building a custom view](custom-view.md)) |
-| Swapping one page for another shows both for a moment | `remove()` of the old page lets it fade where it stands, and the new one arrives after it | Keep both and switch with `visible(...)`, or lift the old one out with `floatAt` first (*A region replaced whole*) |
-| Rows fade in as a list of your own scrolls | It realizes rows as it scrolls and does not say so | `recycles(true)` on the container whose children it recycles |
+| A list cross-fades whole on every change instead of moving the rows that changed | The view rebuilds its children, so the framework sees a replacement | `Node.keyed`: keep a node per key and change it ([Building a custom view](custom-view.md)) |
+| A button rebuilt beside kept siblings shows twice for a moment | The container kept something, so it is an edit: the old button keeps its place while it fades | Keep the button and change it, or move it with `append` |
+| Your own animation of a container's children fights the window's | Both move the same nodes | `childMotion(false)` on that container |
+| Rows fade in as a list of your own scrolls | It realizes rows as it scrolls and does not say so | `childMotion(false)` on the container whose children it recycles |
 | A pooled marker passes through its last owner's colour | Its colour is data, and colours fade | `paintCuts(true)` on that node |
 | A fading-out node you faded by hand still takes clicks | Opacity is visual only | `remove()` it and let the framework fade it; or `hitInert(true)` as it starts to leave |
 | The page wobbles at the start of something growing | A size animated frame by frame: the first two frames are chased | Take the full size at once, fade it in, let the rest slide |
