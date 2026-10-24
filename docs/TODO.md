@@ -628,11 +628,13 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         decoding build's 125), its libraries suffixed `-rec` so both builds load in one process. `vexelray-codec-record`
         holds `Recorder` and `WindowVideoRecorder`. The template and every generated application depend on it, so
         every camera records. `bootstrap.sh` now installs ffmpeg-wrapper (building the encoder, which on Windows needs
-        MSYS2) and vexelray-codec. **Left:** a native image of an application finds the encoder only in an
-        `ffmpeg-record` folder beside its executable, and no application's native build stages one yet, so a
-        native build shows *Record video to file…* and fails when it is clicked. Each needs Pix's `ffmpeg-beside`
-        step for `ffmpeg-wrapper-record-<os>`, its installer archive, and FFmpeg's and SVT-AV1's notices. The Linux
-        encoder build is written and not run.
+        MSYS2) and vexelray-codec. A native image finds the encoder only in an `ffmpeg-record` folder beside its
+        executable, so every native build (the template's too) stages one there as Pix stages `ffmpeg`
+        (`ffmpeg-record-beside`, `ffmpeg-record-zip`, and `ffmpeg-record-tar` in `native-linux`), every
+        `installer.json` installs it as `<id>-ffmpeg-record`, and `vexelray-dist/notices/notices.py` points every
+        app's notices at FFmpeg's and SVT-AV1's licences and patent licence in that folder. Checked on the
+        calculator's native debug build under ottermate (`record`, `record stop`: AV1 through SVT-AV1, no frame
+        dropped). The Linux encoder build, and so the Linux staging, is written and not run.
       - **Asked 2026-10-21: a stepped recording.** Kronometer drives the clock while recording, and each
         presented frame advances logical time by exactly one video frame, however long it took to draw, read back
         and encode. The window may stutter for the person watching it, but the file plays perfectly smoothly.
