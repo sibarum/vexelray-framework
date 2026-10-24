@@ -6,6 +6,9 @@
 native executable.** `vexelray-framework` is the way into it: you write the parts of your application, and the
 framework wires the window, the input, the clock, the frame loop, the threads and the shutdown for you.
 
+**The stack's home is [sibarum.github.io](https://sibarum.github.io/)**: the applications built on it and how to
+install them, the technology, the design, and these documents.
+
 ```java
 @VexelApp(name = "notes", title = "Notes", width = 1180, height = 720)
 final class NotesApp {
