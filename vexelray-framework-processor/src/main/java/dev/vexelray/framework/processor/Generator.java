@@ -127,6 +127,11 @@ final class Generator {
         List<? extends VariableElement> parameters() {
             return provider != null ? provider.method().getParameters() : constructor(component).getParameters();
         }
+
+        /** A recipe run for its effect: called in its phase, holding nothing afterwards. */
+        boolean effect() {
+            return provider != null && provider.effect();
+        }
     }
 
     /** One field of the wiring: a type, and every binding that may write it — one per mode, at most. */
@@ -268,6 +273,9 @@ final class Generator {
             }
         }
         for (Binding b : bindings) {
+            if (b.effect()) {
+                continue;   // provides nothing: no field, no accessor, and nothing can take it
+            }
             slotFor(b.type).writers.add(b);
             b.slot = slotFor(b.type);
         }
@@ -798,6 +806,19 @@ final class Generator {
         for (Arg a : b.args) {
             args.append(sep).append(a.expression());
             sep = ", ";
+        }
+        if (b.effect()) {
+            // Called for what it does. Nothing to hold, hand back, close or report as absent.
+            ExecutableElement method = b.provider.method();
+            String target = method.getModifiers().contains(Modifier.STATIC)
+                    ? b.provider.configuration().getQualifiedName().toString()
+                    : configurations.get(b.provider.configuration());
+            src.append(indent).append(target).append('.').append(Mirrors.simple(method)).append('(').append(args)
+                    .append(");\n");
+            if (guard) {
+                src.append("        }\n");
+            }
+            return;
         }
         String field = b.slot.field;
         src.append(indent).append(field).append(" = ");

@@ -684,19 +684,53 @@ class VexelProcessorTest {
                 }
                 """);
         onlyError(errors, "returns Restored, an empty record, which reads as a recipe run for its effect");
-        onlyError(errors, "return a package-private final class as a marker");
+        onlyError(errors, "return void, and the wiring calls it in the phase its parameters put it in");
         assertFalse(errors.get(0).contains("Return an interface"), errors.get(0));
     }
 
+    /**
+     * A recipe run for its effect returns void: called once, in the phase its parameters put it in, and holding
+     * nothing. Two of them are not a conflict, since neither provides anything (Vex's {@code Restored}, Pix's window
+     * binding and the template's close gate each returned a marker to get past the error this used to be).
+     */
     @Test
-    void aVoidProviderIsToldTheMarkerShape() {
+    void aVoidRecipeRunsForItsEffectInItsPhase() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                final class Session {}
+                """, """
+                @Configuration
+                final class Recipes {
+                    @Provides Session session() { return new Session(); }
+                    @Provides void restore(Session session, dev.vexelray.gui.core.Gui gui) {
+                        dev.vexelray.framework.shell.Shell.LOG.add("restored " + (session != null));
+                    }
+                    @Provides void arm() { dev.vexelray.framework.shell.Shell.LOG.add("armed"); }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertFalse(wiring.contains(" restore;") || wiring.contains(" restore()  {"), wiring);
+        assertTrue(wiring.contains("recipes.restore(session, shell.gui());"), wiring);
+
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
+        assertEquals(List.of("armed"), run.phase("config"), "no parameters: the first phase");
+        assertEquals(List.of(), run.phase("model"));
+        assertEquals(List.of(), run.phase("gui"));
+        assertEquals(List.of("restored true"), run.phase("tree"), "it takes the Gui, so it runs where the Gui is handed out");
+    }
+
+    @Test
+    void aVoidRecipeTakingTheMainThreadSaysToMarkIt() {
         onlyError(app("""
                 @Configuration
                 public final class AppConfig {
-                    @Provides public void restore() {}
+                    @Provides public void bind(dev.vexelray.gui.core.app.GuiApp app) {}
                 }
-                """), "returns void, so it provides nothing. A recipe run for its effect still has to return"
-                + " something for now: return a package-private final class as a marker");
+                """), "A recipe run for its effect that takes a main-thread value runs on the main thread: mark"
+                + " AppConfig.bind @MainThread to say so");
     }
 
     @Test

@@ -9,12 +9,16 @@ import sibarum.kronometer.anim.Ease;
 /**
  * The application's one tempo, on the framework's clock.
  *
- * <h2>Motion is opt-in, so it is easy to lose</h2>
+ * <h2>What the window does already, and what is handed over here</h2>
  *
- * <p>A widget animates only when it is handed a {@link Ramp} — {@code Tabs.slide}, {@code TreeView.motion},
- * {@code Cues} — and without one it cuts. So leaving the clock out costs no error and no warning, only a stiffer
- * window. That is deliberate in the widget shelf (vexelray-gui-widget knows nothing about time, and reduced motion
- * is simply not handing one over), and it is why the ramps are made here, in one place, from one clock.
+ * <p>Every window the framework builds already fades its colours, slides a node that layout moved, and fades a node
+ * up as it is added and down before it is removed (the framework's {@code WindowMotion}). Nothing here has to ask for
+ * that. What it asks of this code is to keep the nodes and change them: a list rebuilt from new nodes is every row
+ * leaving and every row arriving, so use {@code Node.keyed} for anything drawn from a list.
+ *
+ * <p>A widget's own motion is different: it animates only when it is handed a {@link Ramp} ({@code Tabs.slide},
+ * {@code TreeView.motion}, {@code Cues}), and without one it cuts. That is deliberate in the widget shelf
+ * (vexelray-gui-widget knows nothing about time), and it is why the ramps are made here, in one place, from one clock.
  *
  * <p>Two durations, and they differ on purpose. A change — a tab arriving, a folder opening — should be over before
  * Ctrl+Tab held down could want the next one. A cue has to be <em>noticed</em>, and once its attack and release

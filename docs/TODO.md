@@ -992,6 +992,10 @@ blocks v1, and one thing worked better than expected: the processor's compile er
       *when the window exists* and returns nothing the container needs to hold would say it in one line. Narrower
       than it was: the folder dialog it was found with (Vexplore's `Chooser`) is the framework's `Dialogs` since
       2026-10-11, which hold a question until there is a window, so only the device is left late-bound.
+      **Narrower again, 2026-10-24:** a `@Provides` may return `void` now, so a `@MainThread` recipe that binds a
+      tree-phase part to the device is one method with no marker. What is left is an effect that has to be undone at
+      close: it still returns an `AutoCloseable`, and two of those are two providers of one type, which Pix had to merge
+      into one.
 
 - [ ] **`settle` does not wait for the handler and offload lanes.** The rest of this entry landed in
       `vexelray-gui-automation`: chords in `key` (2026-10-12), and `await <landmark>` with no text, `keydown` and
@@ -1013,14 +1017,6 @@ calculator's crash on closing a second window (FN-4, see architecture.md, *the f
 `Popout`'s shared bus (calculator FN-2), the stall behind a file dialog on Windows (Vex FN-7's update), and a
 generated project with no motion (FN-12: the template builds `Motion`). The rest:
 
-- [ ] **A recipe run for its effect has no shape.** Arming the close gate and restoring a session produce nothing,
-      and a `@Provides` returning `void` is an error ("provides nothing"), as is one returning a record. Vex returns
-      an empty marker class (`Recipes.Restored`), which the wiring stores and exposes; Pix's window binding (above,
-      *a part that needs the device later*) returns an `AutoCloseable` and had to merge two late-bound parts into one
-      provider because two would be ambiguous. Three applications, one missing thing: a recipe the wiring runs for effect in
-      its inferred phase. Accepting `void` later removes an error, so it is additive. The messages no longer send
-      such a recipe to an interface (2026-10-18): `void`, an empty record and the record rule each name the marker
-      class and the `AutoCloseable`.
 
 - [ ] **`onCommitLatest` makes a committer wait on another thread's listener** (atchung, Vex FN-4). Commit while
       holding a lock the listener takes and it deadlocks, with nothing thrown; and the order it keeps is among its own
@@ -1046,6 +1042,49 @@ generated project with no motion (FN-12: the template builds `Motion`). The rest
       a node does not clip its own glyphs, and there is no ellipsis (`wordWrap(false)` on a label now holds); no
       current-line or active-gutter role; `TreeView` has one item per row; a sliding tab indicator is sixty lines
       every application with tabs writes. Additive; the units half of FN-20 is [units.md](units.md).
+
+### Found by reading the applications back together (2026-10-24)
+
+A pass over the framework notes of the Scheduler, Maistro, the Inspector, the calculator and MainFrame, looking for the
+traps a fresh context falls into *again*, and for the API that would make the right path the easy one rather than a
+rule to remember. Four shapes: motion was opt-in, so new applications shipped with none; names and defaults gave a
+plausible wrong picture with no error; values and threads the wiring could not reach drove applications outside the
+model; and windows and automation were only partly modelled. What landed is in architecture.md, *what reading the
+applications back together found*. What is left, by shape:
+
+- [ ] **Motion: what the window still does not move by itself** (upstream, `vexelray-gui`). A widget's own motion is
+      still opt-in: `Tabs.slide`, `TreeView.motion` and `Cues` cut unless handed a `Ramp`, and the template's
+      `Motion.java` exists to hand them one. A default ramp on the `Gui` that a widget takes when it is handed none
+      would close it, and would need a core type for the ramp, since `Ramp` is the widget module's. Also open:
+      `scrollIntoView` and navigation reveal at once (Scheduler FN-4; gliding them means navigation and undo, which
+      read where things are the next frame, have to read where the glide is heading); words change in one frame
+      (FN-2, a crossfade only the renderer can do, and `TitleBar.title` is out of an application's reach); and the
+      zoom glide steps on `System.nanoTime()` as the wheel does, so it joins *one clock for everything that moves*
+      under the camera entry.
+- [ ] **Default departures double a page swapped by `remove()` and `append()`** (`vexelray-gui`'s `Presence`). The
+      leaving page keeps its place while it fades, so the new one arrives below it for 140 ms. `visible(...)` swaps,
+      which `Tabs` and the core docs already recommend, are unaffected, and motion.md lists the trap. A leaving node
+      whose parent gains an arrival in the same edit could float where it stands instead; not built, because nothing
+      has needed it yet.
+- [ ] **A value the wiring cannot reach** (`-processor`, `-shell`). A setting that takes the rest of the command line
+      (`@Setting(rest = true)`, Inspector FN-3, folded by the shell's own parser so the misspelt-flag check sees it);
+      a value parsed before `run` handed to the wiring (`VexelApplication.run(wiring, args, extras)`, MainFrame FN-1,
+      which passes its grammar through a static today, and whose usage line lists only the framework's keys); and a
+      producer that only emits, on a thread of its own that the wiring names, starts after its consumers and stops
+      before them (Inspector FN-1, three hand-made threads). Each removes a way out of the model, which is why they
+      are this shape: an application that leaves the model to get a value in is one the checks no longer see.
+- [ ] **A named window is half a window** (`-shell`, `vexelray-gui`'s `Modals` and `GuiApp`). A question asked from
+      it opens over the main window, and so do the file pickers (MainFrame FN-3: wants `Window.dialogs()`, which needs
+      `Modals` to place a modal over a given window and `FileDialog` to take that window's handle); it cannot be made
+      modal (FN-4, `NamedWindow.modal()`); windows cannot be made after `TREE` (calculator FN-7); and choosing one item
+      from a list is sixty lines every application writes (Maistro FN-8, a `QuickPick<T>`).
+- [ ] **Automation cannot reach everything a person can** (`vexelray-gui-automation`, ottermate, `vexelray-gui`'s
+      `Sketch` and `Segment`). A drawn mark has no region or landmark (Maistro FN-1); `await` cannot wait longer than
+      30 s or for something to go (FN-3); a script cannot close the application, so no shutdown is checked end to end
+      (FN-7, wants the window controls in the tree or a `close` verb that reports the exit code); a `Segment` option
+      cannot be named (Inspector FN-13); and the socket answers before the main window is listed (MainFrame FN-2).
+      The rule they share: anything a person can click is reachable by name when it is built, not by a workaround in
+      the script.
 
 ## Upstream
 

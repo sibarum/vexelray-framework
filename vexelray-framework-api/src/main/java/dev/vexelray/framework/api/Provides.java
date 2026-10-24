@@ -32,6 +32,12 @@ import java.lang.annotation.Target;
  * {@link Configuration} exists for, so the rule is kept where it can be. A record, a primitive or an array is a
  * value, and a value is not the container's business.
  *
+ * <p><b>A recipe run for its effect returns {@code void}</b>: arming a close gate, restoring last time's session,
+ * binding a part to the device once there is one. It is called once, in the phase its parameters put it in, and
+ * provides nothing, so nothing can take it and two of them never conflict. One that takes a main-thread value is
+ * marked {@link MainThread}, as a provider would be. An effect that has to be undone when the application closes
+ * returns an {@code AutoCloseable} instead, which the framework closes.
+ *
  * <p>A provider never takes a {@link Component}: a value holding one could be injected anywhere, carrying the
  * component across lanes without a check seeing it (T3.7).
  *

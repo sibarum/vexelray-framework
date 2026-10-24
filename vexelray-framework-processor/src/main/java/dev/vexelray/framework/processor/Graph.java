@@ -51,6 +51,11 @@ final class Graph {
     /** One {@code @Provides} method, with what the processor settles about it before any check runs. */
     record Provider(TypeElement configuration, ExecutableElement method, TypeMirror type, boolean isDefault,
                     boolean onMain, Set<String> modes) {
+
+        /** A recipe run for its effect: it returns void, so it is called and provides nothing. */
+        boolean effect() {
+            return type.getKind() == TypeKind.VOID;
+        }
     }
 
     private List<Provider> live = List.of();
@@ -170,7 +175,8 @@ final class Graph {
         for (RunMode mode : RunMode.values()) {
             for (int i = 0; i < providers.size(); i++) {
                 Provider a = providers.get(i);
-                if (!a.modes().contains(mode.name()) || !winsIn(a, mode, providers)) {
+                // A recipe run for its effect provides nothing, so two of them supply nothing twice.
+                if (a.effect() || !a.modes().contains(mode.name()) || !winsIn(a, mode, providers)) {
                     continue;
                 }
                 for (int j = i + 1; j < providers.size(); j++) {
@@ -189,7 +195,7 @@ final class Graph {
 
     /** Whether {@code p} is a candidate in {@code mode}: a non-default always is, a default only unopposed. */
     boolean winsIn(Provider p, RunMode mode, List<Provider> providers) {
-        if (!p.isDefault()) {
+        if (!p.isDefault() || p.effect()) {
             return true;
         }
         for (Provider other : providers) {
@@ -264,9 +270,12 @@ final class Graph {
         String main = whyOnMain(parameter.asType(), providers);
         if (main != null && !provider.onMain()) {
             error(parameter, "T2.2: " + where + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
-                    + main + "), and what it provides is not @MainThread. A main-thread value may be injected"
-                    + " only into something that is itself main-thread: mark " + where + " @MainThread if its"
-                    + " value lives there too");
+                    + main + (provider.effect()
+                        ? "), and it is not @MainThread. A recipe run for its effect that takes a main-thread value"
+                          + " runs on the main thread: mark " + where + " @MainThread to say so"
+                        : "), and what it provides is not @MainThread. A main-thread value may be injected"
+                          + " only into something that is itself main-thread: mark " + where + " @MainThread if its"
+                          + " value lives there too"));
         }
         if (isComputeQueue(parameter)) {
             error(parameter, "T3.1: " + where + " takes the ComputeQueue, which is lent to one @Component and to"

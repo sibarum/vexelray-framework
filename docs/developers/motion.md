@@ -13,11 +13,24 @@ README's *Motion* section is the short version of this page.
 
 | Change | Done by | Timing |
 | --- | --- | --- |
-| Any colour written to a node in the main window: hover, press, selection, theme | `VexelApplication` attaches `Fades` with `gui.paintMotion` | 120 ms, linear |
-| A cut-off name revealed (a tree row, a table cell) | `VexelApplication` sets `Unclip`'s motion | 150 ms, in-out cubic |
+| Any colour written to a node: hover, press, selection, theme | `WindowMotion` attaches `Fades` with `gui.paintMotion`, in every window | 120 ms, linear |
+| A cut-off name revealed (a tree row, a table cell) | `WindowMotion` sets `Unclip`'s motion | 150 ms, in-out cubic |
+| A node that layout moved: a row pushed down, a card reordered | `WindowMotion` attaches `Transitions`, enrolled over the whole tree | 180 ms, out cubic |
+| A node added, and a node removed | `WindowMotion` attaches `Presence` as the enter and exit motion, over the whole tree | 140 ms, out cubic, rising 0.35 em |
 | The focus ring moving to another control | `TactrollerInputBackend.pointerFeel`: `gui.focusFade` | 120 ms |
 | The mouse wheel | `TactrollerInputBackend.pointerFeel`: `gui.scrollGlide` | 45 ms half-life |
 | A shelf widget's own motion: `Tabs.slide`, `TreeView.motion`, `Cues` | Only when handed a `Ramp`. The template's `Motion.java` makes them from `KronoGui` | 160 ms, 240 ms for a cue |
+
+Since 2026-10-24 moves, arrivals and departures are on by default in every window the framework builds, the main one
+and every named one alike. Three things are deliberately not motion, so a whole window can be enrolled without
+seasickness: a resize or a zoom (the window moving under the user's hand), a node moved on every frame by a drag or
+by someone else's ramp (followed, not chased, after its first two frames), and the rows of a virtualised list, whose
+container says `recycles(true)` (`ListView`, and so `Table` and `Select`, already do). A node whose colour is data
+rather than state (a cell coloured by its value) says `paintCuts(true)`.
+
+**What default motion asks of you: keep the nodes and change them.** A list rebuilt from new nodes on every change is
+every row leaving and every row arriving, and since a leaving row keeps its place until it has faded, the list is
+briefly twice its height. Draw a list with `Node.keyed` and it keeps, moves, adds and removes rows by key.
 
 Everything else cuts unless you make it move. The rest of this page is how.
 
@@ -31,16 +44,17 @@ and the last call wins:
 gui.paintMotion(Fades.on(krono, Dur.ms(140), Ease.LINEAR));
 ```
 
-**Layout moves: `Transitions`.** Not attached by the framework. A `Transitions` is a `LayoutMotion`: when layout
-puts a node somewhere new, it draws the node at the old place and decays the difference to zero. Enrolment is per
-node: `follow` (one node), `followChildren` (a container's direct children) or `followSubtree` (everything under a
-root, at any depth). The nearest enrolment wins. A node moved again mid-slide continues from where it is drawn.
-`Dur.ZERO` enrols a node that moves at once, which is the reduced-motion setting.
+**Layout moves: `Transitions`.** Already attached, over the whole window. A `Transitions` is a `LayoutMotion`: when
+layout puts a node somewhere new, it draws the node at the old place and decays the difference to zero. A node moved
+again mid-slide continues from where it is drawn. To time a tree differently, attach your own, which replaces the
+framework's. Enrolment is per node: `follow` (one node), `followChildren` (a container's direct children) or
+`followSubtree` (everything under a root, at any depth); the nearest enrolment wins, and `Dur.ZERO` enrols a node
+that moves at once.
 
 ```java
 Transitions moves = Transitions.on(krono);
 gui.motion(moves);                                       // one LayoutMotion per tree, last call wins
-moves.followSubtree(page, Dur.ms(200), Ease.OUT_CUBIC);  // page: the root of your view
+moves.followSubtree(gui.root(), Dur.ms(200), Ease.OUT_CUBIC);
 ```
 
 A new `floatAt` percentage is a move, and so is a node appended to another parent. In the Scheduler, a visit given
@@ -59,43 +73,23 @@ call from a handler, because it goes through `onTimeline`. The template's `Recip
 
 Drive the visual properties, never the layout ones. `opacity`, `translate` (in ems), `rotate` and `scale` move
 nothing and measure nothing, so they are cheap every frame. A size changed every frame moves everything after it
-every frame, and inside a followed region `Transitions` chases each of those moves with a lag of its own: two
-clocks, pulling the picture apart. Make room the Scheduler's way. The arriving node takes its full place at once,
-invisible, and the nodes after it slide.
+every frame and lays the window out every frame. `Transitions` follows such moves after their first two frames rather
+than chasing them, so the picture holds together, but the first two frames still lag a little and the layout cost is
+paid throughout. Make room the Scheduler's way. The arriving node takes its full place at once, invisible, and the
+nodes after it slide.
 
 ## Arriving and leaving
 
-Nothing in the framework animates a node's arrival or departure today. `LayoutMotion` reports nothing for a first
-appearance, by design, and `remove()` takes a node out in the frame it lands. So write two methods. The Scheduler's,
-trimmed:
+Done for you. `Presence` is the window's enter and exit motion: a node added after the first frame fades up from
+nothing and rises 0.35 em into its place while the nodes after it slide aside, and a node removed keeps its place,
+stops taking the pointer at once, fades out, and then leaves the tree so the rest slide into the gap. Only the top of
+anything added arrives, so a card built and then appended fades in as one. A node put back before it had gone is the
+same node, coming back up from where it got to, with its handlers and state.
 
-```java
-/** Bring node up from nothing, rising into place. Call in the batch that adds it. */
-Node appear(Node node) {
-    node.opacity(0f).translate(0f, RISE);
-    krono.ramp(FADE, Ease.OUT_CUBIC,
-            v -> node.opacity((float) v).translate(0f, (float) (RISE * (1d - v))), () -> { });
-    return node;
-}
-
-/** Take node down to nothing, then out of the tree. It stops taking the pointer at once. */
-void leave(Node node) {
-    node.hitInert(true);
-    krono.ramp(FADE, Ease.LINEAR, v -> node.opacity((float) (1d - v)), node::remove);
-}
-```
-
-`RISE` is 0.35 (ems) and `FADE` 140 ms there. `hitInert` matters: a node at opacity 0 still occupies its box and is
-still under the pointer. The real `Motion.appear` and `Motion.leave` do one thing more. They keep a map of each
-node's opacity `Glide` by node id, so a node that leaves before it has finished arriving goes down from where it
-got to, not from fully there. Copy those, with `Motion.Glide`, rather than the trimmed version above.
-
-In your view's `show`, a new key gets `appear` after it is appended, and a gone key gets `leave` instead of
-`remove()`. Drop it from your map at once, as `Schedule` does, so a later `show` makes a fresh node if the item
-comes back.
-
-**Check `vexelray-gui` first.** A framework `EnterMotion` and `ExitMotion`, enrolled the way `Transitions` is, and
-a reconcile for keyed children are proposed but not in the framework yet. When they exist, use them instead.
+So in your view's `show`, append a new key's node and `remove()` a gone one, and nothing more. `Node.keyed` does
+both for a list: `rows.reconcile(items, update)` keeps every key still present, builds one for a new key, and removes
+the rest. The Scheduler's hand-written `Motion.appear` and `Motion.leave` predate this, and a new application
+should not copy them.
 
 ### A region replaced whole
 
@@ -167,11 +161,13 @@ camera records as well as photographs*). Until it lands, the burst is the check,
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Nothing slides | No `Transitions` attached, or the node is not enrolled | `gui.motion(moves)` once, and `followSubtree` on your view's root |
-| Everything cuts on every change | The view rebuilds its children | Keep a node per key and change it ([Building a custom view](custom-view.md)) |
-| A list pops when it grows or shrinks | Arrival and removal are not animated by the framework | `appear` after append, `leave` instead of `remove()` |
-| A fading-out node still takes clicks | Opacity is visual only | `hitInert(true)` as it starts to leave |
-| The page tears or wobbles while something grows | A size animated inside a followed region: two clocks | Take the full size at once, fade it in, let the rest slide |
+| Nothing slides | Your own `gui.motion(...)` replaced the framework's and does not enrol the node | `followSubtree(gui.root(), ...)` on yours, or attach none |
+| A list doubles its height for a moment, then shrinks | The view rebuilds its children: every row leaves and every row arrives | `Node.keyed`: keep a node per key and change it ([Building a custom view](custom-view.md)) |
+| Swapping one page for another shows both for a moment | `remove()` of the old page lets it fade where it stands, and the new one arrives after it | Keep both and switch with `visible(...)`, or lift the old one out with `floatAt` first (*A region replaced whole*) |
+| Rows fade in as a list of your own scrolls | It realizes rows as it scrolls and does not say so | `recycles(true)` on the container whose children it recycles |
+| A pooled marker passes through its last owner's colour | Its colour is data, and colours fade | `paintCuts(true)` on that node |
+| A fading-out node you faded by hand still takes clicks | Opacity is visual only | `remove()` it and let the framework fade it; or `hitInert(true)` as it starts to leave |
+| The page wobbles at the start of something growing | A size animated frame by frame: the first two frames are chased | Take the full size at once, fade it in, let the rest slide |
 | A scrollbar flickers in mid-animation | Scrolling is on by default; something overflowed for a frame | `scroll(false, false).clip(true)` on that box |
 | An outgoing page is squeezed during a crossfade | A float is clamped inside its parent | The stage region fills its parent and has no padding |
 | Words change in one frame | `Fades` does not cover text | A `Label`: dip out, swap, dip in |

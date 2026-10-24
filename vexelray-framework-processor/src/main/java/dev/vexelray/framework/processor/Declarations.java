@@ -180,8 +180,9 @@ final class Declarations {
         String where = Mirrors.where(method);
         TypeMirror type = method.getReturnType();
         if (type.getKind() == TypeKind.VOID) {
-            error(method, "@Provides " + where + " returns void, so it provides nothing. A recipe run for its"
-                    + " effect still has to return something for now: " + EFFECT_SHAPE);
+            // A recipe run for its effect: arming a close gate, restoring a session, binding a part to the device.
+            // The wiring calls it in the phase its parameters put it in, and nothing can take what it returns.
+            // Until 2026-10-24 this was an error, and three applications each returned a marker class to get past it.
             return;
         }
         TypeElement element = Mirrors.element(type);
@@ -222,9 +223,8 @@ final class Declarations {
      * applications already use (Vex's {@code Recipes.Restored}, Pix's window binding). Shared by the messages that
      * would otherwise point such a recipe at an interface.
      */
-    private static final String EFFECT_SHAPE = "return a package-private final class as a marker (`static final"
-            + " class Restored {}`, returned as `new Restored()`), or an AutoCloseable if the effect has to be"
-            + " undone when the application closes";
+    private static final String EFFECT_SHAPE = "return void, and the wiring calls it in the phase its parameters"
+            + " put it in; or return an AutoCloseable if the effect has to be undone when the application closes";
 
     void orphanDefault(ExecutableElement method) {
         if (!mirrors.has(method, Provides.class)) {

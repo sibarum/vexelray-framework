@@ -102,6 +102,9 @@ public final class Window {
         // claim scope, as Gui.history says.
         gui.history(history).dropHistory(history);
         UndoFeedback.install(gui, shell);
+        // Motion for the whole window, on the application's one clock, so a second window moves exactly as the main
+        // one does rather than not at all. See WindowMotion.
+        WindowMotion.install(gui, shell.krono());
     }
 
     /** This window's undo and redo. See {@link #history()}. */

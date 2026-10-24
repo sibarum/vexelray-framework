@@ -13,18 +13,14 @@ import dev.vexelray.gui.core.app.AppHome;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
-import dev.vexelray.gui.krono.Fades;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
-import dev.vexelray.gui.widget.Unclip;
 import dev.vexelray.os.Icon;
 import dev.vexelray.os.NativePlatform;
 import dev.vexelray.os.NativeWindow;
 import dev.vexelray.os.WindowConfig;
 
-import sibarum.kronometer.Dur;
-import sibarum.kronometer.anim.Ease;
 
 import java.util.List;
 import java.util.function.Function;
@@ -255,14 +251,8 @@ public final class VexelApplication {
         // Registered after the Gui so it closes before it: the clock outlives the window but not the process.
         KronoGui krono = disposer.register(KronoGui.attach(gui));
         shell.krono(krono);
-        // Every reveal in the window — a tree's cut-off name, a table's cut-off cell — fades the same way, said once
-        // here so no application has to remember it per widget. Quick and symmetric: it is the thing itself, not
-        // help arriving, and it leaves the way it came.
-        Unclip.of(gui).motion((progress, done) -> krono.ramp(Dur.ms(150), Ease.IN_OUT_CUBIC, progress, done));
-        // Every colour a widget writes fades rather than jumps (a hover, a press, a selection, a theme switch), said
-        // once for the window, so no widget and no application has to. Linear, because a colour arrives nowhere;
-        // short, because feedback that trails the pointer reads as a slow application rather than a smooth one.
-        gui.paintMotion(Fades.on(krono, Dur.ms(120), Ease.LINEAR));
+        // Colour, reveals, moves, arrivals and departures are each window's own, given when its Window is made below
+        // (WindowMotion), so the main window and a named one move alike.
         // The chrome, built by the framework so that the strip its instruments live in means the same thing in
         // every window (automation.md 7). Against WindowControls.NONE for now -- a native window cannot
         // photograph itself, so only GuiApp can mint working controls, and they are handed down at ATTACH.

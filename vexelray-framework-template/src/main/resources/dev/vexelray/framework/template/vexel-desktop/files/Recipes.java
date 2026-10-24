@@ -106,19 +106,13 @@ final class Recipes {
      * window's, and a window has one: a second is refused, because the one it would replace is as likely as not the
      * one that knew about the unsaved files.
      *
-     * <p>Neither half produces anything, and a provider has to return something that is neither {@code void} nor a
-     * record — hence {@link Started}, which marks that this ran and is otherwise empty.
+     * <p>Run for what it does, so it returns nothing: the wiring calls it once, in the phase its parameters put it in.
      */
     @Provides
-    Started start(Shell shell, Actions actions, Session session, Launch launch, Gui gui) {
+    void start(Shell shell, Actions actions, Session session, Launch launch, Gui gui) {
         shell.windows().main().onClose(actions::guardClose);
         List<Path> paths = launch.rest().stream().map(Path::of).toList();
         session.restore(actions, paths, gui.offload());
-        return new Started();
-    }
-
-    /** That {@link #start} has run. */
-    static final class Started {
     }
 
     /**

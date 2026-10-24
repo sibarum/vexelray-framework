@@ -1579,6 +1579,49 @@ per-window frame counters are not available to a Vulkan swapchain (`DwmGetCompos
 `0x88980090`; with none it gives global timing, whose frame counts only follow the application's own presents). Input
 to glass needs `VK_KHR_present_wait` or `VK_GOOGLE_display_timing`, as the TODO entry says.
 
+## What reading the applications back together found
+
+On 2026-10-24 the framework notes of the applications built most recently (the Scheduler, Maistro, the Inspector, the
+calculator, MainFrame) were read together, looking not for gaps one at a time but for the traps a builder with a fresh
+context falls into *again*. The measure was not "is it documented" but "is the right path the easy one": an API that
+says what it does beats a rule in a guide, and a default that is right beats an API nobody knows to call. Four shapes
+came out, and the open half of each is in [TODO.md](TODO.md), *found by reading the applications back together*.
+
+**Motion was opt-in, so every new application had none, and the fix was the default, not the documentation.** The
+Scheduler wrote `appear`, `leave`, a zoom glide and a slow-motion switch by hand (its FN-1 to FN-7), and the
+framework's motion guide taught those methods. Every generated application since shipped rows that popped in, lists
+that jumped, and named windows with no fades at all, since only the main window had them. vexelray-gui had already
+grown the pieces (`Transitions`, `Presence`, `Node.keyed`); nothing turned them on. Now `WindowMotion` gives every
+window the framework builds colour fades, reveals, moves, arrivals, departures and a zoom glide, on the
+application's one clock. **Why a default was safe only after three guards**, each now in `Displacement.settle` and the
+reconciler rather than a rule for the application to keep. A resize or zoom is recorded and not reported, since a
+window that slid its contents on every drag of the edge would be seasick, and that was the documented reason
+`Transitions` was opt-in at all. A node moved on every frame (a split dragged, a subtree grown by a ramp) is followed after
+two frames rather than chased, because a second clock on a position the hand is steering leaves it trailing. And
+a container whose children are a view over data says `recycles(true)`, so a virtualised list's realized rows do not
+fade in as it scrolls. **What it costs:** default motion asks code to keep its nodes and change them, so a list rebuilt from
+new nodes is briefly twice its height, and a page swapped by `remove()` and `append()` shows both pages for 140 ms. The
+first is what `Node.keyed` is for, and the motion guide's traps table names both.
+
+**A name that reads like a setter and appends.** `Node.children(...)` builds a node and is right for that, and on a
+node that already has children it adds to them. Maistro "rebuilt" two rows with it and showed every chip twice. The
+behaviour stays, because about 800 call sites build with it and the framework's own root is appended to after the
+title bar is put there. What changed is that it says so: it is its own mutation, and the first time one lands on a node that
+already had children the log names the node and the two calls that mean what was likely meant (`arrange`, `append`).
+`append(Node...)` was added so code that adds on purpose says it. This is the house pattern, the one `UnaskedScroll`
+set: a diagnostic that names the fix beats a renamed method that breaks every application, while the cost of the
+wrong call is a picture rather than an exception.
+
+**A recipe run for its effect had no shape, so three applications returned a marker class.** A `@Provides` returning
+`void` was an error, on the reasoning that a provider provides. The template's own `start` recipe returned an empty
+`Started`. Now `void` is accepted: called once in its inferred phase, holding nothing, conflicting with nothing. The
+earlier error was the wrong side of *a compile error beats a runtime error*. It moved no failure leftward and only
+made the right shape unwritable, which is the one thing a check must never do.
+
+**What the pass also showed about method.** Every one of these had been seen more than once before it was fixed, and each time the
+fix went into a guide. A guide is read once, by someone who already knows to look. The defaults and the diagnostics
+above are read by everyone, at the moment they matter.
+
 ## The application's mark
 
 The text editor's port gave `AppInfo` an icon, and the framework put it on the process and the main window. Nothing
