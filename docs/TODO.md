@@ -1060,7 +1060,12 @@ applications back together found*. What is left, by shape:
       read where things are the next frame, have to read where the glide is heading); words change in one frame
       (FN-2, a crossfade only the renderer can do, and `TitleBar.title` is out of an application's reach); and the
       zoom glide steps on `System.nanoTime()` as the wheel does, so it joins *one clock for everything that moves*
-      under the camera entry.
+      under the camera entry. **And a container's size cuts while its children slide** (found 2026-10-24 by the
+      Inspector's picker, kept by key): when a row finishes leaving, the panel shrinks in one frame and the rows that
+      stay slide up from their old places, hanging 30 to 50 px below its edge for the slide. `Transitions` displaces a
+      position and nothing displaces a size, so a box fitted to its content is always ahead of what it holds. Wants
+      the size displaced too (a fitted box drawn at the size its children are still covering), in `Displacement`
+      beside the position.
 - [ ] **Default departures double a page swapped by `remove()` and `append()`** (`vexelray-gui`'s `Presence`). The
       leaving page keeps its place while it fades, so the new one arrives below it for 140 ms. `visible(...)` swaps,
       which `Tabs` and the core docs already recommend, are unaffected, and motion.md lists the trap. A leaving node
