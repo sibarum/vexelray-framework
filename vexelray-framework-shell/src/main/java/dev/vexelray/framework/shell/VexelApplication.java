@@ -220,7 +220,7 @@ public final class VexelApplication {
      * entry point twenty lines below it read {@code Role.PAGE} off the theme, and only one of those two could
      * still have been right.
      */
-    private static void toTree(Wiring wiring, Shell shell, Disposer disposer, AppInfo info) {
+    private static About toTree(Wiring wiring, Shell shell, Disposer disposer, AppInfo info) {
         // ---- CONFIG: the settings store, and the look. Both are values; neither needs a Gui. -------------
         shell.phase(Phase.CONFIG);
         adoptFormerHome(info.name(), wiring.formerNames());
@@ -279,11 +279,14 @@ public final class VexelApplication {
         // ---- TREE: the widgets, the framework's title bar among them. No window needed. -------------------
         shell.phase(Phase.TREE);
         wiring.tree(shell);
+        // The About window, which the mark on every title bar opens. Last in TREE, so it is declared after every
+        // window of the application's, and an application that declared its own "about" keeps it. See About.
+        return About.declare(shell, info, shell.build());
     }
 
     private static void build(Wiring wiring, Shell shell, Disposer disposer, AppInfo info, Launch launch,
                               Function<WindowConfig, NativeWindow> windows) {
-        toTree(wiring, shell, disposer, info);
+        About about = toTree(wiring, shell, disposer, info);
         Gui gui = shell.gui();
         KronoGui krono = shell.krono();
         Appearance appearance = shell.appearance();
@@ -368,6 +371,17 @@ public final class VexelApplication {
         // had to take the GuiApp to do it: remembered under its name, wearing the window mark, commanded by its
         // own bar and bound to the clipboard. Before the wiring's ATTACH, so a part built there finds them claimed.
         shell.windows().claim(app, memory, shell.clipboard(), shell.windowMark());
+        // The mark on every bar opens the About window, as the native caption's icon opens the system menu. Here, once
+        // every bar wears its mark, and with the logo uploaded, since its sizes are textures too.
+        if (about != null) {
+            about.attach(app);
+            String tip = "About " + About.name(info, shell.build());
+            Runnable open = about.window()::show;
+            shell.titleBar().onMark(tip, open);
+            for (Window w : shell.windows().declared()) {
+                w.titleBar().onMark(tip, open);
+            }
+        }
 
         // The frame, in stage order. See FrameStage for why input precedes the clock.
         shell.hooks()

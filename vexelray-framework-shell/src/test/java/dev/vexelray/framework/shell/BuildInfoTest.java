@@ -37,4 +37,25 @@ class BuildInfoTest {
         assertEquals("unknown", BuildInfo.UNKNOWN.facts().get("app.source"));
         assertEquals("0", BuildInfo.UNKNOWN.facts().get("stack.count"));
     }
+
+    /** What the About window reads off a bill: the parts of the source, the time, and the framework's tracker. */
+    @Test
+    void theAboutWindowsFactsAreReadOffTheBill() {
+        BuildInfo b = new BuildInfo("dev.sibarum", "pix", "0.1.2-SNAPSHOT", "ef816d9a0123456789+dirty.0a1b2c3d4e5f",
+                List.of("dev.vexelray.framework:vexelray-framework-shell:0.1.2-SNAPSHOT@1e057d6"), "Pix",
+                "2026-10-24T10:00:00Z", "https://example.dev/NOTICES.txt",
+                Map.of(BuildInfo.FRAMEWORK, "https://github.com/sibarum/vexelray-framework/issues"));
+        assertEquals("dev.sibarum.pix", b.coordinates());
+        assertEquals("ef816d9a0123456789", b.commit());
+        assertTrue(b.dirty());
+        assertEquals(java.time.Instant.parse("2026-10-24T10:00:00Z"), b.builtAt().orElseThrow());
+        assertEquals("https://github.com/sibarum/vexelray-framework/issues", b.frameworkIssues().orElseThrow());
+
+        BuildInfo old = new BuildInfo("dev.sibarum", "pix", "0.1.2-SNAPSHOT", "ef816d9a", List.of());
+        assertFalse(old.dirty());
+        assertTrue(old.builtAt().isEmpty(), "a bill from before the plugin wrote the time has none");
+        assertTrue(old.frameworkIssues().isEmpty());
+        assertEquals("", old.name());
+        assertEquals("-", BuildInfo.UNKNOWN.coordinates());
+    }
 }

@@ -5,6 +5,9 @@
     },
     {
       "glob": "dev/vexelray/framework/shell/new-app-background.ico"
+    },
+    {
+      "glob": "dev/vexelray/framework/shell/vexelray-logo-*.png"
     }
   ]
 }

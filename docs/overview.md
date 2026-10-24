@@ -214,6 +214,11 @@ The title bar is drawn by the framework from the application's identity (its tit
 application's theme. Its placement and controls are the framework's, so every window behaves the same and tools
 like screenshots can rely on it. Its look is entirely the application's.
 
+A click on the mark at the left of any title bar opens the application's **About window**: the VexelRay logo, the
+application's name and coordinates, its version, the commit it was built from and when, and links to its
+third-party licences and to the framework's issues. All of it comes from the build (`vexelray-build`'s bill), so
+nothing on it is kept up to date by hand. An application that declares a window called `about` gets that one instead.
+
 Questions to the user (confirmations, open and save pickers) go through `Dialogs`, which a test can replace with
 one that answers by itself.
 

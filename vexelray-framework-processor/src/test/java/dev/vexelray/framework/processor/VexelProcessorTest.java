@@ -129,7 +129,8 @@ class VexelProcessorTest {
             Map.entry("dev.vexelray.framework.shell.BuildInfo", """
                 package dev.vexelray.framework.shell;
                 public record BuildInfo(String group, String artifact, String version, String source,
-                                        java.util.List<String> stack) {}
+                                        java.util.List<String> stack, String name, String built, String notices,
+                                        java.util.Map<String, String> issues) {}
                 """),
             Map.entry("dev.vexelray.framework.shell.Placement", """
                 package dev.vexelray.framework.shell;
@@ -336,9 +337,12 @@ class VexelProcessorTest {
         String bill = String.join("\n",
                 "group=dev.example", "artifact=demo", "version=0.1.0-SNAPSHOT",
                 "commit=ef816d9a", "dirty=true", "digest=0a1b2c3d4e5f", "source=ef816d9a+dirty.0a1b2c3d4e5f",
+                "issues=https://example.dev/demo/issues", "name=Démo", "built=2026-10-24T10:00:00Z",
+                "notices=https://example.dev/demo/NOTICES.txt",
                 "stack.count=2",
                 "stack.1=dev.vexelray.gui:vexelray-gui-core:0.1.1-SNAPSHOT@1e057d6",
-                "stack.2=sibarum.atchung:atchung-probe:1.1-SNAPSHOT@4612f44") + "\n";
+                "stack.2=sibarum.atchung:atchung-probe:1.1-SNAPSHOT@4612f44",
+                "stack.2.issues=https://example.dev/atchung/issues") + "\n";
         Compiled compiled = buildWith(Map.of(BuildBill.RESOURCE, bill), """
                 @VexelApp(name = "demo", title = "Demo")
                 public final class DemoApp {}
@@ -351,7 +355,13 @@ class VexelProcessorTest {
                 + "                \"ef816d9a+dirty.0a1b2c3d4e5f\",\n"
                 + "                java.util.List.of(\n"
                 + "                        \"dev.vexelray.gui:vexelray-gui-core:0.1.1-SNAPSHOT@1e057d6\",\n"
-                + "                        \"sibarum.atchung:atchung-probe:1.1-SNAPSHOT@4612f44\"));"), wiring);
+                + "                        \"sibarum.atchung:atchung-probe:1.1-SNAPSHOT@4612f44\"),\n"
+                + "                \"D\\u00e9mo\", \"2026-10-24T10:00:00Z\",\n"
+                + "                \"https://example.dev/demo/NOTICES.txt\",\n"
+                + "                java.util.Map.ofEntries(\n"
+                + "                        java.util.Map.entry(\"dev.example:demo\", \"https://example.dev/demo/issues\"),\n"
+                + "                        java.util.Map.entry(\"sibarum.atchung:atchung-probe\", \"https://example.dev/atchung/issues\")));"),
+                wiring);
     }
 
     @Test

@@ -1626,6 +1626,28 @@ Under `exec:exec` the process is `java.exe`, so Windows groups the taskbar butto
 pinning pins Java. That needs a per-process AppUserModelID, which is a `shell32` binding
 `vexelray/docs/window-icons.md` §5 records as missing.
 
+**The mark opens the About window** (2026-10-24). The native caption's icon opens the system menu; ours opens the
+application's About window, which every application has without writing one (`About`, declared as the named window
+`about` at the end of `TREE`, its logo uploaded at `ATTACH`). Three decisions in it:
+
+- **Every fact is the build's.** The proper name, coordinates, version, commit, build time and the licences link are
+  the `vexelray-build-maven-plugin`'s bill, baked into `BuildInfo` by the processor as the identity already was; the
+  bill gained `name` (the `installer.json`'s, else the pom's), `built`, `notices` and each stamped part's
+  `<issueManagement>` URL. The framework's issues link is therefore the framework's own pom saying where its issues
+  go, read off its stamp in the application's stack, not a constant in the shell. A fact the bill lacks shows as
+  *unknown*; the name alone falls back, to the `@VexelApp` title.
+- **`built` is when the identity was first built**, not the last `mvn` run. A time that changed every build would
+  change the bill every build, and the bill changing is what makes the compiler start over (`IdentifyMojo`'s
+  incremental-state reset), so every application would recompile from scratch on every build to carry a timestamp.
+  The README already said build time is not part of the identity; this is that sentence followed through.
+- **The links open through `NativePlatform.open`**, not a `ProcessBuilder` in the shell: which program opens a link
+  differs by OS, and the build's `isolate` goal keeps every such difference in an OS module. The licences open the
+  installed `THIRD-PARTY-NOTICES.txt` beside the executable when there is one, so they read offline, and the release
+  asset otherwise.
+
+The mark becomes a hole in the caption (`TitleBar.onMark`) only once it has something to do, so a bar without the
+framework's About drags by its mark as before.
+
 ## Modules
 
 ```

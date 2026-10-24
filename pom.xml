@@ -18,6 +18,13 @@
         with no reachability metadata of the framework's own. See docs/architecture.md.
     </description>
 
+    <!-- Inherited by every module, so each one's build stamp names it (vexelray-build/README.md), and every
+         application's About window links it as the place to report a problem with the framework. -->
+    <issueManagement>
+        <system>GitHub</system>
+        <url>https://github.com/sibarum/vexelray-framework/issues</url>
+    </issueManagement>
+
     <modules>
         <!-- The vocabulary an application compiles against: @VexelApp, @Component, @Provides, @MainThread,
              @BeforeFrame, @OnMode, @ConditionalOnType. Annotations and nothing else — no runtime, no

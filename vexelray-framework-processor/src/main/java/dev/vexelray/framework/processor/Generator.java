@@ -650,6 +650,18 @@ final class Generator {
                 src.append(i == 0 ? "\n                        " : ",\n                        ")
                         .append(literal(stack.get(i)));
             }
+            // What the About window shows besides the identity. A bill from before the plugin wrote these leaves them
+            // empty, and the window says so rather than this inventing them.
+            src.append("),\n                ").append(literal(bill.getProperty("name", "").trim())).append(", ")
+                    .append(literal(bill.getProperty("built", "").trim())).append(",\n                ")
+                    .append(literal(bill.getProperty("notices", "").trim()))
+                    .append(",\n                java.util.Map.ofEntries(");
+            int n = 0;
+            for (java.util.Map.Entry<String, String> e : BuildBill.issues(bill).entrySet()) {
+                src.append(n++ == 0 ? "\n                        " : ",\n                        ")
+                        .append("java.util.Map.entry(").append(literal(e.getKey())).append(", ")
+                        .append(literal(e.getValue())).append(')');
+            }
             src.append("));\n    }\n");
             // The name its windows go by on the desktop, which the pom may have set apart from the coordinates. A bill
             // from before the plugin wrote it leaves Wiring's default, the coordinates, which is the same thing.
