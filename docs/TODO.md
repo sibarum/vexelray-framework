@@ -1111,6 +1111,39 @@ applications back together found*. What is left, by shape:
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
 
+- [ ] **Vulkan is not isolated the way an OS is: it should live only in `-vulkan` modules** (`vexelray`,
+      `vexelray-gui`; one file here). Found 2026-10-24 from `vexelray-mini`'s `gl-spike-windows`, which draws a
+      real canvas batch on OpenGL 3.3 core with nothing but `vexelray-canvas`, `-text`, `-os-api` and `-os-windows`.
+      So the seam is already under `Canvas`: what a backend does is upload a texture per face, the tables and the
+      vertex array, and draw each run with its face bound (`GlSpike.draw`). Where Vulkan leaks past it:
+      - **`vexelray-gui-core`** depends on `vexelray-vulkan` and `vexelray-present-dxgi` directly, not through
+        `vexelray-engine-api`: `GuiApp`, `GuiWindow`, `DeviceImages`, `FontAtlases`, `ShadeletTables`,
+        `WindowRecorder`, and `Node.image`/`Node.field`, which take a `SampledImage` in the public API. Here,
+        `-shell`'s `AboutIntro` holds `SampledImage`s; and `text-editor-vexel-demo`'s `BlockView` holds a
+        `SampledColorTarget`, so applications already want a render-to-texture target only Vulkan offers.
+      - **`vexelray-os-api`** names Vulkan: `NativeWindow.createVulkanSurface` and `NativePlatform`'s required
+        instance extensions. Each OS module creates its surface (`vkCreateWin32SurfaceKHR`, `...XlibSurfaceKHR`,
+        `VK_EXT_metal_surface`).
+      - Vulkan-only under names that do not say so: `vexelray-engine` (`engine.vulkan.runtime.VulkanEngine`), every
+        `vexelray-technique-*` (`VulkanTechniqueContext`), `vexelray-present-dxgi`.
+      - **Ruled 2026-10-24: not v1-blocking.** Reason: the application-facing part is a widening, not a change. Give
+        textures a neutral type that `SampledImage` implements and `Node.image` takes; every call that passes a
+        `SampledImage` still compiles. An application holding a Vulkan type directly (`BlockView`) keeps working on
+        the Vulkan backend and is simply not portable until it moves.
+      - **The backend axis crosses the OS axis; it does not sit beside it.** A surface or context is backend × OS:
+        Vulkan's three surface calls, WGL, GLX/EGL, the DXGI presenter. The spike already put it right
+        (`Gl.on(window.osHandle())`, in a `-windows` module), so `os-api` hands out handles only, and surfaces
+        move to `vexelray-vulkan-windows`/`-linux`/`-macos`, with `present-dxgi` becoming the first's presenter.
+      - **To decide:** whether a backend is chosen by build profile as an OS is, or at startup behind a
+        `ServiceLoader` (GL when no Vulkan driver is present, say); and what a GL backend does about *Windows
+        requires DXGI*, a ruling made for Vulkan's swapchain.
+      - **Shaders become per-backend build output.** The spike's GLSL is SPIR-V through spirv-cross and `Gl330`
+        (storage buffer to buffer texture, samplers named by set, y flipped), run by hand from `make-glsl.sh`;
+        that belongs in the build plugin beside SupirVast.
+      - **Enforce it by dependency, not by marks.** `IsolateMojo` is the precedent, but the precise rule is an
+        edge: nothing outside a `*-vulkan*` module depends on `vexelray-vulkan`. That fails the build naming the
+        module, where a text mark would miss a type reached through a neutral-looking import.
+
 - [ ] **On a machine whose only Vulkan is dzn (Vulkan over D3D12), the window hangs open and the first frame
       fails** (`vexelray-present-dxgi` and `dxgi-bridge` for the frame; `vexelray-gui-core` `GuiApp` and
       `vexelray-os-windows` `Win32Window` for the hang). Found 2026-10-16 from a report on an older computer:
