@@ -38,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * <p>Measured through samples taken by a button rather than through anything drawn each frame: a readout that
  * changed every frame would owe the next frame itself, and a loop that wakes itself cannot be measured for
  * whether it parks. So a sample copies the frame count, the thread count and the heap into one line, on request,
- * and the assertions are about the differences between two.
+ * and the assertions are about the differences between two. Except for the idle loop, which is counted by the
+ * flight recorder from a mark: a sample is a click, and a click moves things in every window.
  *
  * <p>The thresholds are wide on purpose. They separate <i>parked</i> (about five frames a second, the idle
  * refresh) from <i>running</i> (up to sixty) by an order of magnitude, and they are here to catch a loop that
@@ -93,14 +94,19 @@ class LongRunWitnessTest {
             d.firstFrame("button.sample");
             int next = 1;
 
-            // Parked: with nothing running, the loop refreshes on its idle timer and no faster.
-            Sample idleFrom = sample(d, next++);
+            // Parked: with nothing running, the loop refreshes on its idle timer and no faster. Counted by the flight
+            // recorder from a mark, after a settle, and not by two samples: a sample is a click, and since every window
+            // moves by default (WindowMotion) a click is followed by a press fading and a readout sliding to its new
+            // width, a few dozen frames that belong to the click and not to the idle loop. Counting from the click
+            // measured the instrument (2026-10-24: 46 frames, all but a handful the click's own tail).
+            d.ok("settle");
+            d.ok("mark idle-window");
             Thread.sleep(3_000);
-            Sample idleTo = sample(d, next++);
-            long idleFrames = idleTo.frames() - idleFrom.frames();
+            String idle = d.ok("frames since idle-window");
+            long idleFrames = field(idle, "frames") + field(idle, "more");
             System.out.println("W3 idle: " + idleFrames + " frames in 3 s");
             assertTrue(idleFrames <= 45, "an idle window ran " + idleFrames + " frames in three seconds, so the "
-                    + "loop is not parking\n" + idleFrom + "\n" + idleTo);
+                    + "loop is not parking\n" + idle);
 
             // Running: a component's thread wakes the loop, a hundred times a second, with nothing else asking.
             d.ok("click " + d.ref("button.start"));
@@ -138,13 +144,14 @@ class LongRunWitnessTest {
             d.ok("click " + d.ref("button.stop"));
             Thread.sleep(1_500);
             String frozen = landmarked(d, "ticks");
-            Sample stopFrom = sample(d, next++);
+            // From a mark, for the reason the idle count is: a sample's click moves things itself.
+            d.ok("mark stopped-window");
             Thread.sleep(3_000);
-            Sample stopTo = sample(d, next++);
-            long stoppedFrames = stopTo.frames() - stopFrom.frames();
+            String stopped = d.ok("frames since stopped-window");
+            long stoppedFrames = field(stopped, "frames") + field(stopped, "more");
             System.out.println("W3 stopped: " + stoppedFrames + " frames in 3 s");
             assertTrue(stoppedFrames <= 45, "after the metronome stopped the loop still ran " + stoppedFrames
-                    + " frames in three seconds, so something is still waking it\n" + stopFrom + "\n" + stopTo);
+                    + " frames in three seconds, so something is still waking it\n" + stopped);
             assertEquals(frozen, landmarked(d, "ticks"), "the ticks kept counting after the metronome was stopped");
 
             // Quiet again, so there is something to settle.
@@ -168,6 +175,15 @@ class LongRunWitnessTest {
     }
 
     /** Presses Sample, waits for that sample, and reads it. */
+    /** The number after {@code name=} in a recorder reply such as {@code ok frames=3 order=since … more=0}. */
+    private static long field(String reply, String name) {
+        Matcher m = Pattern.compile("\\b" + name + "=(\\d+)").matcher(reply);
+        if (!m.find()) {
+            return fail("no " + name + "= in the recorder's reply: " + reply);
+        }
+        return Long.parseLong(m.group(1));
+    }
+
     private static Sample sample(Driver d, int number) throws IOException {
         d.ok("click " + d.ref("button.sample"));
         d.ok("await sample sample #" + number + " ");

@@ -1074,17 +1074,19 @@ applications back together found*. What is left, by shape:
       read where things are the next frame, have to read where the glide is heading); words change in one frame
       (FN-2, a crossfade only the renderer can do, and `TitleBar.title` is out of an application's reach); and the
       zoom glide steps on `System.nanoTime()` as the wheel does, so it joins *one clock for everything that moves*
-      under the camera entry. **And a container's size cuts while its children slide** (found 2026-10-24 by the
-      Inspector's picker, kept by key): when a row finishes leaving, the panel shrinks in one frame and the rows that
-      stay slide up from their old places, hanging 30 to 50 px below its edge for the slide. `Transitions` displaces a
-      position and nothing displaces a size, so a box fitted to its content is always ahead of what it holds. Wants
-      the size displaced too (a fitted box drawn at the size its children are still covering), in `Displacement`
-      beside the position.
-- [ ] **Default departures double a page swapped by `remove()` and `append()`** (`vexelray-gui`'s `Presence`). The
-      leaving page keeps its place while it fades, so the new one arrives below it for 140 ms. `visible(...)` swaps,
-      which `Tabs` and the core docs already recommend, are unaffected, and motion.md lists the trap. A leaving node
-      whose parent gains an arrival in the same edit could float where it stands instead; not built, because nothing
-      has needed it yet.
+      under the camera entry. **And a node moved to another parent is hidden by its new parent's clip while it
+      travels** (the Scheduler's bar given to another clinician is invisible for most of its slide, since each lane
+      clips). The node is drawn inside its new parent, whose clip does not reach where it is coming from; drawn in
+      flight, it wants the clip of the nearest ancestor that holds both ends. `Clip` (hit-testing) could say it in a
+      walk, but the visible clip is `TreeRenderer`'s, which would have to draw such a node outside its parent's clip:
+      a renderer change, and the riskier half.
+- [ ] **On a locked Windows session, a component's wakes do not reach the frame loop** (vexelray-os or vexelray-gui's
+      `GuiApp`; found 2026-10-24 by the long-running witness). With the workstation locked, the metronome posted 600
+      wakes ("nudging the OS message queue") in five seconds and the loop drew 116 frames, each after parking the
+      whole 200 ms idle timeout: the posts are not waking `wait for events`. The same jars, unlocked, ran 600 frames.
+      Whether it is the locked session or the display being off is not separated. It matters for any application
+      left running while its owner is away (a monitor, a long job's progress), and for any witness run that way:
+      `LongRunWitnessTest` fails on a locked session for this reason, not for anything in the change under test.
 - [ ] **A value the wiring cannot reach** (`-processor`, `-shell`). A setting that takes the rest of the command line
       (`@Setting(rest = true)`, Inspector FN-3, folded by the shell's own parser so the misspelt-flag check sees it);
       a value parsed before `run` handed to the wiring (`VexelApplication.run(wiring, args, extras)`, MainFrame FN-1,
