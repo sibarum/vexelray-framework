@@ -299,10 +299,11 @@ public final class VexelApplication {
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
         WindowConfig main = mainWindow(memory, info, appearance, mark);
-        // FrameworkShader rather than the core set, so the effects the framework's own widgets ask for are drawn.
+        // FrameworkShader rather than the core set, so the effects the framework's own widgets ask for are drawn; the
+        // one for the application's fonts, whose atlas type decides its text source.
         GuiApp app = disposer.register(new GuiApp(main, windows,
                 wiring.computeQueue() ? GuiApp.Compute.OWN_QUEUE : GuiApp.Compute.SHARED, shell.fonts(),
-                new FrameworkShader()));
+                FrameworkShader.of(shell.fonts())));
         shell.app(app);
         wiring.window(shell);
 
