@@ -7,8 +7,8 @@ import dev.vexelray.gui.widget.Modal;
 import java.util.function.Consumer;
 
 /**
- * The framework's answer to {@link SlowFrames.Offer}: when an application's frames are repeatedly too slow to draw five
- * a second, ask the user, through the application's {@link Dialogs}, whether to switch to simplified graphics.
+ * The framework's answer to {@link SlowFrames.Offer}: when an application's frames are repeatedly too slow to draw
+ * fifteen a second, ask the user, through the application's {@link Dialogs}, whether to switch to simplified graphics.
  *
  * <p>Through {@code Dialogs} and not straight to the modals, so an application that provides its own dialogs (a test
  * that answers, a kiosk that answers nothing) is the one asked here too. A question, not an error: nothing has failed,
