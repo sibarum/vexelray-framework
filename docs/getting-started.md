@@ -13,6 +13,7 @@ into your own. Allow about half an hour, most of it the first build of the stack
 | **Maven** and **Git** | On `PATH`. On Windows, Git for Windows also brings the Bash the commands below are written for |
 | **A Rust toolchain** | From [rustup.rs](https://rustup.rs). One repository's image decoders are Rust, built from source |
 | **Visual Studio Build Tools** | Windows only. Rust's default Windows toolchain links with them; native-image needs `link.exe` and the icon step `rc.exe` |
+| **MSYS2** (Windows) or **make, cmake, ninja, nasm, pkg-config** (Linux) | The title bar's camera records video, through an FFmpeg holding only the AV1 encoders, which is built from source. On Windows, install [MSYS2](https://www.msys2.org) at `C:\msys64`, then in it: `pacman -S make diffutils mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,pkgconf,nasm,ffnvcodec-headers,amf-headers,libvpl}` |
 
 ## 2. Install the stack
 
@@ -31,8 +32,9 @@ git clone https://github.com/sibarum/vexelray-framework.git
 ./vexelray-framework/bootstrap.sh
 ```
 
-It checks for the tools above, clones the other ten repositories beside `vexelray-framework`, builds
-`imagelib-wrapper`'s native library for your OS, and runs `mvn install` in each, **in dependency order**. Each
+It checks for the tools above, clones the other twelve repositories beside `vexelray-framework`, builds
+`imagelib-wrapper`'s native library and `ffmpeg-wrapper`'s video encoder for your OS, and runs `mvn install` in
+each, **in dependency order**. Each
 build's output goes to `vexelray-framework/target/bootstrap/`, and the first failure stops it and names its log.
 `--tests` runs each repository's tests as it goes; `--check` only says what is missing.
 
@@ -57,11 +59,15 @@ optional ones that add pictures and video, shipping, and simulations.
 | `vexelray` | The engine: Vulkan, 2D drawing, text, windowing |
 | `imagelib-wrapper` | Image decoding, in Rust behind a small Java API. Your application does not link it; `vexelray-gui`'s icon plugin reads icon art with it |
 | `vexelray-gui` | The widgets, layout and theme |
+| `ffmpeg-wrapper` | Video through FFmpeg. Your application links only its recording half, `ffmpeg-wrapper-record`: the AV1 encoders and no decoder |
 | `vexelray-framework` | This repository |
+| `vexelray-codec` | Pictures, video and sound on the GUI. Your application links `vexelray-codec-record`, which is what makes the title bar's camera record video as well as take screenshots |
 
 `imagelib-wrapper`'s native library is built from source by its OS module and is not in the repository. The
 script runs `imagelib-wrapper-windows/native/build.sh` (or `-linux/`) before that repository's install; run it by
-hand if you install without the script.
+hand if you install without the script. `ffmpeg-wrapper`'s video encoder is the same:
+`ffmpeg-wrapper-record-windows/native/build.sh` (or `-linux/`). With `--tests`, the script also fetches the decoding
+FFmpeg those two repositories' tests play recordings back with (`ffmpeg-wrapper-windows/native/build.sh`).
 
 ## 3. Generate a project
 

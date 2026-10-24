@@ -15,7 +15,7 @@
 set -euo pipefail
 
 STACK=(vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper
-       vexelray-gui vexelray-framework)
+       vexelray-gui ffmpeg-wrapper vexelray-framework vexelray-codec)
 ORIGIN=https://github.com/sibarum
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -47,6 +47,15 @@ missing=()
 command -v git >/dev/null || missing+=("git")
 command -v "$mvn" >/dev/null || missing+=("Maven ($mvn on PATH)")
 command -v cargo >/dev/null || missing+=("a Rust toolchain (https://rustup.rs), for imagelib-wrapper's decoders")
+# The camera's video recording: an FFmpeg holding only the AV1 encoders, built from source by
+# ffmpeg-wrapper-record-<os>/native/build.sh (on Windows with MSYS2's MinGW-w64, which it runs itself under).
+if [ $os = windows ]; then
+    [ -x /c/msys64/usr/bin/bash ] || missing+=("MSYS2 at C:\\msys64 (https://www.msys2.org), for the video recorder's FFmpeg; then, in it: pacman -S make diffutils mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,pkgconf,nasm,ffnvcodec-headers,amf-headers,libvpl}")
+else
+    for t in make cmake ninja nasm pkg-config cc; do
+        command -v $t >/dev/null || missing+=("$t, for the video recorder's FFmpeg")
+    done
+fi
 if command -v java >/dev/null; then
     major=$(java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)
     [ "${major:-0}" -ge 25 ] || missing+=("JDK 25 (java on PATH is ${major:-unknown})")
@@ -83,6 +92,24 @@ for r in "${STACK[@]}"; do
             echo "[$r] native build FAILED, see $logs/$r-native.log" >&2
             [ $os = windows ] && echo "  Rust's default Windows toolchain links with the Visual Studio Build Tools." >&2
             exit 1
+        fi
+    fi
+
+    # ffmpeg-wrapper-record's encoder is FFmpeg and SVT-AV1 built from source by its OS module, not in the repository.
+    # The decoding half (a pinned prebuilt FFmpeg, 130 MB) is needed only by the tests of it and of vexelray-codec, so
+    # it is fetched only with --tests.
+    if [ "$r" = ffmpeg-wrapper ]; then
+        echo "[$r] video encoder ($os)"
+        if ! "$root/$r/ffmpeg-wrapper-record-$os/native/build.sh" > "$logs/$r-native.log" 2>&1; then
+            echo "[$r] encoder build FAILED, see $logs/$r-native.log" >&2
+            exit 1
+        fi
+        if [ $tests = 1 ]; then
+            echo "[$r] video decoders ($os), for the tests"
+            if ! "$root/$r/ffmpeg-wrapper-$os/native/build.sh" >> "$logs/$r-native.log" 2>&1; then
+                echo "[$r] decoder build FAILED, see $logs/$r-native.log" >&2
+                exit 1
+            fi
         fi
     fi
 

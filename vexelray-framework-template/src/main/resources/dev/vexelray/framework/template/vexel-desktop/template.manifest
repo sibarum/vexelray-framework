@@ -143,6 +143,7 @@ fill always appName        slug     ${artifactId}
 fill always guiVersion       text     ${vexelrayVersion}
 fill always frameworkVersion text     ${vexelrayVersion}
 fill always buildVersion     text     ${vexelrayVersion}
+fill always codecVersion     text     ${vexelrayVersion}
 fill always junitVersion   text     5.11.4
 
 # ---- the tree ------------------------------------------------------------------------
@@ -235,3 +236,4 @@ needs dev.vexelray.gui:vexelray-gui-krono:${guiVersion}
 needs dev.vexelray.gui:vexelray-gui-automation:${guiVersion}
 needs sibarum.tactroller:tactroller-atchung:${tactrollerVersion}
 needs sibarum.tactroller:tactroller-clipboard:${tactrollerVersion}
+needs dev.vexelray.codec:vexelray-codec-record:${codecVersion}

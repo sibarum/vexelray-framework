@@ -610,8 +610,8 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
           the class path.
         - `vexelray-gui-automation`: `record <path>`, `record stop` and `record`. There is no ottermate `film`
           sink yet.
-        - `vexelray-codec-video`: `WindowVideoRecorder`, encoding BGRA straight from the mapped buffer, with the
-          last frame held until the stop (`Recording.repeat`).
+        - `vexelray-codec-record` (moved out of `vexelray-codec-video` on 2026-10-24): `WindowVideoRecorder`, encoding
+          BGRA straight from the mapped buffer, with the last frame held until the stop (`Recording.repeat`).
         - `ffmpeg-wrapper`: a cluster closes every second and every packet is flushed, so a killed process leaves a
           file that plays.
 
@@ -621,6 +621,18 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         run on Linux.** The native save dialog was not driven, because a background run must not raise one at the
         person, so *Record video to file…* has been clicked by no one yet. `-Dvexelray.vulkan.validation` was
         not available, so the copies have not been checked by the validation layer.
+      - **Built 2026-10-24: the encoder apart from the decoders, and in every application.** The user asked that
+        recording add only the AV1 encoder. `ffmpeg-wrapper-record` (and `-record-windows`, `-record-linux`) is the
+        recording half of ffmpeg-wrapper over an FFmpeg built from source with `--disable-everything` plus the four
+        AV1 encoders, the Matroska and WebM muxers and the file protocol (14 MB of DLLs on Windows, against the
+        decoding build's 125), its libraries suffixed `-rec` so both builds load in one process. `vexelray-codec-record`
+        holds `Recorder` and `WindowVideoRecorder`. The template and every generated application depend on it, so
+        every camera records. `bootstrap.sh` now installs ffmpeg-wrapper (building the encoder, which on Windows needs
+        MSYS2) and vexelray-codec. **Left:** a native image of an application finds the encoder only in an
+        `ffmpeg-record` folder beside its executable, and no application's native build stages one yet, so a
+        native build shows *Record video to file…* and fails when it is clicked. Each needs Pix's `ffmpeg-beside`
+        step for `ffmpeg-wrapper-record-<os>`, its installer archive, and FFmpeg's and SVT-AV1's notices. The Linux
+        encoder build is written and not run.
       - **Asked 2026-10-21: a stepped recording.** Kronometer drives the clock while recording, and each
         presented frame advances logical time by exactly one video frame, however long it took to draw, read back
         and encode. The window may stutter for the person watching it, but the file plays perfectly smoothly.
