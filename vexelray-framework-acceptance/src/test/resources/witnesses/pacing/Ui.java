@@ -71,8 +71,10 @@ final class Ui {
                 button(Landmarks.STORM_BUTTON, "Storm", () -> bus.publish(STORM, new Storm(3_000))),
                 button(Landmarks.IDLE_BUTTON, "Idle", () -> bus.publish(IDLE, new Idle(4_000, 10))));
 
+        // As wide as the page, not as wide as its longest readout: a pulse's line grows with every late frame it
+        // lists, and an AUTO card grew with it until the page scrolled sideways (vexelray-gui scrolling.md §5).
         Node card = gui.column()
-                .width(Length.AUTO).height(Length.AUTO)
+                .width(Length.FILL).height(Length.AUTO)
                 .gap(Type.GAP)
                 .padding(Type.WIDE, Type.WIDE)
                 .corner(Type.CORNER)
@@ -94,7 +96,9 @@ final class Ui {
     }
 
     private Node readout(String landmark, String text, Length size) {
-        Node node = gui.text(text).font(Type.UI).textSize(size).textColor(gui.theme().color(Role.INK));
+        // The card's width, so a long line wraps inside it rather than widening it.
+        Node node = gui.text(text).font(Type.UI).textSize(size).textColor(gui.theme().color(Role.INK))
+                .width(Length.FILL).align(dev.vexelray.text.TextLayout.HAlign.CENTER, dev.vexelray.text.TextLayout.VAlign.TOP);
         gui.landmark(landmark, node);
         return node;
     }

@@ -63,6 +63,7 @@ class PacingMeasurementTest {
         if (live != null) {
             live.close();
         }
+        Support.assertNoUnaskedScroll(root);
     }
 
     @Test

@@ -44,6 +44,35 @@ class AboutTest {
         assertNull(About.frameworkVersion(BuildInfo.UNKNOWN), "not stamped, not said");
     }
 
+    /**
+     * Longer than any real build has made yet: a long name, long coordinates, a long version, uncommitted changes. The
+     * window shipped with a sideways scrollbar from "+ uncommitted changes" alone; laid out here with real fonts at its
+     * opening size and narrower, nothing in it may scroll sideways (docs/reference/scrolling.md §5, in vexelray-gui).
+     */
+    @Test
+    void nothingTheBillSaysCanMakeTheWindowScrollSideways() {
+        BuildInfo worst = new BuildInfo("dev.example.a.rather.deep.group", "an-application-with-a-long-artifact-id",
+                "12.345.6789-SNAPSHOT-with-a-qualifier", "0123456789abcdef0123456789abcdef01234567+dirty.0a1b2c3d4e5f",
+                List.of("dev.vexelray.framework:vexelray-framework-shell:0.1.2-SNAPSHOT-with-a-qualifier@1e057d6"),
+                "An Application Whose Proper Name Runs On For A While", "2026-10-24T10:00:00Z",
+                "https://example.dev/NOTICES.txt",
+                Map.of(BuildInfo.FRAMEWORK, "https://github.com/sibarum/vexelray-framework/issues"));
+        // Its opening width and narrower, at zoom 1. The logo (96dp, which no zoom changes) is the one width of its own
+        // left, so the narrowest is the logo and the padding; the acceptance run adds a zoomed one.
+        for (float[] size : new float[][] {{440f, 480f}, {300f, 480f}, {160f, 480f}}) {
+            dev.vexelray.diag.Diagnostics.reset();
+            try (dev.vexelray.gui.core.Gui g = new dev.vexelray.gui.core.Gui(sibarum.atchung.Atchung.create())) {
+                dev.vexelray.gui.core.Node logo = g.box().size(dev.vexelray.gui.core.layout.Length.dp(96),
+                        dev.vexelray.gui.core.layout.Length.dp(96));
+                g.root().children(About.content(g, About.name(INFO, worst), worst, logo));
+                g.frame(size[0], size[1], dev.vexelray.gui.core.text.TextFaces.standard());
+                List<String> unasked = dev.vexelray.diag.Diagnostics.recorded().stream()
+                        .filter(m -> m.startsWith("a horizontal scrollbar nobody asked for")).toList();
+                assertEquals(List.of(), unasked, "at " + (int) size[0] + "x" + (int) size[1]);
+            }
+        }
+    }
+
     @Test
     void theNoticesAreTheAddressWhenNoneLieBesideTheExecutable() {
         // A test runs on java, and the JDK keeps no notices of ours beside it.

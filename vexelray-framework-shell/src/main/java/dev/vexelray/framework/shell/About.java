@@ -105,7 +105,19 @@ final class About {
             about.logoBox = computed.rect();
             about.showLogo();
         });
+        Node body = content(g, name, build, logo);
+        TitleBar bar = window.titleBar();
+        g.root().background(Role.PAGE).children(bar.node(), body);
+        // Esc puts it away, as it does a dialog: there is nothing on it to lose.
+        g.claim(g.root(), Shortcut.of(Key.ESCAPE), ClaimScope.VISIBLE, window::close);
+        return about;
+    }
 
+    /**
+     * Everything under the title bar, in {@code g}: separate from {@link #declare} so a test can lay it out with a
+     * bill of its own choosing, which is the only way to see it with values longer than any real build has yet made.
+     */
+    static Node content(Gui g, String name, BuildInfo build, Node logo) {
         // Every text here is as wide as the window and wraps inside it, because none of it has a width of its own: a
         // name, a version and a source are the build's, as long as the build makes them, and a line that can only
         // widen is a horizontal scrollbar the first time one is long ("+ uncommitted changes" was).
@@ -140,10 +152,13 @@ final class About {
                 .onPress(() -> Links.open(issues));
         report.node().role("about-issues");
         g.landmark("about-issues", report.node());
-        // One above the other: a button is the one thing here that cannot wrap, and side by side they were the widest
-        // thing on the page.
-        Node links = g.column().alignItems(AlignItems.CENTER).gap(Length.rem(0.4f))
-                .children(licenses.node(), report.node());
+        // One above the other, as wide as the page, and wrapping like every other line: a button face is one line by
+        // default, and at its natural width it was the one thing on the page with a width of its own, so the
+        // narrowest the window could go without scrolling sideways was the button's.
+        for (Button b : List.of(licenses, report)) {
+            b.node().width(Length.FILL).wordWrap(true).align(TextLayout.HAlign.CENTER, TextLayout.VAlign.MIDDLE);
+        }
+        Node links = g.column().width(Length.FILL).gap(Length.rem(0.4f)).children(licenses.node(), report.node());
 
         Node body = g.column().width(Length.FILL).height(Length.FILL).alignItems(AlignItems.CENTER)
                 .padding(Length.rem(1.5f), Length.rem(1.5f)).gap(Length.rem(0.35f))
@@ -153,11 +168,7 @@ final class About {
             body.append(line(g, "Built on the VexelRay Framework " + framework).role("about-framework")
                     .textSize(Length.rem(0.75f)).textColor(Role.FAINT).padding(Length.rem(0.6f), Length.ZERO));
         }
-        TitleBar bar = window.titleBar();
-        g.root().background(Role.PAGE).children(bar.node(), body);
-        // Esc puts it away, as it does a dialog: there is nothing on it to lose.
-        g.claim(g.root(), Shortcut.of(Key.ESCAPE), ClaimScope.VISIBLE, window::close);
-        return about;
+        return body;
     }
 
     /**

@@ -70,6 +70,7 @@ class LongRunWitnessTest {
         if (live != null) {
             live.close();
         }
+        Support.assertNoUnaskedScroll(root);
     }
 
     @Test

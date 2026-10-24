@@ -126,6 +126,39 @@ final class Support {
         }
     }
 
+    /**
+     * A run's console log, whole. Latin-1 for the reason {@link #tail} gives: the console writes in the platform's
+     * encoding, so a diagnostic's em dash read as UTF-8 failed the read, and with it a test that had nothing to do
+     * with it (the windows witness, the first time a loaded machine made the GUI thread stall).
+     */
+    static String read(Path log) throws IOException {
+        return Files.readString(log, StandardCharsets.ISO_8859_1);
+    }
+
+    /**
+     * Fail if any run under {@code root} ({@code run-*.log}) scrolled sideways without having declared it: the
+     * layout's report of a horizontal scrollbar nobody asked for (vexelray-gui docs/reference/scrolling.md §5). For
+     * every witness's {@code @AfterAll}, once its application is down, so no window of any witness ships one.
+     */
+    static void assertNoUnaskedScroll(Path root) throws IOException {
+        if (root == null || !Files.isDirectory(root)) {
+            return;
+        }
+        StringBuilder found = new StringBuilder();
+        try (java.util.stream.Stream<Path> files = Files.list(root)) {
+            for (Path log : files.filter(p -> p.getFileName().toString().matches("run-.*\\.log")).sorted().toList()) {
+                read(log).lines().filter(l -> l.contains(UNASKED_SCROLL))
+                        .forEach(l -> found.append(log.getFileName()).append(": ").append(l).append('\n'));
+            }
+        }
+        if (!found.isEmpty()) {
+            fail("a window scrolled sideways that never declared it:\n" + found);
+        }
+    }
+
+    /** What the layout's report begins with (vexelray-gui {@code UnaskedScroll}). */
+    static final String UNASKED_SCROLL = "a horizontal scrollbar nobody asked for";
+
     static String property(String name) {
         String value = System.getProperty(name);
         if (value == null || value.isBlank()) {

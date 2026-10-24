@@ -269,6 +269,24 @@ class GeneratedProjectTest {
             assertTrue(driver.ok("size").contains("dpi=2"));
             driver.ok("dpi 1");
 
+            // The About window, from the mark on the title bar, as a person opens it: at the size it opens, zoomed,
+            // and narrower than it opens. It shipped once with a sideways scrollbar nobody asked for, and the layout
+            // now says so in the log (vexelray-gui docs/reference/scrolling.md §5), which is read below with the rest.
+            driver.ok("click titlebar-mark");
+            driver.ok("settle");
+            assertTrue(driver.ok("windows").contains(" about "), "the mark did not open the About window\n" + tail(log));
+            driver.ok("window about");
+            driver.ok("settle");
+            String about = driver.ok("tree");
+            assertTrue(about.contains("about-name") && about.contains("about-version"), about);
+            driver.ok("zoom 2");
+            driver.ok("settle");
+            driver.ok("resize 260x480");
+            driver.ok("settle");
+            driver.ok("shot " + root.resolve("about.png"));
+            driver.ok("zoom 1");
+            driver.ok("window main");
+
             // Being driven is what makes a run loud: the mode is AUTOMATION, so DEBUG on the console and TRACE in a
             // file, and the probe on beside it -- without anyone having asked for any of it. The file lives under
             // the application's home, which is where this test rig moved everything else.
@@ -286,6 +304,10 @@ class GeneratedProjectTest {
             assertFalse(written.contains("the application's icon") || written.contains("the framework's icon"),
                     "the window is not wearing the project's icon:\n" + written);
             assertTrue(Files.exists(logs.resolve(ARTIFACT + "-probe.csv")), "the probe's trace goes beside the log");
+            // No window of the run, the About window among them, scrolled sideways without having said it should.
+            assertFalse(written.contains("a horizontal scrollbar nobody asked for"),
+                    "a window scrolled sideways that never declared it:\n" + written.lines()
+                            .filter(l -> l.contains("nobody asked for")).reduce("", (a, b) -> a + b + "\n"));
             // And it can be made louder, or quieter, in the middle of a run.
             assertTrue(driver.ok("log framework.shell info").contains("loggers={framework.shell=INFO}"));
 

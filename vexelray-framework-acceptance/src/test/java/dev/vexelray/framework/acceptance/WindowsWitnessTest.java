@@ -65,6 +65,7 @@ class WindowsWitnessTest {
         if (live != null) {
             live.close();
         }
+        Support.assertNoUnaskedScroll(root);
     }
 
     @Test
@@ -161,7 +162,7 @@ class WindowsWitnessTest {
                 assertTrue(Files.size(shot) > 0, "the photograph of " + window + " is empty");
             }
 
-            String run = Files.readString(session.log());
+            String run = Support.read(session.log());
             assertFalse(run.contains("a frame hook threw") || run.contains("uncaught exception"),
                     "the windows cost a frame hook\n" + tail(session.log()));
 
@@ -259,7 +260,7 @@ class WindowsWitnessTest {
         session.out().println("quit");
         assertTrue(session.app().waitFor(60, TimeUnit.SECONDS),
                 "Quit did not end the application within 60 s\n" + tail(session.log()));
-        String run = Files.readString(session.log());
+        String run = Support.read(session.log());
         assertTrue(run.contains("stopped: " + ARTIFACT), "the application did not stop by its own loop\n" + tail(session.log()));
     }
 

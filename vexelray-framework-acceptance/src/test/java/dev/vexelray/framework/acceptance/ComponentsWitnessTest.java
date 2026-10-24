@@ -63,6 +63,7 @@ class ComponentsWitnessTest {
         if (live != null) {
             live.close();
         }
+        Support.assertNoUnaskedScroll(root);
     }
 
     // --- generate, overlay, build ----------------------------------------------------------------------------
@@ -136,7 +137,7 @@ class ComponentsWitnessTest {
                 d.ok("window 1");
                 d.ok("settle");
             }
-            String run = Files.readString(session.log());
+            String run = Support.read(session.log());
             assertFalse(run.contains("a frame hook threw") || run.contains("uncaught exception"),
                     "closing the tool window cost a frame hook\n" + tail(session.log()));
 
