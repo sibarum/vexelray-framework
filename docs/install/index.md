@@ -13,7 +13,7 @@ The old command, `irm https://raw.githubusercontent.com/sibarum/vexelray-dist/ma
 and installs the same thing.
 
 On Linux, open a terminal and paste this line (no `sudo`: everything goes under `~/.local`). For now it installs
-snapshot builds, 0.1.2-SNAPSHOT:
+snapshot builds, <span data-version="linux">0.1.2-SNAPSHOT</span>:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/sibarum/vexelray-dist/main/preflight/install.sh | sh
