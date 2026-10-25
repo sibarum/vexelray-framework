@@ -6,7 +6,7 @@
 
     <groupId>dev.vexelray.framework</groupId>
     <artifactId>vexelray-framework</artifactId>
-    <version>0.1.2-SNAPSHOT</version>
+    <version>0.1.2</version>
     <packaging>pom</packaging>
 
     <name>vexelray-framework</name>
@@ -88,13 +88,13 @@
         <!-- The stack this framework wires. Installed to the local .m2 from the sibling checkouts, in the
              order vexelray-gui/CLAUDE.md gives: supirvast, vexelray, tactroller (+atchung), vexelray-gui.
              Consumed by -shell and the demo, never by -api or -core. -->
-        <vexelray.gui.version>0.1.2-SNAPSHOT</vexelray.gui.version>
-        <vexelray.version>0.1.2-SNAPSHOT</vexelray.version>
-        <atchung.version>1.2-SNAPSHOT</atchung.version>
-        <tactroller.version>1.2-SNAPSHOT</tactroller.version>
-        <kronometer.version>1.2-SNAPSHOT</kronometer.version>
+        <vexelray.gui.version>0.1.2</vexelray.gui.version>
+        <vexelray.version>0.1.2</vexelray.version>
+        <atchung.version>1.2</atchung.version>
+        <tactroller.version>1.2</tactroller.version>
+        <kronometer.version>1.2</kronometer.version>
         <!-- SupirVast: the plugin -shell pre-compiles FrameworkShader with. Must match vexelray's own. -->
-        <supirvast.version>0.2.2-SNAPSHOT</supirvast.version>
+        <supirvast.version>0.2.2</supirvast.version>
 
         <junit.version>5.11.4</junit.version>
     </properties>
@@ -286,7 +286,7 @@
             <plugin>
                 <groupId>dev.vexelray.build</groupId>
                 <artifactId>vexelray-build-maven-plugin</artifactId>
-                <version>0.1.2-SNAPSHOT</version>
+                <version>0.1.2</version>
                 <executions>
                     <execution>
                         <goals>
