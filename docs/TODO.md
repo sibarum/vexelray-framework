@@ -1263,6 +1263,10 @@ Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; t
       found](architecture.md#what-the-stall-probes-found)), and an animation crawled and then lurched at its start.
       It now sleeps out the rest of the gap after a wake (`LockSupport.parkNanos`, anchored at the frame's start), at
       one display refresh read from the window (`maxFrameRateToDisplay`, 60 Hz where the window cannot say).
+      *Since 2026-10-25* it sleeps out the gap whatever ended the park, OS input included (a pointer sweep on a
+      ~240 Hz panel was a frame per mouse message, ~250 a second), and the display can only slow it: 60 Hz is the
+      fastest the framework runs, on any panel. So the input-latency item below now covers input arriving faster than
+      the ceiling as well, by design: at most 16.7 ms.
       **Open, in order of weight:**
       - *Input that lands in that sleep waits for it*, at most one refresh interval (6.9 ms at 144 Hz, 16.7 at 60),
         and only when a wake and not input ended the park. A Win32 event waited on beside the message queue, so a

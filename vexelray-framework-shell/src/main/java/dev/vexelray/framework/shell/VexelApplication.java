@@ -53,7 +53,10 @@ public final class VexelApplication {
     /** 5 Hz floor while focused: a missed wake is late, never lost. */
     private static final long IDLE_REFRESH_NANOS = 200_000_000L;
 
-    /** The ceiling while animating, until the window says what its display runs at; and where it cannot, for good. */
+    /**
+     * The ceiling: 60 Hz, or the display's rate where that is slower. A GUI has nothing to show faster, and following
+     * a high-refresh display let a pointer sweep run a frame per mouse message.
+     */
     private static final long MAX_FRAME_NANOS = 16_666_666L;
 
     /** Usage error. Distinct from 1 so a script can tell "you typed it wrong" from "it went wrong". */
