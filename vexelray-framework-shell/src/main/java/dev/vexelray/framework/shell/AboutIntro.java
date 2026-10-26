@@ -16,14 +16,10 @@ import dev.vexelray.gui.icons.ArtPair;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.shadelets.CondenseStyle;
 import dev.vexelray.shadelets.CondenseStyleLayout;
-import dev.vexelray.shadelets.ContoursStyle;
-import dev.vexelray.shadelets.ContoursStyleLayout;
 import dev.vexelray.shadelets.MtsdfStyle;
 import dev.vexelray.shadelets.MtsdfStyleLayout;
 import dev.vexelray.shadelets.OrbStyle;
 import dev.vexelray.shadelets.OrbStyleLayout;
-import dev.vexelray.shadelets.UnboundedMtsdfStyle;
-import dev.vexelray.shadelets.UnboundedMtsdfStyleLayout;
 import dev.vexelray.vulkan.present.SampledImage;
 import sibarum.kronometer.Dur;
 import sibarum.kronometer.anim.Ease;
@@ -40,11 +36,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * edge, with a hot rim on the moving cut and rings closing in round it; the orb, now a light on the page, glints along
  * the marks' bevels; then the field gives way to the art itself and the clock stops, so the window at rest draws
  * nothing. Every word arrives as the front passes it. 2.8 seconds, and each time the window is opened.
- *
- * <p>From the start of the flight the orb is a light over the whole page, not only near the marks: the application's
- * mark's field, read past its own cell ({@code Condense.MTSDF_UNBOUNDED}), lies across the window under everything on
- * it, and its contours show wherever the light falls ({@code Condense.CONTOURS}), going on from the lines the mark
- * draws round itself. The mockup's topographic map under a flashlight.
  *
  * <p>The marks are art pairs ({@link ArtPair}) drawn by {@code Condense.CONDENSE} over {@code Condense.MTSDF}; the orb
  * is {@code Condense.ORB} on a circle's field. All three are in {@link FrameworkShader}. Every value they read is
@@ -131,7 +122,6 @@ final class AboutIntro {
         }
         page.mark().field(null).image((SampledImage) null);
         page.signature().field(null);
-        g.root().field(null);
         orb.visible(false);
     }
 
@@ -224,7 +214,6 @@ final class AboutIntro {
         Timeline tl = timeline(t, body, restX, restY, restR, unit);
         if (mark != null) {
             mark.draw(app, page.mark(), markBox, tl, unit, t);
-            mark.backdrop(g.root(), body, markBox, tl, unit);
         } else {
             showIcon(markBox, tl, restX, restY, unit, t);
         }
@@ -340,11 +329,10 @@ final class AboutIntro {
      * box has. A size goes to the device the first time it is drawn at, on the main thread: one atlas is a few
      * milliseconds there, every size of both marks was a quarter of a second.
      */
-    private record Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases, Map<Integer, Float> trusted,
-                       Map<Integer, SampledImage> uploaded) {
+    private record Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases, Map<Integer, SampledImage> uploaded) {
 
-        Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases, Map<Integer, Float> trusted) {
-            this(pair, atlases, trusted, new java.util.concurrent.ConcurrentHashMap<>());
+        Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases) {
+            this(pair, atlases, new java.util.concurrent.ConcurrentHashMap<>());
         }
 
         /** The size for {@code px} on the device. Main thread. */
@@ -390,91 +378,6 @@ final class AboutIntro {
                     List.of(CondenseStyleLayout.use("condense", new CondenseStyle(HEAT, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
                             0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f))));
         }
-
-        /**
-         * This mark's contours across the whole of {@code root}, under everything on it, lit where the orb is: the field
-         * the mark is drawn from, read past its cell, on an element as large as the window and in the same texels, so
-         * its lines fall where the mark's own do and carry on past them. Nothing while the light shows no contours.
-         */
-        void backdrop(Node root, Rect window, Rect box, Timeline tl, float unit) {
-            int size = pair.sizeFor(box.w());
-            SampledImage texture = uploaded.get(size);
-            if (texture == null || tl.preview <= 0.002f) {
-                root.field(null);
-                return;
-            }
-            ImageRegion cell = atlases.get(size).field();
-            int side = pair.fieldSide();
-            int spread = pair.spread();
-            float m = pair.margin();
-            // The mark's cell, margin and all, in window pixels, and the pixels a texel of it covers.
-            float cellW = box.w() * (1f + 2f * m);
-            float cellH = box.h() * (1f + 2f * m);
-            float cellX = box.x() - box.w() * m;
-            float cellY = box.y() - box.h() * m;
-            float texel = cellW / side;
-            // The window as a field of its own: as many texels across as it has, and the pair's spread round it, so
-            // its range is the mark's. The quad reaches out past the window by the margin; that part is never seen.
-            int across = Math.max(1, Math.round(window.w() / texel)) + 2 * spread;
-            float margin = (float) spread / (across - 2 * spread);
-            float x0 = window.x() - window.w() * margin;
-            float x1 = window.x() + window.w() * (1f + margin);
-            float y0 = window.y() - window.h() * margin;
-            float y1 = window.y() + window.h() * (1f + margin);
-            float du = cell.u1() - cell.u0();
-            float dv = cell.v1() - cell.v0();
-            ImageRegion region = new ImageRegion(cell.u0() + (x0 - cellX) / cellW * du,
-                    cell.v0() + (y0 - cellY) / cellH * dv, cell.u0() + (x1 - cellX) / cellW * du,
-                    cell.v0() + (y1 - cellY) / cellH * dv);
-
-            float disc = trusted.get(size);
-            float soft = disc / 4f;
-            UnboundedMtsdfStyle source = new UnboundedMtsdfStyle(pair.near(), cell.u0(), cell.v0(), cell.u1(),
-                    cell.v1(), disc - soft, soft, side / (2f * spread));
-            ContoursStyle contours = new ContoursStyle(HEAT, FALLOFF, unit, tl.orbX - window.centreX(),
-                    tl.orbY - window.centreY(), tl.orbR, tl.preview);
-            int sourceFloats = UnboundedMtsdfStyleLayout.LAYOUT.instanceFloats();
-            float[] instance = new float[sourceFloats + ContoursStyleLayout.LAYOUT.instanceFloats()];
-            UnboundedMtsdfStyleLayout.instance(source, instance, 0);
-            ContoursStyleLayout.instance(contours, instance, sourceFloats);
-            root.field(new ImageField(texture, region, across, spread, Color.WHITE, backdropLook(pair), instance));
-        }
-
-        private static Look backdropLook(ArtPair pair) {
-            return new Look(UnboundedMtsdfStyleLayout.use("mtsdfUnbounded", new UnboundedMtsdfStyle(pair.near(),
-                    0f, 0f, 0f, 0f, 0f, 0f, 0f)), List.of(),
-                    List.of(ContoursStyleLayout.use("contours", new ContoursStyle(HEAT, FALLOFF, 0f, 0f, 0f, 0f, 0f))));
-        }
-    }
-
-    /** Design units over which the contours across the page fade, with distance from the mark. */
-    private static final float FALLOFF = 400f;
-
-    /**
-     * How far from the middle of {@code atlas}'s field cell, as a share of its side, every sample is trusted: the
-     * radius of the largest circle round the middle on which no texel outside the shape has run out of range. Alpha
-     * holds the distance to {@code spread} texels and no further; a sample past that reads as nearer than it is.
-     */
-    static float trusted(ArtPair.Atlas atlas) {
-        int side = atlas.fieldSide();
-        byte[] rgba = atlas.rgba();
-        float middle = side / 2f;
-        // Ten percent of the range short of where alpha runs out outside the shape.
-        int floor = Math.round(255f * 0.05f);
-        float last = 0f;
-        for (float r = 1f; r < middle - 1f; r += 0.5f) {
-            int steps = Math.max(64, (int) (2 * Math.PI * r));
-            for (int i = 0; i < steps; i++) {
-                double a = 2 * Math.PI * i / steps;
-                int x = (int) (middle + r * Math.cos(a));
-                int y = (int) (middle + r * Math.sin(a));
-                if ((rgba[(y * atlas.width() + x) * 4 + 3] & 0xff) <= floor) {
-                    return last / side;
-                }
-            }
-            last = r;
-        }
-        return last / side;
     }
 
     /** The pair {@code name} beside {@code anchor}, every size read; null, said once, if it is not there or is bad. */
@@ -490,13 +393,10 @@ final class AboutIntro {
                 return null;
             }
             Map<Integer, ArtPair.Atlas> atlases = new HashMap<>();
-            Map<Integer, Float> trusted = new HashMap<>();
             for (int size : pair.sizes()) {
-                ArtPair.Atlas atlas = pair.atlas(size);
-                atlases.put(size, atlas);
-                trusted.put(size, trusted(atlas));
+                atlases.put(size, pair.atlas(size));
             }
-            return new Art(pair, atlases, trusted);
+            return new Art(pair, atlases);
         } catch (IOException | RuntimeException e) {
             Diagnostics.dropped("About.art", what + " condensing", e.toString());
             return null;

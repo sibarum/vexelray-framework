@@ -49,7 +49,6 @@ public final class FrameworkShader extends CanvasShader.Composed {
 
     private static Composition withEffects(FieldType text) {
         return CoreShadelets.composition(text)
-                .with(List.of(Effects.WEIGHT, Condense.MTSDF, Condense.MTSDF_UNBOUNDED, Condense.CONDENSE,
-                        Condense.CONTOURS, Condense.ORB));
+                .with(List.of(Effects.WEIGHT, Condense.MTSDF, Condense.CONDENSE, Condense.ORB));
     }
 }
