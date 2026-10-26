@@ -6,7 +6,7 @@
 
     <groupId>dev.vexelray.framework</groupId>
     <artifactId>vexelray-framework</artifactId>
-    <version>0.1.3-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>vexelray-framework</name>
@@ -88,7 +88,7 @@
         <!-- The stack this framework wires. Installed to the local .m2 from the sibling checkouts, in the
              order vexelray-gui/CLAUDE.md gives: supirvast, vexelray, tactroller (+atchung), vexelray-gui.
              Consumed by -shell and the demo, never by -api or -core. -->
-        <vexelray.gui.version>0.1.3-SNAPSHOT</vexelray.gui.version>
+        <vexelray.gui.version>0.2.0-SNAPSHOT</vexelray.gui.version>
         <vexelray.version>0.1.3-SNAPSHOT</vexelray.version>
         <atchung.version>1.3-SNAPSHOT</atchung.version>
         <tactroller.version>1.3-SNAPSHOT</tactroller.version>
