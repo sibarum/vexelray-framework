@@ -7,7 +7,7 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | | |
 | --- | --- |
 | [**Vexplore**](apps/vexplore.md) | A file explorer that suggests instead of asking, and where every action can be undone |
-| [**Vex**](apps/text-editor.md) | A tabbed text editor with a file navigator, which comes back where you left it |
+| [**VexelRay IDE**](apps/text-editor.md) | A tabbed text editor with a file navigator, which comes back where you left it |
 | [**Pix**](apps/pix.md) | Pictures, animations and video, with sound: one at a time, as large as the window allows, and the rest of the folder a key press away |
 | [**MainFrame**](apps/mainframe.md) | A terminal window for the shell you already have |
 | [**Calculator**](apps/calculator.md) | An ordinary-looking calculator that divides by zero |
@@ -16,8 +16,8 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | [**Maistro**](https://github.com/sibarum/vexelray-maistro) | A desktop client for Claude Code: the conversation beside a mind map its replies grow |
 | [**VexelRay Inspector**](https://github.com/sibarum/vexelray-inspector) | DevTools for VexelRay applications, drawn as clockwork: a running app's frame loop, beat by beat |
 
-They are separate programs that know about each other: a text file in Vexplore opens in Vex and a picture in
-Pix, and Vex can show any file in Vexplore.
+They are separate programs that know about each other: a text file in Vexplore opens in VexelRay IDE and a picture in
+Pix, and VexelRay IDE can show any file in Vexplore.
 
 **[Install them](https://sibarum.github.io/)** with one line, for your user only. This is <span data-version="windows">0.1.1</span>, an experimental
 prerelease. On Windows, in PowerShell:
@@ -26,7 +26,7 @@ prerelease. On Windows, in PowerShell:
 irm https://sibarum.github.io/install.ps1 | iex
 ```
 
-On Linux, in a terminal, with no `sudo`. These are snapshot builds (<span data-version="linux">0.1.2-SNAPSHOT</span>) of Vex, Pix, MainFrame,
+On Linux, in a terminal, with no `sudo`. These are snapshot builds (<span data-version="linux">0.1.2-SNAPSHOT</span>) of VexelRay IDE, Pix, MainFrame,
 Calculator and VexelRay Inspector; the others are not on Linux yet:
 
 ```sh
@@ -42,7 +42,7 @@ an annotation processor. An application compiles to a native binary with no reac
 framework's own, and starts up as fast as the equivalent hand-written `main`.
 
 ```java
-@VexelApp(name = "text-editor", title = "Vex", width = 800, height = 592,
+@VexelApp(name = "text-editor", title = "VexelRay IDE", width = 800, height = 592,
           icon = "/editor.ico", starters = AutomationStarter.class)
 final class TextEditorApp {
 

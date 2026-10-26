@@ -77,7 +77,7 @@ irm https://raw.githubusercontent.com/you/my-app/main/install.ps1 | iex
 The installer checks every download against its SHA-256, needs no administrator rights, and adds an uninstall entry
 to Settings. Running the same line again updates the application. File associations, a `PATH` entry, signing, and
 jars instead of executables are all options; the [installer's README](https://github.com/sibarum/vexelray-installer#readme)
-lists them, and `"fileAssociations"` in [Vex's installer.json](https://github.com/sibarum/text-editor-vexel-demo/blob/main/installer.json)
+lists them, and `"fileAssociations"` in [VexelRay IDE's installer.json](https://github.com/sibarum/text-editor-vexel-demo/blob/main/installer.json)
 is a worked example.
 
 For Linux, add a `linux` section beside `windows`, naming the `target-linux/my-app` executable. The same run then

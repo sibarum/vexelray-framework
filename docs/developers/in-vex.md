@@ -1,13 +1,13 @@
-# Coding in Vex
+# Coding in VexelRay IDE
 
-[Vex](../apps/text-editor.md) is the suite's text editor, and it is a good place to write VexelRay code by hand. It
+[VexelRay IDE](../apps/text-editor.md) is the suite's text editor, and it is a good place to write VexelRay code by hand. It
 was built from the same template your project was, it highlights Java and can jump into the framework's source,
 and it works alongside a terminal and a file explorer from the same suite. Use it on its own, or to read and fix up
 what a coding agent wrote.
 
 ## Getting it
 
-Install the suite from [sibarum.github.io](https://sibarum.github.io/). One line of PowerShell installs Vex,
+Install the suite from [sibarum.github.io](https://sibarum.github.io/). One line of PowerShell installs VexelRay IDE,
 [MainFrame](../apps/mainframe.md) (the terminal) and [Vexplore](../apps/vexplore.md) (the file explorer). Each one
 is also put on your `PATH`, so they can open each other and you can open them from a prompt.
 
@@ -16,7 +16,7 @@ Or build it from source like any generated project:
 
 ## A working layout
 
-Open the project in Vex, and a terminal in the same folder beside it:
+Open the project in VexelRay IDE, and a terminal in the same folder beside it:
 
 ```bash
 text-editor C:/work/vexelray/my-app
@@ -26,7 +26,7 @@ text-editor C:/work/vexelray/my-app
 mainframe --dir=C:/work/vexelray/my-app --dir=C:/work/vexelray/vexelray-gui
 ```
 
-That gives Vex with your project as the navigator's root, and MainFrame with one tab in your project (for
+That gives VexelRay IDE with your project as the navigator's root, and MainFrame with one tab in your project (for
 `mvn compile exec:exec`, `mvn test` and `ottermate`) and one in the stack (for searching it). A list of folders you
 open often can be saved as a MainFrame workspace and reopened with `mainframe --workspace=<name>`.
 
@@ -64,20 +64,20 @@ Every tab and every row in the navigator has **Open in Vexplore** in its menu, t
 
 ## What it does not do
 
-Vex is an editor, not an IDE, so know where it stops:
+VexelRay IDE is a light IDE, so know where it stops:
 
 - **No completion and no error marks while you type.** It has its own Java index, not a language server. Errors
   come from `mvn compile` in the terminal next to it.
 - **Find is within one file.** To search the project or the stack, use `grep` (or `git grep`) in MainFrame.
 - **No debugger, no refactoring, no git view.**
 
-When you need those, use an IDE: a generated project is an ordinary Maven project and opens in IntelliJ IDEA,
-Eclipse or VS Code as it is. The two work well together: the IDE for large refactors, and Vex open on the same
-folder for reading and quick edits. Vex comes back with the same folder and files open every time.
+When you need those, use a full IDE: a generated project is an ordinary Maven project and opens in IntelliJ IDEA,
+Eclipse or VS Code as it is. The two work well together: the full IDE for large refactors, and VexelRay IDE open on the same
+folder for reading and quick edits. VexelRay IDE comes back with the same folder and files open every time.
 
 ## Together with an agent
 
-If a coding agent is writing most of the code ([Building with an LLM](with-an-llm.md)), Vex is where you review its
-work. Keep the project open in Vex while the agent works. Read each file it says it changed, run `git diff` in
+If a coding agent is writing most of the code ([Building with an LLM](with-an-llm.md)), VexelRay IDE is where you review its
+work. Keep the project open in VexelRay IDE while the agent works. Read each file it says it changed, run `git diff` in
 MainFrame, and fix small things yourself instead of explaining them. Save before you hand the agent the next
 request, so you are both working on the same file.

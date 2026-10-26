@@ -3,7 +3,7 @@
 # It began as the shape calculator-vexel-demo taught -- the application edge, the
 # threading model, the build, and the two documents a project of this kind keeps.
 # The hand-wired ports were deleted on purpose (keeping them ported cost a tax on
-# every framework change), and Calculator, Vex and MainFrame were later rebuilt
+# every framework change), and Calculator, VexelRay IDE and MainFrame were later rebuilt
 # from this template rather than the other way round. So the shape is copied from
 # nowhere. It is stated here, and this tree is what the framework is verified
 # against rather than a sketch of something else.

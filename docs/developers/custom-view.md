@@ -264,5 +264,5 @@ remembers its last size, so give `--size` whenever you compare screenshots. In t
 - **`vexelray-maistro`, `MapPane.java`**: boxes floated over a drawn graph, one per node, each a button with a
   landmark, kept by node id and removed when the node leaves the graph.
 - **`vexelray-gui`'s `Node.java`**: the javadoc on `floatAt`, `scroll`, `hitInert`, `opacity`, `translate` and
-  `append` says what each does and what it does not. [Coding in Vex](in-vex.md) shows how to jump there from your
+  `append` says what each does and what it does not. [Coding in VexelRay IDE](in-vex.md) shows how to jump there from your
   code.

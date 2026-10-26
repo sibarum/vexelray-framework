@@ -124,7 +124,7 @@ applications built on the stack and their installer.
 | Application | |
 | --- | --- |
 | [Vexplore](docs/apps/vexplore.md) | A file explorer that suggests instead of asking, and where every action can be undone |
-| [Vex](docs/apps/text-editor.md) | A tabbed text editor with a file navigator |
+| [VexelRay IDE](docs/apps/text-editor.md) | A tabbed text editor with a file navigator |
 | [Pix](docs/apps/pix.md) | An image viewer |
 | [Calculator](docs/apps/calculator.md) | A calculator and plotter |
 

@@ -220,7 +220,7 @@ final class Declarations {
 
     /**
      * What a recipe run only for its effect returns until the wiring can run one for effect: the shape the
-     * applications already use (Vex's {@code Recipes.Restored}, Pix's window binding). Shared by the messages that
+     * applications already use (VexelRay IDE's {@code Recipes.Restored}, Pix's window binding). Shared by the messages that
      * would otherwise point such a recipe at an interface.
      */
     private static final String EFFECT_SHAPE = "return void, and the wiring calls it in the phase its parameters"

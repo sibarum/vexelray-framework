@@ -407,7 +407,7 @@
             </build>
         </profile>
         <!-- Linux: mvn -Pnative-linux package -DskipTests  ->  target-linux/${artifactId}. No linker options and no
-             rc.exe; a Linux executable has no subsystem and no icon of its own. Vex, Calculator and MainFrame each
+             rc.exe; a Linux executable has no subsystem and no icon of its own. VexelRay IDE, Calculator and MainFrame each
              carried this profile by hand before the template did. -->
         <profile>
             <id>native-linux</id>

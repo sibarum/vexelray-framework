@@ -14,7 +14,7 @@ looking for something, look in the table below first.
 | Find my way around a generated project | [Getting started §5](../getting-started.md#5-find-your-way-around) |
 | Add a part, a setting, or replace a default | [Getting started §5](../getting-started.md#adding-a-part), then [overview.md](../overview.md#phases) for the order parts are built in |
 | Work with a coding agent | [Building with an LLM](with-an-llm.md) |
-| Write code by hand | [Coding in Vex](in-vex.md), or any Java IDE |
+| Write code by hand | [Coding in VexelRay IDE](in-vex.md), or any other Java IDE |
 | Build a view the widgets don't have (a timeline, a map, a board) | [Building a custom view](custom-view.md) |
 | Make changes animate instead of jump | [Making it move](motion.md) |
 | Run something in the background without freezing the window | [Threading conventions](../threading.md), and the generated README's *Threading, in one paragraph* |
@@ -22,7 +22,7 @@ looking for something, look in the table below first.
 | Look up an ottermate verb | [The automation reference](https://github.com/sibarum/vexelray-gui/blob/master/docs/reference/automation.md), or `ottermate help` |
 | Log, and find the log | [Getting started §8](../getting-started.md#8-logging) |
 | Build the executable and an installer | [Shipping it](shipping.md) |
-| Look up a widget or a GUI API | Its javadoc: Ctrl+Enter in [Vex](in-vex.md), or your IDE. The GUI's design documents are [indexed here](https://github.com/sibarum/vexelray-gui/blob/master/docs/README.md) |
+| Look up a widget or a GUI API | Its javadoc: Ctrl+Enter in [VexelRay IDE](in-vex.md), or another IDE. The GUI's design documents are [indexed here](https://github.com/sibarum/vexelray-gui/blob/master/docs/README.md) |
 | Know which repository does what | [The repositories](../repositories.md) |
 | Understand how the framework works | [Overview](../overview.md), then [Architecture](../architecture.md) for the deep version |
 | Tell a gap in the framework from a mistake of mine | [TODO.md](../TODO.md), and [what v1 means](../v1.md) |
@@ -48,7 +48,7 @@ looking for something, look in the table below first.
 | 3 | Learn your way around what was generated | [Getting started §5](../getting-started.md#5-find-your-way-around) |
 | 4 | Turn it into your application: | |
 | | with a coding agent | **[Building with an LLM](with-an-llm.md)** |
-| | by hand, in Vex | **[Coding in Vex](in-vex.md)** |
+| | by hand, in VexelRay IDE | **[Coding in VexelRay IDE](in-vex.md)** |
 | | when it needs a view of its own | **[Building a custom view](custom-view.md)** and **[Making it move](motion.md)** |
 | 5 | Check it the way a person would, with `ottermate` | [Getting started §7](../getting-started.md#7-drive-it-and-take-screenshots), and the [ottermate guide](https://github.com/sibarum/vexelray-gui/blob/master/docs/guides/ottermate.md) |
 | 6 | At the end of each milestone, read it back and write down what it showed | **[Looking back at a milestone](retrospective.md)** |
@@ -64,7 +64,7 @@ tabs, a file navigator, Markdown in colour, a question before closing with unsav
 back the next time. An editor is the smallest real application that reaches every part of the framework, so the
 project starts out showing you how each part is done. You keep its shape and replace what it does.
 
-[Vex](../apps/text-editor.md), [Calculator](../apps/calculator.md), [MainFrame](../apps/mainframe.md) and Scheduler
+[VexelRay IDE](../apps/text-editor.md), [Calculator](../apps/calculator.md), [MainFrame](../apps/mainframe.md) and Scheduler
 all started as this template. Their source is the best guide to what a generated project grows into:
 
 | Application | Read it for |

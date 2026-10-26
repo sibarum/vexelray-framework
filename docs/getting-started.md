@@ -254,7 +254,7 @@ LOG.warn("could not save {}", path, exception);
 ## Where next
 
 - **[Developer guide](developers/index.md)**: turning the generated project into your application,
-  [with a coding agent](developers/with-an-llm.md) or [by hand in Vex](developers/in-vex.md), and
+  [with a coding agent](developers/with-an-llm.md) or [by hand in VexelRay IDE](developers/in-vex.md), and
   [shipping it](developers/shipping.md).
 - **[overview.md](overview.md)**: how the framework is put together, at a readable altitude.
 - **[threading.md](threading.md)**: before you write anything that runs in the background.

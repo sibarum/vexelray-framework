@@ -1,4 +1,4 @@
-# Vex
+# VexelRay IDE
 
 **A tabbed text editor with a file navigator, that remembers where you were.**
 

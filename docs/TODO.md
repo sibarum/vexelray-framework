@@ -344,7 +344,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and for a while left one generated counter-style
-      application validating everything. (Since then the template writes a text editor, and Vex, the calculator,
+      application validating everything. (Since then the template writes a text editor, and VexelRay IDE, the calculator,
       Vexplore, Pix and the simulation demos are generated from it; their findings are below. Most are
       one-window-plus-dialogs desktop applications; the calculator's settings and Vexplore's viewer are each one
       second window, and W1 is the one with several.) *One component is not a census* applies to the framework itself.
@@ -496,7 +496,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       the window keeps painting and close exits within the bound.
 
 - [ ] **A look is colour; shape, density and type are each widget's** (upstream, `vexelray-gui` and
-      `vexelray-text`). Found by Vex's retheme to a design mockup (FN-14 to FN-17): every colour landed through the
+      `vexelray-text`). Found by VexelRay IDE's retheme to a design mockup (FN-14 to FN-17): every colour landed through the
       palette, and nothing else did. Corner radii, border widths, padding, row heights and text sizes are literals in
       each widget, some repainted on every state change so they cannot be restyled after construction, and a role
       override is global (a quiet `LINE` for the cards quietens the dialogs too). The atlas is baked from two
@@ -544,7 +544,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       scheduler retrospective.
       - **Ruled 2026-10-21: the application authors both themes, and the framework derives neither.** Reason:
         writing a design system takes under five minutes, and the two hand-tuned pairs on the stack
-        (`Palette.DARK`/`LIGHT`, Vex's `Look`) show that a light theme is not a reflection of a dark one. The
+        (`Palette.DARK`/`LIGHT`, VexelRay IDE's `Look`) show that a light theme is not a reflection of a dark one. The
         light page sits at L 0.975, where a mirror gives 0.809. The accent goes from 0.6925 to 0.56, where a
         mirror gives 0.31. Shadow alpha goes from 0.55 to 0.18. A derived theme would be a guess that somebody
         then tunes by hand.
@@ -554,7 +554,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         application's theme, never to one with its own (`applyTo`'s rule). The swap is `Gui.theme`, which
         fades under a `PaintMotion`, so nothing changes in one frame.
       - **The catch is a colour kept as a `Color` rather than a `Role`**, because a retheme cannot reach it.
-        The template's own `Look.EMPHASIS` is one, and so are Vex's scope colours, which is why Vex's theme
+        The template's own `Look.EMPHASIS` is one, and so are VexelRay IDE's scope colours, which is why VexelRay IDE's theme
         menu only takes effect at the next start. The template should make each of its own colours a role, and
         test each role's contrast against the page in both looks.
 
@@ -657,11 +657,11 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
 
 - [ ] **The template's navigator marks its row actions with text glyphs** (`Navigator.java`: `"›"` for Open,
       `"»"` for Show this folder). Since 2026-10-20 an icon the suite's set lacks is an application's own baked
-      set (`src/main/icons`, the pom's `app-icons` profile, `vexelray-gui-icons/README.md`), and Vex's navigator
+      set (`src/main/icons`, the pom's `app-icons` profile, `vexelray-gui-icons/README.md`), and VexelRay IDE's navigator
       already moved: `Icon.CHEVRON_RIGHT` and its own `TextEditorIcon.MAKE_ROOT`. The template should follow, which
       means either shipping art in every new project or a `make-root`-like icon joining the suite's set; which one
       is the question. The rest of the stack's glyph-icons are listed by app: the inspector's fan (a drawing in three
-      metals, animated, so not a one-colour field), Vex's and the template's unsaved dot, and PictureViewer's Loop,
+      metals, animated, so not a one-colour field), VexelRay IDE's and the template's unsaved dot, and PictureViewer's Loop,
       which borrows `REFRESH`.
 
 - [ ] **The template's `.gitignore` is five lines** (`-template`, `vexel-desktop/files/gitignore`): `target/`,
@@ -669,7 +669,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       JVM's crash and profiling dumps, the native build's leftovers beside `target/`, and OS files. Found
       2026-10-20 in `vexelray-scheduler`, whose root `.gitignore` (`49a16b5`) is the one to copy: sections per
       source, `!**/src/**/target/` as `vexelray-gui` has it, and captures by name rather than a blanket `*.png`.
-      Its Lean section is that repo's own and can stay there. The applications already generated (mainframe, Vex,
+      Its Lean section is that repo's own and can stay there. The applications already generated (mainframe, VexelRay IDE,
       the calculator, Vexplore, the inspector) keep their copies until someone updates each by hand.
 
 - [ ] **`VEXELRAY_AUTOMATION` opens the socket but does not set the log mode** (atchung `LogConfig`, or
@@ -1020,7 +1020,7 @@ blocks v1, and one thing worked better than expected: the processor's compile er
 
 ### Found by the rebuilt editor and calculator
 
-Vex (the text editor, [its notes](https://github.com/sibarum/text-editor-vexel-demo/blob/develop/docs/framework-notes.md)) and the calculator
+VexelRay IDE (the text editor, [its notes](https://github.com/sibarum/text-editor-vexel-demo/blob/develop/docs/framework-notes.md)) and the calculator
 ([its notes](https://github.com/sibarum/calculator-vexel-demo/blob/develop/docs/framework-notes.md)) were generated from the template in October 2026
 and rebuilt fresh. What took their requirements unmodified is the larger half (the generator, phase inference, one
 `Settings`, window memory, the title bar, the close gate's place, `Launch.rest()`, the dialogs, the logging), and an
@@ -1034,7 +1034,7 @@ generated project with no motion (FN-12: the template builds `Motion`). The rest
 
 - [ ] **`onCommitLatest` makes a committer wait on another thread's listener** (atchung, Vex FN-4). Commit while
       holding a lock the listener takes and it deadlocks, with nothing thrown; and the order it keeps is among its own
-      deliveries only, so a direct call racing a delivery lost Vex's last opened file from the saved session. The
+      deliveries only, so a direct call racing a delivery lost VexelRay IDE's last opened file from the saved session. The
       template's `Model` now warns about the lock. Delivering through a serial executor with the same version drop
       would mean a committer never waits.
 

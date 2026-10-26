@@ -16,7 +16,7 @@ This page covers setting that up, what to ask for, and what to check before you 
 | **`ottermate` on the agent's `PATH`** | So it can launch the application, press keys, read what is on screen and take screenshots. [Getting started §7](../getting-started.md#7-drive-it-and-take-screenshots) says where it is |
 | **The stack's checkouts next to your project** | The framework's source is its most complete documentation. An agent that can read `vexelray-gui` answers its own questions; one that cannot guesses |
 | **Git** | Commit before every request, so everything the agent changes is a diff you can read and undo |
-| **An editor to read along in** | [Vex](in-vex.md) or anything you like. You will review a lot more code than you write |
+| **An editor to read along in** | [VexelRay IDE](in-vex.md) or anything you like. You will review a lot more code than you write |
 
 A chat assistant that cannot run anything can still explain the code and draft it. But then you run every build and
 take every screenshot yourself, and most of the advantage is gone.
@@ -79,7 +79,7 @@ Take a screenshot of that state and look at it before telling me it works.
 ```
 
 **Point at a precedent.** The template and the suite's applications have already solved most problems once. "Read
-how Vex runs its highlighter on a worker and do the same for the filter" gets you code shaped like the rest of the
+how VexelRay IDE runs its highlighter on a worker and do the same for the filter" gets you code shaped like the rest of the
 stack. Without the pointer, the agent invents something.
 
 **Ask for the framework note.** "If you have to work around something the framework doesn't do, write it in

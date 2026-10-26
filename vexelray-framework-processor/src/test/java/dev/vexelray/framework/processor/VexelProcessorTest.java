@@ -690,7 +690,7 @@ class VexelProcessorTest {
 
     /**
      * A recipe run for its effect returns void: called once, in the phase its parameters put it in, and holding
-     * nothing. Two of them are not a conflict, since neither provides anything (Vex's {@code Restored}, Pix's window
+     * nothing. Two of them are not a conflict, since neither provides anything (VexelRay IDE's {@code Restored}, Pix's window
      * binding and the template's close gate each returned a marker to get past the error this used to be).
      */
     @Test

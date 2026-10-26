@@ -28,7 +28,7 @@ before, in a different window.
 ## With the rest of the suite
 
 Installing adds `mainframe` to your PATH. The other applications are on your PATH too, so
-`text-editor <folder>` in a MainFrame tab opens that folder in [Vex](text-editor.md), and `vexplore <folder>` in
+`text-editor <folder>` in a MainFrame tab opens that folder in [VexelRay IDE](text-editor.md), and `vexplore <folder>` in
 [Vexplore](vexplore.md), each in a new window.
 
 ## Status

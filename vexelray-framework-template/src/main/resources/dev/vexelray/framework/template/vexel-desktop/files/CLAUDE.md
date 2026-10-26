@@ -89,7 +89,7 @@ When a run fails, read `target/logs/${appName}.log` (`target-linux/logs/` on Lin
 
 - **One slice at a time**: a change from the model to the screen, with its test and its `ottermate` check. Not
   several features at once.
-- **Copy a precedent.** The template's own files, and the applications generated from it (Vex, Calculator,
+- **Copy a precedent.** The template's own files, and the applications generated from it (VexelRay IDE, Calculator,
   MainFrame, Scheduler), have solved most problems once. Find how they did it before inventing a way. Scheduler
   is the one to read for motion: it keeps its nodes and changes them, so nothing on screen changes in one frame.
 - **For anything that touches `Recipes.java`, threads or the model's shape, propose the change before making it.**
