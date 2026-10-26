@@ -42,7 +42,7 @@ These belong to the suite's own applications. You do not need them to build one 
 
 | Repository | What it is |
 | --- | --- |
-| [`vex-suite-common`](https://github.com/sibarum/vex-suite-common) | What the suite's applications share: Vexplore's and Pix's image viewer, Vex's and MainFrame's terminal |
+| [`vex-suite-common`](https://github.com/sibarum/vex-suite-common) | What the suite's applications share: Vexplore's and Pix's viewer, for pictures and video, Vex's and MainFrame's terminal |
 | [`cott-engine`](https://github.com/sibarum/cott-engine) | The Calculator's number model, which divides by zero |
 | [`cardinal`](https://github.com/sibarum/cardinal) and [`concordance-indexer`](https://github.com/sibarum/concordance-indexer) | Vex's source index: queries over Java that go beyond text search |
 | [`vexelray-icons`](https://github.com/sibarum/vexelray-icons) | The source art of the suite's icons. `vexelray-gui` carries a copy, so it builds without this |

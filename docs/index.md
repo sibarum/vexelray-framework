@@ -8,7 +8,7 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | --- | --- |
 | [**Vexplore**](apps/vexplore.md) | A file explorer that suggests instead of asking, and where every action can be undone |
 | [**Vex**](apps/text-editor.md) | A tabbed text editor with a file navigator, which comes back where you left it |
-| [**Pix**](apps/pix.md) | An image viewer: one picture, as large as the window allows, and the rest of its folder a key press away |
+| [**Pix**](apps/pix.md) | Pictures, animations and video, with sound: one at a time, as large as the window allows, and the rest of the folder a key press away |
 | [**MainFrame**](apps/mainframe.md) | A terminal window for the shell you already have |
 | [**Calculator**](apps/calculator.md) | An ordinary-looking calculator that divides by zero |
 | [**Fluid Sim**](https://github.com/sibarum/vexelray-sim-fluid) | Fluid simulation experiments: dam breaks, mixing and heat, live on the GPU |
