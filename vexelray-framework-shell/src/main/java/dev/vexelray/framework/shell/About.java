@@ -10,6 +10,7 @@ import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.icons.Icon;
+import dev.vexelray.gui.widget.Button;
 import dev.vexelray.gui.widget.IconButton;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.gui.widget.Tooltip;
@@ -188,17 +189,19 @@ final class About {
 
         String notices = notices(build.notices());
         IconButton licenses = tile(g, Icon.FILE, "Licenses", "Third-party licenses", "about-licenses")
-                .enabled(!notices.isEmpty()).onPress(() -> Links.open(notices));
+                .enabled(!notices.isEmpty());
+        g.mailbox(Button.PRESSED, licenses.address(), p -> Links.open(notices));
         String issues = build.frameworkIssues().orElse("");
         IconButton report = tile(g, Icon.CAUTION, "Issues", "Framework issues", "about-issues")
-                .enabled(!issues.isEmpty()).onPress(() -> Links.open(issues));
+                .enabled(!issues.isEmpty());
+        g.mailbox(Button.PRESSED, report.address(), p -> Links.open(issues));
         IconButton copy = tile(g, Icon.COPY, "Copy info", "Copy the version information, for a bug report",
                 "about-copy");
         // It says it did it in its own word, until the window is next opened: no line of its own that would be empty
         // the rest of the time.
-        copy.onPress(() -> {
+        g.mailbox(Button.PRESSED, copy.address(), p -> {
             g.clipboard().set(summary(name, build));
-            copy.name("Copied");
+            copy.label("Copied");
         });
         Node tiles = g.row().role("about-actions").gap(Length.rem(0.75f)).justify(Justify.CENTER)
                 .padding(Length.rem(0.3f), Length.ZERO)
@@ -231,7 +234,7 @@ final class About {
 
         Node body = g.column().role("about-page").width(Length.FILL).height(Length.grow(1f))
                 .alignItems(AlignItems.CENTER).scroll(false, true).children(hero);
-        return new Page(body, foot, mark, signature, List.copyOf(arrivals), () -> copy.name("Copy info"));
+        return new Page(body, foot, mark, signature, List.copyOf(arrivals), () -> copy.label("Copy info"));
     }
 
     /**

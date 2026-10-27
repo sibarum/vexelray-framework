@@ -97,8 +97,8 @@ final class WakeSeamsTest {
             // A touchpad tap: press and release at one point, with no pointer motion. Motion would be an OS
             // event and would have woken the loop by itself, which is why the shape that broke carries none.
             Gui gui = wiring.shell.gui();
-            gui.bus().publish(InputTopics.INPUT, new InputEvent.ButtonPressed(MouseButton.LEFT, 20, 20, 0));
-            gui.bus().publish(InputTopics.INPUT, new InputEvent.ButtonReleased(MouseButton.LEFT, 20, 20, 0));
+            gui.bus().publish(gui.input(), new InputEvent.ButtonPressed(MouseButton.LEFT, 20, 20, 0));
+            gui.bus().publish(gui.input(), new InputEvent.ButtonReleased(MouseButton.LEFT, 20, 20, 0));
             // Stands in for the OS message that a real click would also have delivered. Everything after this
             // wake is what is under test: the handler runs, and something has to ask for the frame that shows it.
             window.postWake();

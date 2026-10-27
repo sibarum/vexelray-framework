@@ -7,7 +7,7 @@ import sibarum.probe.Log;
 import sibarum.tactroller.api.BackendException;
 import sibarum.tactroller.api.CoordinateSpace;
 import sibarum.tactroller.api.Tactroller;
-import sibarum.tactroller.atchung.TactrollerInputBridge;
+import sibarum.tactroller.atchung.InputPublisher;
 
 /**
  * {@link InputBackend} on tactroller — the framework's copy of four helper methods that every application on
@@ -23,7 +23,7 @@ final class TactrollerInputBackend implements InputBackend {
 
     private final Tactroller input;
 
-    private TactrollerInputBridge bridge;
+    private Feed bridge;
     private PointerLock pointerLock;
 
     private TactrollerInputBackend(Tactroller input) {
@@ -83,7 +83,7 @@ final class TactrollerInputBackend implements InputBackend {
     @Override
     public void bridge(Gui gui, PointerLock lock) {
         if (input != null) {
-            bridge = new TactrollerInputBridge(input, gui.bus());
+            bridge = new Feed(input, gui);
             pointerFeel(input, gui);
         }
         pointerLock = lock;
@@ -155,7 +155,7 @@ final class TactrollerInputBackend implements InputBackend {
                         + "framework opened", e.getMessage() + "; that window renders and takes no input");
                 return WindowInput.NONE;
             }
-            TactrollerInputBridge windowBridge = new TactrollerInputBridge(backend, windowGui.bus());
+            Feed windowBridge = new Feed(backend, windowGui);
             pointerFeel(backend, windowGui);
             PointerLock windowLock = tuning == null ? null : tuning.forAnotherWindow();
             if (windowLock != null) {
@@ -227,6 +227,21 @@ final class TactrollerInputBackend implements InputBackend {
         }
         if (input != null) {
             input.close();
+        }
+    }
+
+    /**
+     * One window's device input, published on that window's tree's input topic ({@code Gui.input()}): what
+     * tactroller-atchung's {@code TactrollerInputBridge} does, on a topic named by the tree rather than the shared
+     * default, so each window on the bus hears only its own (threading.md, T4.6).
+     */
+    private record Feed(Tactroller backend, InputPublisher publisher) {
+        Feed(Tactroller backend, Gui gui) {
+            this(backend, new InputPublisher(gui.bus(), gui.input().name()));
+        }
+
+        void pump() throws BackendException {
+            publisher.publish(backend.snapshot());
         }
     }
 }

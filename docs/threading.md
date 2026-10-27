@@ -264,11 +264,17 @@ already says it. So the message graph the processor checks is the whole graph: t
 *(owed, phase 4. In 0.1 `@Publishes` was optional and an undeclared send was invisible to every check. The graph
 is exposed to the Inspector as `BUS_GRAPH` already, held by T4.5's 0.1 form)*
 
-**T4.6 — Two `Gui` trees may not share a bus.** `Gui`'s topics are class-level names, so two trees on one bus each
-receive the other's mutations. *(upstream: the fix is topics named per instance, and phase 3 is where it is
-cheapest to make. Half made: a `Gui` has a name (`new Gui(bus, "main")`), its node-event topics are named by it, and
-every widget's messages carry addresses qualified by it, so nothing a widget says crosses trees. Its own mutation and
-input topics are still class-level)*
+**T4.6 — Any number of `Gui` trees may share a bus, each under its own name.** A tree is named when it is built
+(`new Gui(bus, "main")`), and every topic it uses for itself is named by it: its mutations, its device input
+(`gui.input()`, `vexelray.gui.main.input`), its gestures, clicks, focus and key routes, and its node events; every
+message its widgets publish carries an address qualified by it (T3.8). A window's input source publishes on that
+window's tree's input topic. Navigation is the one topic trees share on purpose: an address names its window, and
+each tree takes only its own. A second open tree of one name on one bus is refused when it is built.
+**Why:** 0.1's topics were class-level, so two trees on one bus each applied the other's mutations, and the bounded
+mailbox of the one not being presented filled and then blocked the other's node setters for good; two windows meant
+two buses, and a message could not travel between them without a bridge. *(held: vexelray-gui's `SharedBusTest`
+puts two trees on one bus and holds that each applies only its own edits, hears only its own input, and that a name
+is one open tree's)*
 
 **T4.7 — Main-thread code never waits on the logic.** *0.1 stated this as "main-thread code sends only on channels
 that never block". Under T4.4 no send blocks, so the narrower rule holds by construction, and what is left is
@@ -449,13 +455,13 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **1 Lanes** | T1.3, T1.4, T1.5 | T1.1, T1.2, T1.6, T1.7 | | | | | |
 | **2 Colour** | T2.2 | T2.1, T2.3, T2.4, T2.5, T2.6, T2.7 | | | | | |
 | **3 Ownership** | T3.1, T3.7, T3.8 | | T3.3 | | T3.4, T3.6 | T3.2, T3.5, T3.9 | |
-| **4 Channels** | T4.3 | T4.1, T4.2, T4.5, T4.7, T4.8 | | T4.6 | | | T4.4 |
+| **4 Channels** | T4.3, T4.6 | T4.1, T4.2, T4.5, T4.7, T4.8 | | | | | T4.4 |
 | **5 Completion** | | T5.1, T5.3, T5.5, T5.6, T5.7, T5.8 | | | | T5.4 | T5.2 |
 | **6 Lifecycle** | T6.4 | T6.1, T6.2, T6.5 | | | T6.3 | | |
 | **7 Main thread** | | T7.1, T7.2, T7.3, T7.4, T7.5 | | | | | |
 
 Where a rule is held for its 0.1 form and owed for its 0.2 form, it is counted as owed: what the column answers is
-whether 0.2 is true yet, and it is not. **Nine of the forty-nine rules are held and twenty-nine are owed.**
+whether 0.2 is true yet, and it is not. **Ten of the forty-nine rules are held and twenty-nine are owed.**
 Phase 2 built the bus half of T4.1, T4.2, T4.8, T5.5, T5.6 and T5.7 in atchung; each says so, and each stays owed
 until the framework runs its components on the tick. That is the honest state of a
 redesign at its first commit, and the column is how its progress is read: each phase in the roadmap moves a known
