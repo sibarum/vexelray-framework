@@ -413,7 +413,7 @@ key or a new size on the tree's topic for that kind, addressed to the node, and 
 widget tick of the frame the input arrived (vexelray-gui's `Gui.hear`, held by `HearTest`). Hover and size are
 state, so a pointer that crossed a row and left within a frame is heard once, where it ended. A size is laid out
 after the widget tick, so it is heard in the next frame's. The node-level registrations that run during dispatch
-(`onClick`, `onKeyUi` and the rest) are the widget library's: a widget's press, caret and focus have to move in
+(`onClick`, `onKey` and the rest) are the widget library's: a widget's press, caret and focus have to move in
 order with the input around them, which a delivery after dispatch cannot do, and the widget library is the GUI. Its time inside the frame is the main thread's watchdog's to report, as a wedged main thread is.
 **Why:** it is the author's model as stated: GUI elements are components with a mailbox drained every frame, and an
 application's composite element is a GUI element. The alternative, every dynamic UI described as commands in the

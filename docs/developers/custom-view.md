@@ -185,7 +185,7 @@ What each part is doing:
 
 When the thing under the boxes is drawn (a map, a graph), draw it as one `Picture` on a layer and float a box over
 each item that should take clicks. `MapPane` in `vexelray-maistro` is the example. It uses one layer with no
-padding, redraws the picture on `gui.onResizeUi(layer, ...)`, and places each box with `floatAt` and `size` in
+padding, redraws the picture on `gui.onResize(layer, ...)`, and places each box with `floatAt` and `size` in
 percent of the layer's pixel size, computed from the same numbers as the drawing. Then what is drawn and what is hit
 cannot disagree. Each box is `role("button")`, has a click handler and a landmark (`Landmarks.mapNode(id)`), and
 holds a hidden label that names it.
