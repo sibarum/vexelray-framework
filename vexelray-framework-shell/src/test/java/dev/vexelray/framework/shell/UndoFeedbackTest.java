@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class UndoFeedbackTest {
 
-    private final Gui gui = new Gui(Atchung.create(), Runnable::run);
+    private final Gui gui = new Gui(Atchung.create());
     private final Recording dialogs = new Recording();
     private final KronoGui krono = KronoGui.attach(gui);
     private final UndoFeedback feedback = new UndoFeedback(gui, () -> dialogs, () -> krono);

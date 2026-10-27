@@ -73,23 +73,12 @@ final class WindowsTest {
     }
 
     @Test
-    void aNamedWindowsTreeIsOnABusOfItsOwnAndTheApplicationsLanes() {
+    void aNamedWindowsTreeIsOnABusOfItsOwn() {
         Window w = declare(Appearance.DEFAULT, NamedWindow.of("tool", "Tool", 300, 200));
 
         // Two trees on one bus each receive the other's mutations, and the main window drew the calculator's
-        // settings for it (FN-2). The lanes are shared, so a window is not a set of threads.
+        // settings for it (FN-2). A Gui owns no threads (vexelray-gui 0.2), so a window is not a set of them.
         assertNotSame(shell.bus(), w.gui().bus(), "a second window's tree is on the application's bus");
-        // Gui wraps both lanes it is given (each hop carries its cause, vexelray-gui af5bfd1), so they are compared by
-        // where their work runs rather than by identity: on the application's offload thread, not one of the window's.
-        assertEquals(threadOf(shell.lanes().offload()), threadOf(w.gui().offload()),
-                "a second window has an offload lane of its own");
-    }
-
-    /** The name of the thread {@code lane} runs a task on. */
-    private static String threadOf(java.util.concurrent.Executor lane) {
-        java.util.concurrent.CompletableFuture<String> name = new java.util.concurrent.CompletableFuture<>();
-        lane.execute(() -> name.complete(Thread.currentThread().getName().replaceAll("-\\d+$", "")));
-        return name.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).join();
     }
 
     @Test

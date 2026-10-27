@@ -112,10 +112,9 @@ public final class Windows {
         }
         Appearance appearance = shell.appearance();
         // A bus of its own, which is Gui's rule rather than a preference: its topics are static, so two trees on
-        // one bus each receive the other's mutations (calculator FN-2). The lanes are the application's, so a
-        // second window is not a second set of threads.
-        Gui gui = shell.disposer().register(
-                new Gui(Atchung.create(), shell.lanes().handlers(), shell.lanes().offload()));
+        // one bus each receive the other's mutations (calculator FN-2). A Gui owns no threads, so a second window
+        // is not a second set of them.
+        Gui gui = shell.disposer().register(new Gui(Atchung.create()));
         if (window.theme() == null) {
             appearance.applyTo(gui);
         } else {

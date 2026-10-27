@@ -235,13 +235,10 @@ public final class VexelApplication {
 
         // ---- GUI: the look applied before the first widget, and the clock attached before it too. --------
         shell.phase(Phase.GUI);
-        // On the application's bus and the application's lanes, not private ones. A Gui made with neither
-        // makes itself both -- its own fabric, so nothing published on one tree is heard on another, and its
-        // own cached pool, so the thread count is a property of the window count. Handing both over is what
-        // makes placement a decision the wiring takes rather than an accident of how many trees exist.
-        // See Shell.bus and Shell.lanes.
-        Gui gui = disposer.register(
-                new Gui(shell.bus(), shell.lanes().handlers(), shell.lanes().offload()));
+        // On the application's bus, not a private one: a Gui made without it makes its own fabric, so nothing
+        // published on one tree would be heard by the application. It owns no threads: its handlers run on the GUI
+        // thread, in the frame (vexelray-gui 0.2, threading.md T1.1). See Shell.bus.
+        Gui gui = disposer.register(new Gui(shell.bus()));
         Appearance appearance = shell.appearance();
         // The theme and the zoom range, through the same call an application uses on the windows the framework
         // did not build -- so there is one definition of what an appearance means on a Gui rather than two that
