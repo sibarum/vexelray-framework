@@ -392,7 +392,13 @@ tree's mutations are applied, so it hears a widget's event in the frame the inpu
 nodes and the `Gui` (they are main-thread values, and T2.2 lets them into a main-thread part), send messages, and
 receive them. It may not take a `@Job`, a blocking service or a logic component, and no logic component may take it
 (T2.2): the processor checks each from declarations. It hears its widgets as messages (T3.8), never through a
-callback (T7.2). Its time inside the frame is the main thread's watchdog's to report, as a wedged main thread is.
+callback (T7.2), and a node of its own the same way: the dispatcher publishes a click, a hover, a drag, the wheel, a
+key or a new size on the tree's topic for that kind, addressed to the node, and the view's inbox receives it in the
+widget tick of the frame the input arrived (vexelray-gui's `Gui.hear`, held by `HearTest`). Hover and size are
+state, so a pointer that crossed a row and left within a frame is heard once, where it ended. A size is laid out
+after the widget tick, so it is heard in the next frame's. The node-level registrations that run during dispatch
+(`onClick`, `onKeyUi` and the rest) are the widget library's: a widget's press, caret and focus have to move in
+order with the input around them, which a delivery after dispatch cannot do, and the widget library is the GUI. Its time inside the frame is the main thread's watchdog's to report, as a wedged main thread is.
 **Why:** it is the author's model as stated: GUI elements are components with a mailbox drained every frame, and an
 application's composite element is a GUI element. The alternative, every dynamic UI described as commands in the
 widget library's vocabulary, would make each application's screens a protocol and the widget API several times its
