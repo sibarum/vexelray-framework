@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.FrameStage;
 import dev.vexelray.framework.api.RunMode;
@@ -393,7 +394,7 @@ public final class VexelApplication {
 
         // And the wakes, without which the parking below is a hang rather than a saving: a worker's mutation
         // and a timeline's tick are not OS input, so each has to nudge the message queue.
-        shell.wake(gui::onWork);
+        shell.wake(Seams.of(gui)::onWork);
         shell.wake(krono.kron()::onWork);
 
         wiring.attach(shell);

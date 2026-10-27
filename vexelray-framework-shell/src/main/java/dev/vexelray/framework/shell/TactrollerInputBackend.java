@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.WindowInput;
@@ -206,7 +207,7 @@ final class TactrollerInputBackend implements InputBackend {
         gui.scrollGlide(WHEEL_HALF_LIFE);
         gui.focusFade(RING_FADE);
         if (backend.supportsPointerWarp()) {
-            gui.onPointerWarp((x, y) -> {
+            Seams.of(gui).onPointerWarp((x, y) -> {
                 try {
                     backend.warpPointer(Math.round(x), Math.round(y));
                 } catch (BackendException e) {

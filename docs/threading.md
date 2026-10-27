@@ -391,6 +391,23 @@ interface, `Executor`, `CompletableFuture` or `Future`. A question is a request 
 topic: a close gate is `CloseRequested` and `CloseAnswer`, a file picker is `PickFile` and `Picked`, a confirm is
 `Ask` and `Answer`. *(owed, phases 3 to 5. Held, when built, by a test in the framework's own build that walks
 the public API, so a callback added later fails the build rather than a review)*
+*Ruled 2026-10-27, what the rule is about:* **which thread runs the code.** A subscription is not a callback: its
+code runs on the subscriber's own thread, handed an immutable message, and answers by sending. What the rule forbids
+is code handed to the GUI that the GUI keeps and runs on its own thread, in the frame. So:
+- **The widget library's and the host's seams** (`onClick`, `onKey`, `onDrag`, `claim` with a `Runnable`,
+  `onDrop`, `reveals`, `onResize`, the host's sinks and `frame`) are on vexelray-gui's `spi.Seams`, reached by
+  `Seams.of(gui)` and from nothing an application is handed. **Why:** a seam on `Gui` is a side channel a view could
+  do logic through in the frame. *(held for `Gui` by vexelray-gui's `GuiSurfaceTest`: `Gui` takes a function only
+  where it runs as the caller, `mailbox`, `hear` and `batch`, and returns nothing that leads to `Seams`. Owed: the
+  processor refusing a `@View` that imports the `spi` package, with `@View` in phase 4)*
+- **A view may still give a widget display functions** (a row builder, a label, an `f(x)` to plot). **Why:** they
+  are presentation, which T7.4 already puts on the GUI thread, and logic can never pass one because it holds no
+  widget. On two conditions, both owed: the function's shape takes the item and returns a description, with no `Gui`
+  in hand; and the processor reads each such lambda in a `@View` and refuses I/O, blocking calls and captures of
+  mutable state.
+- **What answers a question the logic owns** (`Reorder`, `Checkable`, a tree action's body and predicates,
+  `Button.perform`, `Property`'s bindings) becomes declared data or a request and a reply, as menus (T7.5) and a
+  tree's children did. *(owed, phase 3)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job

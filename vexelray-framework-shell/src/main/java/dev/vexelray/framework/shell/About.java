@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.app.GuiApp;
@@ -124,7 +125,7 @@ final class About {
         TitleBar bar = window.titleBar();
         g.root().background(Role.PAGE).children(bar.node(), page.body(), page.foot());
         // Esc puts it away, as it does a dialog: there is nothing on it to lose.
-        g.claim(g.root(), Shortcut.of(Key.ESCAPE), ClaimScope.VISIBLE, window::close);
+        Seams.of(g).claim(g.root(), Shortcut.of(Key.ESCAPE), ClaimScope.VISIBLE, window::close);
 
         AboutIntro intro = new AboutIntro(g, shell.krono(), page, anchor, icon);
         window.onOpened(intro::play);

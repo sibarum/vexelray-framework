@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Theme;
@@ -171,7 +172,7 @@ final class AppearanceTest {
         try (Gui second = gui()) {
             Appearance.of(Theme.LIGHT, Length.rem(46), Length.rem(30)).applyTo(second);
 
-            second.frame(300f, 150f, AppearanceTest::noText);
+            Seams.of(second).frame(300f, 150f, AppearanceTest::noText);
             assertEquals(300f, second.root().layout().rect().w(), 0.5f,
                     "a floor of 46em would have laid this out on 736pt and cropped it");
             assertEquals(150f, second.root().layout().rect().h(), 0.5f);

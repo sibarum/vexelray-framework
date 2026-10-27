@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.edit.Outcome;
 import dev.vexelray.gui.core.edit.UndoEvent;
@@ -48,7 +49,7 @@ final class UndoFeedback implements Consumer<UndoEvent> {
 
     /** Install on {@code gui}, asking {@code shell}'s dialogs and timing the ring by its clock. */
     static void install(Gui gui, Shell shell) {
-        gui.onUndo(new UndoFeedback(gui, shell::dialogs, shell::krono));
+        Seams.of(gui).onUndo(new UndoFeedback(gui, shell::dialogs, shell::krono));
     }
 
     @Override

@@ -829,7 +829,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       on two library classes until a host wants one.
 
 - [ ] **`shell.wake(gui::onWork)` is redundant, and the framework should probably stop making the call.**
-      `GuiApp.wireAllWakes` already does `gui.onWork(this::postWake)` for **every** tree it presents,
+      `GuiApp.wireAllWakes` already does `Seams.of(gui).onWork(this::postWake)` for **every** tree it presents,
       re-checked each iteration, and says why: *"an application has more trees than it has main
       windows"*, so left to the application it is *"a line to repeat per window, correct on the window
       under test and missing on the one being used."* The framework's single call is the weaker version
@@ -863,7 +863,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       `PointerLockTest` drives the threshold, the focus rule, the modes and the teardown against
       `PointerLock.Device`, which is the seam the previous entry turns down in general and which was
       worth it here because the thing behind it is a state machine rather than a one-line report. What
-      is still taken on faith is `gui.onPointerLock(this::want)` — that the framework subscribes at
+      is still taken on faith is `Seams.of(gui).onPointerLock(this::want)` — that the framework subscribes at
       all. Asserting it needs the dispatcher to fire the sink, which needs a press hit-tested against a
       laid-out tree, which is `vexelray-gui-harness` rather than a unit test. `WakeSeamsTest` already
       runs a real `GuiApp`, so the pattern exists; the missing part is a node that declares

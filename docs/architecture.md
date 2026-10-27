@@ -204,7 +204,7 @@ application holds. Today that is one expression:
 
 ```java
 app.pacing(() -> Math.min(krono.kron().sleepTimeout().nanos(), memory.nanosUntilSettle()));
-gui.onWork(app::postWake);
+Seams.of(gui).onWork(app::postWake);
 krono.kron().onWork(app::postWake);
 ```
 

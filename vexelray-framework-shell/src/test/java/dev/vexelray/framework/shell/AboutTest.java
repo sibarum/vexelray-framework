@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -67,7 +68,7 @@ class AboutTest {
                 About.minimum(g);
                 About.Page page = About.content(g, About.name(INFO, worst), worst, mark);
                 g.root().children(page.body(), page.foot());
-                g.frame(size[0], size[1], dev.vexelray.gui.core.text.TextFaces.standard());
+                Seams.of(g).frame(size[0], size[1], dev.vexelray.gui.core.text.TextFaces.standard());
                 List<String> unasked = dev.vexelray.diag.Diagnostics.recorded().stream()
                         .filter(m -> m.startsWith("a horizontal scrollbar nobody asked for")).toList();
                 assertEquals(List.of(), unasked, "at " + (int) size[0] + "x" + (int) size[1]);

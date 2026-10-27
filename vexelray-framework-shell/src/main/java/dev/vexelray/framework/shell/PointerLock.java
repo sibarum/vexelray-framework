@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.gui.core.Gui;
@@ -268,7 +269,7 @@ public final class PointerLock {
             return;
         }
         if (gui != null) {
-            gui.onPointerLock(this::want);
+            Seams.of(gui).onPointerLock(this::want);
         }
     }
 

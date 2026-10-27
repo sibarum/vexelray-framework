@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.framework.api.FrameStage;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
@@ -188,7 +189,7 @@ final class WakeSeamsTest {
             Gui gui = shell.gui();
             Node box = gui.box().size(Length.dp(200), Length.dp(120));
             gui.root().append(box);
-            gui.onClick(gui.root(), clicks::incrementAndGet);
+            Seams.of(gui).onClick(gui.root(), clicks::incrementAndGet);
         }
 
         @Override
