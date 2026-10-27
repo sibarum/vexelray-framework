@@ -265,6 +265,58 @@ text editor binds the clipboard to *every* window in a loop, and remembers each 
 *The reasoning is here; the rules it produces are in [threading.md](threading.md), stated normatively and
 each carrying whether anything enforces it yet.*
 
+### The message model (0.2)
+
+*Decided 2026-10-26. The subsections after this one are 0.1's reasoning; what they say about one thread per
+component, handler lanes and the `APP` door is superseded where this section says so, and kept because most of
+the rest (static placement, platform threads, the timeline's baton, the liveness layers) still holds.*
+
+The model below was always the intent, in the author's words: every part of an application, GUI elements
+included, has a mailbox and its own state, subscribes to the streams it wants, and is drained once per frame,
+with the last update in the frame winning. 0.1 drifted from it in three layers, and fixing the code without the
+other two would have regressed:
+
+- **The rulings themselves allowed the drift.** threading.md made a multi-threaded handler pool one of five
+  official lanes (T1.1), gave results a door onto the main thread (T5.1, `FrameStage.APP`), and drained each
+  component continuously on its own thread, so two mailboxes were never in order with each other.
+- **Upstream invited it.** `vexelray-gui` ran every click and key handler on a worker pool and accepted widget
+  writes "from any thread", so an application's natural shape was a callback that wrote widgets from a worker.
+- **The processor allowed it.** A mutable provided value could be shared by every lane, `@Publishes` was
+  optional, and a lambda handed to an executor captured anything.
+
+The result was an API that answered in callbacks "from any thread", windows and dialogs guarded by locks, and a
+template whose every part was a callback on a pool thread. The template's first move to messages, in October
+2026, found the model's missing pieces from the application's side: it had to keep the close gate's callbacks
+under a ticket because a callback cannot cross a lane, and send "close these tabs" as one message per tab with a
+batch id and a count, because a payload could not hold a list and two mailboxes had no common order.
+
+**What 0.2 rules, and why** (threading.md §0 has the table):
+
+1. **State or edge, per topic.** atchung already had both halves (`Backpressure`'s sample and edge, `Fold`'s keyed
+   cell), as a choice each subscriber made. Making it the topic's property means every subscriber agrees, and the
+   author's "last update in the frame wins" is exactly the state kind.
+2. **One logic lane by default.** What made 0.1 multi-threaded by default was not a decision but the absence of
+   one: a handler pool and a thread per lane. With one lane no two components run at once, nothing needs a lock,
+   and a run can be replayed. Parallelism is a lane a component declares.
+3. **The tick, with a deadline that is the framework's.** A tick drains in rounds until nothing is queued or its
+   deadline arrives, and carries the rest over in order. The deadline is set by the framework and need not match
+   the display's frames, because logic should not run at a rate set by whichever display it is on, and a headless
+   run has no frames at all.
+4. **The main thread runs no application code**, with one deliberate exception that the framework chooses:
+   single-thread mode, for CPU-constrained headless machines, runs the same ticks on the main thread. The two
+   halves are one idea. Because a component only ever reads its mailbox, it cannot tell which thread drained it,
+   so moving the tick costs the application nothing. That is also the test (T1.7).
+5. **Sends declared by construction.** A typed sender per topic is a constructor parameter. This is the house
+   pattern (*an object that is the rule*), and it is what finally makes the message graph the processor checks
+   the whole graph.
+6. **Immutable collections may cross**, tentatively: refusing all of them made applications design protocols
+   around the checker.
+
+**What it costs, and where that is priced.** One tick of latency between an input and a logic-driven response
+(T5.4), measured in phase 7 before it is accepted; widget-local responses stay inside the widget and cost nothing
+(T3.9). One wedged component now stops every component on the logic lane, though not the window (T6.5). And in
+single-thread mode the liveness guarantee's first part does not hold, which is what choosing that mode means.
+
 The intended shape of a VexelRay application is **one component, one thread, one mailbox**, and it is
 the most load-bearing constraint in this design that has never been written down. It is why
 `atchung-core` exists — its own README routes *"one process, many components (input, graphics, GUI,

@@ -16,6 +16,19 @@ with a reason of their own: that a full FAIL mailbox halts the process (ruling 5
 and that the designer is not ported. Every ruling states its reason, and a new one must; see TODO.md, *A ruling
 carries its reason*. Rulings 1 and 2 are complete.
 
+> **0.2, 2026-10-26: the message model.** [threading.md](threading.md) was rewritten around six rulings (its §0),
+> and this page has not caught up beyond the notes marked *0.2* below. Read threading.md first where they
+> disagree. What changes here, in summary:
+>
+> - A component is **a mailbox and private state**, not a thread. Components that declare no lane share one
+>   **logic lane** (T1.6), which is what `Component.DEFAULT_LANE` becomes. They drain once per tick, not
+>   continuously (T5.5).
+> - Every part with behaviour is a component, including what 0.1 left as plain provided objects (`Ui`, `Actions`,
+>   `Model`), so ruling 9's answer covers them too. A component never holds another, on any lane (T2.3).
+> - Sends are constructor parameters, and `@Publishes` goes (T4.5). Each topic is state or edge (T4.1).
+> - The table under *What a component is owed* is 0.1's. It is rewritten in phase 4, when the tick replaces
+>   `Placement`.
+
 ## What a component is
 
 A `@Component` is **a thread and a mailbox**: a class constructed once, before the loop runs, by its one
@@ -182,6 +195,16 @@ kept, since a developer who can tolerate loss already has `DROP_OLDEST`, `DROP_N
 the same attribute. The advice that survives is the cheap half: a sample belongs on `COALESCE_LATEST` (T4.1),
 and a bound that is simply too small should be raised.
 
+**0.2, revisited 2026-10-26.** The ruling that a lost edge must never be silent stands, and the message model
+makes it stricter. An edge topic delivers every message (threading.md T4.1, ruling 1 of 0.2), so `DROP_OLDEST` and
+`DROP_NEWEST` are no longer offered: a channel that can lose a message is a **state** topic, which keeps the last
+write per key and cannot overflow. `BLOCK` goes too, because under the tick no publish waits (T4.4, withdrawn). An
+edge mailbox that overflows still halts, naming the topic (T4.2). Two parts of this ruling are reopened, for phase 2
+to settle: the default capacity, because 64 was sized for a mailbox drained continuously and a tick-drained one
+holds everything that arrived since the last tick; and whether capacity stays a per-subscription attribute, because
+the template already needed 4096 to survive closing every tab, and immutable lists in payloads (ruling 6 of 0.2) are
+expected to remove that burst.
+
 ### 6. Supervision
 
 Ruled: report only, and a policy the application can override. The three open points have answers in code
@@ -224,6 +247,12 @@ reference* (T3.7) true for extensions as well, and it removes an item from the b
 one. Reactive *automation* (a user script that reacts rather than drives) is a different shape, because that
 script is not compiled into the application: it is the wire protocol growing an event stream, which is
 additive. Say so, so the two are not built as one seam.
+
+**0.2, revisited 2026-10-26: still not a thing, and now it matters more.** The audit found the cost of the other
+half of this ruling: in 0.1, an application's `Ui`, `Actions` and `Model` were provided objects, could not subscribe,
+and so took callbacks instead. 0.2 does not give a provided object a mailbox. It makes those parts components, which
+under one logic lane (T1.6) costs no thread. A provided value is then what its name says, a value: shareable or a
+framework service (T2.6), with no behaviour that reacts to anything.
 
 ### 10. Offload as a request with a reply-to (proposed 2026-10-18, not ruled)
 
