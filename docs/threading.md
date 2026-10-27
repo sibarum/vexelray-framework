@@ -359,7 +359,7 @@ mode, and choosing the mode is choosing it. *(held for 0.1's lanes, by `Watchdog
 
 ## 7. The main thread and the API surface
 
-**T7.1 — No application code runs on the main thread** (ruling 4). The main thread pumps input, applies widget
+**T7.1 — No application code runs on the main thread** (ruling 4). Two exceptions are named, and only two: drawing (below) and presentation (T7.4). The main thread pumps input, applies widget
 writes, lays out, draws and presents, and runs the framework's own frame hooks. Every door through which an
 application reached it in 0.1 is closed: `@BeforeFrame`, `FrameStage.APP`, `@MainThread` on an application's
 provider or type, `Window.onOpened` and `onClosed` listeners, a close gate run there, and `post(Runnable)`.
@@ -384,6 +384,21 @@ code. Anywhere else, they are a defect. *(owed, phase 5. Held, when built, by a 
 core's sources against the list. In 0.1 `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` hold
 locks and volatiles for state the main thread and the handler pool both touched)*
 
+**T7.4 — A view component is presentation, and it runs on the GUI thread.** *Ruled 2026-10-27, the second exception
+to T7.1 beside drawing.* Something has to turn "the editor opened a file" into "add a tab holding a text field", and
+that touches widgets. A **view component** is an application's own GUI element: a component whose inbox is in the
+GUI's widget tick, drained on the GUI thread at the start of each frame, after input is dispatched and before the
+tree's mutations are applied, so it hears a widget's event in the frame the input arrived. It may hold widgets,
+nodes and the `Gui` (they are main-thread values, and T2.2 lets them into a main-thread part), send messages, and
+receive them. It may not take a `@Job`, a blocking service or a logic component, and no logic component may take it
+(T2.2): the processor checks each from declarations. It hears its widgets as messages (T3.8), never through a
+callback (T7.2). Its time inside the frame is the main thread's watchdog's to report, as a wedged main thread is.
+**Why:** it is the author's model as stated: GUI elements are components with a mailbox drained every frame, and an
+application's composite element is a GUI element. The alternative, every dynamic UI described as commands in the
+widget library's vocabulary, would make each application's screens a protocol and the widget API several times its
+size. *(owed: phase 3 builds the GUI tick it drains in and the widgets' topics, phase 4 the `@View` declaration and
+its checks)*
+
 ---
 
 ## The matrix
@@ -398,10 +413,10 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **4 Channels** | T4.3 | T4.1, T4.2, T4.5, T4.7, T4.8 | | T4.6 | | | T4.4 |
 | **5 Completion** | | T5.1, T5.3, T5.5, T5.6, T5.7, T5.8 | | | | T5.4 | T5.2 |
 | **6 Lifecycle** | T6.4 | T6.1, T6.2, T6.5 | | | T6.3 | | |
-| **7 Main thread** | | T7.1, T7.2, T7.3 | | | | | |
+| **7 Main thread** | | T7.1, T7.2, T7.3, T7.4 | | | | | |
 
 Where a rule is held for its 0.1 form and owed for its 0.2 form, it is counted as owed: what the column answers is
-whether 0.2 is true yet, and it is not. **Eight of the forty-seven rules are held and twenty-seven are owed.**
+whether 0.2 is true yet, and it is not. **Eight of the forty-eight rules are held and twenty-eight are owed.**
 Phase 2 built the bus half of T4.1, T4.2, T4.8, T5.5, T5.6 and T5.7 in atchung; each says so, and each stays owed
 until the framework runs its components on the tick. That is the honest state of a
 redesign at its first commit, and the column is how its progress is read: each phase in the roadmap moves a known
