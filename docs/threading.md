@@ -67,8 +67,9 @@ Ruling 3 says what a tick does, and §5 states it as rules. This is the picture 
 3. **Deadline.** The framework gives each tick a deadline. Once it passes, the round in progress finishes and no
    further round starts. What is queued stays queued, in order, for the next tick. A delivery is never
    interrupted: the deadline falls between deliveries, never inside one.
-4. **Hop limit.** A tick that is still producing messages after a fixed number of rounds is a loop, and a loop is
-   a bug. The framework fails loudly, naming the topics that kept it going (T5.7).
+4. **Hop limit.** Each message counts how many deliveries separate it from the message that started its chain. A
+   chain past the limit is a loop, and a loop is a bug: the framework fails loudly, naming the topic and the inbox
+   where the limit was crossed (T5.7). Counted per message, not per tick, so a deadline cannot hide one.
 
 With one lane, the rounds deliver every message in the order it was published, because a message published in
 round *k* is always later than everything delivered in round *k*. With several lanes, the lanes run a round in
@@ -228,21 +229,25 @@ tab's title, a document's dirty flag, a progress value. It names a key, and with
 delivered only the last write per key. An **edge** topic carries what happened: a keystroke, Save, Close, the
 answer to a question. Every message is delivered, in order. The kind belongs to the topic, so every subscriber
 agrees on it. *0.1 chose a loss policy per subscription, and held only that one topic was not an edge to one
-subscriber and a sample to another.* *(owed, phases 2 and 4: atchung's `Fold` already folds by key and
-`Backpressure` already names the two classes; what is missing is the kind on the topic and the processor
-requiring it)*
+subscriber and a sample to another.* *(owed, phase 4. **The bus half is built** (atchung 1.4, 2026-10-26): `Topic.state(name,
+type, key)` and `Topic.edge`, a `Tick` folding state by key and delivering every edge, and the bus refusing two
+declarations of one channel that disagree about its kind, held by `TickTest.theLastWritePerKeyWinsAndEveryEdgeIsDelivered`
+and `twoDeclarationsOfOneChannelMustAgreeAboutItsKind`. What is missing is the framework running components on
+the tick and the processor requiring every topic to declare its kind)*
 
 **T4.2 — An edge is never lost quietly.** An edge mailbox is bounded, and overflowing it ends the application,
 naming the topic, the bound and the subscriber, as `Backpressure.FAIL` does now. A state mailbox cannot overflow:
 it holds one message per key. Loss is never a policy an edge can choose. *(held for 0.1's `FAIL` default; the
-per-topic form is owed with T4.1)*
+per-topic form is owed with T4.1, and built in the bus: a tick's edge mailbox has no lossy policy to choose, and
+overflowing it runs `Fatal`, `TickTest.anEdgeMailboxThatOverflowsIsAFaultNamingTheTopic`)*
 
 **T4.3 — Each `@Subscribe` gets a mailbox of its own.** *(held, by construction)*
 
 **T4.4 — A blocking edge in a cycle.** *Withdrawn.* Under the tick, publishing never blocks: a message is queued
 for the next round and the publisher carries on, so there is no blocking edge to put in a cycle and
 `Backpressure.BLOCK` has no use. A cycle that keeps producing messages is caught by the hop limit (T5.7) instead.
-*(owed, phase 2: `BLOCK` is removed from what a subscription may choose)*
+*(owed, phase 4: a tick's inbox offers no `BLOCK`, and the framework stops offering it on `@Subscribe`. atchung keeps
+`BLOCK` for `Pump`, whose other users still choose it)*
 
 **T4.5 — Every send is declared, by construction** (ruling 5). A component is handed a typed sender for each topic
 it publishes on (`Outbox<T>`, working name) as a constructor parameter, and the generated wiring builds it. The raw
@@ -263,8 +268,9 @@ tick itself, which is not waiting on it. *(owed, phases 2 and 5)*
 **T4.8 — A subscription may filter by key.** The author's "subscribe to any desired event streams with a
 filter": a subscriber to a state topic may name the keys it wants (`@Subscribe(topic = ..., key = ...)`), and the
 wiring does the filtering, so a component is never handed a message it would discard. A filter is a declaration,
-never a predicate lambda, so the processor can see it. *(owed, phase 4. Filters on edge topics, and filters on
-anything but the key, are open until an application needs one)*
+never a predicate lambda, so the processor can see it. *(owed, phase 4; the bus half is built, `Inbox.subscribe(topic,
+subscriber, capacity, keys)`, held by `TickTest.aKeyFilterDeliversOnlyTheKeysItNames`, which also holds that an edge
+topic refuses a filter. Filters on anything but the key are open until an application needs one)*
 
 ## 5. Completion and the tick
 
@@ -296,18 +302,26 @@ framework schedules each tick and sets its deadline; ticks usually follow the fr
 coincide with a frame being drawn, and a headless run draws none. A delivery is never interrupted. What the
 deadline leaves queued is delivered first in the next tick, in its original order, and a state message carried
 over still folds with any newer write to its key. "The last write within the frame wins" means within the tick.
-*(owed, phase 2 for the mechanism, phase 4 for the deadline policy, which lives beside `Pacing`)*
+*(owed, phase 4 for the deadline policy, which lives beside `Pacing`. The mechanism is built, atchung's
+`Tick.run(deadline)`, held by `TickTest.aDeadlineStopsBetweenRoundsAndTheRestComesFirstNextTick`,
+`aStateMessageCarriedOverIsStillReplacedByANewerWrite` and `aMessageFromOutsideWaitsForTheNextTickAndWakesWhoeverRunsIt`)*
 
 **T5.6 — Delivery order is fixed, so a run replays.** Within a round, a component receives its messages in the
 order they were published. Messages that arrive between ticks are ordered by arrival. Messages published in the
 same round by components on different lanes are ordered by a fixed tie-break: the publishing component's position
 in the wiring, then its own publish order. The same inputs in the same order produce the same deliveries, in both
-modes (T1.7). *(owed, phase 2. The tie-break is the proposed one and is open until phase 2 measures whether it costs
-anything)*
+modes (T1.7). *(owed, phase 4; built in the bus, held by `TickTest.sendsOfOneRoundArriveInInboxOrderHoweverTheLanesRan`, which
+runs one round on one thread, on lanes backwards, and on a pool, and gets one order from all three. The tie-break
+costs nothing: each component sends into an outbox of its own, and the outboxes are emptied in wiring order at the
+round's end, so nothing is sorted)*
 
-**T5.7 — A tick that will not settle is a loop, and a loop fails loudly.** A tick still producing messages after
-a fixed number of rounds ends the application, naming the topics that kept it going. The deadline alone would not
-catch a loop: it would only spread it across ticks, forever. *(owed, phase 2)*
+**T5.7 — A chain that will not settle is a loop, and a loop fails loudly.** Every message carries its hops: zero
+when it arrives from outside, one more than the message whose delivery sent it. A message past the limit (64 by
+default) ends the application, naming its topic and the inbox it was for, which is somewhere on the loop. Hops are
+counted per message rather than rounds per tick because the deadline would otherwise hide a loop: a tick cut short
+every time never reaches a round limit, and the loop runs forever across ticks. *(owed, phase 4; built in the bus,
+`TickLoop`, held by `TickTest.twoComponentsAnsweringEachOtherForeverAreALoop` and
+`aLoopIsCaughtEvenWhenEveryTickIsCutShortByItsDeadline`)*
 
 **T5.8 — Blocking work is a `@Job`, and nothing else blocks.** Disk, network, a decode, a long computation: each is
 a `@Job` with a request topic and a reply topic, run on the job lane. Its reply is a message like any other,
@@ -387,7 +401,9 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **7 Main thread** | | T7.1, T7.2, T7.3 | | | | | |
 
 Where a rule is held for its 0.1 form and owed for its 0.2 form, it is counted as owed: what the column answers is
-whether 0.2 is true yet, and it is not. **Eight of the forty-seven rules are held and twenty-seven are owed.** That is the honest state of a
+whether 0.2 is true yet, and it is not. **Eight of the forty-seven rules are held and twenty-seven are owed.**
+Phase 2 built the bus half of T4.1, T4.2, T4.8, T5.5, T5.6 and T5.7 in atchung; each says so, and each stays owed
+until the framework runs its components on the tick. That is the honest state of a
 redesign at its first commit, and the column is how its progress is read: each phase in the roadmap moves a known
 set of entries to *held*, in the same commit that makes them true.
 
