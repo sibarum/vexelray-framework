@@ -413,7 +413,12 @@ a shortcut or a claim binds a chord to a message; a drag source is the payload a
 the declaration itself and calls no one, and only the outcome leaves as a message (the item chosen, the chord
 pressed, the drop made), which may arrive a tick later because nothing on screen waits for it. A declaration is
 state: when the facts behind it change, the view declares again, as it would set a label. What it cannot be is an
-answer worked out at the moment of the click.
+answer worked out at the moment of the click. A widget that needs the application's data to draw at all asks for it
+by message and is told it as data in the reply: a tree asks for a level (`ChildrenWanted`) and is answered with its
+entries (`Children`), each carrying what its row is drawn from, so drawing a row calls no one (vexelray-gui's
+`TreeView`, held by `TreeChildrenTest`). That reply may land frames later, and unlike a menu's it is allowed to: a
+folder shows open and empty until its contents arrive, which is what a folder on a slow disk does, and nothing already
+on screen moves meanwhile.
 **Why:** a message's reply arrives a tick later, and a question asked as a message would open the menu a frame late
 and drag the drop indicator a frame behind the pointer for the whole gesture, which is the visual discontinuity the
 author has ruled out. A function answering in the frame would be a callback (T7.2) that could read anything, which
