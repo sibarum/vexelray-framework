@@ -213,8 +213,16 @@ for components, T2.3)*
 its mailbox, which is the tree's folded write sink that `vexelray-gui` already drains at the start of each frame:
 a property write folds by cell, a structural edit does not. What a widget *does* (a click, a selection, an edit, a
 menu item, a chord) is published as a message, never handed to a handler. A shortcut binds a chord to a message.
-*(upstream, phase 3: today `Gui` runs click, key and drag handlers on a worker pool, `Gui.java:411`, and widgets
-take callbacks such as `onSelect` and `onChange`)*
+Every message a widget publishes carries its **address**: the name of its tree and its own (`main.path`), so a
+widget's name need only be unique in its tree, two windows' "path" fields are two addresses, and a reply goes to the
+one that spoke. A widget built from widgets hears its parts through a hook of the widget library's own, in the
+dispatch, rather than by message: that is the widget's interaction state (T3.9), and it is not the application's to
+see. **Why the address is the tree's and not the application's to make unique:** a view built once per window would
+otherwise have to put its window into every name, and the first one that forgot would answer for both. *(held, phase
+3: every widget's callbacks are topics, `Button.PRESSED` to `TreeView.HOVERED`; an application hears one with
+`gui.mailbox(topic, widget.address(), stage)`, and vexelray-gui's `WidgetAddressTest` holds the address. The
+`Runnable` forms that remain (a dialog's or a rail's action, the title bar's mark) sit beside a `Sender` form, as
+`Keymap.Action.on` does, and leave a view's reach with T7.2's walk)*
 
 **T3.9 — A widget's own interaction state stays in the widget.** A caret, a selection, a hover, a scroll offset and
 the text being typed change inside the widget, on the main thread, with no message. Only what the application must
@@ -258,7 +266,9 @@ is exposed to the Inspector as `BUS_GRAPH` already, held by T4.5's 0.1 form)*
 
 **T4.6 — Two `Gui` trees may not share a bus.** `Gui`'s topics are class-level names, so two trees on one bus each
 receive the other's mutations. *(upstream: the fix is topics named per instance, and phase 3 is where it is
-cheapest to make)*
+cheapest to make. Half made: a `Gui` has a name (`new Gui(bus, "main")`), its node-event topics are named by it, and
+every widget's messages carry addresses qualified by it, so nothing a widget says crosses trees. Its own mutation and
+input topics are still class-level)*
 
 **T4.7 — Main-thread code never waits on the logic.** *0.1 stated this as "main-thread code sends only on channels
 that never block". Under T4.4 no send blocks, so the narrower rule holds by construction, and what is left is
@@ -438,14 +448,14 @@ The point of the column is that the unenforced rules are a list rather than an i
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **1 Lanes** | T1.3, T1.4, T1.5 | T1.1, T1.2, T1.6, T1.7 | | | | | |
 | **2 Colour** | T2.2 | T2.1, T2.3, T2.4, T2.5, T2.6, T2.7 | | | | | |
-| **3 Ownership** | T3.1, T3.7 | | T3.3 | T3.8 | T3.4, T3.6 | T3.2, T3.5, T3.9 | |
+| **3 Ownership** | T3.1, T3.7, T3.8 | | T3.3 | | T3.4, T3.6 | T3.2, T3.5, T3.9 | |
 | **4 Channels** | T4.3 | T4.1, T4.2, T4.5, T4.7, T4.8 | | T4.6 | | | T4.4 |
 | **5 Completion** | | T5.1, T5.3, T5.5, T5.6, T5.7, T5.8 | | | | T5.4 | T5.2 |
 | **6 Lifecycle** | T6.4 | T6.1, T6.2, T6.5 | | | T6.3 | | |
 | **7 Main thread** | | T7.1, T7.2, T7.3, T7.4, T7.5 | | | | | |
 
 Where a rule is held for its 0.1 form and owed for its 0.2 form, it is counted as owed: what the column answers is
-whether 0.2 is true yet, and it is not. **Eight of the forty-nine rules are held and twenty-nine are owed.**
+whether 0.2 is true yet, and it is not. **Nine of the forty-nine rules are held and twenty-nine are owed.**
 Phase 2 built the bus half of T4.1, T4.2, T4.8, T5.5, T5.6 and T5.7 in atchung; each says so, and each stays owed
 until the framework runs its components on the tick. That is the honest state of a
 redesign at its first commit, and the column is how its progress is read: each phase in the roadmap moves a known
