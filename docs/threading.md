@@ -399,6 +399,24 @@ widget library's vocabulary, would make each application's screens a protocol an
 size. *(owed: phase 3 builds the GUI tick it drains in and the widgets' topics, phase 4 the `@View` declaration and
 its checks)*
 
+**T7.5 — What the dispatcher asks, a node declares.** *Ruled 2026-10-27.* Some input is a question the dispatcher
+must answer in the frame it arrives in: what goes on this node's menu, what a drag beginning here carries, whether
+a drop would land here and where its indicator goes, which part claims this chord. The application answers each one
+**ahead of time, as data set on the node**: a menu is a list of items, each naming the message it sends when chosen;
+a shortcut or a claim binds a chord to a message; a drag source is the payload a node carries. The dispatcher reads
+the declaration itself and calls no one, and only the outcome leaves as a message (the item chosen, the chord
+pressed, the drop made), which may arrive a tick later because nothing on screen waits for it. A declaration is
+state: when the facts behind it change, the view declares again, as it would set a label. What it cannot be is an
+answer worked out at the moment of the click.
+**Why:** a message's reply arrives a tick later, and a question asked as a message would open the menu a frame late
+and drag the drop indicator a frame behind the pointer for the whole gesture, which is the visual discontinuity the
+author has ruled out. A function answering in the frame would be a callback (T7.2) that could read anything, which
+is the side channel this model removes. The widget library's own containers (a tree's reorder, a board's cards, a
+text field's Copy and Paste) still answer in code: they are the GUI, not an application. *(owed, phase 3: the
+declarations on `Gui`, and moving the function-valued seams (`onContextMenu`'s source, `onDrop`, `onDragSource`, a
+shortcut's `Runnable`) where only the widget library reaches them, so T7.2's API walk holds for what a view is
+handed)*
+
 ---
 
 ## The matrix
@@ -413,10 +431,10 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **4 Channels** | T4.3 | T4.1, T4.2, T4.5, T4.7, T4.8 | | T4.6 | | | T4.4 |
 | **5 Completion** | | T5.1, T5.3, T5.5, T5.6, T5.7, T5.8 | | | | T5.4 | T5.2 |
 | **6 Lifecycle** | T6.4 | T6.1, T6.2, T6.5 | | | T6.3 | | |
-| **7 Main thread** | | T7.1, T7.2, T7.3, T7.4 | | | | | |
+| **7 Main thread** | | T7.1, T7.2, T7.3, T7.4, T7.5 | | | | | |
 
 Where a rule is held for its 0.1 form and owed for its 0.2 form, it is counted as owed: what the column answers is
-whether 0.2 is true yet, and it is not. **Eight of the forty-eight rules are held and twenty-eight are owed.**
+whether 0.2 is true yet, and it is not. **Eight of the forty-nine rules are held and twenty-nine are owed.**
 Phase 2 built the bus half of T4.1, T4.2, T4.8, T5.5, T5.6 and T5.7 in atchung; each says so, and each stays owed
 until the framework runs its components on the tick. That is the honest state of a
 redesign at its first commit, and the column is how its progress is read: each phase in the roadmap moves a known
