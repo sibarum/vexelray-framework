@@ -217,7 +217,28 @@ Each step lands on its own and leaves the suites green.
    link does not take, as `Cancel` does. The chain stays a line of links rather than a tree, so it reads top to
    bottom. Held by `ChainTest`.
    Not yet: the step check (3), which these steps do not have.
-5. **Undo by snapshot** for one mailbox, then across a chain run.
+5. **Undo by snapshot** for one mailbox, then across a chain run. **Built 2026-10-28** as atchung's `Undo`:
+   - a ledger built `.undoable(undo)` tells the history, in the same round's sends, each change it commits: the value
+     before and after, and its group, which is the chain run it was in, or the run its step resumed, or a fresh id for
+     a change in no run;
+   - a group keeps, per ledger, the value before its first change and after its last. Undo puts the first back, redo
+     the last, so nobody writes a reverse;
+   - **undo and redo run on the tick's coordinator, between rounds**, when no step of any ledger is running. That is
+     the one change to the tick: a step may queue work for the coordinator (`Out.between`, package-private), which runs
+     after the round and before the outboxes are emptied, and is taken back if the step throws. It is what makes a
+     group's restore all or nothing across ledgers without a lock: the check and the restore see one moment;
+   - **the conflict check compares values (`equals`), not versions.** A restore is a commit, so a version check
+     would refuse the group below for the version the group above it moved; and two equal values are the same state,
+     so nothing a value check lets through is lost. It is undo.md's rule 6 ("the target still holds the value this
+     edit left behind"), applied per ledger. A group whose changes to one ledger were interleaved with another cause's
+     is marked tangled and conflicts too;
+   - a conflict moves nothing and is said on `outcomes()` (`UNDONE`, `REDONE`, `CONFLICT`, `EMPTY`), the policy
+     undo.md calls *block*; a restore is not recorded; a new change clears redo; the history keeps a depth.
+
+   Held by `UndoTest`: single changes latest first, a chain run undone on every ledger at once, a resumed run's
+   answer undone with it, a conflict that leaves both ledgers as they were, and depth. Not yet: undo.md's reveal step
+   (navigate to what is about to change), which needs a target per group and belongs with the GUI; and effects'
+   declared inverses or barriers, which wait for a mailbox that does effects.
 6. **The witness: closing a dirty document** in the template. It crosses a view, a controller, a dialog and undo,
    and it is the chain the rules above were written against.
 
