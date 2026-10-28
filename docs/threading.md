@@ -433,6 +433,13 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   `GuiSurfaceTest`, `KronoGuiTest`, `ModalTest`, `TreeRevealTest` and `TextFieldKeysTest`; and a view that draws its own motion sends a `Tween` towards a value and hears each step on
   `Tween.VALUE`, held by `TweenTest`; and time is a message source, `Timer.after` and `Timer.every` publishing on a
   topic, which any part may take since it runs nothing but the publish, held by `TimerTest`)*
+- **A declared step sent to the state that runs it is not a callback** *(direction ruled 2026-10-28; the design is
+  [plans/chains.md](plans/chains.md), not started).* A transaction `(state, args, outbox) → state` and a chain of
+  them run as the state's owner, on its lane. **Why:** the rule's objection is to code the receiver cannot see; a step
+  is code the owner declares on its own state, captures nothing, and is checked at compile time. Three rules come
+  with it: a step is a declared function, never a closure; a step returns an event and does not wait for what the
+  event leads to; a step belongs to the module that owns its state. *Done means* 2 gains this one exception when it
+  is built.
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
