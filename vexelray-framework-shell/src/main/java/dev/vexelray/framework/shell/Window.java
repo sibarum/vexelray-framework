@@ -97,10 +97,10 @@ public final class Window {
         this.bar = bar;
         this.shown = shown;
         // Undo for the whole window, bound before any widget exists so there is no window without it: Ctrl+Z,
-        // Ctrl+Shift+Z and Ctrl+Y everywhere in the tree, drops and pastes recorded into the same stack, and a
-        // failure shown rather than swallowed. A narrower history (a page's, a document's) outranks this one by
+        // Ctrl+Shift+Z and Ctrl+Y everywhere in the tree, and a failure shown rather than swallowed. A drop or a
+        // paste is the application's to record, as any edit of its model is: the widget only announces it. A narrower history (a page's, a document's) outranks this one by
         // claim scope, as Gui.history says.
-        gui.history(history).dropHistory(history);
+        gui.history(history);
         UndoFeedback.install(gui, shell);
         // Motion for the whole window, on the application's one clock, so a second window moves exactly as the main
         // one does rather than not at all. See WindowMotion.

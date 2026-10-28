@@ -408,7 +408,10 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
 - **What answers a question the logic owns** (`Reorder`, `Checkable`, a tree action's body and predicates,
   `Button.perform`, `Property`'s bindings) becomes declared data or a request and a reply, as menus (T7.5) and a
   tree's children did. *(owed, phase 3. Done for `Checkable`: a click is `TreeView.TOGGLED` and what is ticked
-  comes back as `TreeView.MARKS`, held by vexelray-gui's `TreeCheckTest`)*
+  comes back as `TreeView.MARKS`, held by vexelray-gui's `TreeCheckTest`. Done for `Reorder`: what a drop is offered
+  is declared and decided in the frame, a landing is announced (`TreeView.PLACED`, `Deck.PLACED`,
+  `ListView.LANDED`) and the application records it in its own history, so `Gui.dropHistory` is gone; held by
+  `TreeReorderTest`, `TreeTransferTest`, `BoardTest` and `ListViewTransferTest`)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
@@ -456,8 +459,10 @@ on screen moves meanwhile.
 **Why:** a message's reply arrives a tick later, and a question asked as a message would open the menu a frame late
 and drag the drop indicator a frame behind the pointer for the whole gesture, which is the visual discontinuity the
 author has ruled out. A function answering in the frame would be a callback (T7.2) that could read anything, which
-is the side channel this model removes. The widget library's own containers (a tree's reorder, a board's cards, a
-text field's Copy and Paste) still answer in code: they are the GUI, not an application. *(owed, phase 3: the
+is the side channel this model removes. The widget library's own parts (a text
+field's Copy and Paste, a board predicting where its card lands) still answer in code: they are the GUI, not an
+application. Its containers no longer ask the application anything in the frame: a tree, a deck and a list are
+told which drops to offer and announce where one landed (T7.2's walk, step 12). *(owed, phase 3: the
 declarations on `Gui`, and moving the function-valued seams (`onContextMenu`'s source, `onDrop`, `onDragSource`, a
 shortcut's `Runnable`) where only the widget library reaches them, so T7.2's API walk holds for what a view is
 handed)*
