@@ -39,7 +39,7 @@ state type, and checked at compile time to touch nothing else.
 Ruled with the author, 2026-10-28:
 
 1. **A step is a declared function, never a closure.** The processor reads each step's body and refuses one that
-   captures anything, reads mutable static state, or calls what is not on its allowlist. A non-capturing lambda is a
+   captures anything or does what is known to be unsafe (rule 4). A non-capturing lambda is a
    constant (javac makes one instance), so it is a compile-time function; a chain is built once at wiring time, so a
    step is identified by where it is declared. *Reason:* a step that captured the view's fields would be exactly the
    code T7.2 bans, run on another thread; and an identity by declaration gives the log and replay their ids without
@@ -54,6 +54,14 @@ Ruled with the author, 2026-10-28:
    names steps that each owner declares on its own state. An inline lambda is allowed when its state belongs to the
    module the chain is written in. *Reason:* steps written inline at the button would put the application's logic, and
    its types, in the view, undoing the template's `-core` controller and `-gui` view split.
+4. **The check never refuses safe code.** It refuses what is known to be unsafe and lets through what it cannot
+   judge. An author who gets past it (a call into code the check does not read, a mutable object behind an
+   interface) owns what follows. *Reason:* Java lacks the primitives that would let a checker prove a step safe
+   (the author designed Pontif to have them, and it cannot be used here), so a check that demanded proof would refuse
+   correct code, and an escape from a false refusal is debt by construction. A check that only names what is
+   certainly wrong has no false refusals to escape from. *(The author, 2026-10-28: "this is Java's problem. We can
+   try to warn you not to do unsafe multithreading things, but if you circumvent our checkers, that's on you, not
+   us.")*
 
 The design below follows from these and is not yet ruled in its details.
 
@@ -122,15 +130,18 @@ run out of order would need inverse operations, and is not offered.
 
 ### F. The check
 
-At compile time, through javac's `Trees` (the machinery `@View`'s lambda check needs):
+At compile time, through javac's `Trees` (the machinery `@View`'s lambda check needs). Under rule 4 it is a list of
+what is certainly wrong, not a proof of what is right, so each item is something no safe step does:
 
-- a step captures nothing but its parameters;
-- reads no mutable static and holds no reference beyond what it was given;
-- calls only an allowlist of JDK methods and steps or functions that are themselves checked;
-- makes no blocking call (I/O, locks, waits, sleeps);
-- takes and returns only values.
+- a capture: anything the step uses that is not its parameters or a constant;
+- a write to a static field, or a read of one that is not `final`;
+- `synchronized`, a `volatile` or `java.util.concurrent` type, `Thread`, or a lock;
+- a call on a known list of blocking and effectful JDK methods (`java.io`, `java.nio.file`, `java.net`, `Thread.sleep`,
+  `Object.wait`, `Future.get`, `System.exit`), listed by what they are rather than allowed by what they are not;
+- a parameter, return or state field of a type the bus already knows is mutable (T2.4's rule).
 
-It cannot rule out an endless loop; the watchdog stays.
+A call into code the check does not read (a library, an interface) is let through. It cannot rule out an endless
+loop; the watchdog stays.
 
 ### G. The log
 
@@ -156,8 +167,8 @@ through it while debugging.
 1. **Where a component's state lives.** One state value per component, or several named states per component.
 2. **Allocation.** Every transaction allocates a new state. Fine for logic; never inside `FrameHooks.run` or
    `Pacing`. Measure it on the tree's state, where commits are frequent.
-3. **The escape when F refuses safe code.** A false refusal will happen. What an author does then, without leaving
-   debt behind (a reviewed allowlist entry with a reason, or nothing).
+3. ~~**The escape when F refuses safe code.**~~ **Ruled 2026-10-28: there is none, because F never refuses safe
+   code** (rule 4).
 4. **A step that waits on a person.** How the dialog step parks a chain and how the answer resumes it: the answer is
    a message with the chain's id, but the shape of that in the API is not drawn.
 5. **Snapshots and large state.** A document's text: the gap buffer is not a persistent value. Either a rope, or the
@@ -180,4 +191,4 @@ Each step lands on its own and leaves the suites green.
 
 ## Decided
 
-The three rules above, 2026-10-28.
+The four rules above, 2026-10-28 (rule 4 after the plan was first written).

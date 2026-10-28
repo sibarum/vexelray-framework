@@ -436,9 +436,10 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
 - **A declared step sent to the state that runs it is not a callback** *(direction ruled 2026-10-28; the design is
   [plans/chains.md](plans/chains.md), not started).* A transaction `(state, args, outbox) → state` and a chain of
   them run as the state's owner, on its lane. **Why:** the rule's objection is to code the receiver cannot see; a step
-  is code the owner declares on its own state, captures nothing, and is checked at compile time. Three rules come
+  is code the owner declares on its own state, captures nothing, and is checked at compile time. Four rules come
   with it: a step is a declared function, never a closure; a step returns an event and does not wait for what the
-  event leads to; a step belongs to the module that owns its state. *Done means* 2 gains this one exception when it
+  event leads to; a step belongs to the module that owns its state; and the check never refuses safe code, refusing
+  only what is certainly unsafe, so an author who gets past it owns the result (Java cannot express the proof). *Done means* 2 gains this one exception when it
   is built.
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
