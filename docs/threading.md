@@ -402,9 +402,10 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   processor refusing a `@View` that imports the `spi` package, with `@View` in phase 4)*
 - **A view may still give a widget display functions** (a row builder, a label, an `f(x)` to plot). **Why:** they
   are presentation, which T7.4 already puts on the GUI thread, and logic can never pass one because it holds no
-  widget. On two conditions, both owed: the function's shape takes the item and returns a description, with no `Gui`
-  in hand; and the processor reads each such lambda in a `@View` and refuses I/O, blocking calls and captures of
-  mutable state.
+  widget. On two conditions: the function's shape takes the item and returns a description, with no `Gui` in hand
+  (done: vexelray-gui's `Face`, `(nodes, item) -> Node`, handed a `Nodes`; a label is item to string); and the
+  processor reads each such lambda in a `@View` and refuses I/O, blocking calls and captures of mutable state (owed,
+  with `@View` in phase 4).
 - **What answers a question the logic owns** (`Reorder`, `Checkable`, a tree action's body and predicates,
   `Button.perform`, `Property`'s bindings) becomes declared data or a request and a reply, as menus (T7.5) and a
   tree's children did. *(owed, phase 3. Done for `Checkable`: a click is `TreeView.TOGGLED` and what is ticked
@@ -422,7 +423,10 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   (`Inspector.VALUES`) and announces its edits (`Inspector.EDITED`); held by `InspectorTest`. Done for the `State`s `Gui`
   handed out (`drag`, `modifiers`, `viewport`, `zoom`, `dpi`, `layout`, `semantics`): a `State`'s `onCommit` runs on the
   committing thread, so they are on `Seams`, and `Gui` keeps plain snapshot reads; held by vexelray-gui's
-  `GuiSurfaceTest`)*
+  `GuiSurfaceTest`. Done for the display functions: an item is drawn by a `Face`, `(nodes, item) -> Node`,
+  handed a `Nodes` and never the `Gui`, a control in a row is `nodes.button`, whose press is `ListView.CHOSEN`, a page
+  built on first showing is the view's on `Rail.OPENED` or `Popout.POPPED`, and marks and a tooltip's text are data;
+  held by `ListViewTest`, `TooltipTest` and the rail and popout tests)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
