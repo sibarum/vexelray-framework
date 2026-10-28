@@ -426,7 +426,11 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   `GuiSurfaceTest`. Done for the display functions: an item is drawn by a `Face`, `(nodes, item) -> Node`,
   handed a `Nodes` and never the `Gui`, a control in a row is `nodes.button`, whose press is `ListView.CHOSEN`, a page
   built on first showing is the view's on `Rail.OPENED` or `Popout.POPPED`, and marks and a tooltip's text are data;
-  held by `ListViewTest`, `TooltipTest` and the rail and popout tests)*
+  held by `ListViewTest`, `TooltipTest` and the rail and popout tests. Done for the other types a view holds
+  (vexelray-gui's step 18): a widget's motion is a `Timing` its tree's clock runs, and `KronoGui` is not an
+  application's; a dialog's, a mark's and a rail action's code forms are the host's, on `WidgetSeams`; a reveal ends
+  on `TreeView.REVEALED`; a widget hands out no `State` (`History.STATUS`, `TextField.CARET` instead); held by
+  `GuiSurfaceTest`, `KronoGuiTest`, `ModalTest`, `TreeRevealTest` and `TextFieldKeysTest`)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
