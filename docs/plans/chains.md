@@ -148,6 +148,15 @@ what is certainly wrong, not a proof of what is right, so each item is something
 A call into code the check does not read (a library, an interface) is let through. It cannot rule out an endless
 loop; the watchdog stays.
 
+*(As built, step 3: two items above were narrowed under rule 4. A `java.util.concurrent` type and `Thread` are not
+refused for being used: a `ConcurrentHashMap` made inside a step is local and harmless, and so is asking the thread
+its name. What is refused is what such a type is for: waiting (`Future.get`, `Lock.lock`, `await`, `take`, `sleep`,
+`join`) and handing work to another thread (`new Thread`, `start`, `execute`, `submit`, `Executors`). The same for
+`java.io` and `java.net`: a `StringWriter` and a `URI` touch nothing, so the list names the types and methods that
+reach the disk, the network, the process's streams, another process or the end of this one. A blocking call is
+refused by its contract, whether or not this instance would block. The last item, mutable state and argument types,
+is not built: T2.4's check is about payloads and has not been rewritten (fork 6), and the two should be one rule.)*
+
 ### G. The log
 
 Every transaction is serializable: a declared step's id and its args. The log of transactions is the application's
@@ -194,7 +203,21 @@ Each step lands on its own and leaves the suites green.
    Not yet: publishing each commit on a state topic (C says a read is a snapshot, and `state()` gives that; a topic
    comes when a subscriber needs to hear one), and the chain-run id, for which the probe's `Cause`, already carried
    through every outbox, is the likely carrier.
-3. **The processor's step check (F)**, shared with `@View`'s lambda check.
+3. **The processor's step check (F)**, shared with `@View`'s lambda check. **Built 2026-10-28** as the processor's
+   `StepCheck`:
+   - it finds every `Ledger.Builder.step(name, body)` call in any source of the compilation (the processor now also
+     asks for `*`, returning false, because a step is a builder call no annotation marks), and reads the body when it
+     is a lambda or a method reference;
+   - a method the body calls, or a method reference names, is read too when its source is in the compilation, so a
+     step written as a static method, or leaning on a helper, is checked through; an instance method reached that
+     way has its own `this`, and so does a class declared inside the step;
+   - what it cannot read (a library, an interface, a body held in a variable) it lets through, and under a compiler
+     without javac's tree API it reads nothing;
+   - each error names the step, what it did and the fix, at the line that did it, once even when two steps reach it.
+
+   Held by the processor's `StepCheckTest`: each refusal once, and the safe bodies that must compile (constants,
+   locals, nested lambdas, `StringWriter`, a `File`'s name, the thread's name, an anonymous class's own field, an
+   interface call). `@View`'s lambda check, when `@View` comes, is the same scanner over a different call.
 4. **Chains**, with one id per run and its tracing. **Built 2026-10-28** as atchung's `Chain`, on ledgers:
    - a step gives its outcome through its `Out` (`out.result`), since what it returns is its ledger's state; a step
      that gives none ends the run;

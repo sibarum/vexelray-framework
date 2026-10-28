@@ -53,6 +53,9 @@ import java.util.Set;
  *       interface when the type is this build's own, a {@code @Setting} whose type has an accessor and whose
  *       default parses, a {@code @BeforeFrame} that takes nothing, throws nothing, and is not a component's,
  *       starters that are configurations, and one {@code @VexelApp}.</li>
+ *   <li><b>A ledger's steps</b> ({@link StepCheck}): what is certainly wrong in a step's body, a capture, a static
+ *       written, a lock, a known effect or wait. Read from bodies rather than declarations, in every source of the
+ *       compilation, so the processor asks for {@code *}.</li>
  * </ul>
  *
  * <p><b>Why checks came first.</b> {@code docs/threading.md} counted fourteen of its thirty-two rules as the
@@ -79,6 +82,7 @@ public final class VexelProcessor extends AbstractProcessor {
     private Generator generator;
     private TypeElement app;
     private Report report;
+    private StepCheck steps;
     private boolean checked;
     private final Set<ExecutableElement> hooks = new LinkedHashSet<>();
 
@@ -94,6 +98,7 @@ public final class VexelProcessor extends AbstractProcessor {
                 report,
                 env.getFiler());
         this.report = report;
+        this.steps = StepCheck.of(env, report);
     }
 
     @Override
@@ -102,6 +107,10 @@ public final class VexelProcessor extends AbstractProcessor {
         for (Class<? extends Annotation> a : VOCABULARY) {
             names.add(a.getCanonicalName());
         }
+        // And every other source, for the step check: a step is a builder call that no annotation marks, and a
+        // library of ledgers may have none of the vocabulary. Claiming nothing (process returns false) leaves every
+        // annotation to whoever else reads it.
+        names.add("*");
         return names;
     }
 
@@ -112,6 +121,11 @@ public final class VexelProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment round) {
+        // Every step declared on a ledger, in any source of the compilation, not only in annotated types: a step is
+        // a builder call, which no annotation marks.
+        if (steps != null) {
+            steps.scan(round.getRootElements());
+        }
         for (Element e : round.getElementsAnnotatedWith(VexelApp.class)) {
             app((TypeElement) e);
         }
