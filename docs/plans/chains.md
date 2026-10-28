@@ -190,7 +190,22 @@ Each step lands on its own and leaves the suites green.
    comes when a subscriber needs to hear one), and the chain-run id, for which the probe's `Cause`, already carried
    through every outbox, is the likely carrier.
 3. **The processor's step check (F)**, shared with `@View`'s lambda check.
-4. **Chains**, with one id per run and its tracing.
+4. **Chains**, with one id per run and its tracing. **Built 2026-10-28** as atchung's `Chain`, on ledgers:
+   - a step gives its outcome through its `Out` (`out.result`), since what it returns is its ledger's state; a step
+     that gives none ends the run;
+   - every link after the first names the type it takes (`.then(Type.class, ledger, step)`), and an outcome of
+     another type ends the run, so the chain is a line with an exit at each link rather than a tree;
+   - going on is a send in the step's outbox, taken back if the step throws;
+   - a step that waits gets a `Chain.Resume` from `out.hold()` and keeps it in its state, and a later step on the same
+     ledger calls `out.resume(held, outcome)`. That answers open question 4 for now. A run resumed twice goes on twice;
+     nothing stops it yet;
+   - every run has an id from one counter, the same through every step and across a hold (`out.run()`), and the
+     probe marks each step taken and each run's end. It is not yet the probe's `Cause`.
+
+   A step is checked when the chain is built: one not declared on its ledger is refused then, not when a run reaches
+   it. Held by `ChainTest`, on the witness below (view, editor and dialogs ledgers, clean and dirty), in atchung.
+   Not yet: an outcome that picks among several next steps (Save, Don't save, Cancel are each a link today only if
+   the step after the answer tells them apart), and the step check (3), which these steps do not have.
 5. **Undo by snapshot** for one mailbox, then across a chain run.
 6. **The witness: closing a dirty document** in the template. It crosses a view, a controller, a dialog and undo,
    and it is the chain the rules above were written against.
