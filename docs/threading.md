@@ -407,7 +407,8 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   mutable state.
 - **What answers a question the logic owns** (`Reorder`, `Checkable`, a tree action's body and predicates,
   `Button.perform`, `Property`'s bindings) becomes declared data or a request and a reply, as menus (T7.5) and a
-  tree's children did. *(owed, phase 3)*
+  tree's children did. *(owed, phase 3. Done for `Checkable`: a click is `TreeView.TOGGLED` and what is ticked
+  comes back as `TreeView.MARKS`, held by vexelray-gui's `TreeCheckTest`)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
