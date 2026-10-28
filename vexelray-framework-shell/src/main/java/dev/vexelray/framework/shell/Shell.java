@@ -8,6 +8,7 @@ import dev.vexelray.framework.core.Lanes;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Pacing;
 import dev.vexelray.framework.core.Phase;
+import dev.vexelray.framework.core.Timer;
 import dev.vexelray.framework.core.WakeSource;
 import dev.vexelray.framework.core.Watchdog;
 import dev.vexelray.gui.core.Gui;
@@ -71,6 +72,7 @@ public final class Shell {
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
     private final Atchung bus = Atchung.create();
+    private final Timer timer = new Timer(bus);
     private final PointerLock pointerLock = new PointerLock();
     private final HeldDialogs dialogs = new HeldDialogs();
     private final Lanes lanes;
@@ -110,6 +112,9 @@ public final class Shell {
         // whole point of the container owning the threads is that a window closing does not take them.
         disposer.register(lanes);
         disposer.beforeClose(() -> watchdog.haltAfter(liveness.closeBound().toNanos()));
+        // When shutdown begins, before any placement closes: a beat sent into a closing component is one it cannot
+        // answer.
+        disposer.beforeClose(timer::close);
     }
 
     // ---- always available -------------------------------------------------------------------------------
@@ -217,6 +222,15 @@ public final class Shell {
      */
     public Atchung bus() {
         return bus;
+    }
+
+    /**
+     * Time as a message source: a message on a topic after a delay or every period ({@link Timer}). <b>Available in
+     * every phase</b>, like the bus it publishes on, so a component in {@link Phase#MODEL} can take it. Closed when
+     * shutdown begins, before any component is.
+     */
+    public Timer timer() {
+        return timer;
     }
 
     /**

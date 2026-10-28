@@ -144,7 +144,7 @@ Windows is the complete platform. The engine's Linux and macOS backends are skel
 | Module | What it is |
 | --- | --- |
 | `vexelray-framework-api` | The annotations an application writes. JDK-only |
-| `vexelray-framework-core` | Phases, launch, frame stages, pacing, disposal, threads and the watchdog. JDK-only, testable with no GPU |
+| `vexelray-framework-core` | Phases, launch, frame stages, pacing, disposal, threads, the watchdog and the timer. The JDK and the bus only, testable with no GPU |
 | `vexelray-framework-processor` | The annotation processor: compile-time checks, then the generated wiring |
 | `vexelray-framework-shell` | The application edge: input, clipboard, window memory, the frame loop, windows, chrome, dialogs |
 | `vexelray-framework-automation` | The automation sockets (remote control and diagnostics), in every build and off until asked for |
@@ -169,7 +169,7 @@ mvn clean install -Pacceptance
 ```
 
 [CLAUDE.md](CLAUDE.md) holds the constraints on this repository's own code (nothing reflects, nothing allocates in
-the frame, `-api` and `-core` stay JDK-only) and where each comes from.
+the frame, `-api` stays JDK-only and `-core` takes only the bus besides) and where each comes from.
 
 The applications are published from [vexelray-dist](https://github.com/sibarum/vexelray-dist): its installers, their
 manifests and the binaries' releases. How a release goes out is its

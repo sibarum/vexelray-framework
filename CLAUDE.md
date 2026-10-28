@@ -46,9 +46,11 @@ invented rather than needed. The load-bearing ones:
 
 ## Constraints on this repo specifically
 
-- **`-api` and `-core` stay JDK-only.** Not for portability — it is where the dependency edges fall,
-  and it is what makes the container testable with no GPU. A graphics import in either is a layering
-  break, not a convenience. Vulkan-aware code goes in `-shell`.
+- **`-api` stays JDK-only, and `-core` takes nothing but the JDK and `atchung-core`.** Not for
+  portability — it is where the dependency edges fall, and it is what makes the container testable with no
+  GPU. The bus is JDK-only itself, and `-core` takes it (ruled 2026-10-28) because `Timer` names a `Topic`
+  and an application's own `-core` module, which cannot reach `-shell`, has to be able to take one. A
+  graphics import in either is a layering break, not a convenience. Vulkan-aware code goes in `-shell`.
 - **Nothing reflects.** No `Class.forName`, no `MethodHandles` on the startup path, no runtime
   annotation reads. Retention is `CLASS`, deliberately, and `package-info.java` in `-api` explains why
   it is neither `RUNTIME` nor `SOURCE`.
@@ -57,7 +59,7 @@ invented rather than needed. The load-bearing ones:
   either**, at any level: a disabled call is still a branch on the hot path. Use `Probe` there.
 - **Log through `sibarum.probe.Log`, and keep stdout for protocol.** No `System.err.println` for a
   diagnostic, and no `System.out` at all except a line another program parses (`automation: localhost:<port>`).
-  `-api` and `-core` stay JDK-only, so they do not log; it starts at `-shell`. The model, the levels, the
+  `-api` and `-core` take no logger, so they do not log; it starts at `-shell`. The model, the levels, the
   mode-dependent defaults and where the file goes are in `../atchung/docs/logging.md`. The framework configures
   it for every application (`Logs.start`); an application never calls `Logging.configure` itself.
 - **A compile error beats a startup error beats a runtime error**, in that order, always. The whole

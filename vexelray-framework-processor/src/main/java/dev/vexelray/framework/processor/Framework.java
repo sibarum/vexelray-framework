@@ -68,6 +68,8 @@ final class Framework {
             new Root(APP_INFO, "info", Phase.CONFIG, false),
             new Root("sibarum.atchung.Atchung", "bus", Phase.CONFIG, false),
             new Root("dev.vexelray.framework.core.Lanes", "lanes", Phase.CONFIG, false),
+            // Hands no code to anyone: it publishes, and a subscriber hears it on its own lane (T7.2).
+            new Root("dev.vexelray.framework.core.Timer", "timer", Phase.CONFIG, false),
             new Root("dev.vexelray.framework.core.FrameHooks", "hooks", Phase.CONFIG, false),
             new Root("dev.vexelray.framework.core.Disposer", "disposer", Phase.CONFIG, false),
             new Root("dev.vexelray.framework.shell.PointerLock", "pointerLock", Phase.CONFIG, false),

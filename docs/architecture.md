@@ -1748,7 +1748,8 @@ framework's About drags by its mark as before.
 ```
 vexelray-framework                    parent (pom)
 ├─ vexelray-framework-api        the vocabulary: annotations only, JDK-only          [built]
-├─ vexelray-framework-core       phases, launch, frame stages, pacing, disposal      [built]
+├─ vexelray-framework-core       phases, launch, frame stages, pacing, disposal,
+│                                  lanes, the timer; the JDK and atchung-core only     [built]
 ├─ vexelray-framework-shell      the absorbed edge: input, clipboard, memory, loop,
 │                                and the window chrome                              [built]
 ├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
@@ -1789,8 +1790,11 @@ applications were deleted on purpose, because a witness that must be hand-mainta
 change to the thing it witnesses, and the template's `vexel-desktop` tree is the same artefact without
 the tax: a `Wiring` per phase, written out longhand, regenerated rather than maintained.
 
-`-api` and `-core` are **JDK-only**, and not as an agnosticism goal — it is simply where the
-dependency edges fall. A phase enum and a topological sort do not need a Vulkan device. The payoff is
+`-api` is **JDK-only** and `-core` takes the JDK and `atchung-core` alone, and not as an agnosticism
+goal — it is simply where the dependency edges fall. A phase enum and a topological sort do not need a
+Vulkan device. The bus came into `-core` with `Timer` (2026-10-28): a timer that sends a message names a
+`Topic`, an application's own `-core` module has to be able to take one, and that module reaches the
+framework's `-core` but never `-shell`. Atchung is JDK-only itself, so the reason for the rule holds. The payoff is
 that every decision the container makes is testable headlessly, on a machine with no GPU, and cannot
 drift out of agreement with a driver.
 

@@ -240,7 +240,7 @@ altogether.
 | Module | What it is |
 | --- | --- |
 | `-api` | The annotations. JDK-only |
-| `-core` | Phases, launch, frame stages, pacing, disposal, lanes, the watchdog. JDK-only, so every decision the container makes is tested with no GPU |
+| `-core` | Phases, launch, frame stages, pacing, disposal, lanes, the watchdog, the timer. The JDK and the bus (atchung, itself JDK-only), so every decision the container makes is tested with no GPU |
 | `-processor` | The compile-time checks and the generated wiring |
 | `-shell` | The application edge itself, and the only module that builds the window and the GPU device |
 | `-automation` | The driving socket and `AutomationStarter` |

@@ -24,5 +24,10 @@
             <groupId>dev.vexelray.framework</groupId>
             <artifactId>vexelray-framework-api</artifactId>
         </dependency>
+        <!-- The bus, which is itself JDK-only: the Timer names a Topic (architecture.md, "-api and -core"). -->
+        <dependency>
+            <groupId>sibarum.atchung</groupId>
+            <artifactId>atchung-core</artifactId>
+        </dependency>
     </dependencies>
 </project>

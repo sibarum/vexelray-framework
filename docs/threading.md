@@ -430,11 +430,13 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   (vexelray-gui's step 18): a widget's motion is a `Timing` its tree's clock runs, and `KronoGui` is not an
   application's; a dialog's, a mark's and a rail action's code forms are the host's, on `WidgetSeams`; a reveal ends
   on `TreeView.REVEALED`; a widget hands out no `State` (`History.STATUS`, `TextField.CARET` instead); held by
-  `GuiSurfaceTest`, `KronoGuiTest`, `ModalTest`, `TreeRevealTest` and `TextFieldKeysTest`)*
+  `GuiSurfaceTest`, `KronoGuiTest`, `ModalTest`, `TreeRevealTest` and `TextFieldKeysTest`; and a view that draws its own motion sends a `Tween` towards a value and hears each step on
+  `Tween.VALUE`, held by `TweenTest`; and time is a message source, `Timer.after` and `Timer.every` publishing on a
+  topic, which any part may take since it runs nothing but the publish, held by `TimerTest`)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
-lane, the watchdog, the automation driver, and the operating-system seams (native dialogs, input backends) where
+lane, the watchdog, the timer, the automation driver, and the operating-system seams (native dialogs, input backends) where
 a foreign thread hands something in. Each of those publishes; none hands a foreign thread's call to application
 code. Anywhere else, they are a defect. *(owed, phase 5. Held, when built, by a test that reads the shell's and
 core's sources against the list. In 0.1 `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` hold
