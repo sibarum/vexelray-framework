@@ -415,7 +415,11 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   tree's, a list's and a tab bar's lines are declared (`MenuAction`, an id, a mark and a label), choosing one is
   `Chosen` on the widget's `CHOSEN`, what a tree's row offers comes with its `Entry` (`hides`, `greys`), what Ctrl+F
   looks in is `Entry.find`, and a text field's lines are its node's declared `Menu`; so `onContextMenu` and `matcher`
-  are gone from every widget; held by `TreeActionsTest`, `TreeFindTest`, `DefaultMenuTest` and `ListViewTest`)*
+  are gone from every widget; held by `TreeActionsTest`, `TreeFindTest`, `DefaultMenuTest` and `ListViewTest`. Done for
+  `Button.perform`: a view hears `Button.PRESSED` and records the `Change` itself, and a change to data the logic owns
+  is a `Change` whose apply and revert each send it a message, so the window's history stays one stack on the GUI
+  thread; held by `ValueWidgetUndoTest`. Done for `Property`'s bindings: a row is told its value
+  (`Inspector.VALUES`) and announces its edits (`Inspector.EDITED`); held by `InspectorTest`)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
