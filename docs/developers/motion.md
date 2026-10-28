@@ -126,12 +126,15 @@ words that do not change as the user works.
 
 ## Zoom
 
-`Gui.zoomIn` and `zoomOut` multiply the zoom by the step at once, which lays the whole window out again between two
-frames. The template's `Recipes.zoomShortcuts` binds them as they are. To glide, drive `Gui.zoom(float)` instead,
-as the Scheduler's `Recipes.shortcuts` does. It uses a `Motion.Glide` from `gui.zoom().value()`. Each key resets the
-glide to the framework's value while it is at rest (the framework restores last run's zoom and clamps every value
-to `Appearance.ZoomRange`), then glides to its target times or divided by 1.25. A key pressed mid-glide steps from
-where the glide is heading, so three presses are three steps.
+`Gui.zoomIn`, `zoomOut` and `resetZoom` glide: the framework sets `Gui.zoomGlide` for every window (`WindowMotion`),
+so a step closes half the distance to its target every half-life instead of laying the whole window out again
+between two frames, and a key pressed mid-glide steps from where the glide is heading, so three presses are three
+steps. The template's `Recipes.zoomShortcuts` binds them as they are. `Gui.zoom(float)` stays at once, for a restore
+or a reset. With reduced motion on, a step lands at once.
+
+The Scheduler's `Recipes.shortcuts` glides the zoom itself, with a `Motion.Glide` driven from `gui.zoom().value()`.
+That was written before the framework glided, and the zoom's `State` has left `Gui` for the widget library's
+`Seams` in 0.2 (vexelray-gui's T7.2 walk), so it binds `zoomIn` and `zoomOut` when it moves to 0.2.
 
 ## Scrolling
 

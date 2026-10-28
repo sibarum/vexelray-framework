@@ -136,7 +136,7 @@ final class AppearanceTest {
             for (int i = 0; i < 20; i++) {
                 second.zoomIn();
             }
-            assertEquals(1.5f, second.zoom().value(), 0.001f, "the second window got the same bounds");
+            assertEquals(1.5f, Seams.of(second).zoom().value(), 0.001f, "the second window got the same bounds");
         }
     }
 
@@ -158,7 +158,7 @@ final class AppearanceTest {
             for (int i = 0; i < 20; i++) {
                 drawer.zoomIn();
             }
-            assertEquals(1.5f, drawer.zoom().value(), 0.001f, "and it still agrees about the bounds");
+            assertEquals(1.5f, Seams.of(drawer).zoom().value(), 0.001f, "and it still agrees about the bounds");
         }
     }
 

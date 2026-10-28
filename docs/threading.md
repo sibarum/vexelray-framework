@@ -419,7 +419,10 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   `Button.perform`: a view hears `Button.PRESSED` and records the `Change` itself, and a change to data the logic owns
   is a `Change` whose apply and revert each send it a message, so the window's history stays one stack on the GUI
   thread; held by `ValueWidgetUndoTest`. Done for `Property`'s bindings: a row is told its value
-  (`Inspector.VALUES`) and announces its edits (`Inspector.EDITED`); held by `InspectorTest`)*
+  (`Inspector.VALUES`) and announces its edits (`Inspector.EDITED`); held by `InspectorTest`. Done for the `State`s `Gui`
+  handed out (`drag`, `modifiers`, `viewport`, `zoom`, `dpi`, `layout`, `semantics`): a `State`'s `onCommit` runs on the
+  committing thread, so they are on `Seams`, and `Gui` keeps plain snapshot reads; held by vexelray-gui's
+  `GuiSurfaceTest`)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
