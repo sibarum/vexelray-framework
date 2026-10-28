@@ -411,7 +411,10 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   comes back as `TreeView.MARKS`, held by vexelray-gui's `TreeCheckTest`. Done for `Reorder`: what a drop is offered
   is declared and decided in the frame, a landing is announced (`TreeView.PLACED`, `Deck.PLACED`,
   `ListView.LANDED`) and the application records it in its own history, so `Gui.dropHistory` is gone; held by
-  `TreeReorderTest`, `TreeTransferTest`, `BoardTest` and `ListViewTransferTest`)*
+  `TreeReorderTest`, `TreeTransferTest`, `BoardTest` and `ListViewTransferTest`. Done for a tree action: it is declared
+  (`TreeView.Action`, an id, a mark and a label), what each row offers comes with its `Entry` (`hides`, `greys`), choosing
+  it is `TreeView.CHOSEN`, and what Ctrl+F looks in is `Entry.find`, so the tree's `onContextMenu` and `matcher` are
+  gone; held by `TreeActionsTest` and `TreeFindTest`)*
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
