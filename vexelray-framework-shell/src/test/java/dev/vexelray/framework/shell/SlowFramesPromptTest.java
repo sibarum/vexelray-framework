@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.widget.spi.WidgetSeams;
 import dev.vexelray.gui.core.app.SlowFrames;
 import dev.vexelray.gui.widget.Modal;
 import org.junit.jupiter.api.Test;
@@ -18,10 +19,10 @@ class SlowFramesPromptTest {
         List<SlowFrames.Answer> answers = new ArrayList<>();
         Modal modal = SlowFramesPrompt.modal(400_000_000L, answers::add);
 
-        modal.defaultButton().action().run();
-        modal.cancelButton().action().run();   // Escape and the close box press this one
-        modal.buttons().stream().filter(b -> b.label().equals("Don't ask again")).findFirst().orElseThrow()
-                .action().run();
+        WidgetSeams.get().press(modal.defaultButton());
+        WidgetSeams.get().press(modal.cancelButton());   // Escape and the close box press this one
+        WidgetSeams.get().press(modal.buttons().stream().filter(b -> b.label().equals("Don't ask again")).findFirst()
+                .orElseThrow());
 
         assertEquals(List.of(SlowFrames.Answer.SWITCH, SlowFrames.Answer.NOT_NOW, SlowFrames.Answer.NEVER), answers);
         assertEquals(Modal.Severity.QUESTION, modal.severity(), "a choice to make, not a failure");

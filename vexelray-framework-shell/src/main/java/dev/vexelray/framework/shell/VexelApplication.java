@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.widget.spi.WidgetSeams;
 import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.FrameStage;
@@ -374,9 +375,10 @@ public final class VexelApplication {
             about.attach(app, mark);
             String tip = "About " + About.name(info, shell.build());
             Runnable open = about.window()::show;
-            shell.titleBar().onMark(tip, open);
+            WidgetSeams host = WidgetSeams.get();   // the host's door: opening About is the framework's own code
+            host.onMark(shell.titleBar(), tip, open);
             for (Window w : shell.windows().declared()) {
-                w.titleBar().onMark(tip, open);
+                host.onMark(w.titleBar(), tip, open);
             }
         }
 

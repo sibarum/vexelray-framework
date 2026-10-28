@@ -1,6 +1,7 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
+import dev.vexelray.gui.widget.spi.WidgetSeams;
 import dev.vexelray.gui.nfd.FileDialog;
 import dev.vexelray.gui.widget.Modal;
 
@@ -62,7 +63,7 @@ public interface Dialogs {
 
     /** A message with one OK button: the "your export finished" dialog. */
     default void info(String title, String message) {
-        ask(Modal.of(title, message).defaultButton("OK", () -> { }));
+        ask(Modal.of(title, message).defaultButton("OK"));
     }
 
     /**
@@ -70,6 +71,10 @@ public interface Dialogs {
      * answer" is answered too.
      */
     default void confirm(String title, String message, String confirmLabel, Runnable onConfirm, Runnable onCancel) {
-        ask(Modal.of(title, message).defaultButton(confirmLabel, onConfirm).cancelButton("Cancel", onCancel));
+        // The host's door, since this runs code: the framework's own callbacks are its API walk's to convert.
+        WidgetSeams host = WidgetSeams.get();
+        Modal modal = Modal.of(title, message);
+        host.defaultButton(modal, confirmLabel, onConfirm);
+        ask(host.cancelButton(modal, "Cancel", onCancel));
     }
 }

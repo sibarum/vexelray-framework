@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.widget.spi.WidgetSeams;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.gui.nfd.FileDialog;
@@ -53,7 +54,7 @@ final class DialogsTest {
         @Override
         public void ask(Modal modal) {
             asked.add("ask " + modal.title());
-            modal.defaultButton().action().run();
+            WidgetSeams.get().press(modal.defaultButton());
         }
 
         @Override
@@ -85,7 +86,7 @@ final class DialogsTest {
     }
 
     private static Modal question(String title, List<String> answered) {
-        return Modal.of(title, "?").defaultButton("Yes", () -> answered.add(title));
+        return WidgetSeams.get().defaultButton(Modal.of(title, "?"), "Yes", () -> answered.add(title));
     }
 
     @Test
