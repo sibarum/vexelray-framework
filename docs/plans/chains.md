@@ -106,6 +106,11 @@ closeItem.chain(
          .then(editor,  Editor::finishClose));     // the editor's state, on the editor's lane
 ```
 
+*(As built in atchung, this reads `Chain.start("close", view, closeClicked).then(CloseAsked.class, editor,
+closeRequested).then(PromptToSave.class, dialogs, askSave).then(Save.class, editor, saveAndClose).or(DontSave.class,
+editor, discardAndClose).then(Closed.class, view, closed)`: every link after the first names its type, and a link
+may have alternatives. See step 4 of the order of work.)*
+
 - **Atomic in one mailbox, a saga across mailboxes.** Between two steps, other transactions run on each state. One
   transaction touches one state; that rule makes a state's edges and the edges of what is atomic the same.
 - **A step's result picks the next step by type**: `.on(Type.class, ...)`, one method per outcome. No sealed `switch`
@@ -204,8 +209,14 @@ Each step lands on its own and leaves the suites green.
 
    A step is checked when the chain is built: one not declared on its ledger is refused then, not when a run reaches
    it. Held by `ChainTest`, on the witness below (view, editor and dialogs ledgers, clean and dirty), in atchung.
-   Not yet: an outcome that picks among several next steps (Save, Don't save, Cancel are each a link today only if
-   the step after the answer tells them apart), and the step check (3), which these steps do not have.
+   **Branches, built the same day:** a link has alternatives (`.then(Save.class, ...).or(DontSave.class, ...)`),
+   tried in the order declared, as `catch` clauses are. An alternative an earlier one in the same link already takes
+   (its type a subtype of the earlier one's) could never run, so it is refused when the chain is built, as javac
+   refuses an unreachable `catch`; the other way round is a fallback and is allowed. Whichever alternative ran, its
+   outcome goes on to the next link, so branches join; a branch that should end gives no outcome or one the next
+   link does not take, as `Cancel` does. The chain stays a line of links rather than a tree, so it reads top to
+   bottom. Held by `ChainTest`.
+   Not yet: the step check (3), which these steps do not have.
 5. **Undo by snapshot** for one mailbox, then across a chain run.
 6. **The witness: closing a dirty document** in the template. It crosses a view, a controller, a dialog and undo,
    and it is the chain the rules above were written against.
