@@ -182,7 +182,13 @@ Each step lands on its own and leaves the suites green.
 
 1. **This plan accepted**, and the three rules recorded in vexelray-framework's `threading.md` beside T7.2.
 2. **A transaction on atchung's `State`, on one lane**: a mailbox and an outbox released at commit. Unit tests, no
-   GUI.
+   GUI. **Built 2026-10-28** (atchung `9ff6e18`), as `Ledger<T>`: a `State` owned by one tick `Inbox`, whose only
+   committer is the ledger's, changed by `Step`s declared on its builder and sent as `Step.Transaction` messages on
+   the ledger's topic. A step sends through an `Out` into the owner's outbox, which the tick already releases only
+   at the end of the round; a step that throws has its sends taken back and commits nothing. Held by `LedgerTest`.
+   Not yet: publishing each commit on a state topic (C says a read is a snapshot, and `state()` gives that; a topic
+   comes when a subscriber needs to hear one), and the chain-run id, for which the probe's `Cause`, already carried
+   through every outbox, is the likely carrier.
 3. **The processor's step check (F)**, shared with `@View`'s lambda check.
 4. **Chains**, with one id per run and its tracing.
 5. **Undo by snapshot** for one mailbox, then across a chain run.
