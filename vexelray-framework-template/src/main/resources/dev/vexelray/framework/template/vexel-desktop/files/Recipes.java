@@ -9,7 +9,6 @@ import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.layout.Length;
-import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
@@ -77,8 +76,8 @@ final class Recipes {
      * is remembered for next time.
      */
     @Provides
-    Ui ui(Gui gui, KronoGui krono, Model model, TitleBar titleBar, Session session) {
-        Ui ui = new Ui(gui, new Motion(krono), model, titleBar);
+    Ui ui(Gui gui, Model model, TitleBar titleBar, Session session) {
+        Ui ui = new Ui(gui, new Motion(gui), model, titleBar);
         model.onChange(doc -> {
             ui.show(doc);
             session.remember();

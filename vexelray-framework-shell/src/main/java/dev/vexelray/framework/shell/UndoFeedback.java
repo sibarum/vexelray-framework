@@ -1,15 +1,13 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.Timing;
 import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.edit.Outcome;
 import dev.vexelray.gui.core.edit.UndoEvent;
 import dev.vexelray.gui.core.style.Role;
-import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.Cue;
 import dev.vexelray.gui.widget.Cues;
-import sibarum.kronometer.Dur;
-import sibarum.kronometer.anim.Ease;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -33,23 +31,21 @@ import java.util.function.Supplier;
 final class UndoFeedback implements Consumer<UndoEvent> {
 
     /** How long the refusal ring takes: two pulses, each long enough to read as insistence rather than a flicker. */
-    private static final Dur RING = Dur.ms(520);
+    private static final Timing RING = Timing.millis(520, Timing.Curve.LINEAR);
 
     private final Gui gui;
     private final Supplier<Dialogs> dialogs;
-    private final Supplier<KronoGui> clock;
-    /** Built on the first refusal: the clock does not exist yet when the window's tree is declared. */
+    /** Built on the first refusal, and timed on the tree's clock, which the window's motion installs. */
     private volatile Cues cues;
 
-    UndoFeedback(Gui gui, Supplier<Dialogs> dialogs, Supplier<KronoGui> clock) {
+    UndoFeedback(Gui gui, Supplier<Dialogs> dialogs) {
         this.gui = gui;
         this.dialogs = dialogs;
-        this.clock = clock;
     }
 
-    /** Install on {@code gui}, asking {@code shell}'s dialogs and timing the ring by its clock. */
+    /** Install on {@code gui}, asking {@code shell}'s dialogs. */
     static void install(Gui gui, Shell shell) {
-        Seams.of(gui).onUndo(new UndoFeedback(gui, shell::dialogs, shell::krono));
+        Seams.of(gui).onUndo(new UndoFeedback(gui, shell::dialogs));
     }
 
     @Override
@@ -68,8 +64,7 @@ final class UndoFeedback implements Consumer<UndoEvent> {
     private Cues cues() {
         Cues c = cues;
         if (c == null) {
-            KronoGui krono = clock.get();
-            c = new Cues((progress, done) -> krono.ramp(RING, Ease.LINEAR, progress, done));
+            c = new Cues(gui, RING);
             cues = c;   // a race builds two, each equally good; one is kept
         }
         return c;

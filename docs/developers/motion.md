@@ -19,7 +19,7 @@ README's *Motion* section is the short version of this page.
 | A node added, and a node removed | `WindowMotion` attaches `Presence` as the enter and exit motion, over the whole tree | 140 ms, out cubic, rising 0.35 em |
 | The focus ring moving to another control | `TactrollerInputBackend.pointerFeel`: `gui.focusFade` | 120 ms |
 | The mouse wheel | `TactrollerInputBackend.pointerFeel`: `gui.scrollGlide` | 45 ms half-life |
-| A shelf widget's own motion: `Tabs.slide`, `TreeView.motion`, `Cues` | Only when handed a `Ramp`. The template's `Motion.java` makes them from `KronoGui` | 160 ms, 240 ms for a cue |
+| A shelf widget's own motion: `Tabs.slide`, `TreeView.motion`, `Cues` | Only when handed a `Timing`, run on the tree's clock that `KronoGui` installs. The template's `Motion.java` says the tempi | 160 ms, 240 ms for a cue |
 
 Since 2026-10-24 moves, arrivals and departures are on by default in every window the framework builds, the main one
 and every named one alike. Three things are deliberately not motion, so a whole window can be enrolled without
@@ -71,15 +71,16 @@ A new `floatAt` percentage is a move, and so is a node appended to another paren
 to another clinician is the same bar appended to another lane, and it slides there (`Schedule.Page.update`). The
 displaced position is also where the node is hit, so what the pointer clicks is what is drawn.
 
-**Anything else: `KronoGui.ramp`.**
+**A widget's own motion: a `Timing`.**
 
 ```java
-krono.ramp(Dur.ms(140), Ease.OUT_CUBIC, p -> node.opacity((float) p), () -> { });
+tree.motion(Timing.millis(140, Timing.Curve.OUT_CUBIC));
 ```
 
-`ramp(Dur over, Ease ease, DoubleConsumer progress, Runnable done)` calls `progress` once a frame from 0 to 1, then
-`done` once. Both ends are delivered exactly, and `done` runs the frame after the one that drew 1. It is safe to
-call from a handler, because it goes through `onTimeline`. The template's `Recipes.ui` already takes a `KronoGui`.
+A view states a tempo, a duration and a curve, and the widget runs it on the tree's clock, which `KronoGui`
+installs when the framework attaches it. A view is not given `KronoGui` (since 0.2): it runs code on the GUI thread
+over time, which is the host's (vexelray-framework's threading.md, T7.2). Motion that is not a widget's own is the
+window's defaults above: a node that moved, arrived or left, or changed colour, animates with no code at all.
 
 Drive the visual properties, never the layout ones. `opacity`, `translate` (in ems), `rotate` and `scale` move
 nothing and measure nothing, so they are cheap every frame. A size changed every frame moves everything after it

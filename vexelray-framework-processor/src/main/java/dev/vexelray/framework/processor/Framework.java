@@ -77,11 +77,11 @@ final class Framework {
             new Root("dev.vexelray.gui.core.app.Settings", "settings", Phase.CONFIG, false),
             // The Gui is configured in GUI -- the look, the clock, the minimum size, the zoom range -- and handed to
             // the application at TREE, so a part that takes it is built after all of that by ordering, not by care.
-            // The other three move with it because each reaches the Gui: KronoGui.gui(), Window.gui() through
-            // Windows.main(), and the title bar is a widget on it. Left in GUI, any of them would be a way to the
-            // Gui one phase early, and GUI would still hold widget-building parts.
+            // The other two move with it because each reaches the Gui: Window.gui() through Windows.main(), and the
+            // title bar is a widget on it. Left in GUI, either would be a way to the Gui one phase early, and GUI would
+            // still hold widget-building parts. KronoGui is not here at all: it runs code on the GUI thread over time,
+            // so it is the host's, and a view states a tempo (vexelray-gui's Timing) that the tree's clock runs (T7.2).
             new Root("dev.vexelray.gui.core.Gui", "gui", Phase.TREE, false),
-            new Root("dev.vexelray.gui.krono.KronoGui", "krono", Phase.TREE, false),
             new Root("dev.vexelray.gui.widget.TitleBar", "titleBar", Phase.TREE, false),
             // Not the main thread's, though a window is: every command on a Window only posts, and the framework
             // claims the window itself, so a recipe holding one is not coloured by a GuiApp it never took.

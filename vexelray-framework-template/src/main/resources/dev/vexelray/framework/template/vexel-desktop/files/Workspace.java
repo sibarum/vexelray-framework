@@ -68,7 +68,7 @@ final class Workspace {
         this.caret = caret;
         this.accent = gui.theme().color(Role.ACCENT);
 
-        tabs = new Tabs(gui).closable(false).transition(Tabs.slide(motion.change));
+        tabs = new Tabs(gui).closable(false).slide(motion.change);
         tabs.node().width(Length.FILL).height(Length.grow(1f)).visible(false);
         gui.landmark(Landmarks.TABS, tabs.node());
         // Delivered on a worker, after the fact: resolve what is in front now rather than trusting the index, which
