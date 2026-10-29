@@ -1,6 +1,7 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.core.Launch;
+import dev.vexelray.framework.core.Stalled;
 import org.junit.jupiter.api.Test;
 import sibarum.atchung.Topic;
 
@@ -62,6 +63,41 @@ final class LivenessTest {
             assertTrue(reported.await(5, TimeUnit.SECONDS), "a wedged lane was never reported");
             assertEquals("compose", seen.get().lane());
             assertTrue(seen.get().stalledFor().toMillis() >= 50);
+            release.countDown();
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
+    @Test
+    void aStallIsReportedAsAMessageOnTheApplicationsBus() throws Exception {
+        Shell shell = shell();
+        try {
+            CountDownLatch release = new CountDownLatch(1);
+            AtomicReference<Stalled> heard = new AtomicReference<>();
+            CountDownLatch reported = new CountDownLatch(1);
+            shell.liveness(new LivenessPolicy() {
+                @Override
+                public Duration stallThreshold() {
+                    return Duration.ofMillis(50);
+                }
+
+                @Override
+                public void onStall(Stall stall, Context context) {
+                }
+            });
+            shell.bus().subscribe(Stalled.TOPIC, s -> {
+                heard.set(s);
+                reported.countDown();
+            });
+            shell.inbox("app.Compose", "compose").subscribe(WORK, msg -> await(release), 1);
+
+            shell.startComponents();
+            shell.bus().publish(WORK, "hangs");
+
+            assertTrue(reported.await(5, TimeUnit.SECONDS), "a wedged lane was never published");
+            assertEquals("compose", heard.get().lane());
+            assertTrue(heard.get().stalledFor().toMillis() >= 50);
             release.countDown();
         } finally {
             shell.disposer().close();

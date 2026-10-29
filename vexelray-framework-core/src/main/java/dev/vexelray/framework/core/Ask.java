@@ -16,7 +16,9 @@ import java.util.List;
  * (a {@code Modal} has no button that is both default and cancel).
  *
  * <p><b>The {@code id} is the asker's</b>, and comes back in the answer. Every part that hears {@code Answer} hears
- * every answer, so an asker picks ids no other asker uses: a chain's run, or a counter of its own.
+ * every answer, so an asker picks ids no other asker uses: a chain's run, or a counter of its own. Negative ids are
+ * the framework's, for its own questions (the slow-frames offer, an undo that cannot happen), so an application's
+ * are zero or more.
  *
  * <p>A view that wants a dialog of its own shape (a field in it, buttons that send its own messages) builds a
  * {@code Modal} and hands it to {@code Dialogs.ask}, as before; this is for a question that is only words.

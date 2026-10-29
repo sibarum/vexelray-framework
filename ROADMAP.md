@@ -961,6 +961,21 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
   opened, was put away with Escape, and opened again to the settled page, the marks condensed and the orb on the V.*
   *Not shown live: the first opening's frames, because its art is read on the job lane and `settle` waits for the
   clock but not for a job; the same was true before. This is the item below, capture's wait for what is owed.*
+  ***The slow-frames prompt and undo feedback done 2026-10-29.*** *Both ask as any part asks: an `Ask` on the
+  application's bus (`OwnAsks`), which the dialog component hands to whichever `Dialogs` answer, so a test's or a
+  kiosk's is asked too. **The framework's questions take negative ids**, counting down from -1, and `Ask`'s javadoc
+  now says an application's are zero or more, since every part that hears `Answer` hears every answer. The
+  slow-frames prompt keeps the frame loop's `answer` under its question's id and hears `Answer` in the main window's
+  frame, so the `Consumer` never leaves the main thread and no button runs code: §3's row for `SlowFramesPrompt` is
+  answered, and it no longer reaches `WidgetSeams`' host door. Undo feedback sends a one-button `Ask` in place of
+  `Dialogs.info`, and holds no `Dialogs`. Held by `SlowFramesPromptTest` (5: the id is the framework's, each button is
+  its answer and only once, an application's answer is not taken for it, and end to end headless, an application's
+  own dialogs shown the question and their press heard back) and `UndoFeedbackTest` (3). Driven live in a generated
+  application with `-Dvexelray.debug.slowFrames=150` and 200 keystrokes: the offer was made after the warm-up and
+  the dialog window "This is drawing slowly" opened 78 ms later.*
+  *Lost: the prompt's `Modal.Severity.QUESTION`, since an `Ask` is only words and every one is shown at the default
+  severity. Not driven live: pressing its buttons, which automation cannot do (the dialogs item above), nor an undo
+  that fails.*
 * **Capture waits for what is owed** (phase 3, step 5): a capture plays animation to rest but does not wait for
   answers not yet had, so a tree whose listing runs on another thread can be captured before it lands. The shell's
   quiescence includes answers outstanding.
@@ -977,6 +992,16 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
   *Not counted: a part's own `Timer` (a beat is not an answer owed), and the declared lanes' share runs inside the
   logic lane's tick, so it is counted with it.*
 * **Watchdog:** stays outside the lanes, reports by message.
+  ***Done 2026-10-29.*** *The watchdog publishes each stalled delivery as `Stalled(lane, stalledFor)`, a record in
+  `-core`, from its own thread, and calls nothing: its `Consumer<Lanes.Stall>` is gone, and `start` takes only the
+  threshold. The application's `LivenessPolicy` is unchanged (`v1.md` freezes it) and hears the report directly on
+  the bus, so it runs on the watchdog's thread as before: it has to run while the lanes are wedged, which a mailbox
+  on one of them would not. A part that only wants to know hears the same `Stalled` in its mailbox, once its own lane
+  is free to. A throwing policy or a full mailbox is caught around the publish, so it still cannot stop the thread the
+  halt deadline is on. Held by `WatchdogTest` (9, the reports now heard on a bus) and
+  `LivenessTest.aStallIsReportedAsAMessageOnTheApplicationsBus`. Not driven live: no generated application wedges.*
+  ***Phase 5 is done.*** *Suites: framework 468 green (core 64, processor 154, shell 175, automation 14, template
+  61); the acceptance profile was not run.*
 
 ### Phase 6. Template
 

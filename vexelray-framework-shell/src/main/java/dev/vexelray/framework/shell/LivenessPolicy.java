@@ -68,7 +68,9 @@ public interface LivenessPolicy {
 
     /**
      * A lane stalled. Called once per stalled delivery, on the watchdog's thread — which is on no lane, so it
-     * runs even when the application's own threads do not.
+     * runs even when the application's own threads do not. The watchdog publishes each stall as a
+     * {@link dev.vexelray.framework.core.Stalled} message, and this hears it directly on the bus; a part that only
+     * wants to know hears the same message in its mailbox, once its own lane is free to.
      *
      * <p>The default reports it, naming the lane, and exits.
      */

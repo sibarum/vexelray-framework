@@ -8,6 +8,7 @@ import dev.vexelray.framework.core.Lanes;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Pacing;
 import dev.vexelray.framework.core.Phase;
+import dev.vexelray.framework.core.Stalled;
 import dev.vexelray.framework.core.Timer;
 import dev.vexelray.framework.core.WakeSource;
 import dev.vexelray.framework.core.Watchdog;
@@ -24,7 +25,6 @@ import sibarum.atchung.Inbox;
 import sibarum.probe.Log;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -77,6 +77,7 @@ public final class Shell {
     private final Timer timer = new Timer(bus);
     private final PointerLock pointerLock = new PointerLock();
     private final HeldDialogs dialogs = new HeldDialogs(bus);
+    private final OwnAsks ownAsks = new OwnAsks(bus);
     private final Lanes lanes;
     private final Watchdog watchdog;
     /** Where the ticks run, read from the launch when the shell is made, so a bad value fails before anything is built. */
@@ -109,7 +110,7 @@ public final class Shell {
         this.launch = launch;
         this.info = info;
         this.lanes = lanes;
-        this.watchdog = new Watchdog(lanes);
+        this.watchdog = new Watchdog(lanes, bus);
         this.logicOnMain = logicOnMain(launch);
         // First registration, so it is the last thing closed: the halt it arms is the backstop for the rest of the
         // teardown, and a backstop that closed early would be disarmed by the very shutdown it exists to bound.
@@ -458,6 +459,11 @@ public final class Shell {
         }
         this.dialogs.target(dialogs);
         return this;
+    }
+
+    /** The framework's own questions, asked as any part asks. Main thread. See {@link OwnAsks}. */
+    OwnAsks ownAsks() {
+        return ownAsks;
     }
 
     /** Whether the application handed its own dialogs back, and so whether the framework's are wanted. */
@@ -914,8 +920,11 @@ public final class Shell {
                 return lanes.interruptLane(lane);
             }
         };
-        watchdog.start(policy.stallThreshold().toNanos(), stall -> policy.onStall(
-                new LivenessPolicy.Stall(stall.lane(), Duration.ofNanos(stall.nanos())), context));
+        // Heard directly on the bus, so on the watchdog's thread: the policy must run while the lanes are wedged,
+        // which a mailbox on one of them would not. A part hears the same report in its mailbox, on its own lane.
+        bus.subscribe(Stalled.TOPIC, stall -> policy.onStall(
+                new LivenessPolicy.Stall(stall.lane(), stall.stalledFor()), context));
+        watchdog.start(policy.stallThreshold().toNanos());
     }
 
     void settings(Settings settings) {
