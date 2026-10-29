@@ -14,8 +14,9 @@ import java.util.Optional;
  * <p>The application is three kinds of part, and none of them holds another. The {@link Editor} decides; it owns the
  * session, and changes it only by running its own declared steps. The view, in the {@code -gui} module, shows; it
  * owns the widgets. The jobs ({@link ReadFile}, {@link WriteFile}, {@link FindPath}, {@link CreateFile},
- * {@link ReadSession}, {@link WriteSession}) touch the disk, on the offload lane. Each sends a record on a topic and
- * the others hear it on their own lane, so no state is shared and nothing needs a lock.
+ * {@link ReadSession}, {@link WriteSession}, {@link ListFolder}, {@link MarkText}) touch the disk or do slow work, on
+ * the offload lane. Each sends a record on a topic and the others hear it on their own lane, so no state is shared
+ * and nothing needs a lock.
  *
  * <p>A record here is what crossed, and it crosses as itself: the processor refuses a payload that is not deeply
  * immutable (T2.4). A list may cross when what it holds may, and the list itself must not change after it is sent,
@@ -320,6 +321,45 @@ public final class Messages {
     public record Remember(Optional<Path> folder, List<Path> files, Optional<Path> front) {
         public Remember {
             files = List.copyOf(files);
+        }
+    }
+
+    // ------------------------------------------------------------------ the view and its jobs
+
+    /** List one level of the navigator's tree ({@link ListFolder}): the folder shown's, or a folder in it. */
+    public static final String LISTING = "view.listing";
+    public static final Topic<Listing> LISTING_TOPIC = Topic.of(LISTING, Listing.class);
+
+    /** {@code roots}: the level is the tree's top, the folder shown, rather than a folder opened in it. */
+    public record Listing(String tree, Path dir, boolean roots) {
+    }
+
+    /** One entry of a level: where it is, what its row says, and whether it opens. */
+    public record Item(Path path, String name, boolean folder) {
+    }
+
+    public static final String LISTED = "view.listed";
+    public static final Topic<Listed> LISTED_TOPIC = Topic.of(LISTED, Listed.class);
+
+    public record Listed(String tree, Path dir, boolean roots, List<Item> items) {
+        public Listed {
+            items = List.copyOf(items);
+        }
+    }
+
+    /** Colour a Markdown document ({@link MarkText}): its text as of {@code version}, and the colours to use. */
+    public static final String MARK = "view.mark";
+    public static final Topic<Mark> MARK_TOPIC = Topic.of(MARK, Mark.class);
+
+    public record Mark(String field, String text, long version, Markdown.Style style) {
+    }
+
+    public static final String MARKED = "view.marked";
+    public static final Topic<Marked> MARKED_TOPIC = Topic.of(MARKED, Marked.class);
+
+    public record Marked(String field, long version, List<dev.vexelray.gui.core.text.Span> spans) {
+        public Marked {
+            spans = List.copyOf(spans);
         }
     }
 }

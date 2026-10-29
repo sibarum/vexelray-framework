@@ -476,8 +476,11 @@ order with the input around them, which a delivery after dispatch cannot do, and
 **Why:** it is the author's model as stated: GUI elements are components with a mailbox drained every frame, and an
 application's composite element is a GUI element. The alternative, every dynamic UI described as commands in the
 widget library's vocabulary, would make each application's screens a protocol and the widget API several times its
-size. *(owed: phase 3 builds the GUI tick it drains in and the widgets' topics, phase 4 the `@View` declaration and
-its checks)*
+size. *(the GUI tick and the widgets' topics built in phase 3; **the `@View` declaration built 2026-10-28**: its
+`@Subscribe` methods are drained in the widget tick (`Views.mailbox`, over `Gui.mailbox`), it is built no earlier than
+`TREE`, only another view may hold it, and a widget library message it hears is not a crossing, so T2.4 does not check
+it. Held by `VexelProcessorTest`'s view cases and by the template, whose `View` is one and is driven in a real window.
+What a view's declarations send through is `Senders`, interim until fork 5 hands each part its senders)*
 
 **T7.5 — What the dispatcher asks, a node declares.** *Ruled 2026-10-27.* Some input is a question the dispatcher
 must answer in the frame it arrives in: what goes on this node's menu, what a drag beginning here carries, whether

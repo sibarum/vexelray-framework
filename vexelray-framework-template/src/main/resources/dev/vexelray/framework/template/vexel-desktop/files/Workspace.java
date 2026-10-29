@@ -9,58 +9,64 @@ import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.widget.Cue;
+import dev.vexelray.gui.widget.MenuAction;
 import dev.vexelray.gui.widget.Tabs;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * The open files: a {@link Tabs} bar, one {@link Buffer} per tab, and the bookkeeping that keeps the two in step.
  *
- * <h2>Changed on one lane, so no lock</h2>
+ * <h2>The view's, on the GUI thread</h2>
  *
- * <p>Tabs are added, closed, fronted and cycled only by the {@link View}, on its lane, one message at a time, so the
- * bar and the buffer list cannot be changed by two threads at once and there is no lock to take. What is read from
- * elsewhere is made for it: the buffer list is copied on write, so the tab menu built on a worker reads a whole
- * snapshot, and the tab in front is a volatile the caret's listener reads.
+ * <p>Tabs are added, closed, fronted and cycled only by the {@link View}, which runs on the GUI thread in the frame,
+ * so the bar and the buffer list are never changed by two threads at once, and there is no lock and no concurrent
+ * collection here.
  *
  * <h2>The bar never closes a tab on its own</h2>
  *
  * <p>{@link Tabs#closable} is off. The bar's own Close removes a tab the moment it is chosen, and a tab with unsaved
- * work has to be asked about first; the editor asks, and then tells the view to {@link #close}.
+ * work has to be asked about first; the editor asks, and then tells the view to {@link #close}. The tab's menu is the
+ * application's {@link MenuAction}s, and what is chosen arrives as {@code Tabs.CHOSEN}, for the view to act on.
  */
 final class Workspace {
+
+    /** The tab menu's actions, by the id {@code Tabs.CHOSEN} carries back. */
+    static final String SAVE = "save";
+    static final String CLOSE = "close-tab";
+    static final String CLOSE_OTHERS = "close-others";
+    static final String CLOSE_ALL = "close-all";
+    static final String REVEAL = "reveal";
 
     private final Gui gui;
     private final Motion motion;
     private final Markdown.Style markup;
-    private final Consumer<Buffer.Position> caret;
     private final Tabs tabs;
     private final Node hint;
     private final Node root;
     private final Color accent;
 
-    /** Parallel to the bar's tabs. Written on the view's lane only. */
-    private final List<Buffer> buffers = new CopyOnWriteArrayList<>();
-    private final Map<Long, Buffer> byId = new ConcurrentHashMap<>();
-    private final Map<Long, Node> headers = new ConcurrentHashMap<>();
-    /** The tab in front, for the caret's listener, which runs on whatever thread moved the caret. */
-    private volatile long front = -1;
-    private volatile BiConsumer<Long, Boolean> edited = (id, dirty) -> { };
+    /** Parallel to the bar's tabs. */
+    private final List<Buffer> buffers = new ArrayList<>();
+    private final Map<Long, Buffer> byId = new HashMap<>();
+    private final Map<String, Buffer> byField = new HashMap<>();
 
-    Workspace(Gui gui, Motion motion, Markdown.Style markup, Consumer<Buffer.Position> caret) {
+    Workspace(Gui gui, Motion motion, Markdown.Style markup) {
         this.gui = gui;
         this.motion = motion;
         this.markup = markup;
-        this.caret = caret;
         this.accent = gui.theme().color(Role.ACCENT);
 
-        tabs = new Tabs(gui).closable(false).slide(motion.change);
+        tabs = new Tabs(gui).name("documents").closable(false).slide(motion.change)
+                .action(MenuAction.of(SAVE, "Save"))
+                .action(MenuAction.of(CLOSE, "Close"))
+                .action(MenuAction.of(CLOSE_OTHERS, "Close others"))
+                .action(MenuAction.of(CLOSE_ALL, "Close all"))
+                .action(MenuAction.of(REVEAL, "Reveal in navigator"));
         tabs.node().width(Length.FILL).height(Length.grow(1f)).visible(false);
         gui.landmark(Landmarks.TABS, tabs.node());
 
@@ -80,31 +86,20 @@ final class Workspace {
         return root;
     }
 
-    Tabs tabs() {
-        return tabs;
-    }
-
-    /** Told whenever a tab's text goes unsaved or comes back to what is on disk. */
-    void onEdited(BiConsumer<Long, Boolean> listener) {
-        this.edited = listener;
+    /** The bar's address, which its messages carry. */
+    String address() {
+        return tabs.address();
     }
 
     /** Open {@code text} as {@code path} in a new tab, in front. {@code focus}: whether it takes the keyboard. */
     Buffer add(long id, Path path, String text, boolean focus) {
-        Buffer buffer = new Buffer(gui, id, path, text, Markdown.handles(String.valueOf(path.getFileName())) ? markup : null,
-                dirty -> edited.accept(id, dirty),
-                position -> {
-                    if (front == id) {
-                        caret.accept(position);
-                    }
-                });
+        Buffer buffer = new Buffer(gui, id, path, text,
+                Markdown.handles(String.valueOf(path.getFileName())) ? markup : null);
         tabs.add(buffer.name(), buffer.field.node());
-        int index = buffers.size();
         buffers.add(buffer);
         byId.put(id, buffer);
-        headers.put(id, tabs.header(index));
-        front = id;
-        tabs.select(index);
+        byField.put(buffer.address(), buffer);
+        tabs.select(buffers.size() - 1);
         showing(true);
         if (focus) {
             gui.focus(buffer.field.node());
@@ -120,8 +115,8 @@ final class Workspace {
         }
         int i = buffers.indexOf(gone);
         buffers.remove(i);
+        byField.remove(gone.address());
         tabs.remove(i);
-        headers.remove(id);
         showing(!buffers.isEmpty());
         gone.close();
     }
@@ -134,19 +129,12 @@ final class Workspace {
 
     /** The file in front, or null. */
     Buffer front() {
-        List<Buffer> all = buffers;
-        int i = tabs.selected();
-        return i >= 0 && i < all.size() ? all.get(i) : null;
+        return at(tabs.selected());
     }
 
-    /** The bar's selection moved: the caret now follows the file in front, which is returned. */
-    Buffer fronted() {
-        Buffer b = front();
-        if (b != null) {
-            front = b.id;
-            caret.accept(Buffer.position(b.field.document().value()));
-        }
-        return b;
+    /** The file in tab {@code index}, or null. */
+    Buffer at(int index) {
+        return index >= 0 && index < buffers.size() ? buffers.get(index) : null;
     }
 
     /** The open tab for {@code file}, or null. */
@@ -164,7 +152,12 @@ final class Workspace {
         return byId.get(id);
     }
 
-    /** Every open file, in tab order: a snapshot, safe from any thread. */
+    /** The file whose field has {@code address}, or null: what a field's message is about. */
+    Buffer byField(String address) {
+        return byField.get(address);
+    }
+
+    /** Every open file, in tab order. */
     List<Buffer> all() {
         return List.copyOf(buffers);
     }
@@ -175,14 +168,11 @@ final class Workspace {
      */
     void show(Buffer buffer, boolean focus) {
         int i = buffers.indexOf(buffer);
-        if (i >= 0) {
-            front = buffer.id;
-            tabs.select(i);
+        if (i < 0) {
+            return;
         }
-        Node header = headers.get(buffer.id);
-        if (header != null) {
-            motion.cues.play(header, Cue.ring(accent, 1));
-        }
+        tabs.select(i);
+        motion.cues.play(tabs.header(i), Cue.ring(accent, 1));
         if (focus) {
             gui.focus(buffer.field.node());
         }
@@ -195,17 +185,15 @@ final class Workspace {
             return;
         }
         int i = Math.floorMod(tabs.selected() + delta, n);
-        Buffer next = buffers.get(i);
-        front = next.id;
         tabs.select(i);
-        gui.focus(next.field.node());
+        gui.focus(buffers.get(i).field.node());
     }
 
     /** What a tab's header says, as the editor decided it. */
     void retitle(long id, String title) {
-        Node header = headers.get(id);
-        if (header != null) {
-            header.text(title);
+        int i = buffers.indexOf(byId.get(id));
+        if (i >= 0) {
+            tabs.title(i, title);
         }
     }
 }

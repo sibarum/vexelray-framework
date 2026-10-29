@@ -188,6 +188,18 @@ public final class VexelApplication {
         return shell;
     }
 
+    /**
+     * Run one frame of a tree built by {@link #tree}, on the calling thread, as the window's loop would: input is
+     * dispatched, the widgets' and the views' mailboxes are drained, and the tree is laid out at the window's first
+     * size. For a headless test, which has no loop: a {@code @View} hears only in a frame, so a test that waits for one
+     * to act steps frames while it waits, and the thread calling this is then the GUI thread, as the loop's is.
+     */
+    public static void frame(Shell shell) {
+        AppInfo info = shell.info();
+        dev.vexelray.gui.core.spi.Seams.of(shell.gui())
+                .frame(info.width(), info.height(), dev.vexelray.gui.core.text.TextFaces.standard());
+    }
+
     private static Launch parseOrExit(String[] args, AppInfo info) {
         try {
             return Launch.parse(args, info.name(), info.settingKeys());

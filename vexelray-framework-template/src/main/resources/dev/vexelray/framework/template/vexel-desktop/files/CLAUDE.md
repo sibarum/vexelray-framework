@@ -8,9 +8,9 @@ changing anything, and `Messages.java` before adding a part.
 ## Where things are
 
 - **Two modules.** `${artifactId}-core` is the controller: `Editor.java`, which makes every decision as declared steps
-  on one state, and the jobs that touch the disk. `${artifactId}-gui` is the view and the framework integration: `View.java`, a component
-  that shows what the editor decides and tells it what the person did, and everything about the window. Run every
-  `mvn` command from this folder, the parent of both.
+  on one state, and the jobs that touch the disk. `${artifactId}-gui` is the view and the framework integration:
+  `View.java`, a `@View` on the GUI thread that shows what the editor decides and tells it what the person did, and
+  everything about the window. Run every `mvn` command from this folder, the parent of both.
 - **The parts talk by messages, and nothing else.** Every message is a record in `-core`'s `Messages.java`. A part
   never holds another part across lanes (the processor refuses it), so a new feature is a message, a mailbox
   (`@Subscribe`) where it arrives, and a `@Publishes` where it is sent. If message passing is awkward for something,
@@ -53,10 +53,11 @@ them even when a shortcut looks harmless:
 - **Nothing reflects.** No `Class.forName`, no runtime annotation reads, no reflective serialization. This compiles to
   a GraalVM native image, and the framework's wiring is generated at compile time so that nothing needs reflection.
 - **Nothing in the frame loop allocates, logs or blocks.** No disk, no network, no locks there.
-- **Vulkan, the window and present stay on the main thread.** The editor and the view each have a lane of their own,
-  input arrives on the handler lane and is only told, and disk work is a job on the offload lane. README's
-  *Threading, in one paragraph* is the whole model. Two mailboxes are not in order with each other and jobs are in no
-  order at all, so never write code that needs one message to arrive before another on a different topic.
+- **Vulkan, the window and present stay on the main thread.** The editor runs on the logic lane, the view (a
+  `@View`) on the GUI thread in each frame, and disk work is a job on the offload lane. The view only shows and tells:
+  a widget says what it did as a message, and a chord or menu item is declared with the message it sends, so no code
+  of yours runs at a click. README's *Threading, in one paragraph* is the whole model. Jobs are in no order at all,
+  so never write code that needs one job's answer to arrive before another's.
 - **All input comes through tactroller.** No polling the OS keyboard, and no native listener of your own.
 - **Log through `sibarum.probe.Log`**, as `Log.of("${appName}.<area>")`. stdout is for lines another program parses
   (`automation: localhost:<port>`), and for nothing else, including diagnostics.

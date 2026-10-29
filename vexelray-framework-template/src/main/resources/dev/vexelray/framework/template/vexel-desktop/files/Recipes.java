@@ -11,8 +11,6 @@ import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.atchung.Atchung;
-import sibarum.tactroller.api.Key;
-import sibarum.tactroller.api.Modifier;
 
 /**
  * What this module builds — one recipe per part — and nothing about when.
@@ -63,9 +61,7 @@ final class Recipes {
      */
     @Provides
     Ui ui(Gui gui, TitleBar titleBar) {
-        Ui ui = new Ui(gui, new Motion(gui), titleBar);
-        zoomShortcuts(gui);
-        return ui;
+        return new Ui(gui, new Motion(gui), titleBar);
     }
 
     /** The main window's close gate, as messages: built here so the view can answer it and {@link #start} can arm it. */
@@ -92,20 +88,4 @@ final class Recipes {
         bus.publish(Messages.BEGIN_TOPIC, new Begin());
     }
 
-    /**
-     * Ctrl+= / Ctrl+- / Ctrl+0, and the numpad's three.
-     *
-     * <p>An application decision, which is why it is here: which chord zooms, or whether zooming exists at all, is not
-     * something a framework should choose. <b>How far the zoom goes is</b>, and it is not stated here — that is
-     * {@code Appearance.ZoomRange}, applied by the framework before the first widget, so every window on the desk
-     * agrees about it.
-     */
-    private static void zoomShortcuts(Gui gui) {
-        gui.shortcut(Key.EQUAL, gui::zoomIn, Modifier.CONTROL);
-        gui.shortcut(Key.MINUS, gui::zoomOut, Modifier.CONTROL);
-        gui.shortcut(Key.DIGIT_0, gui::resetZoom, Modifier.CONTROL);
-        gui.shortcut(Key.NUMPAD_ADD, gui::zoomIn, Modifier.CONTROL);
-        gui.shortcut(Key.NUMPAD_SUBTRACT, gui::zoomOut, Modifier.CONTROL);
-        gui.shortcut(Key.NUMPAD_0, gui::resetZoom, Modifier.CONTROL);
-    }
 }

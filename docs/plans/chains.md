@@ -290,9 +290,13 @@ Each step lands on its own and leaves the suites green.
    The editor is a `@Component` that takes its `Inbox`, so the generated wiring builds it on the logic lane (phase 4,
    begun the same day).
 
-   **Not yet, and why:** the view's half and undo. The view is a component on a lane of its own and not a ledger,
-   so the chain's first link is the editor's step rather than the view's click; the view becomes one when phase 6
-   rewrites it onto `v0.2`'s gui. Undo of a close would need the view's tabs and texts restored with the editor's
+   **The view, the same day:** a `@View` on the GUI thread (T7.4) that hears the widgets and the editor as messages
+   and sends through declarations, so the witness now runs in a real window: Ctrl+W on an unsaved file asks in a
+   dialog, and Save writes the file and closes the tab (driven with ottermate).
+
+   **Not yet, and why:** the view's link and undo. The view hears in the frame and keeps the widgets, and it is not a
+   ledger, so the chain's first link is still the editor's step, started by the view's `Close` message, rather than a
+   step of the view's. Undo of a close would need the view's tabs and texts restored with the editor's
    state, so it waits for the view's ledger too.
 
 ## Decided

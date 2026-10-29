@@ -1,6 +1,7 @@
 package ${packageName};
 
 import ${packageName}.core.Messages;
+import ${packageName}.core.Messages.Answer;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Go;
 import ${packageName}.core.Messages.Open;
@@ -9,7 +10,9 @@ import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
 import dev.vexelray.gui.nfd.FileDialog;
+import dev.vexelray.gui.widget.Chosen;
 import dev.vexelray.gui.widget.Modal;
+import dev.vexelray.gui.widget.Tabs;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,13 +35,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The whole application, built headless by the generated wiring (no window, no GPU) and driven through the same
  * messages a user's gestures send.
  *
- * <p>{@code VexelApplication.tree} runs the wiring as far as the tree and starts the components, so the editor, the
- * view and the jobs are all running on their own lanes here, exactly as in the window. What does not run is the
- * last recipe, the one that takes the {@code Shell}: no session is restored and no settings are written, so this test
- * leaves the user's own settings alone.
+ * <p>{@code VexelApplication.tree} runs the wiring as far as the tree and starts the components, so the editor and the
+ * jobs run on their own lanes here, exactly as in the window. The view runs in frames, and there is no loop to run
+ * them, so the test runs them while it waits ({@code VexelApplication.frame}): this thread is the GUI thread. What does
+ * not run is the last recipe, the one that takes the {@code Shell}: no session is restored and no settings are
+ * written, so this test leaves the user's own settings alone.
  *
  * <p>The test listens on the bus as one more subscriber, which is how it sees what the editor told the view. Every
- * part answers on a lane of its own, so the test waits for what it asked for rather than sleeping.
+ * part answers in its own time, so the test waits for what it asked for, running frames, rather than sleeping.
  */
 class ViewTest {
 
@@ -97,21 +101,32 @@ class ViewTest {
         shell.disposer().close();
     }
 
-    private static void eventually(String what, BooleanSupplier test) throws InterruptedException {
+    /**
+     * Run frames until {@code test} holds. The view hears only in a frame, and this thread runs them, so it is the GUI
+     * thread here as the loop's is in the window: what the test reads of the view is read where the view writes it.
+     */
+    private void eventually(String what, BooleanSupplier test) throws InterruptedException {
         long until = System.nanoTime() + 10_000_000_000L;
+        VexelApplication.frame(shell);
         while (!test.getAsBoolean()) {
             if (System.nanoTime() > until) {
                 throw new AssertionError("timed out waiting for " + what);
             }
-            Thread.sleep(10);
+            Thread.sleep(5);
+            VexelApplication.frame(shell);
         }
     }
 
-    /** Answer every question by pressing the button labelled {@code label}, and remember what was asked. */
-    private static Consumer<Modal> pressing(String label, List<String> asked) {
+    /**
+     * Answer every question as pressing the button labelled {@code label} would: send the message the button declares,
+     * which a dialog carries as data. Remember what was asked.
+     */
+    private Consumer<Modal> pressing(String label, List<String> asked) {
         return modal -> {
             asked.add(modal.title());
-            modal.buttons().stream().filter(b -> b.label().equals(label)).findFirst().orElseThrow().action().run();
+            Object message = modal.buttons().stream().filter(b -> b.label().equals(label)).findFirst().orElseThrow()
+                    .message();
+            shell.bus().publish(Messages.ANSWER_TOPIC, (Answer) message);
         };
     }
 
@@ -188,6 +203,17 @@ class ViewTest {
         assertTrue(Files.isRegularFile(created));
     }
 
+    /** The tree asks for the folder shown, a job reads it, and the view answers the tree with its rows. */
+    @Test
+    void showingAFolderListsItInTheTree() throws Exception {
+        Path file = Files.writeString(dir.resolve("a.txt"), "a").toAbsolutePath().normalize();
+        Files.createDirectory(dir.resolve("sub"));
+        shell.bus().publish(Messages.GO_TOPIC, new Go(dir.toString()));
+        Navigator nav = wiring.ui().navigator();
+        eventually("a row for the file", () -> nav.hasRow(file));
+        assertTrue(nav.isFolder(dir.resolve("sub").toAbsolutePath().normalize()), "the listing said which is a folder");
+    }
+
     @Test
     void aBinaryFileIsRefusedOnTheStatusLine() throws Exception {
         Path binary = dir.resolve("blob.bin");
@@ -205,7 +231,7 @@ class ViewTest {
         eventually("unsaved", b::dirty);
         List<String> asked = new CopyOnWriteArrayList<>();
         answer = pressing("Don't save", asked);
-        tell(Intent.Command.CLOSE, b.id);
+        shell.bus().publish(Tabs.CHOSEN, new Chosen(ws.address(), Workspace.CLOSE, ws.all().indexOf(b)));
         eventually("the tab to close", () -> ws.byId(b.id) == null);
         assertEquals(List.of("Unsaved changes"), asked);
         assertEquals("a", Files.readString(dir.resolve("a.txt")), "Don't save does not save");

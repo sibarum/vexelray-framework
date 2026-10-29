@@ -3,13 +3,13 @@ package ${packageName};
 import sibarum.atchung.Topic;
 
 /**
- * Something the person did that the {@link View} has to act on, sent from the thread it happened on to the view's own
- * lane.
+ * What a key chord, or the window's close gate, asks of the {@link View}: the message the gesture was declared to
+ * send.
  *
- * <p>A key chord, a menu item and a tab selection all arrive on the handler lane, and the tab list is the view's: so
- * the handler only says what happened, and the view does it, in order, on its own thread. That is what lets
- * {@link Workspace} keep its tabs without a lock. {@code id} is the tab a gesture is about, or the close gate's ticket
- * for {@link Command#QUIT}; {@code NO_TAB} where neither applies.
+ * <p>A chord is a declaration ({@code gui.shortcut(chord, sender, message)}, threading.md T7.5): the dispatcher sends
+ * this when the chord is pressed and runs nothing of the application's, and the view hears it in the frame, on the GUI
+ * thread, like any other message. {@code id} is the close gate's ticket for {@link Command#QUIT}, and
+ * {@code Messages.NO_TAB} otherwise.
  */
 record Intent(Command command, long id) {
 
@@ -42,41 +42,34 @@ record Intent(Command command, long id) {
                 view.cycle(-1);
             }
         },
-        /** The tab bar's selection moved. */
-        FRONTED {
+        FOCUS_PATH {
             @Override
             void on(View view, long id) {
-                view.fronted();
+                view.focusPath();
             }
         },
-        SAVE {
+        FOCUS_TREE {
             @Override
             void on(View view, long id) {
-                view.save(id);
+                view.focusTree();
             }
         },
-        CLOSE {
+        ZOOM_IN {
             @Override
             void on(View view, long id) {
-                view.close(id);
+                view.zoom(1);
             }
         },
-        CLOSE_OTHERS {
+        ZOOM_OUT {
             @Override
             void on(View view, long id) {
-                view.closeOthers(id);
+                view.zoom(-1);
             }
         },
-        CLOSE_ALL {
+        ZOOM_RESET {
             @Override
             void on(View view, long id) {
-                view.closeAll();
-            }
-        },
-        REVEAL {
-            @Override
-            void on(View view, long id) {
-                view.reveal(id);
+                view.zoom(0);
             }
         },
         /** The window was asked to close; {@code id} is the close gate's ticket. */

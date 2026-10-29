@@ -73,6 +73,7 @@ public final class Shell {
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
     private final Atchung bus = Atchung.create();
+    private final Senders senders = new Senders(bus);
     private final Timer timer = new Timer(bus);
     private final PointerLock pointerLock = new PointerLock();
     private final HeldDialogs dialogs = new HeldDialogs();
@@ -257,6 +258,14 @@ public final class Shell {
      * <p>Closed last, after every tree presented on it — registered with the {@link #disposer()} before
      * anything else exists, which is what makes that ordering structural rather than remembered.
      */
+    /**
+     * A sender for any topic, for what a gesture declares it sends: a view's shortcut, menu item or dialog button.
+     * Every phase, like the bus. See {@link Senders}.
+     */
+    public Senders senders() {
+        return senders;
+    }
+
     public Lanes lanes() {
         return lanes;
     }

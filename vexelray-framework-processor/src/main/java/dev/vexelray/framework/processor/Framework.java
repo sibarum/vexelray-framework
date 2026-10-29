@@ -75,6 +75,8 @@ final class Framework {
             new Root("dev.vexelray.framework.core.Launch", "launch", Phase.CONFIG, false),
             new Root(APP_INFO, "info", Phase.CONFIG, false),
             new Root("sibarum.atchung.Atchung", "bus", Phase.CONFIG, false),
+            // What a view's declarations send through (T7.5): an ordinary publish, so as shareable as the bus.
+            new Root("dev.vexelray.framework.shell.Senders", "senders", Phase.CONFIG, false),
             new Root("dev.vexelray.framework.core.Lanes", "lanes", Phase.CONFIG, false),
             // Hands no code to anyone: it publishes, and a subscriber hears it on its own lane (T7.2).
             new Root("dev.vexelray.framework.core.Timer", "timer", Phase.CONFIG, false),

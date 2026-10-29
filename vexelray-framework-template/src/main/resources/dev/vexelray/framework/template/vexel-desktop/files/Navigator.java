@@ -1,81 +1,82 @@
 package ${packageName};
 
+import ${packageName}.core.ListFolder;
+import ${packageName}.core.Messages.Item;
+import ${packageName}.core.Messages.Listed;
+import ${packageName}.core.Messages.Listing;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.widget.Cue;
+import dev.vexelray.gui.widget.MenuAction;
 import dev.vexelray.gui.widget.TextField;
 import dev.vexelray.gui.widget.TreeView;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.Executor;
-import java.util.function.Consumer;
+import java.util.Set;
 
 /**
- * The file navigator: a path bar over a tree of what is in one folder.
+ * The file navigator: a path bar over a tree of what is in one folder. The {@link View}'s, on the GUI thread.
  *
  * <h2>The path bar is the whole of "open"</h2>
  *
  * <p>There is no file dialog, by choice, though the framework offers native ones ({@code Dialogs}). The bar
  * stands in for all three of them: type a folder and the tree shows it, type a file and it opens, type a name that
  * is not there yet and it is created. Ctrl+L puts the keyboard in it; Enter goes. It is an ordinary single-line
- * {@link TextField}, and {@code onSubmit} is the whole of its wiring.
+ * {@link TextField}, named {@code path}, and its {@code SUBMITTED} message is the whole of its wiring.
  *
- * <h2>The tree</h2>
+ * <h2>The tree asks, and is answered</h2>
  *
- * <p>Selecting a file opens it — a click, or walking the tree with the arrow keys, which keeps the keyboard in the
- * tree so the walk carries on. Enter opens a folder in place. Rows move rather than jump when a folder opens,
- * because the tree is handed {@link Motion#arrival}.
+ * <p>The tree asks for a level the first time it is opened ({@code TreeView.CHILDREN_WANTED}); reading a folder is
+ * I/O, so the view asks {@code ListFolder} on the offload lane, and when the answer comes this turns it into the tree's
+ * entries ({@link #children}). What a row is drawn from comes with the answer, so drawing calls nothing, and whether a
+ * row is a folder is known from the listing that drew it, never by looking at the disk again on the GUI thread.
  *
- * <p>There is one tree for the life of the window, and changing folder re-points its {@link FolderSource} and
- * refreshes it. The refresh lists the new root, which is I/O, so it runs on the offload lane.
+ * <p>Selecting a file opens it: a click, or walking the tree with the arrow keys, which keeps the keyboard in the tree
+ * so the walk carries on. Enter opens a folder in place. Rows move rather than jump when a folder opens, because the
+ * tree is handed {@link Motion#arrival}. There is one tree for the life of the window, and showing another folder
+ * refreshes it, which asks again for every level it has listed.
  */
 final class Navigator {
 
+    /** The rows' menu actions, by the id {@code TreeView.CHOSEN} carries back. */
+    static final String OPEN = "open";
+    static final String SHOW = "show-folder";
+    static final String COPY_PATH = "copy-path";
+
     private final Gui gui;
     private final Motion motion;
-    private final Executor io;
-    private final FolderSource source = new FolderSource(null);
     private final TextField path;
     private final TreeView<Path> tree;
     private final Node root;
-
-    private volatile Consumer<Path> openFile = p -> { };
-    private volatile Consumer<String> go = p -> { };
+    /** Every folder a listing has shown, so a row's kind is known without the disk. */
+    private final Set<Path> folders = new HashSet<>();
+    /** The folder shown, or null for none yet. */
+    private Path folder;
+    /** Whether the tree has had its top level answered: see {@link #show}. */
+    private boolean rootsAnswered;
+    /** The file a reveal is walking to, to ring when the walk lands. */
+    private Path revealing;
 
     Navigator(Gui gui, Motion motion) {
         this.gui = gui;
         this.motion = motion;
-        this.io = gui.offload();
 
-        path = new TextField(gui, "").onSubmit(text -> go.accept(text.strip()));
+        path = new TextField(gui, "").name("path");
         path.node().width(Length.FILL).font(Type.UI).textSize(Type.SMALL);
         gui.landmark(Landmarks.PATH, path.node());
 
-        tree = new TreeView<>(gui, source).motion(motion.arrival);
+        tree = new TreeView<Path>(gui, "files").motion(motion.arrival)
+                .action(MenuAction.of(OPEN, "›", "Open"))
+                .action(MenuAction.of(SHOW, "»", "Show this folder"))
+                .action(MenuAction.of(COPY_PATH, "Copy path"));
         tree.node().width(Length.FILL).height(Length.grow(1f));
         gui.landmark(Landmarks.TREE, tree.node());
-        tree.onSelect(p -> {
-            if (Files.isRegularFile(p)) {
-                openFile.accept(p);
-            }
-        });
-        tree.onActivate(p -> {
-            if (Files.isDirectory(p)) {
-                tree.expand(p);
-            }
-        });
-        tree.action(TreeView.Action.<Path>of("›", "Open", (p, job) -> openFile.accept(p))
-                .enabledWhen(Files::isRegularFile));
-        tree.action(TreeView.Action.<Path>of("»", "Show this folder", (p, job) -> go.accept(p.toString()))
-                .shownWhen(Files::isDirectory));
-        tree.onContextMenu((p, menu) -> menu
-                .separator()
-                .item("Copy path", () -> gui.clipboard().set(p.toString())));
 
         root = gui.column()
                 .width(Length.FILL).height(Length.FILL)
@@ -90,47 +91,113 @@ final class Navigator {
         return root;
     }
 
-    /** What selecting a file does. */
-    void onOpenFile(Consumer<Path> handler) {
-        this.openFile = handler;
+    /** The path bar's address, which its messages carry. */
+    String pathAddress() {
+        return path.address();
     }
 
-    /** What submitting the path bar does: it is handed the text, and decides what the text names. */
-    void onGo(Consumer<String> handler) {
-        this.go = handler;
+    /** The tree's address, which its messages carry. */
+    String treeAddress() {
+        return tree.address();
     }
 
     /** The folder shown, or null for none yet. */
     Path folder() {
-        return source.base();
-    }
-
-    /** Show {@code folder}: list it on the offload lane, and say in the path bar which folder it is. */
-    void show(Path folder) {
-        io.execute(() -> {
-            source.base(folder);
-            tree.refresh();
-            path.text(String.valueOf(source.base()));
-        });
+        return folder;
     }
 
     /**
-     * Unfold the tree down to {@code file}, select its row, and ring it — a row the walk scrolled to is one the eye
-     * has not found yet. A file outside the folder is left alone: there is no way down to it from here.
+     * Show {@code shown}: say in the path bar which folder it is, and have the tree ask for it again. Returns the
+     * listing to ask for when the tree has never had its top level answered, and null otherwise.
+     *
+     * <p>That case is the first folder. The tree asks for its top level once, when it is built, and the view that
+     * would answer is built after it, so that first question reaches nobody; and a tree whose top level was never
+     * answered waits for it before it refreshes. So the first time, the view answers the question the tree is still
+     * waiting on, and every refresh after that asks as a refresh does.
+     */
+    Listing show(Path shown) {
+        folder = shown;
+        path.text(String.valueOf(shown));
+        if (!rootsAnswered) {
+            return wanted(null);
+        }
+        tree.refresh();
+        return null;
+    }
+
+    /**
+     * What to ask {@code ListFolder} for a level the tree wants: {@code parent} is a folder opened in it, or null for
+     * its top, the folder shown. Null when there is nothing to list, no folder shown yet.
+     */
+    Listing wanted(Object parent) {
+        if (parent instanceof Path dir) {
+            return new Listing(treeAddress(), dir, false);
+        }
+        return folder == null ? null : new Listing(treeAddress(), folder, true);
+    }
+
+    /** {@code ListFolder}'s answer, as the tree's entries for the level it asked about. */
+    TreeView.Children children(Listed listed) {
+        List<TreeView.Entry> entries = new ArrayList<>(listed.items().size());
+        for (Item item : listed.items()) {
+            if (item.folder()) {
+                folders.add(item.path());
+                entries.add(TreeView.Entry.branch(item.path(), item.name()).hides(OPEN));
+            } else {
+                entries.add(TreeView.Entry.leaf(item.path(), item.name()).hides(SHOW));
+            }
+        }
+        if (listed.roots()) {
+            rootsAnswered = true;
+        }
+        return new TreeView.Children(treeAddress(), listed.roots() ? null : listed.dir(), entries);
+    }
+
+    /** An empty top level, for a tree that asks before a folder is shown. */
+    TreeView.Children nothing() {
+        rootsAnswered = true;
+        return new TreeView.Children(treeAddress(), null, List.of());
+    }
+
+    /** Whether the tree has a row for {@code item}: listed, and under folders that are open. */
+    boolean hasRow(Path item) {
+        return tree.rowNode(item) != null;
+    }
+
+    /** Whether {@code item} is a folder, as its listing said. */
+    boolean isFolder(Path item) {
+        return folders.contains(item);
+    }
+
+    /** Open a folder's row in place. */
+    void expand(Path item) {
+        tree.expand(item);
+    }
+
+    /**
+     * Unfold the tree down to {@code file} and select its row; when the walk lands, {@link #revealed} rings it, since
+     * a row the walk scrolled to is one the eye has not found yet. A file outside the folder is left alone: there is
+     * no way down to it from here.
      */
     boolean reveal(Path file) {
-        List<Path> chain = source.chainTo(file);
+        List<Path> chain = ListFolder.chain(folder, file);
         if (chain.isEmpty()) {
             return false;
         }
-        Path last = chain.getLast();
-        tree.revealPath(chain, () -> {
-            Node row = tree.rowNode(last);
+        revealing = chain.getLast();
+        tree.revealPath(chain);
+        return true;
+    }
+
+    /** A walk ended: ring its row if it was the reveal's and it got there. */
+    void revealed(Object item, boolean reached) {
+        if (reached && item.equals(revealing)) {
+            Node row = tree.rowNode(revealing);
             if (row != null) {
                 motion.cues.play(row, Cue.ring(gui.theme().color(Role.ACCENT), 1));
             }
-        });
-        return true;
+            revealing = null;
+        }
     }
 
     /** Put the keyboard in the path bar, everything in it selected so typing replaces it. */

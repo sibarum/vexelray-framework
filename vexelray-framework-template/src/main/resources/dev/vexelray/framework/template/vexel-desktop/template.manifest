@@ -186,6 +186,8 @@ file ${artifactId}-core/src/main/java/${packagePath}/core/FindPath.java    from 
 file ${artifactId}-core/src/main/java/${packagePath}/core/CreateFile.java  from CreateFile.java
 file ${artifactId}-core/src/main/java/${packagePath}/core/ReadSession.java from ReadSession.java
 file ${artifactId}-core/src/main/java/${packagePath}/core/WriteSession.java from WriteSession.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/ListFolder.java  from ListFolder.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/MarkText.java    from MarkText.java
 file ${artifactId}-core/src/main/java/${packagePath}/core/TextFile.java    from TextFile.java
 file ${artifactId}-core/src/main/java/${packagePath}/core/Markdown.java    from Markdown.java
 
@@ -194,6 +196,7 @@ file ${artifactId}-core/src/test/java/${packagePath}/core/EditorTest.java   from
 file ${artifactId}-core/src/test/java/${packagePath}/core/FilesTest.java    from FilesTest.java    when tests
 file ${artifactId}-core/src/test/java/${packagePath}/core/TextFileTest.java from TextFileTest.java when tests
 file ${artifactId}-core/src/test/java/${packagePath}/core/MarkdownTest.java from MarkdownTest.java when tests
+file ${artifactId}-core/src/test/java/${packagePath}/core/ListFolderTest.java from ListFolderTest.java when tests
 
 # ---- -gui: the view and the framework integration --------------------------------------
 
@@ -216,7 +219,6 @@ file ${artifactId}-gui/src/main/java/${packagePath}/Motion.java        from Moti
 file ${artifactId}-gui/src/main/java/${packagePath}/Workspace.java     from Workspace.java
 file ${artifactId}-gui/src/main/java/${packagePath}/Buffer.java        from Buffer.java
 file ${artifactId}-gui/src/main/java/${packagePath}/Navigator.java     from Navigator.java
-file ${artifactId}-gui/src/main/java/${packagePath}/FolderSource.java  from FolderSource.java
 
 # The mark, and what a native build needs. The .ico is copied as it is (it is not
 # text, so nothing is substituted into it): the window wears it from the class
@@ -240,7 +242,6 @@ file ${artifactId}-gui/src/main/resources/META-INF/native-image/${groupId}/${art
 
 file ${artifactId}-gui/src/test/java/${packagePath}/ViewTest.java          from ViewTest.java          when tests
 file ${artifactId}-gui/src/test/java/${packagePath}/LookTest.java          from LookTest.java          when tests
-file ${artifactId}-gui/src/test/java/${packagePath}/FolderSourceTest.java  from FolderSourceTest.java  when tests
 
 # ---- what it will not build without ---------------------------------------------------
 #

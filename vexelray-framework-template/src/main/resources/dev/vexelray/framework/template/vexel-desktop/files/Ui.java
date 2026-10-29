@@ -67,8 +67,7 @@ final class Ui {
                 gui.theme().color(Role.INK),
                 gui.theme().color(Role.PANEL));
 
-        workspace = new Workspace(gui, motion, markup,
-                p -> status.text(Landmarks.STATUS_POSITION, "Ln " + p.line() + ", Col " + p.column()));
+        workspace = new Workspace(gui, motion, markup);
         navigator = new Navigator(gui, motion);
 
         SplitPane split = new SplitPane(gui, SplitPane.Orientation.SIDE_BY_SIDE, navigator.node(), workspace.node())
@@ -95,6 +94,11 @@ final class Ui {
         if (file.isEmpty()) {
             status.text(Landmarks.STATUS_POSITION, "");
         }
+    }
+
+    /** Where the caret is in the front file, on the status line. */
+    void position(String where) {
+        status.text(Landmarks.STATUS_POSITION, where);
     }
 
     /** Say something on the status line, and when {@code alert}, draw the eye to it: something was refused or failed. */

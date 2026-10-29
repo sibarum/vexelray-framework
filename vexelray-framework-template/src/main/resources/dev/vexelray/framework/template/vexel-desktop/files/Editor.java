@@ -34,6 +34,8 @@ import ${packageName}.core.Messages.Why;
 import ${packageName}.core.Messages.Write;
 import ${packageName}.core.Messages.Written;
 import dev.vexelray.framework.api.Component;
+import dev.vexelray.framework.api.Hears;
+import dev.vexelray.framework.api.Publishes;
 import sibarum.atchung.Chain;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Ledger;
@@ -92,11 +94,18 @@ import java.util.Set;
  *
  * <p>A {@code @Component} that takes an {@link Inbox} is given its own, on the framework's logic lane: that is where
  * its messages arrive and where its steps run, on one thread with every other such component and never two at once.
- * So it declares no {@code @Subscribe}: what it hears is the list above. {@link Core} lists it, so {@code -gui}'s
- * generated wiring builds it; {@code EditorTest} builds it on a tick of its own, which is the same thing without a
- * window.
+ * So it declares no {@code @Subscribe}: what it hears is the list above, declared again as {@code @Hears} for the
+ * processor, which cannot read a constructor (the lane checks at startup that the two agree). {@link Core} lists it, so
+ * {@code -gui}'s generated wiring builds it; {@code EditorTest} builds it on a tick of its own, which is the same
+ * thing without a window.
  */
 @Component
+@Hears({Messages.BEGIN, Messages.RECALLED, Messages.GO, Messages.OPEN, Messages.FILE_READ, Messages.FOUND,
+        Messages.CREATED, Messages.FRONTED, Messages.EDITED, Messages.SAVE, Messages.WRITTEN, Messages.ANSWER,
+        Messages.CLOSE, Messages.QUIT})
+@Publishes({Messages.SHOW_FOLDER, Messages.ADD_TAB, Messages.FRONT_TAB, Messages.CLOSE_TAB, Messages.RETITLE,
+        Messages.CAPTION, Messages.STATUS, Messages.ASK, Messages.FLUSH, Messages.SAVE_FAILED, Messages.QUIT_ANSWER,
+        Messages.READ, Messages.WRITE, Messages.FIND, Messages.CREATE, Messages.RECALL, Messages.REMEMBER})
 public final class Editor {
 
     /** How many of each message the editor's inbox holds before a sender is refused: far more than a person sends. */

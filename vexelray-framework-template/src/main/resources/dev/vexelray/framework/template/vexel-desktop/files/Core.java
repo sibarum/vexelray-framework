@@ -12,7 +12,7 @@ import dev.vexelray.framework.api.Configuration;
  * this list, or nothing builds it.
  */
 @Configuration(components = Editor.class,
-        jobs = {ReadFile.class, WriteFile.class, FindPath.class, CreateFile.class, ReadSession.class,
-                WriteSession.class})
+        jobs = {ReadFile.class, WriteFile.class, FindPath.class, CreateFile.class, ReadSession.class, ListFolder.class,
+                MarkText.class, WriteSession.class})
 public final class Core {
 }

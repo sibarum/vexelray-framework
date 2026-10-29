@@ -100,10 +100,10 @@ framework brings native pickers (`Dialogs.openFile`, `openFolder`, `saveFile`) f
 
 ## How it is put together
 
-Two modules under this folder, split where the dependency edge falls, and three kinds of part that never hold each
-other: **components** (a class with a lane of its own and mailboxes, reached only by messages), **jobs** (slow work
-on the offload lane, a request in and a reply out), and **recipes** (a part built once and handed to whoever takes
-it). The parts talk by messages, and every message is in one file. Read these in this order.
+Two modules under this folder, split where the dependency edge falls, and four kinds of part that never hold each
+other: **components** (logic, reached only by messages: the editor runs on the framework's logic lane), **views**
+(presentation, run on the GUI thread in each frame, `@View`), **jobs** (slow work on the offload lane, a request in
+and a reply out), and **recipes** (a part built once and handed to whoever takes it). The parts talk by messages, and every message is in one file. Read these in this order.
 
 **`${artifactId}-core`, the controller.** It builds against no widget, so its tests need no window.
 
@@ -112,7 +112,7 @@ it). The parts talk by messages, and every message is in one file. Read these in
 | `Messages.java` | **every message the parts send each other**, grouped by who sends it to whom, each record beside its topic. A record crosses as itself, so it holds only immutable values; a list it holds is copied in its constructor. |
 | `Editor.java` | **the controller**: every decision (what a typed path names, whether a file is already open, when closing needs a question, what the status line says, what comes back next time) as a declared step on one immutable state, held by a ledger. Each message it hears runs one step; closing is a chain of them that waits on the person and the disk without anything waiting on a thread. It needs no lock, because only its steps change its state and they run one at a time. |
 | `Doc.java` | the shape of the session (which files, which in front, which unsaved, which folder) as one immutable value, part of the editor's state. |
-| `ReadFile.java`, `WriteFile.java`, `FindPath.java`, `CreateFile.java`, `ReadSession.java`, `WriteSession.java` | the jobs: every touch of the disk, on the offload lane. What can go wrong is part of the reply. |
+| `ReadFile.java`, `WriteFile.java`, `FindPath.java`, `CreateFile.java`, `ReadSession.java`, `WriteSession.java`, `ListFolder.java`, `MarkText.java` | the jobs: every touch of the disk, on the offload lane. What can go wrong is part of the reply. |
 | `TextFile.java`, `Markdown.java` | the policy between bytes and text, and Markdown as spans: pure functions. |
 | `Core.java` | the list of this module's component and jobs. The processor compiling `-gui` sees only `-gui`'s sources, so this list, named among `${className}App`'s starters, is how the wiring hears of them. A new component or job goes on it. |
 
@@ -121,12 +121,12 @@ it). The parts talk by messages, and every message is in one file. Read these in
 | File | What belongs in it |
 | --- | --- |
 | `Recipes.java` | **what this module builds.** One `@Provides` method per part; `${className}AppWiring`, which builds them and the components and jobs in order, is generated while it compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. |
-| `View.java` | **the view**, a component on the `view` lane: the editor's messages shown (`AddTab` is a tab, `Ask` is a dialog) and the person's gestures told (`Open`, `Close`, `Save`). It decides nothing. |
-| `Intent.java` | what a key, a menu item or a tab selection asks of the view, sent from the thread it arrived on to the view's lane. |
+| `View.java` | **the view**, a `@View`: run on the GUI thread in each frame, hearing the editor, its jobs and the widgets as messages; the editor's messages shown (`AddTab` is a tab, `Ask` is a dialog) and the person's gestures told (`Open`, `Close`, `Save`). It decides nothing. |
+| `Intent.java` | what a key chord, or the close gate, asks of the view: the message the gesture was declared to send. |
 | `QuitGate.java` | the window's close gate, as messages: its two callbacks kept under a ticket, the ticket sent. |
 | `Ui.java` | the window. Holds no state; it shows what the view hands it. |
 | `Workspace.java`, `Buffer.java` | the tab bar and one `Buffer` per tab: a `TextField`, its spans, its save bookkeeping. |
-| `Navigator.java`, `FolderSource.java` | the path bar and the file tree, over the disk, read lazily off the frame loop. |
+| `Navigator.java` | the path bar and the file tree. The tree asks for each level by message, and the view asks `ListFolder`, so the disk is read off the frame. |
 | `Motion.java` | the one tempo every widget moves at, on the framework's clock. |
 
 `${className}.java` is the entry point and the constants, and nothing else. The application edge — input, the
@@ -153,13 +153,14 @@ Open `${artifactId}-gui/target/generated-sources/annotations/.../${className}App
 ### Threading, in one paragraph
 
 The GUI loop runs on the main thread, which owns Vulkan, the window and present, and nothing of this application's
-runs there. The editor has a lane of its own and so does the view; each handles one message at a time, and each owns
-its state outright, so there is no lock anywhere in the application. The editor's state is changed only by its declared
-steps, which the processor reads: a step that touches the disk, waits or reaches outside itself does not compile. Input arrives on the handler lane and is only
-told: a key or a menu item becomes an `Intent` for the view, or a message straight to the editor. Every read and write
-of a file is a job on the offload lane, so a slow disk is a slow reply and never a frozen window or a stalled lane
-(the lanes are named in the framework's `docs/threading.md`). Writing a node's props from the view's lane is correct,
-because a prop written off the GUI thread is applied by the next drain.
+runs there but the view, which is presentation and nothing else (threading.md, T7.4). The editor runs on the
+framework's logic lane and the view on the GUI thread, in each frame's widget tick; each handles one message at a
+time and owns its state outright, so there is no lock anywhere in the application. The editor's state is changed only
+by its declared steps, which the processor reads: a step that touches the disk, waits or reaches outside itself does
+not compile. A widget says what it did as a message, which the view hears in the frame the input arrived, and a key
+chord or a menu item is declared with the message it sends, so nothing of the application's runs at the click. Every
+read and write of a file is a job on the offload lane, so a slow disk is a slow reply and never a frozen window (the
+lanes are named in the framework's `docs/threading.md`).
 
 Two things follow from messages, and both are written where they bite. **One sender's messages to one receiver keep
 their order**: so the view says a tab went unsaved before it asks to close it, and the editor already knows when the
@@ -169,9 +170,9 @@ sends can block.
 
 ### Spans
 
-`Markdown.spans` is a pure function from text to `Span`s — foreground, background, underline — and `Buffer` runs it
-off the frame loop (`gui.async`) after each edit and hands the result to the field. The text is never changed; the field draws the
-colours and moves each span with its text as you type. A `.txt` file gets none.
+`Markdown.spans` is a pure function from text to `Span`s (foreground, background, underline). After each edit
+the view asks `MarkText` for them on the offload lane, and applies the answer only if the field still says the text it
+was computed for. The text is never changed; the field draws the colours and moves each span with its text as you type. A `.txt` file gets none.
 
 ### Motion
 
