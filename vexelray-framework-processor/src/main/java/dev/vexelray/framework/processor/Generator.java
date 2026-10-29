@@ -2,15 +2,18 @@ package dev.vexelray.framework.processor;
 
 import dev.vexelray.framework.api.BeforeFrame;
 import dev.vexelray.framework.api.Component;
+import dev.vexelray.framework.api.Hears;
 import dev.vexelray.framework.api.OnMode;
 import dev.vexelray.framework.api.RunMode;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.api.VexelApp;
+import dev.vexelray.framework.api.View;
 import dev.vexelray.framework.core.Phase;
 
 import javax.annotation.processing.Filer;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -201,9 +204,13 @@ final class Generator {
      * A component's own inbox on the logic lane, named after the component. Built in {@link Phase#CONFIG}, like the
      * bus it is made from, so a component that takes nothing else is built first.
      */
-    private record InboxArg(String name) implements Arg {
+    private record InboxArg(String name, List<String> hears) implements Arg {
         public String expression() {
-            return Framework.INBOXES + ".of(shell, " + literal(name) + ")";
+            StringBuilder call = new StringBuilder(Framework.INBOXES).append(".of(shell, ").append(literal(name));
+            for (String topic : hears) {
+                call.append(", ").append(literal(topic));
+            }
+            return call.append(')').toString();
         }
 
         public Phase phase() {
@@ -378,7 +385,9 @@ final class Generator {
             }
             // Graph has refused an inbox anywhere but a component's constructor.
             if (element.getQualifiedName().contentEquals(Framework.INBOX) && b.component != null && b.job == null) {
-                return new InboxArg(b.component.getQualifiedName().toString());
+                AnnotationMirror hears = mirrors.find(b.component, Hears.class);
+                return new InboxArg(b.component.getQualifiedName().toString(),
+                        hears == null ? List.of() : mirrors.strings(hears, "value"));
             }
         }
         for (Slot s : slots) {
@@ -500,6 +509,10 @@ final class Generator {
                 phase = a.phase();
             }
         }
+        // A view's mailboxes are the Gui's, which is handed out in TREE: a view taking nothing later is built then.
+        if (b.component != null && mirrors.has(b.component, View.class) && phase.compareTo(Phase.TREE) < 0) {
+            phase = Phase.TREE;
+        }
         b.phase = phase;
         path.remove(path.size() - 1);
         b.visit = 2;
@@ -561,6 +574,36 @@ final class Generator {
                         + " type it is on");
             }
         }
+    }
+
+    /**
+     * The topic a view's mailbox is subscribed with. A widget's topics are state or edge, and a subscription takes its
+     * kind from the {@code Topic} it is given, so {@code Topic.of(name, type)}, which is always an edge, would hear a
+     * widget's state topic as edges and be refused beside the widget's own. So where the payload's enclosing type
+     * declares exactly one {@code public static final Topic} of the payload, as a widget does ({@code TextField.CHANGED}
+     * for {@code TextField.Changed}) and as {@code Messages} does, that constant is used, and {@code Views.mailbox}
+     * checks at startup that its name is the one {@code @Subscribe} gave. Otherwise an edge of the name.
+     */
+    private String viewTopic(Channels.Mailbox m) {
+        TypeElement payload = Mirrors.element(m.payload());
+        String fallback = "sibarum.atchung.Topic.of(" + literal(m.topic()) + ", " + payload.getQualifiedName()
+                + ".class)";
+        if (!(payload.getEnclosingElement() instanceof TypeElement owner)) {
+            return fallback;
+        }
+        String found = null;
+        for (Element e : owner.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.FIELD && e.getModifiers().contains(Modifier.PUBLIC)
+                    && e.getModifiers().contains(Modifier.STATIC) && e.asType() instanceof DeclaredType t
+                    && Mirrors.element(t).getQualifiedName().contentEquals("sibarum.atchung.Topic")
+                    && t.getTypeArguments().size() == 1 && types.isSameType(t.getTypeArguments().get(0), m.payload())) {
+                if (found != null) {
+                    return fallback;
+                }
+                found = owner.getQualifiedName() + "." + e.getSimpleName();
+            }
+        }
+        return found != null ? found : fallback;
     }
 
     // --- mailboxes -------------------------------------------------------------------------------------------
@@ -885,7 +928,13 @@ final class Generator {
             after.add("shell.hooks().add(dev.vexelray.framework.api.FrameStage." + h.stage() + ", " + field + "::"
                     + Mirrors.simple(h.method()) + ");");
         }
+        boolean view = b.component != null && mirrors.has(b.component, View.class);
         for (Channels.Mailbox m : b.mailboxes) {
+            if (view) {
+                after.add(Framework.VIEWS + ".mailbox(shell.gui(), " + literal(m.topic()) + ", " + viewTopic(m)
+                        + ", " + field + "::" + Mirrors.simple(m.method()) + ", " + m.capacity() + ");");
+                continue;
+            }
             String lane = lanes.get(declarations.lane(b.component));
             after.add("if (" + lane + " == null) {");
             after.add("    " + lane + " = " + Framework.PLACEMENTS + ".of(shell, "

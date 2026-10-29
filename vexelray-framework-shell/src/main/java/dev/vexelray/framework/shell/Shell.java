@@ -306,6 +306,16 @@ public final class Shell {
     }
 
     /**
+     * As {@link #inbox(String)}, for a component that declared what it hears ({@code @Hears}): when the lane starts,
+     * the inbox must be subscribed to exactly those topics and its ledgers' own, or the application does not start.
+     */
+    Inbox inbox(String name, java.util.List<String> hears) {
+        Inbox in = inbox(name);
+        logic.declare(name, hears);
+        return in;
+    }
+
+    /**
      * <b>The pointer lock</b> — what carries {@code gui.dragLocksPointer(node, true)} onto the device, so that
      * a drag meaning a displacement keeps turning instead of stopping at the window edge.
      *

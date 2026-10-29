@@ -5,10 +5,15 @@ import dev.vexelray.framework.core.Lanes;
 import dev.vexelray.framework.core.WakeSource;
 import sibarum.atchung.Atchung;
 import sibarum.atchung.Inbox;
+import sibarum.atchung.Step;
 import sibarum.atchung.Tick;
+import sibarum.atchung.Topic;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.locks.LockSupport;
 
 /**
@@ -54,6 +59,8 @@ public final class Logic implements WakeSource, AutoCloseable {
     private final Tick tick;
     private final Lanes lanes;
     private final Map<String, Inbox> inboxes = new HashMap<>();
+    /** What each inbox's component declared it hears, for the inboxes whose component declared. */
+    private final Map<String, Set<String>> declared = new HashMap<>();
 
     private volatile Runnable wake = () -> { };
     private volatile boolean arrived;
@@ -98,8 +105,41 @@ public final class Logic implements WakeSource, AutoCloseable {
         if (running || stopped) {
             return;
         }
+        checkDeclarations();
         running = true;
         thread = lanes.logic(this::runUntilStopped);
+    }
+
+    /** Record what the component owning the inbox {@code name} declared it hears ({@code @Hears}). */
+    void declare(String name, List<String> hears) {
+        declared.put(name, Set.copyOf(hears));
+    }
+
+    /**
+     * Every declaring inbox is subscribed to exactly what it declared, besides its ledgers' own topics: a startup
+     * error, not a compile one, because the subscriptions are calls in a constructor, which the processor does not
+     * read. Without this, a topic heard but not declared is invisible to the channel checks, and one declared but not
+     * heard tells them a reply is heard when it is lost.
+     */
+    private void checkDeclarations() {
+        for (Map.Entry<String, Set<String>> e : declared.entrySet()) {
+            Set<String> heard = new TreeSet<>();
+            for (Topic<?> t : inboxes.get(e.getKey()).topics()) {
+                if (t.payloadType() != Step.Transaction.class) {
+                    heard.add(t.name());
+                }
+            }
+            Set<String> undeclared = new TreeSet<>(heard);
+            undeclared.removeAll(e.getValue());
+            Set<String> unheard = new TreeSet<>(e.getValue());
+            unheard.removeAll(heard);
+            if (!undeclared.isEmpty() || !unheard.isEmpty()) {
+                throw new IllegalStateException(e.getKey() + "'s @Hears does not match what its inbox subscribed to."
+                        + (undeclared.isEmpty() ? "" : " Heard and not declared: " + undeclared + ".")
+                        + (unheard.isEmpty() ? "" : " Declared and not heard: " + unheard + ".")
+                        + " @Hears is how the processor checks the channels, so list exactly what the component hears");
+            }
+        }
     }
 
     private void runUntilStopped() {

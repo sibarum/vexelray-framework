@@ -2,10 +2,12 @@ package dev.vexelray.framework.processor;
 
 import dev.vexelray.framework.api.BeforeFrame;
 import dev.vexelray.framework.api.Component;
+import dev.vexelray.framework.api.Hears;
 import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.Overflow;
 import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.api.Subscribe;
+import dev.vexelray.framework.api.View;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
@@ -74,6 +76,10 @@ final class Channels {
     private final Messager messager;
 
     private final Set<Element> publishers = new LinkedHashSet<>();
+    /** The topics components declare they hear through their inboxes ({@code @Hears}), read in {@link #check}. */
+    private final Set<String> heard = new java.util.HashSet<>();
+    /** The widget library's package: what a widget publishes, and a view hears on the same thread. */
+    private static final String GUI_PACKAGE = "dev.vexelray.gui.";
 
     Channels(Mirrors mirrors, Elements elements, Messager messager) {
         this.mirrors = mirrors;
@@ -152,6 +158,12 @@ final class Channels {
         for (Element publisher : publishers) {
             mainThreadSends(publisher, byTopic);
         }
+        heard.clear();
+        for (TypeElement component : graph.componentsSeen()) {
+            if (mirrors.has(component, Hears.class)) {
+                heard.addAll(mirrors.strings(mirrors.find(component, Hears.class), "value"));
+            }
+        }
         blockingCycles(new LinkedHashSet<>(graph.componentsSeen()), byTopic);
         jobs(graph.jobsSeen(), byTopic, application);
     }
@@ -177,7 +189,8 @@ final class Channels {
                 continue;
             }
             sameType(job.run(), job.reply(), job.replyType(), byTopic);
-            if (application && byTopic.getOrDefault(job.reply(), List.of()).isEmpty()) {
+            if (application && byTopic.getOrDefault(job.reply(), List.of()).isEmpty()
+                    && !heard.contains(job.reply())) {
                 error(job.run(), "@Job " + Mirrors.simple(j) + " replies on \"" + job.reply() + "\", and no component"
                         + " subscribes to it. A reply nobody hears is a lost result, which this framework refuses as"
                         + " it refuses a full mailbox: subscribe to it, or make the job void if it is run for its"
@@ -238,6 +251,12 @@ final class Channels {
     private void crossing(Mailbox m) {
         // A payload that is not a plain class or interface is already an error where @Subscribe is declared.
         if (!(m.payload() instanceof javax.lang.model.type.DeclaredType d) || !d.getTypeArguments().isEmpty()) {
+            return;
+        }
+        // A view's mailbox is drained on the GUI thread, where the widgets publish, so a widget library message heard
+        // there has crossed nothing (T7.4). What else a view hears, a controller's message, is checked as any payload.
+        if (mirrors.has(m.component(), View.class) && Mirrors.element(m.payload()).getQualifiedName().toString()
+                .startsWith(GUI_PACKAGE)) {
             return;
         }
         String why = Shareable.crossing(m.payload());
@@ -376,8 +395,8 @@ final class Channels {
         List<String> chips = new ArrayList<>();
         List<String> pins = new ArrayList<>();
         for (TypeElement c : live) {
-            chips.add("component " + c.getQualifiedName() + " lane="
-                    + mirrors.string(mirrors.find(c, Component.class), "lane"));
+            chips.add("component " + c.getQualifiedName() + " lane=" + (mirrors.has(c, View.class) ? View.LANE
+                    : mirrors.string(mirrors.find(c, Component.class), "lane")));
             for (Mailbox m : mailboxes(c)) {
                 pins.add("mailbox " + m.name() + " topic=" + m.topic() + " type="
                         + Mirrors.element(m.payload()).getQualifiedName() + " overflow=" + m.overflow().name()

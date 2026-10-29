@@ -3,12 +3,14 @@ package dev.vexelray.framework.processor;
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.ConditionalOnType;
 import dev.vexelray.framework.api.Default;
+import dev.vexelray.framework.api.Hears;
 import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.OnMode;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.RunMode;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.api.Subscribe;
+import dev.vexelray.framework.api.View;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
@@ -126,6 +128,12 @@ final class Graph {
         for (TypeElement component : components) {
             if (live(component)) {
                 ExecutableElement constructor = constructor(component);
+                if (constructor != null && mirrors.has(component, Hears.class)
+                        && constructor.getParameters().stream().noneMatch(Graph::isInbox)) {
+                    error(component, Mirrors.simple(component) + " declares @Hears and takes no Inbox. @Hears lists what a"
+                            + " component hears through its inbox on the logic lane; a component on a lane of its own"
+                            + " declares its mailboxes with @Subscribe");
+                }
                 if (constructor != null) {
                     for (VariableElement p : constructor.getParameters()) {
                         componentParameter(component, p, providers);
@@ -267,6 +275,17 @@ final class Graph {
                     + " and the generated wiring places it");
             return;
         }
+        boolean view = mirrors.has(component, View.class);
+        TypeElement held = Mirrors.element(parameter.asType());
+        if (held != null && mirrors.has(held, View.class) && !view) {
+            error(parameter, "T7.4: " + name + " takes the view " + Mirrors.simple(held) + ". A view is presentation"
+                    + " on the GUI thread, and only another view may hold it: send it a message instead");
+        }
+        if (view && isInbox(parameter)) {
+            error(parameter, "@View " + name + " takes an Inbox, which is a logic component's. A view hears in the"
+                    + " frame, through its @Subscribe methods");
+            return;
+        }
         if (isInbox(parameter)) {
             for (Element member : component.getEnclosedElements()) {
                 if (mirrors.has(member, Subscribe.class)) {
@@ -279,7 +298,8 @@ final class Graph {
             }
             return;
         }
-        String main = whyOnMain(parameter.asType(), providers);
+        // A view is the GUI thread's (T7.4), so a main-thread value may go into it as into any main-thread part.
+        String main = view ? null : whyOnMain(parameter.asType(), providers);
         if (main != null) {
             error(parameter, "T2.2: " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
                     + main + "), and " + name + " is a @Component, which runs on a lane of its own. A"
@@ -326,7 +346,7 @@ final class Graph {
                     + " whatever thread asked. Take it in the component that submits to it");
         }
         TypeElement other = Mirrors.element(parameter.asType());
-        if (other != null && mirrors.has(other, Component.class)) {
+        if (other != null && (mirrors.has(other, Component.class) || mirrors.has(other, View.class))) {
             error(parameter, "T3.7: " + where + " takes the component " + Mirrors.simple(other) + ". The"
                     + " container hands out a channel or a shareable value, never the object, and a provided"
                     + " value holding a component would carry it to whoever asks for that value");
@@ -367,7 +387,7 @@ final class Graph {
                     + " a subscriber that is the main thread's act on it");
         }
         TypeElement other = Mirrors.element(parameter.asType());
-        if (other != null && mirrors.has(other, Component.class)) {
+        if (other != null && (mirrors.has(other, Component.class) || mirrors.has(other, View.class))) {
             error(parameter, "T2.3: @Job " + name + " takes the component " + Mirrors.simple(other) + ". A job runs"
                     + " on the offload lane, which shares a thread with no component: carry what it needs in the"
                     + " request, and answer in the reply");

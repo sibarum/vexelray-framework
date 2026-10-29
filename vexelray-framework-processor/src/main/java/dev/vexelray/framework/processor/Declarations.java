@@ -6,6 +6,7 @@ import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.api.Subscribe;
+import dev.vexelray.framework.api.View;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
@@ -55,21 +56,21 @@ final class Declarations {
     void component(TypeElement type) {
         String name = Mirrors.simple(type);
         if (type.getKind() == ElementKind.RECORD) {
-            error(type, "@Component " + name + " is a record, and a value is not the container's business: a"
+            error(type, kind(type) + " " + name + " is a record, and a value is not the container's business: a"
                     + " component has a thread and a mailbox. Reach a value through a Shell accessor, or make"
                     + " it configuration with @Setting");
             return;
         }
         if (type.getKind() != ElementKind.CLASS) {
-            error(type, "@Component " + name + " is not a class. A component is constructed by the wiring,"
+            error(type, kind(type) + " " + name + " is not a class. A component is constructed by the wiring,"
                     + " so it has to be something the wiring can call new on");
             return;
         }
         if (type.getModifiers().contains(Modifier.ABSTRACT)) {
-            error(type, "@Component " + name + " is abstract, and the wiring cannot construct it");
+            error(type, kind(type) + " " + name + " is abstract, and the wiring cannot construct it");
         }
         if (type.getNestingKind() == NestingKind.MEMBER && !type.getModifiers().contains(Modifier.STATIC)) {
-            error(type, "@Component " + name + " is an inner class, so constructing it needs an instance of"
+            error(type, kind(type) + " " + name + " is an inner class, so constructing it needs an instance of"
                     + " the class around it. Make it static, or top-level");
         }
         int constructors = 0;
@@ -79,7 +80,7 @@ final class Declarations {
             }
         }
         if (constructors != 1) {
-            error(type, "@Component " + name + " has " + constructors + " non-private constructors, and must"
+            error(type, kind(type) + " " + name + " has " + constructors + " non-private constructors, and must"
                     + " have exactly one. The container does not pick between them, and there is no @Inject"
                     + " to break a tie that is better not created");
         }
@@ -87,6 +88,14 @@ final class Declarations {
             error(type, "T2.1: " + name + " is both a @Component and @MainThread. A component owns a thread"
                     + " of its own, and a value has exactly one colour; the main thread is not a lane a"
                     + " component can be placed on");
+        }
+        if (mirrors.has(type, View.class)) {
+            if (mirrors.has(type, Component.class)) {
+                error(type, name + " is both a @Component and a @View. A component's mailboxes run on a lane, a"
+                        + " view's on the GUI thread in the frame, and one class cannot be both: a view shows and"
+                        + " tells, and a component decides");
+            }
+            return;
         }
         String lane = lane(type);
         if (lane.isBlank()) {
@@ -102,9 +111,17 @@ final class Declarations {
 
     private static final java.util.regex.Pattern LANE_NAME = java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9._-]*");
 
-    /** The lane a component was declared on. */
+    /** The lane a component was declared on; a view's is {@link View#LANE}, the GUI thread's widget tick. */
     String lane(TypeElement component) {
+        if (mirrors.has(component, View.class)) {
+            return View.LANE;
+        }
         return mirrors.string(mirrors.find(component, Component.class), "lane");
+    }
+
+    /** What the class was declared as, for a message: {@code @View} or {@code @Component}. */
+    private String kind(TypeElement type) {
+        return mirrors.has(type, View.class) ? "@View" : "@Component";
     }
 
     // --- @Provides, @Default ---------------------------------------------------------------------------------
@@ -399,9 +416,10 @@ final class Declarations {
     void subscribe(ExecutableElement method) {
         String where = Mirrors.where(method);
         AnnotationMirror subscribe = mirrors.find(method, Subscribe.class);
-        if (!mirrors.has(method.getEnclosingElement(), Component.class)) {
-            error(method, "@Subscribe " + where + " is not on a @Component. A mailbox belongs to something with a"
-                    + " thread to drain it, and only a component has one");
+        if (!mirrors.has(method.getEnclosingElement(), Component.class)
+                && !mirrors.has(method.getEnclosingElement(), View.class)) {
+            error(method, "@Subscribe " + where + " is not on a @Component or a @View. A mailbox belongs to something"
+                    + " with a thread to drain it: a component's lane, or a view's frame");
         }
         if (method.getModifiers().contains(Modifier.PRIVATE) || method.getModifiers().contains(Modifier.STATIC)) {
             error(method, "@Subscribe " + where + " is private or static, so the generated wiring cannot hand it to"

@@ -13,6 +13,8 @@ import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.api.VexelApp;
+import dev.vexelray.framework.api.View;
+import dev.vexelray.framework.api.Hears;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -76,7 +78,7 @@ public final class VexelProcessor extends AbstractProcessor {
     private static final List<Class<? extends Annotation>> VOCABULARY = List.of(
             VexelApp.class, Component.class, Configuration.class, Provides.class, Default.class,
             MainThread.class, Setting.class, BeforeFrame.class, OnMode.class, ConditionalOnType.class,
-            Subscribe.class, Publishes.class, Job.class);
+            Subscribe.class, Publishes.class, Job.class, View.class, Hears.class);
 
     private Mirrors mirrors;
     private Declarations declarations;
@@ -130,6 +132,16 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(Component.class)) {
             component((TypeElement) e);
+        }
+        for (Element e : round.getElementsAnnotatedWith(View.class)) {
+            component((TypeElement) e);
+        }
+        for (Element e : round.getElementsAnnotatedWith(Hears.class)) {
+            if (!mirrors.has(e, Component.class)) {
+                report.printMessage(javax.tools.Diagnostic.Kind.ERROR, "@Hears is on " + e.getSimpleName()
+                        + ", which is not a @Component. It lists what a component hears through its inbox on the logic"
+                        + " lane", e);
+            }
         }
         for (Element e : round.getElementsAnnotatedWith(Job.class)) {
             job((TypeElement) e);

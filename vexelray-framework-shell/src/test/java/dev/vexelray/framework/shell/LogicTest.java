@@ -46,7 +46,7 @@ final class LogicTest {
         assertFalse(java.lang.reflect.Modifier.isPublic(Logic.class.getDeclaredConstructors()[0].getModifiers()));
         assertFalse(java.lang.reflect.Modifier.isPublic(Logic.class.getDeclaredMethod("start").getModifiers()));
         assertTrue(java.lang.reflect.Modifier.isPublic(Inboxes.class.getDeclaredMethod(
-                "of", Shell.class, String.class).getModifiers()), "the one door generated code uses");
+                "of", Shell.class, String.class, String[].class).getModifiers()), "the one door generated code uses");
     }
 
     @Test
@@ -131,6 +131,25 @@ final class LogicTest {
             assertTrue(woken.await(5, TimeUnit.SECONDS), "a tick that delivered never woke the loop");
         } finally {
             logic.close();
+            shell.disposer().close();
+        }
+    }
+
+    /** {@code @Hears} and the inbox's subscriptions agree, ledgers' own topics aside, or the lane does not start. */
+    @Test
+    void anInboxThatHearsOtherThanItDeclaredDoesNotStart() {
+        Shell shell = shell();
+        try {
+            Ledger.Builder<Integer> b = Ledger.of(0);
+            Step<Integer, String> count = b.step("count", (n, msg, out) -> n + 1);
+            b.on(WORK, count).build(shell.inbox("app.Counter", List.of(SHOWN.name())), "app.counter", 8);
+
+            IllegalStateException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                    shell::startComponents);
+            assertEquals("app.Counter's @Hears does not match what its inbox subscribed to. Heard and not declared: ["
+                    + WORK.name() + "]. Declared and not heard: [" + SHOWN.name() + "]. @Hears is how the processor"
+                    + " checks the channels, so list exactly what the component hears", e.getMessage());
+        } finally {
             shell.disposer().close();
         }
     }

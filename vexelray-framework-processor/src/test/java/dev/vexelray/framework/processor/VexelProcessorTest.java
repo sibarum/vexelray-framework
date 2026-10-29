@@ -233,10 +233,29 @@ class VexelProcessorTest {
                     public static <T> Topic<T> of(String name, Class<T> payloadType) { return new Topic<>(name, payloadType); }
                 }
                 """),
+            Map.entry("dev.vexelray.framework.shell.Views", """
+                package dev.vexelray.framework.shell;
+                public final class Views {
+                    public static <T> void mailbox(dev.vexelray.gui.core.Gui gui, String declared,
+                                                   sibarum.atchung.Topic<T> topic, java.util.function.Consumer<T> on,
+                                                   int capacity) {
+                        Shell.LOG.add("view mailbox " + declared + " " + topic.name());
+                    }
+                }
+                """),
+            Map.entry("dev.vexelray.gui.widget.Tree", """
+                package dev.vexelray.gui.widget;
+                public final class Tree {
+                    public static final sibarum.atchung.Topic<Chosen> CHOSEN =
+                            sibarum.atchung.Topic.of("tree.chosen", Chosen.class);
+                    public record Chosen(String tree, Object item) {}
+                }
+                """),
             Map.entry("dev.vexelray.framework.shell.Inboxes", """
                 package dev.vexelray.framework.shell;
                 public final class Inboxes {
-                    public static sibarum.atchung.Inbox of(Shell shell, String name) { return shell.inbox(name); }
+                    public static sibarum.atchung.Inbox of(Shell shell, String name, String... hears) { LOG_HEARS.add(String.join(",", hears)); return shell.inbox(name); }
+                    public static final java.util.List<String> LOG_HEARS = new java.util.ArrayList<>();
                 }
                 """),
             Map.entry("sibarum.atchung.Backpressure", """
@@ -801,6 +820,105 @@ class VexelProcessorTest {
                     @Provides Clock clock(sibarum.atchung.Inbox inbox) { return null; }
                 }
                 """), "takes an Inbox, which is a component's own");
+    }
+
+    /**
+     * T4: a component that hears through its inbox says so with {@code @Hears}, and the channel checks read it: a job's
+     * reply it hears is heard, and the wiring hands the names to the inbox for the startup check.
+     */
+    @Test
+    void aReplyHeardThroughAnInboxIsHeardWhenItIsDeclared() throws Exception {
+        String job = """
+                @Job(topic = "ask", reply = "told")
+                public final class Answerer {
+                    public Told run(Ask a) { return new Told(a.q()); }
+                }
+                """;
+        String app = """
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """;
+        String ask = "public record Ask(String q) {}";
+        String told = "public record Told(String a) {}";
+        assertTrue(build(app, ask, told, job, """
+                @Component
+                public final class Editor { public Editor(sibarum.atchung.Inbox inbox) {} }
+                """).errors().stream().anyMatch(e -> e.contains("replies on \"told\", and no component subscribes")),
+                "without the declaration the reply is unheard");
+
+        Compiled compiled = build(app, ask, told, job, """
+                @Component @Hears({"told", "other"})
+                public final class Editor { public Editor(sibarum.atchung.Inbox inbox) {} }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        assertTrue(Files.readString(compiled.out().resolve("app/DemoAppWiring.java"))
+                .contains("Inboxes.of(shell, \"app.Editor\", \"told\", \"other\")"));
+    }
+
+    @Test
+    void hearsIsForAComponentThatTakesItsInbox() {
+        onlyError(app("""
+                @Component @Hears("told")
+                public final class Editor { public Editor() {} }
+                """), "Editor declares @Hears and takes no Inbox");
+    }
+
+    // --- a view on the GUI thread ----------------------------------------------------------------------------
+
+    /**
+     * T7.4: a view's mailboxes are the frame's, not a lane's. Nothing is placed for it, it is built once the Gui exists
+     * even if it takes nothing, a widget's topic is the widget's own constant (so its kind is the publisher's), and a
+     * widget's message is not a crossing, so its {@code Object} is not refused.
+     */
+    @Test
+    void aViewHearsAWidgetOnTheGuiThreadWithTheWidgetsOwnTopic() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @View
+                public final class Navigator {
+                    public Navigator() {}
+                    @Subscribe(topic = "tree.chosen") public void chosen(dev.vexelray.gui.widget.Tree.Chosen c) {}
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("dev.vexelray.framework.shell.Views.mailbox(shell.gui(), \"tree.chosen\","
+                + " dev.vexelray.gui.widget.Tree.CHOSEN, navigator::chosen, 64);"), wiring);
+
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
+        assertEquals(List.of(), run.phase("config"));
+        assertEquals(List.of("view mailbox tree.chosen tree.chosen"), run.phase("tree"));
+    }
+
+    @Test
+    void aComponentOnALaneHearingAWidgetsObjectIsStillACrossing() {
+        assertTrue(app("""
+                @Component
+                public final class Logic {
+                    @Subscribe(topic = "tree.chosen") public void chosen(dev.vexelray.gui.widget.Tree.Chosen c) {}
+                }
+                """).stream().anyMatch(e -> e.startsWith("T2.4: Logic.chosen receives")));
+    }
+
+    @Test
+    void onlyAViewMayHoldAView() {
+        onlyError(app("""
+                @View
+                public final class Navigator { public Navigator() {} }
+                """, """
+                @Component
+                public final class Editor { public Editor(Navigator nav) {} }
+                """), "T7.4: Editor takes the view Navigator");
+    }
+
+    @Test
+    void aClassIsAComponentOrAViewAndNotBoth() {
+        onlyError(app("""
+                @View @Component
+                public final class Both { public Both() {} }
+                """), "Both is both a @Component and a @View");
     }
 
     @Test

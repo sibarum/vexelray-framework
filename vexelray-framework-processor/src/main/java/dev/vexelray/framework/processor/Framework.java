@@ -30,6 +30,8 @@ final class Framework {
     static final String INBOX = "sibarum.atchung.Inbox";
     /** What the generated wiring calls to hand a component its inbox; see {@code Inboxes}. */
     static final String INBOXES = "dev.vexelray.framework.shell.Inboxes";
+    /** What the generated wiring calls to give a {@code @View} its mailboxes on the GUI thread; see {@code Views}. */
+    static final String VIEWS = "dev.vexelray.framework.shell.Views";
     static final String APPEARANCE ="dev.vexelray.framework.shell.Appearance";
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";
