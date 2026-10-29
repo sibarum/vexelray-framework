@@ -1074,7 +1074,8 @@ frame, when every view's mailbox exists.*
 * `mvn clean install -Pacceptance` green.
 
 ***Witnesses rewritten 2026-10-29; acceptance green (the whole profile 17 of 17, then the fifteen-a-second pacing
-runs added and green on their own); measurements taken, not yet accepted.***
+runs added and green on their own); measurements accepted by the author the same day, with the 60 Hz ceiling
+holding animation (below).***
 
 * ***The shared counter is a component.*** *Every witness drove one `Model`, an atchung `State` that any thread
   committed to and that called its listeners on whichever thread committed. It is now `Counter`, a component on the
@@ -1130,13 +1131,14 @@ found*). Both modes measure the same to within noise, as fork 4 intends.
 | Idle: process CPU over 4 s | 0.8–3 % of a core | 0.8–7.4 % across runs | 1.6–7.0 % |
 | Arrivals faster than frames | 134–143 frames a second | 1,400–1,500 beats in 3 s, **~59 frames a second**, nothing lost | the same |
 
-**What they say, for the author to accept or not (§5's sixth point):**
+**What they say. Accepted by the author 2026-10-29 (§5's sixth point):**
 * **Fork 4 costs exactly one frame**, as predicted: 17.5 ms at 60 Hz, 66 ms at fifteen a second. A result the view
   makes itself costs none: it is drawn in the frame the click arrived.
 * **The 60 Hz ceiling now holds animation too.** In 0.1 an animation ran at the display's 144 Hz, because the clock's
   wake ended the ceiling's park; now it runs at ~57. So 0.1's 6.5 ms and 0.2's 17.5 ms are each one frame, and the
   difference is the ceiling, not the lanes. `architecture.md` called a ceiling that held a 144 Hz display to 60 "the
-  opposite of the goal the design states": whether it should is the author's call.
+  opposite of the goal the design states". ***Ruled 2026-10-29: keep the 60 Hz cap***, animation included, so one
+  frame through the logic is 17.5 ms on any display that runs at 60 or faster.
 * **Idle CPU is noisier than 0.1 recorded**, up to 7 % of a core in some four-second windows. Windows accounts CPU in
   15.6 ms ticks, so four seconds is a handful of ticks; a minute-long run would settle whether 0.2 idles dearer.
 * **Not measured on `vexelray-mini`**, which is still 0.1 (phase 8). The fifteen-a-second runs stand in for it, with

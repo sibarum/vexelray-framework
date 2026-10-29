@@ -1532,6 +1532,9 @@ kept in brackets where they differ.
 **Which changes an earlier claim.** The ceiling was written up as a bug whose fix was a wake object, on the
 reading that a wake storm would run the loop flat out. It would not. What the numbers leave open is the intent: a
 ceiling that worked would hold a 144 Hz display to 60, which is the opposite of the goal the design states.
+*Ruled 2026-10-29, when 0.2's pacing measurements showed the ceiling now holding animation (ROADMAP phase 7): the
+60 Hz cap stays, animation included. An animation runs at about 57 frames a second on this 144 Hz display, and a
+click's result through the logic lane arrives one 60 Hz frame later, 17.5 ms.*
 
 **The click path, and a theory that was wrong.** The first suspect for felt input latency was Tactroller's 125 Hz
 polling thread, which samples the pointer and keys with `GetCursorPos` and `GetAsyncKeyState` and would add up to
