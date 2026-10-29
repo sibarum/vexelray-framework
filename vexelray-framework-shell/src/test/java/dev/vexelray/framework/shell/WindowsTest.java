@@ -6,12 +6,17 @@ import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.framework.core.WindowOpened;
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.style.Theme;
+import dev.vexelray.gui.core.text.TextFaces;
+import dev.vexelray.gui.widget.Button;
 import dev.vexelray.os.Decorations;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import sibarum.atchung.Atchung;
+import sibarum.atchung.Fatal;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -80,12 +85,39 @@ final class WindowsTest {
     }
 
     @Test
-    void aNamedWindowsTreeIsOnABusOfItsOwn() {
+    void everyWindowsTreeIsOnTheApplicationsBusNamedByItsKey() {
         Window w = declare(Appearance.DEFAULT, NamedWindow.of("tool", "Tool", 300, 200));
 
-        // Two trees on one bus each receive the other's mutations, and the main window drew the calculator's
-        // settings for it (FN-2). A Gui owns no threads (vexelray-gui 0.2), so a window is not a set of them.
-        assertNotSame(shell.bus(), w.gui().bus(), "a second window's tree is on the application's bus");
+        // One bus, so a view hears every window's widgets and the application's messages alike; each tree named by
+        // its window, so its widgets' addresses are its own and its own topics are apart from the others' (T4.6).
+        assertSame(shell.bus(), w.gui().bus(), "a second window's tree is on a bus of its own");
+        assertSame(shell.bus(), shell.windows().main().gui().bus());
+        assertEquals("tool.ok", w.gui().address("ok"));
+        assertEquals("main.ok", shell.windows().main().gui().address("ok"));
+    }
+
+    @Test
+    void aClosedWindowsTreeHoldsNothingOfAnotherWindowsWidgets() {
+        Fatal previous = Atchung.fatal();
+        Atchung.onFatal(Fatal.THROW);
+        try {
+            Window w = declare(Appearance.DEFAULT, NamedWindow.of("tool", "Tool", 300, 200));
+            Button ok = new Button(w.gui(), "OK").name("ok");
+            int[] heard = {0};
+            w.gui().mailbox(Button.PRESSED, ok.address(), p -> heard[0]++);
+
+            // The main window's presses, far more than a widget topic holds between two frames, while the tool
+            // window is closed and runs none. Before the widgets' topics were scoped by tree, the tool tree was
+            // offered every one, and its next frame failed the application.
+            for (int i = 0; i < 5_000; i++) {
+                shell.bus().publish(Button.PRESSED, new Button.Pressed("main.go"));
+            }
+            shell.bus().publish(Button.PRESSED, new Button.Pressed(ok.address()));
+            Seams.of(w.gui()).frame(300, 200, TextFaces.standard());
+            assertEquals(1, heard[0], "the tool window heard its own press, and only that");
+        } finally {
+            Atchung.onFatal(previous);
+        }
     }
 
     @Test

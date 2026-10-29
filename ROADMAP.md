@@ -899,6 +899,25 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
 * **One bus, many windows** (phase 3, steps 6 and 8): the shell builds each `Gui` with its window's name, so
   `GuiApp`'s window key and the tree's name are one name, and puts every window on the application's one bus. Two
   windows really sharing a bus has not yet run in an application; this phase is where it first does.
+  ***Done 2026-10-29.*** *Every window's `Gui` is built on the application's bus and named by its key (`main`, or a
+  named window's), so a widget answers to `<key>.<name>` and a view hears every window's widgets.*
+  *Found first, and fixed before it shipped: **a closed window's tree would have been filled by the others'.** A
+  tree's widget inbox subscribes to the widget library's shared topics (`Button.PRESSED` and the rest) and is drained
+  only in that tree's frame, and `GuiApp` frames only open windows. Every application has a closed About window whose
+  buttons hear `Button.PRESSED`, so 4,096 presses in the main window would have failed it, and typing would have done
+  the same to any closed window with a text field (a state topic too: staging is per message, before folding).
+  Separate buses had been hiding it. Ruled with the author: **keyed edges**, a filter declared on the topic rather
+  than written as code. atchung's `Topic.edge(type, key)` is an edge whose key filters and never folds, and
+  `Topic.scoped(key)` gives any topic a scope apart from its fold key; `Inbox.subscribe(..., keys)` filters a keyed
+  edge, and `Inbox.subscribeIn(..., scopes)` filters by scope, both before a message is staged, so a tick that is not
+  run holds nothing it would discard (`TickTest`, two cases). vexelray-gui's widget topics are declared by
+  `Addressed.edge` and `Addressed.state`, scoped by the address's tree, and a tree's `Routes` subscribe in their own
+  tree alone. Held by `WindowsTest.aClosedWindowsTreeHoldsNothingOfAnotherWindowsWidgets` (5,000 presses in the main
+  window, the tool window's next frame hears its own one press). Suites: atchung-core 115, vexelray-gui's reactor
+  green, framework shell 171; a generated application (`-core` 56, `-gui` 17) driven live with About open beside the
+  main window on one bus: a file opened from the path bar and typed into, then About put away with Escape.*
+  *Left: the dialogs keep a bus of their own (`Modals`, vexelray-gui's), and a view's own `Gui.mailbox(topic, stage,
+  capacity)` on the main tree is unscoped, which is right while only the main window's frame drains views.*
 * **What the `Shell` hands over:** `FrameHooks`, `Disposer`, `WakeSource`, `InputBackend.perWindow` and
   `NamedWindow`'s `Standing` are reached only through the `Shell`, which the generated wiring needs and a recipe
   still takes. A recipe stops taking it. `Shell.krono()` is public only because the automation driver reads

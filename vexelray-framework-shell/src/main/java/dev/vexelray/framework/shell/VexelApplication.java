@@ -254,7 +254,7 @@ public final class VexelApplication {
         // On the application's bus, not a private one: a Gui made without it makes its own fabric, so nothing
         // published on one tree would be heard by the application. It owns no threads: its handlers run on the GUI
         // thread, in the frame (vexelray-gui 0.2, threading.md T1.1). See Shell.bus.
-        Gui gui = disposer.register(new Gui(shell.bus()));
+        Gui gui = disposer.register(new Gui(shell.bus(), Windows.MAIN));
         Appearance appearance = shell.appearance();
         // The theme and the zoom range, through the same call an application uses on the windows the framework
         // did not build -- so there is one definition of what an appearance means on a Gui rather than two that
@@ -353,10 +353,10 @@ public final class VexelApplication {
         // is the same seam every other window we open goes through -- see Appearance.applyTo, which names this
         // as the case it was written for.
         //
-        // The look and not the bus, and the asymmetry is load-bearing. The dialogs keep a Gui of their own on
-        // a bus of its own, because Gui's topics are static: a second tree on this application's bus would
-        // receive this one's mutations into a mailbox that nothing drains while no dialog is up, and that
-        // mailbox is bounded and BLOCKs. See Gui(Atchung). Shell.bus() is for everything that is not a Gui.
+        // The look and not the bus. The dialogs keep a Gui of their own on a bus of their own, which Modals
+        // makes: that was load-bearing when a Gui's topics were static, and a closed dialog's tree would have filled
+        // with this one's messages. The application's windows share its bus since phase 5 (a tree's own topics are
+        // named by it, and the widgets' shared ones scoped by tree); moving the dialogs onto it is vexelray-gui's.
         Modals modals = disposer.register(Modals.install(app, appearance::applyTo));
         // And the Dialogs every part was handed, unless the application handed back its own: from here on a
         // question goes to these, after whatever was asked while there was no window to ask it in.

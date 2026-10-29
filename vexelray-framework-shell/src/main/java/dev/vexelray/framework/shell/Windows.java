@@ -10,7 +10,6 @@ import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.core.app.WindowView;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
-import sibarum.atchung.Atchung;
 import sibarum.probe.Log;
 
 import java.util.ArrayList;
@@ -123,8 +122,8 @@ public final class Windows {
     }
 
     /**
-     * Declare the window {@code window} describes, and build its tree now: a {@code Gui} of its own on a bus of its
-     * own and the application's lanes, in the application's look (or the one declared), and a title bar unless the
+     * Declare the window {@code window} describes, and build its tree now: a {@code Gui} of its own, named by the key
+     * on the application's bus, in the application's look (or the one declared), and a title bar unless the
      * application asked for the OS frame. The window itself is claimed at {@code ATTACH}.
      *
      * <p>Once per name. A second declaration under one name is refused rather than answered with the first, because
@@ -146,10 +145,12 @@ public final class Windows {
             }
         }
         Appearance appearance = shell.appearance();
-        // A bus of its own, which is Gui's rule rather than a preference: its topics are static, so two trees on
-        // one bus each receive the other's mutations (calculator FN-2). A Gui owns no threads, so a second window
-        // is not a second set of them.
-        Gui gui = shell.disposer().register(new Gui(Atchung.create()));
+        // On the application's bus, named by the window's key, as the main tree is: so a view hears this window's widgets
+        // and the application's messages alike, and a widget here answers to "<key>.<name>". Two trees on one bus used
+        // to receive each other's mutations (calculator FN-2); a tree's own topics are named by it now (T4.6), and the
+        // widgets' shared topics are scoped by tree, so a closed window, which runs no frames, is offered nothing of
+        // another's to hold. A Gui owns no threads, so a second window is not a second set of them.
+        Gui gui = shell.disposer().register(new Gui(shell.bus(), window.key()));
         if (window.theme() == null) {
             appearance.applyTo(gui);
         } else {

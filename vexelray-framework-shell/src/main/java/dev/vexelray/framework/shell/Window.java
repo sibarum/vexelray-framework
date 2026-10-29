@@ -39,8 +39,8 @@ import dev.vexelray.os.WindowConfig;
  * once it has gone.
  *
  * <p><b>What the framework does for a named window</b>, and what used to be five steps at every second window: its
- * own {@code Gui}, on a bus of its own (two trees on one bus each receive the other's mutations, so the main window
- * drew the calculator's settings) and on the application's lanes; the application's look, or the one it was declared
+ * own {@code Gui}, named by its key on the application's bus (so its widgets are {@code "<key>.<name>"}, and a view
+ * hears them as it hears the main window's); the application's look, or the one it was declared
  * with; a title bar wearing the application's window mark, with the controls and the instruments of its own window;
  * its placement and zoom remembered under its name, and forgotten when it closes; and the application's clipboard.
  */
