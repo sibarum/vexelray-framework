@@ -17,6 +17,9 @@ import com.sun.source.tree.SynchronizedTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
+import com.sun.source.util.JavacTask;
+import com.sun.source.util.TaskEvent;
+import com.sun.source.util.TaskListener;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
@@ -61,8 +64,17 @@ import java.util.Set;
  * same way when its source is in this compilation, so a step written as a static method, or one that leans on a
  * helper, is checked through to the helper; its {@code this}, if it is an instance method, is the receiver's, not a
  * capture. Under a compiler without javac's tree API there is nothing to read, and nothing is refused.
+ *
+ * <p><b>When it reads: after javac has attributed a class, never while annotations are processed.</b> Asking javac
+ * what a name means in a tree it has not attributed makes it attribute the whole class there and then, and
+ * attribution rewrites trees in place (a record's compact constructor gains its implicit {@code super()}). Trees
+ * outlive a processing round, so the real pass then found a constructor call that was not in the source and refused
+ * every record with a compact constructor. So the check listens for each class's {@code ANALYZE} event, after flow
+ * analysis and before desugaring, the point every javac plugin reads at. A helper in a class analyzed earlier has
+ * since been desugared into code that no longer looks like the source, so a call into one is not read, and is let
+ * through; a helper in a class not analyzed yet is attributed on demand, as javac itself does.
  */
-final class StepCheck {
+final class StepCheck implements TaskListener {
 
     private static final String BUILDER = "sibarum.atchung.Ledger.Builder";
 
@@ -145,9 +157,12 @@ final class StepCheck {
     private final Trees trees;
     private final Types types;
     private final Report report;
-    private final Set<CompilationUnitTree> read = new HashSet<>();
     /** Where an error was said, so a helper two steps reach is reported once. */
     private final Set<Tree> said = new HashSet<>();
+    /** The top-level classes analyzed so far: each is desugared after its event, so none is read again. */
+    private final Set<TypeElement> analyzed = new HashSet<>();
+    /** The top-level class being read, whose trees are attributed and not yet desugared. */
+    private TypeElement current;
 
     private StepCheck(Trees trees, Types types, Report report) {
         this.trees = trees;
@@ -155,22 +170,33 @@ final class StepCheck {
         this.report = report;
     }
 
-    /** The check, or null under a compiler whose trees cannot be read: then nothing is refused. */
-    static StepCheck of(javax.annotation.processing.ProcessingEnvironment env, Report report) {
+    /**
+     * Listen to this compilation, to read each class once javac has analyzed it. Does nothing under a compiler whose
+     * trees cannot be read: then nothing is refused.
+     */
+    static void install(javax.annotation.processing.ProcessingEnvironment env, Report report) {
         try {
-            return new StepCheck(Trees.instance(env), env.getTypeUtils(), report);
+            JavacTask.instance(env).addTaskListener(new StepCheck(Trees.instance(env), env.getTypeUtils(), report));
         } catch (IllegalArgumentException notJavac) {
-            return null;
+            // Not javac: no trees to read.
         }
     }
 
-    /** Read every compilation unit among {@code roots} once, and check each step declared in it. */
-    void scan(Set<? extends Element> roots) {
-        for (Element root : roots) {
-            TreePath path = trees.getPath(root);
-            if (path != null && read.add(path.getCompilationUnit())) {
-                new Finder(path.getCompilationUnit()).scan(path.getCompilationUnit(), null);
+    /** A class analyzed: check each step declared in it. */
+    @Override
+    public void finished(TaskEvent event) {
+        if (event.getKind() != TaskEvent.Kind.ANALYZE || event.getTypeElement() == null) {
+            return;
+        }
+        TreePath path = trees.getPath(event.getTypeElement());
+        current = event.getTypeElement();
+        try {
+            if (path != null) {
+                new Finder(path.getCompilationUnit()).scan(path, null);
             }
+        } finally {
+            analyzed.add(current);
+            current = null;
         }
     }
 
@@ -224,6 +250,10 @@ final class StepCheck {
     private void follow(String step, ExecutableElement method, Set<Element> seen) {
         if (!seen.add(method)) {
             return;
+        }
+        TypeElement top = topLevel(method);
+        if (top != current && analyzed.contains(top)) {
+            return;     // desugared since it was analyzed: what is there now is not the source
         }
         TreePath path = trees.getPath(method);
         if (path == null || !(path.getLeaf() instanceof MethodTree tree) || tree.getBody() == null) {
@@ -451,6 +481,17 @@ final class StepCheck {
             }
         }
         return null;
+    }
+
+    /** The top-level class {@code e} is declared in, or null for one outside any class. */
+    private static TypeElement topLevel(Element e) {
+        TypeElement top = null;
+        for (Element at = e; at != null && at.getKind() != ElementKind.PACKAGE; at = at.getEnclosingElement()) {
+            if (at instanceof TypeElement t) {
+                top = t;
+            }
+        }
+        return top;
     }
 
     private static String owner(Element field) {

@@ -337,6 +337,22 @@ class StepCheckTest {
     }
 
     @Test
+    void aRecordWithACompactConstructorStillCompiles() throws IOException {
+        // The check once read bodies while annotations were processed, which made javac attribute early and left a
+        // compact constructor with a super() call javac then refused as the source's. It reads after analysis now.
+        accepted("""
+                public record Lines(List<String> all) {
+                    public Lines {
+                        all = List.copyOf(all);
+                    }
+                }
+                static void build(Ledger.Builder<Notes> b) {
+                    b.<String>step("add", (n, line, out) -> n.with(new Lines(List.of(line)).all().get(0)));
+                }
+                """);
+    }
+
+    @Test
     void whatTheCheckCannotReadIsLetThrough() throws IOException {
         accepted("""
                 static void build(Ledger.Builder<Notes> b, Step.Body<Notes, String> made) {
