@@ -19,8 +19,6 @@ import ${packageName}.core.Messages.Fronted;
 import ${packageName}.core.Messages.Go;
 import ${packageName}.core.Messages.Kind;
 import ${packageName}.core.Messages.Open;
-import ${packageName}.core.Messages.Quit;
-import ${packageName}.core.Messages.QuitAnswer;
 import ${packageName}.core.Messages.Read;
 import ${packageName}.core.Messages.Recall;
 import ${packageName}.core.Messages.Recalled;
@@ -36,6 +34,8 @@ import ${packageName}.core.Messages.Written;
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.Hears;
 import dev.vexelray.framework.api.Publishes;
+import dev.vexelray.framework.core.CloseAnswer;
+import dev.vexelray.framework.core.CloseRequested;
 import sibarum.atchung.Chain;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Ledger;
@@ -102,9 +102,9 @@ import java.util.Set;
 @Component
 @Hears({Begin.class, Recalled.class, Go.class, Open.class, FileRead.class, Found.class,
         Created.class, Fronted.class, Edited.class, Save.class, Written.class, Answer.class,
-        Close.class, Quit.class})
+        Close.class, CloseRequested.class})
 @Publishes({ShowFolder.class, AddTab.class, FrontTab.class, CloseTab.class, Retitle.class,
-        Caption.class, Status.class, Ask.class, Flush.class, SaveFailed.class, QuitAnswer.class,
+        Caption.class, Status.class, Ask.class, Flush.class, SaveFailed.class, CloseAnswer.class,
         Read.class, Write.class, Find.class, Create.class, Recall.class, Remember.class})
 public final class Editor {
 
@@ -276,7 +276,7 @@ public final class Editor {
         Step<State, Answer> answered = b.step("answered", Editor::answered);
 
         Step<State, Close> closeAsked = b.step("closeAsked", Editor::closeAsked);
-        Step<State, Quit> quitAsked = b.step("quitAsked", Editor::quitAsked);
+        Step<State, CloseRequested> quitAsked = b.step("quitAsked", Editor::quitAsked);
         Step<State, Unsaved> ask = b.step("ask", Editor::ask);
         Step<State, Confirmed> saveThem = b.step("saveThem", Editor::saveThem);
         Step<State, Declined> discard = b.step("discard", Editor::discard);
@@ -299,7 +299,7 @@ public final class Editor {
 
         closing(Chain.start("close tabs", ledger, closeAsked).on(Messages.CLOSE_TOPIC), ask, saveThem, discard, finish,
                 stop);
-        closing(Chain.start("quit", ledger, quitAsked).on(Messages.QUIT_TOPIC), ask, saveThem, discard, finish, stop);
+        closing(Chain.start("quit", ledger, quitAsked).on(CloseRequested.TOPIC), ask, saveThem, discard, finish, stop);
     }
 
     /**
@@ -616,17 +616,22 @@ public final class Editor {
     }
 
     /**
-     * The close gate's question: let the window close, or keep it. The window is still open and drawing while it is
-     * unanswered, and every way through the chain answers the gate exactly once.
+     * The framework's question before a window closes: let it, or keep it. The window is still open and drawing while
+     * it is unanswered, and every way through the chain answers exactly once. Only the main window's close is a quit;
+     * any other (the framework's About) holds nothing of the editor's, so it closes at once.
      */
-    private static State quitAsked(State s, Quit quit, Out out) {
+    private static State quitAsked(State s, CloseRequested quit, Out out) {
+        if (!quit.main()) {
+            out.send(CloseAnswer.TOPIC, new CloseAnswer(quit.ticket(), true));
+            return s;
+        }
         List<Long> unsaved = new ArrayList<>();
         for (Doc.Entry e : s.doc().tabs()) {
             if (e.dirty()) {
                 unsaved.add(e.id());
             }
         }
-        Closing c = new Closing(List.of(), unsaved, quit.gate(), Optional.empty(), Set.of());
+        Closing c = new Closing(List.of(), unsaved, quit.ticket(), Optional.empty(), Set.of());
         if (unsaved.isEmpty()) {
             return close(s, c, out);
         }
@@ -690,7 +695,7 @@ public final class Editor {
     private static State stop(State s, Stop why, Out out) {
         Closing c = s.closings().get(out.run());
         if (c.gate() != NO_GATE) {
-            out.send(Messages.QUIT_ANSWER_TOPIC, new QuitAnswer(c.gate(), false));
+            out.send(CloseAnswer.TOPIC, new CloseAnswer(c.gate(), false));
         }
         return s.withoutClosing(out.run());
     }
@@ -698,7 +703,7 @@ public final class Editor {
     /** What a closing does at its end: close its tabs, or let the window close. */
     private static State close(State s, Closing c, Out out) {
         if (c.gate() != NO_GATE) {
-            out.send(Messages.QUIT_ANSWER_TOPIC, new QuitAnswer(c.gate(), true));
+            out.send(CloseAnswer.TOPIC, new CloseAnswer(c.gate(), true));
             return s;
         }
         State next = s;

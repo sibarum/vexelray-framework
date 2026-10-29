@@ -173,6 +173,7 @@ class VexelProcessorTest {
                     public java.util.List<String> formerNames() { return java.util.List.of(); }
                     public String busGraph() { return null; }
                     public boolean computeQueue() { return false; }
+                    public boolean answersClose() { return false; }
                     public String icon() { return null; }
                     public void config(Shell shell) {}
                     public void model(Shell shell) {}
@@ -418,6 +419,65 @@ class VexelProcessorTest {
         assertEquals(true, run.computeQueue(), "the device is asked for a queue to lend");
         assertEquals(List.of(), run.phase("config"));
         assertEquals(List.of("compute queue lent"), run.phase("window"), "built when the device exists");
+    }
+
+    /**
+     * Phase 5's close gate: a window's close is asked of the application exactly when a part hears
+     * {@code CloseRequested}, and that part answers. Otherwise closing closes.
+     */
+    @Test
+    void aPartThatHearsCloseRequestedIsAskedEveryClose() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Component
+                public final class Guard {
+                    private final sibarum.atchung.Sender<dev.vexelray.framework.core.CloseAnswer> answer;
+                    public Guard(sibarum.atchung.Sender<dev.vexelray.framework.core.CloseAnswer> answer) { this.answer = answer; }
+                    @Subscribe public void asked(dev.vexelray.framework.core.CloseRequested r) { answer.send(new dev.vexelray.framework.core.CloseAnswer(r.ticket(), true)); }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        assertEquals(true, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).answersClose());
+
+        Compiled plain = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(false, plain.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).answersClose(),
+                "an application that hears no CloseRequested closes its windows when asked");
+    }
+
+    @Test
+    void aCloseRequestedNobodyAnswersIsAnError() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Component
+                public final class Guard { @Subscribe public void asked(dev.vexelray.framework.core.CloseRequested r) {} }
+                """), "Guard hears CloseRequested, and nothing sends CloseAnswer");
+    }
+
+    @Test
+    void twoPartsHearingCloseRequestedIsAnError() {
+        List<String> errors = app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Component
+                public final class Guard {
+                    public Guard(sibarum.atchung.Sender<dev.vexelray.framework.core.CloseAnswer> answer) {}
+                    @Subscribe public void asked(dev.vexelray.framework.core.CloseRequested r) {}
+                }
+                """, """
+                @Component @Hears(dev.vexelray.framework.core.CloseRequested.class)
+                public final class Other { public Other(sibarum.atchung.Inbox inbox) {} }
+                """);
+        assertEquals(2, errors.size(), String.join("\n", errors));
+        assertTrue(errors.stream().allMatch(e -> e.contains("A window's close is answered once")),
+                String.join("\n", errors));
     }
 
     // --- build identity -------------------------------------------------------------------------------------
@@ -2474,6 +2534,11 @@ class VexelProcessorTest {
         /** What the wiring answers {@code Wiring.computeQueue}: whether the device is made with a queue to lend. */
         boolean computeQueue() throws Exception {
             return (boolean) wiring.getClass().getSuperclass().getMethod("computeQueue").invoke(wiring);
+        }
+
+        /** What the wiring answers {@code Wiring.answersClose}: whether a window's close is asked of the application. */
+        boolean answersClose() throws Exception {
+            return (boolean) wiring.getClass().getSuperclass().getMethod("answersClose").invoke(wiring);
         }
 
         /** What the wiring answers {@code Wiring.busGraph}: the declared message graph, as text. */

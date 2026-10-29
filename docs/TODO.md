@@ -1130,10 +1130,11 @@ it found and left:
       parts because the processor compiling `-gui` cannot see them; forget one and there is no error. The processor
       compiling `-core` could warn about a `@Component` or `@Job` no configuration in its own module lists, since that
       compilation sees both. Additive.
-- [ ] **The close gate is a callback** (`-shell`, `Window.onClose`). Its `proceed` and `cancel` cannot cross a lane, so
-      the template keeps them in a `QuitGate` under a ticket and sends the ticket. A gate answered by a message (a
-      topic the framework subscribes to, with the ticket) would make that the framework's. The same holds for a
-      `Modal`'s buttons, which the view turns into an `Answer`.
+- [x] **The close gate is a callback** (`-shell`, `Window.onClose`). Done 2026-10-29 (ROADMAP phase 5): the
+      framework keeps `proceed` and `cancel` under a ticket on the main thread, publishes `CloseRequested(window,
+      ticket)` and hears `CloseAnswer(ticket, proceed)`, and asks only when a part hears the question. `CloseGate`,
+      `Window.onClose` and the template's `QuitGate` are gone. A `Modal`'s buttons are still the view's to turn into
+      an `Answer`: that is phase 5's dialogs.
 - [ ] **The tree's data source reads the disk on the view's side** (`vexelray-gui`, `TreeView.Source`). `FolderSource`
       lists a folder when the tree asks, synchronously, on the tree's worker; it cannot be a job, because the source is
       pulled rather than answered. An asynchronous source (ask for children, be handed them later) would let it be.

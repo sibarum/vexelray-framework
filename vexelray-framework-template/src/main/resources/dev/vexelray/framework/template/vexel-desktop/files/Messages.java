@@ -78,15 +78,6 @@ public final class Messages {
     }
 
     /**
-     * The window is being asked to close: answer the close gate with this ticket, after asking if anything is
-     * unsaved.
-     */
-    public static final Topic<Quit> QUIT_TOPIC = Topic.edge(Quit.class);
-
-    public record Quit(long gate) {
-    }
-
-    /**
      * A tab's text, to be written: after Ctrl+S, or because the editor asked with {@link Flush}. The view has already
      * marked the text saved at this point, so typing that lands while it is written stays unsaved. {@code open} is
      * false when the tab had gone by the time it was asked for.
@@ -182,12 +173,6 @@ public final class Messages {
     public static final Topic<SaveFailed> SAVE_FAILED_TOPIC = Topic.edge(SaveFailed.class);
 
     public record SaveFailed(long id) {
-    }
-
-    /** What the close gate with this ticket answers: let the window close, or keep it. */
-    public static final Topic<QuitAnswer> QUIT_ANSWER_TOPIC = Topic.edge(QuitAnswer.class);
-
-    public record QuitAnswer(long gate, boolean proceed) {
     }
 
     // ------------------------------------------------------------------ the editor and the jobs

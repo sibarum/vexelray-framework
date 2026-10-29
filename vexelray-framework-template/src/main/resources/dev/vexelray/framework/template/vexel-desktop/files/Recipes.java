@@ -62,27 +62,19 @@ final class Recipes {
         return new Ui(gui, new Motion(gui), titleBar);
     }
 
-    /** The main window's close gate, as messages: built here so the view can answer it and {@link #start} can arm it. */
-    @Provides
-    QuitGate gate(Sender<Intent> intents) {
-        return new QuitGate(intents);
-    }
-
     /**
-     * Arm the close gate and tell the editor to bring back last time's session.
+     * Tell the editor to bring back last time's session. The close gate needs nothing here: the editor hears the
+     * framework's {@code CloseRequested} and answers it, and that it hears it is what makes a close a question.
      *
      * <p>Takes the {@code Shell} to be last: restoring the session opens files and writes settings, which a tree built
-     * headless for a test must not, and the {@code Shell} is the framework's last-phase value. The gate is the main
-     * window's, and a window has one: a second is refused, because the one it would replace is as likely as not the
-     * one that knew about the unsaved files.
+     * headless for a test must not, and the {@code Shell} is the framework's last-phase value.
      *
      * <p>Run for what it does, so it returns nothing: the wiring calls it once, in the phase its parameters put it in.
      * The message waits in the editor's mailbox until the framework starts the components. What it sends is a
      * parameter, as everything a part sends is, so the wiring builds its sender on {@code Begin}'s topic.
      */
     @Provides
-    void start(Shell shell, QuitGate gate, Sender<Begin> begin) {
-        shell.windows().main().onClose(gate::guard);
+    void start(Shell shell, Sender<Begin> begin) {
         begin.send(new Begin());
     }
 

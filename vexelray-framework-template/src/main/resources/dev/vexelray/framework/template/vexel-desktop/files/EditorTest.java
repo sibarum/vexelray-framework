@@ -19,8 +19,6 @@ import ${packageName}.core.Messages.FrontTab;
 import ${packageName}.core.Messages.Go;
 import ${packageName}.core.Messages.Kind;
 import ${packageName}.core.Messages.Open;
-import ${packageName}.core.Messages.Quit;
-import ${packageName}.core.Messages.QuitAnswer;
 import ${packageName}.core.Messages.Read;
 import ${packageName}.core.Messages.Recall;
 import ${packageName}.core.Messages.Recalled;
@@ -33,6 +31,8 @@ import ${packageName}.core.Messages.Status;
 import ${packageName}.core.Messages.Why;
 import ${packageName}.core.Messages.Write;
 import ${packageName}.core.Messages.Written;
+import dev.vexelray.framework.core.CloseAnswer;
+import dev.vexelray.framework.core.CloseRequested;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,7 +83,7 @@ class EditorTest {
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(Messages.SHOW_FOLDER_TOPIC, Messages.ADD_TAB_TOPIC, Messages.FRONT_TAB_TOPIC,
                 Messages.CLOSE_TAB_TOPIC, Messages.RETITLE_TOPIC, Messages.CAPTION_TOPIC, Messages.STATUS_TOPIC,
-                Messages.ASK_TOPIC, Messages.FLUSH_TOPIC, Messages.SAVE_FAILED_TOPIC, Messages.QUIT_ANSWER_TOPIC,
+                Messages.ASK_TOPIC, Messages.FLUSH_TOPIC, Messages.SAVE_FAILED_TOPIC, CloseAnswer.TOPIC,
                 Messages.READ_TOPIC, Messages.WRITE_TOPIC, Messages.FIND_TOPIC, Messages.CREATE_TOPIC,
                 Messages.RECALL_TOPIC, Messages.REMEMBER_TOPIC)) {
             listen(heard, t);
@@ -289,8 +289,8 @@ class EditorTest {
     @Test
     void quittingWithNothingUnsavedProceedsWithoutAsking() {
         opened("a.txt", "a");
-        tell(Messages.QUIT_TOPIC, new Quit(7));
-        assertEquals(List.of(new QuitAnswer(7, true)), sent.stream().filter(QuitAnswer.class::isInstance).toList());
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 7));
+        assertEquals(List.of(new CloseAnswer(7, true)), sent.stream().filter(CloseAnswer.class::isInstance).toList());
         assertTrue(took(Ask.class).isEmpty());
     }
 
@@ -298,7 +298,7 @@ class EditorTest {
     void saveAllThenQuitProceedsOnceEveryWriteHasLanded() {
         long a = unsaved("a.txt");
         long c = unsaved("c.txt");
-        tell(Messages.QUIT_TOPIC, new Quit(9));
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 9));
         Ask ask = took(Ask.class).getFirst();
         assertEquals("Quit with unsaved changes?", ask.title());
         tell(Messages.ANSWER_TOPIC, new Answer(ask.question(), Choice.CONFIRM));
@@ -309,32 +309,41 @@ class EditorTest {
         List<Write> writes = took(Write.class);
         assertEquals(List.of("1a", "2c"), writes.stream().map(Write::text).toList());
         tell(Messages.WRITTEN_TOPIC, new Written(a, writes.get(0).path(), ""));
-        assertTrue(took(QuitAnswer.class).isEmpty(), "one of two has landed");
+        assertTrue(took(CloseAnswer.class).isEmpty(), "one of two has landed");
         tell(Messages.WRITTEN_TOPIC, new Written(c, writes.get(1).path(), ""));
-        assertEquals(List.of(new QuitAnswer(9, true)), took(QuitAnswer.class));
+        assertEquals(List.of(new CloseAnswer(9, true)), took(CloseAnswer.class));
         assertTrue(editor.state().doc().entry(a) != null, "a quit closes the window, not the tabs");
     }
 
     @Test
     void aWriteThatFailsCancelsTheQuitAndSaysWhy() {
         long a = unsaved("a.txt");
-        tell(Messages.QUIT_TOPIC, new Quit(3));
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 3));
         tell(Messages.ANSWER_TOPIC, new Answer(took(Ask.class).getFirst().question(), Choice.CONFIRM));
         tell(Messages.SAVE_TOPIC, new Save(a, "x", true));
         Write w = took(Write.class).getFirst();
         tell(Messages.WRITTEN_TOPIC, new Written(a, w.path(), "disk full"));
         assertTrue(sent.contains(new SaveFailed(a)));
         assertTrue(sent.contains(new Status("Could not save a.txt: disk full", true)));
-        assertEquals(List.of(new QuitAnswer(3, false)), took(QuitAnswer.class));
+        assertEquals(List.of(new CloseAnswer(3, false)), took(CloseAnswer.class));
         assertTrue(editor.state().closings().isEmpty());
     }
 
     @Test
     void cancellingAQuitKeepsTheWindow() {
         unsaved("a.txt");
-        tell(Messages.QUIT_TOPIC, new Quit(4));
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 4));
         tell(Messages.ANSWER_TOPIC, new Answer(took(Ask.class).getFirst().question(), Choice.CANCEL));
-        assertEquals(List.of(new QuitAnswer(4, false)), took(QuitAnswer.class));
+        assertEquals(List.of(new CloseAnswer(4, false)), took(CloseAnswer.class));
+    }
+
+    @Test
+    void anotherWindowClosesWithoutAskingWhateverIsUnsaved() {
+        unsaved("a.txt");
+        tell(CloseRequested.TOPIC, new CloseRequested("about", 5));
+        assertEquals(List.of(new CloseAnswer(5, true)), took(CloseAnswer.class));
+        assertTrue(took(Ask.class).isEmpty(), "closing the About window asked about the editor's files");
+        assertTrue(editor.state().closings().isEmpty());
     }
 
     // ------------------------------------------------------------------ the session

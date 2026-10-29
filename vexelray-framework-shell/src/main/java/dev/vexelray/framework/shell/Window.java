@@ -12,7 +12,6 @@ import dev.vexelray.os.Icon;
 import dev.vexelray.os.WindowConfig;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -36,7 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * The framework closes the tree at shutdown.
  *
  * <p><b>The main window is the same type with one difference</b>: closing it is quitting. Its {@link #close} takes the
- * route its own close button does, so a close gate ({@link #onClose}) is asked first and may refuse; it cannot be
+ * route its own close button does, so the application is asked first ({@code CloseRequested}) and may refuse; it cannot be
  * shown again once it has gone. That is what a <i>Quit</i> button wants, and it is why such a button no longer needs
  * the {@code GuiApp}.
  *
@@ -77,10 +76,8 @@ public final class Window {
     private boolean closeAsked;
     /** The handle, when this is the main window; null for a named one. */
     private MainHandle main;
-    /** Asked before the window closes, or null to let it close. Read when a close arrives, so it can be set at any time. */
-    private volatile CloseGate gate;
-    /** Guarded by {@code this}: whether {@link #gate} has been set, which it may be once. */
-    private boolean gated;
+    /** Where a close is asked of the application ({@code CloseRequested}), when something hears it. */
+    private final Shell shell;
     /**
      * Told how the next close goes, once: {@code [proceeded, cancelled]}, or null. Set by {@link #close(Runnable,
      * Runnable)}, taken by the close it asked for.
@@ -96,6 +93,7 @@ public final class Window {
         this.gui = gui;
         this.bar = bar;
         this.shown = shown;
+        this.shell = shell;
         // Undo for the whole window, bound before any widget exists so there is no window without it: Ctrl+Z,
         // Ctrl+Shift+Z and Ctrl+Y everywhere in the tree, and a failure shown rather than swallowed. A drop or a
         // paste is the application's to record, as any edit of its model is: the widget only announces it. A narrower history (a page's, a document's) outranks this one by
@@ -193,7 +191,7 @@ public final class Window {
     /**
      * Close this window by the route its own close button takes. A named window goes and its tree stays, for a later
      * {@link #show}: what a button inside the window does when it means "done". The main window's close is quitting,
-     * and its close gate is asked first.
+     * and the application is asked first.
      */
     public Window close() {
         Handle h;
@@ -218,31 +216,9 @@ public final class Window {
     }
 
     /**
-     * Ask {@code gate} before this window closes, by its close button, by {@link #close}, or for the main window by the
-     * OS or a liveness exit. For the main window that is asking before the application quits.
-     *
-     * <p><b>Any time, from any thread</b>: the gate is read when a close arrives, so one set after the window opened
-     * still counts. <b>Once per window</b>: a second would silently replace the first, and in an application with two
-     * things worth guarding, the one replaced is as likely as not the one that knew about the unsaved documents.
-     *
-     * @throws IllegalStateException if this window already has a gate
-     */
-    public Window onClose(CloseGate gate) {
-        Objects.requireNonNull(gate, "gate");
-        synchronized (this) {
-            if (gated) {
-                throw new IllegalStateException("window '" + key() + "' already has a close gate; a second would "
-                        + "replace it");
-            }
-            gated = true;
-        }
-        this.gate = gate;
-        return this;
-    }
-
-    /**
-     * A close has arrived: ask the gate, or let it through when there is none. What the window's own close route calls,
-     * in the frame, on the main thread; package-private so a test can stand in for the route.
+     * A close has arrived, by the close button, by {@link #close}, or for the main window by the OS or a liveness exit:
+     * ask the application ({@code CloseRequested}) when something hears that, or let it through. What the window's own
+     * close route calls, in the frame, on the main thread; package-private so a test can stand in for the route.
      */
     void requested(Runnable proceed, Runnable cancel) {
         Runnable[] told = outcome;
@@ -255,17 +231,12 @@ public final class Window {
             told[1].run();
             cancel.run();
         };
-        CloseGate g = gate;
-        if (g == null) {
-            go.run();
-        } else {
-            g.ask(go, stay);
-        }
+        shell.closes().ask(key(), go, stay);
     }
 
     /**
-     * {@link #close()}, told whether it happened: {@code proceeded} once the gate (if any) has let it, before the
-     * window goes, or {@code cancelled} if the gate kept it open. What a restart needs, since it must not start a
+     * {@link #close()}, told whether it happened: {@code proceeded} once the application (if it is asked) has let it,
+     * before the window goes, or {@code cancelled} if it kept the window open. What a restart needs, since it must not start a
      * second process for a window that stayed.
      */
     void close(Runnable proceeded, Runnable cancelled) {
@@ -303,7 +274,6 @@ public final class Window {
         if (mark != null) {
             config = config.icon(mark);
         }
-        // The gate is read at the close, not here, so one set after the claim still counts.
         WindowSpec spec = WindowSpec.of(config, gui).standing(declared.standing())
                 .onCloseRequest(request -> requested(request::proceed, request::cancel));
         if (bar != null) {
@@ -405,8 +375,7 @@ public final class Window {
      */
     void claimMain(GuiApp app) {
         MainHandle h = new MainHandle(app);
-        // GuiApp holds one handler for the main window, and this is it: the gate is read at the close, as for the
-        // others, so the application's recipes may set it in ATTACH, after this.
+        // GuiApp holds one handler for the main window, and this is it.
         app.onCloseRequest(request -> requested(request::proceed, request::cancel));
         boolean show;
         boolean close;

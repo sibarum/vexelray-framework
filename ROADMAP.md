@@ -817,8 +817,7 @@ folder expanded through its job, a file opened from the navigator.*
   three widgets' topics, which a payload cannot choose between: see the ruling below. `@Subscribe`'s `overflow` is gone with `Overflow`, and with them the blocking-cycle and
   blocking-send checks (T4.4, T4.7), which the tick makes true by construction.*
 * *`@Subscribe(key = {...})`: keys as strings, which is what a widget address is, filtered by the inbox, or by
-  the view's frame through a new `Gui.mailbox(topic, stage, capacity, keys)` in vexelray-gui (installed, not
-  committed). A key on an edge is a compile error where the constant's source is readable (T4.8).*
+  the view's frame through a new `Gui.mailbox(topic, stage, capacity, keys)` in vexelray-gui (`6cd1985`). A key on an edge is a compile error where the constant's source is readable (T4.8).*
 * *`ApiWalkTest` walks every public framework type a part can be handed and requires that what takes or returns a
   function is exactly its list of what phase 5 owes: `Dialogs`, `CloseGate`, `Window`'s listeners, and what the
   `Shell` still reaches (`FrameHooks`, `Disposer`, `WakeSource`, two of the window types). The widget library's half
@@ -842,14 +841,44 @@ folder expanded through its job, a file opened from the navigator.*
 
 ### Phase 5. Shell
 
-Every item in §3's shell rows, moved to topics:
+Every item in §3's shell rows, moved to topics, and every item the earlier phases left here. **Done means
+`ApiWalkTest.OWED` is empty**: no framework type an application part can be handed takes or returns a function.
 
 * **Close gate:** the framework publishes `CloseRequested(window, ticket)` and subscribes `CloseAnswer(ticket,
-  proceed)`. The template's `QuitGate` goes.
-* **Dialogs:** `Ask`/`Answer`, `PickFile`/`Picked` topics. `HeldDialogs`' queue becomes the dialog component's
-  mailbox.
+  proceed)`. The template's `QuitGate` goes (phase 6). A close request's handler runs in the frame today and must not
+  block (phase 3, step 7); as a message it runs nowhere near the frame.
+  ***Done 2026-10-29.*** *Both records are in `-core`, so an application's `-core` answers without reaching the
+  shell. The shell's `Closes` keeps each close's `proceed` and `cancel` under a ticket on the main thread and hears
+  the answers in the main window's frame, so nothing about a close crosses a lane but two records. A second press
+  while a window's question is up is refused there, not asked again. **A close is a question only when a part hears
+  `CloseRequested`**: the processor reads that from declarations into `Wiring.answersClose`, and refuses two parts
+  hearing it and one with nothing sending `CloseAnswer` (which would keep every window open for good). So
+  `CloseGate` and `Window.onClose` are gone, two entries off `ApiWalkTest.OWED`. The template's `Editor` hears the
+  question itself and answers a window other than the main one at once (the framework's About is one); `QuitGate`,
+  `Quit`, `QuitAnswer`, `Intent.QUIT` and the view's part in quitting are gone, and `Intent` lost its `id`. Held by
+  `WindowsTest` (3 cases), `VexelProcessorTest` (3), and in a generated application by `EditorTest` and `ViewTest`
+  (`-core` 56, `-gui` 17). **Not driven live:** ottermate has no verb that presses a window's close, and the title
+  bar's controls are not in the tree. **Breaks**, as phase 0 allows: the acceptance witness `windows/Recipes.java`,
+  which arms `onClose`.*
+* **Dialogs:** `Ask`/`Answer`, `PickFile`/`Picked` topics, in place of `confirm`'s `Runnable`s and the pickers'
+  `Consumer<Path>` (phase 3, step 18 part 2). `HeldDialogs`' queue becomes the dialog component's mailbox. The native
+  dialogs stop answering on a thread of their own (phase 4).
 * **Window:** state confined to the main thread; open, close and focus are published as messages. No locks.
-* **About intro, slow-frames prompt, undo feedback:** components and widgets like any application's.
+  `onOpened`, `onClosed` and `onClose(CloseGate)` go.
+* **One bus, many windows** (phase 3, steps 6 and 8): the shell builds each `Gui` with its window's name, so
+  `GuiApp`'s window key and the tree's name are one name, and puts every window on the application's one bus. Two
+  windows really sharing a bus has not yet run in an application; this phase is where it first does.
+* **What the `Shell` hands over:** `FrameHooks`, `Disposer`, `WakeSource`, `InputBackend.perWindow` and
+  `NamedWindow`'s `Standing` are reached only through the `Shell`, which the generated wiring needs and a recipe
+  still takes. A recipe stops taking it. `Shell.krono()` is public only because the automation driver reads
+  quiescence from it (phase 3, step 18 part 1); the driver reaches it another way.
+* **The host's sinks** (phase 3, steps 3 and 4): `onUndo`, `onCursorChange`, `onPointerLock` and `onPointerWarp`
+  are the host's seams (`GuiApp`, the automation driver, undo feedback), not a node's, and move with the shell.
+* **About intro, slow-frames prompt, undo feedback:** components and widgets like any application's. The About
+  intro is also where vexelray-mini's installer benchmark is planned (phase 8), so it waits on this.
+* **Capture waits for what is owed** (phase 3, step 5): a capture plays animation to rest but does not wait for
+  answers not yet had, so a tree whose listing runs on another thread can be captured before it lands. The shell's
+  quiescence includes answers outstanding.
 * **Watchdog:** stays outside the lanes, reports by message.
 
 ### Phase 6. Template

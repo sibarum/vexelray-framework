@@ -267,6 +267,9 @@ public final class VexelApplication {
             gui.minSize(appearance.minWidth(), appearance.minHeight());
         }
         shell.gui(gui);
+        // Every window's close is asked of the application when something hears CloseRequested, and the answers are
+        // heard in this tree's frame, on the main thread, where the close routes run.
+        shell.closes(new Closes(shell.bus(), wiring.answersClose(), gui));
         // Registered after the Gui so it closes before it: the clock outlives the window but not the process.
         KronoGui krono = disposer.register(KronoGui.attach(gui));
         shell.krono(krono);

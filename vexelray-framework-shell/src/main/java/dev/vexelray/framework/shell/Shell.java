@@ -90,6 +90,7 @@ public final class Shell {
     private Settings settings;
     private Gui gui;
     private KronoGui krono;
+    private Closes closes;
     private GuiApp app;
     private TitleBar titleBar;
     private Windows windows;
@@ -871,6 +872,15 @@ public final class Shell {
 
     void krono(KronoGui krono) {
         this.krono = krono;
+    }
+
+    void closes(Closes closes) {
+        this.closes = closes;
+    }
+
+    /** Every window's close gate. Set at {@code GUI}, before the first {@link Window} is made. */
+    Closes closes() {
+        return closes;
     }
 
     void titleBar(TitleBar titleBar) {

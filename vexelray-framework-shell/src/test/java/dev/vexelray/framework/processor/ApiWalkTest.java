@@ -39,7 +39,6 @@ class ApiWalkTest {
     private static final Set<String> OWED = Set.of(
             // Phase 5, the shell: the close gate, the dialogs and the windows become topics, and the Shell itself
             // leaves an application's reach (a recipe takes it today only to be last, and to arm the close gate).
-            "dev.vexelray.framework.shell.CloseGate#ask takes java.lang.Runnable",
             "dev.vexelray.framework.shell.Dialogs#confirm takes java.lang.Runnable",
             "dev.vexelray.framework.shell.Dialogs#openFile takes java.lang.Runnable",
             "dev.vexelray.framework.shell.Dialogs#openFile takes java.util.function.Consumer<java.nio.file.Path>",
@@ -47,7 +46,6 @@ class ApiWalkTest {
             "dev.vexelray.framework.shell.Dialogs#openFolder takes java.util.function.Consumer<java.nio.file.Path>",
             "dev.vexelray.framework.shell.Dialogs#saveFile takes java.lang.Runnable",
             "dev.vexelray.framework.shell.Dialogs#saveFile takes java.util.function.Consumer<java.nio.file.Path>",
-            "dev.vexelray.framework.shell.Window#onClose takes dev.vexelray.framework.shell.CloseGate",
             "dev.vexelray.framework.shell.Window#onClosed takes java.lang.Runnable",
             "dev.vexelray.framework.shell.Window#onOpened takes java.lang.Runnable",
             // Phase 5 too: reached only through the Shell, which the generated wiring needs and a recipe still takes.

@@ -751,6 +751,11 @@ final class Generator {
                 && r.root().type().equals(Framework.COMPUTE_QUEUE)))) {
             src.append("\n    @Override\n    public boolean computeQueue() {\n        return true;\n    }\n");
         }
+        // A part hears CloseRequested, so every window's close is asked of it and waits for its CloseAnswer. Channels
+        // has made sure it is one part, and that something answers.
+        if (channels.answersClose()) {
+            src.append("\n    @Override\n    public boolean answersClose() {\n        return true;\n    }\n");
+        }
         // The mark, by name: the shell decodes it at WINDOW, beside this class, so the name is resolved exactly as
         // Declarations.icon found it. Registered for native-image here too, so no application writes that by hand --
         // and its window and background variants with it (pix-window.ico and pix-background.ico beside pix.ico, see

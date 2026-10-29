@@ -95,6 +95,16 @@ public abstract class Wiring {
     }
 
     /**
+     * Whether a window's close is asked of the application as a {@link dev.vexelray.framework.core.CloseRequested},
+     * and waits for its {@link dev.vexelray.framework.core.CloseAnswer}. The generated wiring says yes exactly when a
+     * part hears {@code CloseRequested}; otherwise closing closes, which is what an application with nothing to lose
+     * wants without saying so.
+     */
+    public boolean answersClose() {
+        return false;
+    }
+
+    /**
      * The resource holding the application's mark, named as {@code Class.getResource} names one — relative to this
      * wiring's package, which is the application's — or {@code null} to wear the framework's.
      *

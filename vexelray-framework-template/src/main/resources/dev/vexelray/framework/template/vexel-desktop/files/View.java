@@ -19,8 +19,6 @@ import ${packageName}.core.Messages.Listing;
 import ${packageName}.core.Messages.Mark;
 import ${packageName}.core.Messages.Marked;
 import ${packageName}.core.Messages.Open;
-import ${packageName}.core.Messages.Quit;
-import ${packageName}.core.Messages.QuitAnswer;
 import ${packageName}.core.Messages.Retitle;
 import ${packageName}.core.Messages.Save;
 import ${packageName}.core.Messages.SaveFailed;
@@ -89,14 +87,12 @@ final class View {
     private final Workspace ws;
     private final Navigator nav;
     private final Dialogs dialogs;
-    private final QuitGate gate;
 
     private final Sender<Open> open;
     private final Sender<Go> go;
     private final Sender<Fronted> fronted;
     private final Sender<Edited> edited;
     private final Sender<Close> close;
-    private final Sender<Quit> quit;
     private final Sender<Save> save;
     private final Sender<Answer> answer;
     private final Sender<Listing> listing;
@@ -107,21 +103,19 @@ final class View {
     /** The tab in front, as the editor was last told. */
     private long front = Messages.NO_TAB;
 
-    View(Gui gui, Ui ui, Dialogs dialogs, QuitGate gate, Sender<Open> open, Sender<Go> go, Sender<Fronted> fronted,
-         Sender<Edited> edited, Sender<Close> close, Sender<Quit> quit, Sender<Save> save, Sender<Answer> answer,
+    View(Gui gui, Ui ui, Dialogs dialogs, Sender<Open> open, Sender<Go> go, Sender<Fronted> fronted,
+         Sender<Edited> edited, Sender<Close> close, Sender<Save> save, Sender<Answer> answer,
          Sender<Listing> listing, Sender<Mark> mark, Sender<TreeView.Children> children, Sender<Intent> intents) {
         this.gui = gui;
         this.ui = ui;
         this.ws = ui.workspace();
         this.nav = ui.navigator();
         this.dialogs = dialogs;
-        this.gate = gate;
         this.open = open;
         this.go = go;
         this.fronted = fronted;
         this.edited = edited;
         this.close = close;
-        this.quit = quit;
         this.save = save;
         this.answer = answer;
         this.listing = listing;
@@ -154,12 +148,12 @@ final class View {
     }
 
     private void chord(Shortcut shortcut, Command command) {
-        gui.shortcut(shortcut, intents, new Intent(command, Messages.NO_TAB));
+        gui.shortcut(shortcut, intents, new Intent(command));
     }
 
     @Subscribe
     public void intent(Intent intent) {
-        intent.command().on(this, intent.id());
+        intent.command().on(this);
     }
 
     // ------------------------------------------------------------------ what the editor says
@@ -231,11 +225,6 @@ final class View {
             b.saveFailed();
             reportDirty(b);
         }
-    }
-
-    @Subscribe
-    public void quitAnswer(QuitAnswer m) {
-        gate.answer(m.gate(), m.proceed());
     }
 
     // ------------------------------------------------------------------ what the jobs answer
@@ -395,11 +384,6 @@ final class View {
         if (b != null) {
             close(List.of(b));
         }
-    }
-
-    /** The window was asked to close: the editor knows every tab and which are unsaved, and answers the gate. */
-    void quit(long ticket) {
-        quit.send(new Quit(ticket));
     }
 
     /** Ask the editor to close these tabs, in one message: whether any is unsaved is the editor's to know. */

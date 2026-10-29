@@ -1,5 +1,7 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.core.CloseAnswer;
+import dev.vexelray.framework.core.CloseRequested;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.gui.core.style.Theme;
@@ -10,11 +12,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -129,36 +134,88 @@ final class WindowsTest {
     }
 
     @Test
-    void aWindowWithNoGateClosesAndOneWithAGateAsksIt() {
-        Window w = declare(Appearance.DEFAULT, NamedWindow.of("gated", "Gated", 300, 200));
-        java.util.List<String> heard = new java.util.ArrayList<>();
+    void aCloseGoesStraightThroughWhenNothingHearsTheQuestion() {
+        Window w = declare(Appearance.DEFAULT, NamedWindow.of("plain", "Plain", 300, 200));
+        List<CloseRequested> asked = new ArrayList<>();
+        shell.bus().subscribe(CloseRequested.TOPIC, asked::add);
+        List<String> heard = new ArrayList<>();
 
-        // The default is that closing closes: no gate, and the close goes straight through.
+        // The default is that closing closes: an application with nothing to lose need not say so.
         w.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
-        assertEquals(java.util.List.of("proceeded"), heard);
-
-        // Set after the window exists, which a gate may be: it is read when the close arrives.
-        w.onClose((proceed, cancel) -> {
-            heard.add("asked");
-            cancel.run();
-        });
-        w.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
-        assertEquals(java.util.List.of("proceeded", "asked", "cancelled"), heard);
+        assertEquals(List.of("proceeded"), heard);
+        assertTrue(asked.isEmpty(), "a close was asked of an application that hears no CloseRequested");
     }
 
     @Test
-    void eachWindowHasAGateOfItsOwnAndOnlyOne() {
-        shell = VexelApplication.tree(wiring(Appearance.DEFAULT, s -> s.windows().named("tool", "Tool", 300, 200)),
-                new String[0]);
+    void aCloseIsAskedAndItsAnswerDecidesIt() {
+        shell = VexelApplication.tree(answering(s -> { }), new String[0]);
         Window main = shell.windows().main();
-        main.onClose((proceed, cancel) -> proceed.run());
-        // A second window's gate is its own, not a second registration of the main one's.
-        Window tool = shell.windows().named("other", "Other", 300, 200);
-        tool.onClose((proceed, cancel) -> cancel.run());
+        List<CloseRequested> asked = new ArrayList<>();
+        shell.bus().subscribe(CloseRequested.TOPIC, asked::add);
+        List<String> heard = new ArrayList<>();
 
-        IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> main.onClose((proceed, cancel) -> cancel.run()));
-        assertTrue(e.getMessage().contains("main") && e.getMessage().contains("already"), e.getMessage());
+        main.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
+        assertEquals(1, asked.size());
+        assertEquals("main", asked.get(0).window());
+        assertTrue(heard.isEmpty(), "the close was decided before it was answered");
+
+        // A second press while the question is up is the same request: refused, and nothing asked again.
+        main.requested(() -> heard.add("proceeded again"), () -> heard.add("pressed again"));
+        assertEquals(List.of("pressed again"), heard);
+        assertEquals(1, asked.size());
+
+        // Answered from any lane, heard in the main window's frame.
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(0).ticket(), false));
+        assertEquals(List.of("pressed again"), heard, "an answer was acted on outside the frame");
+        VexelApplication.frame(shell);
+        assertEquals(List.of("pressed again", "cancelled"), heard);
+
+        // The window is asked afresh, under a new ticket, and an answer to the old one changes nothing.
+        main.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
+        assertEquals(2, asked.size());
+        assertNotEquals(asked.get(0).ticket(), asked.get(1).ticket());
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(0).ticket(), true));
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(1).ticket(), true));
+        VexelApplication.frame(shell);
+        assertEquals(List.of("pressed again", "cancelled", "proceeded"), heard);
+    }
+
+    @Test
+    void eachWindowsCloseIsAQuestionOfItsOwn() {
+        shell = VexelApplication.tree(answering(s -> s.windows().named("tool", "Tool", 300, 200)), new String[0]);
+        Window tool = shell.windows().named("other", "Other", 300, 200);
+        List<CloseRequested> asked = new ArrayList<>();
+        shell.bus().subscribe(CloseRequested.TOPIC, asked::add);
+        List<String> heard = new ArrayList<>();
+
+        shell.windows().main().requested(() -> heard.add("main closed"), () -> heard.add("main kept"));
+        tool.requested(() -> heard.add("other closed"), () -> heard.add("other kept"));
+        assertEquals(List.of("main", "other"), asked.stream().map(CloseRequested::window).toList());
+
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(1).ticket(), true));
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(0).ticket(), false));
+        VexelApplication.frame(shell);
+        assertEquals(List.of("other closed", "main kept"), heard);
+    }
+
+    /** {@link #wiring}, with the default look, for an application with a part that hears {@code CloseRequested}. */
+    private static Wiring answering(Consumer<Shell> tree) {
+        return new Wiring() {
+            @Override
+            public AppInfo info() {
+                return DEMO;
+            }
+
+            @Override
+            public boolean answersClose() {
+                return true;
+            }
+
+            @Override
+            public void tree(Shell shell) {
+                tree.accept(shell);
+            }
+        };
     }
 
     @Test

@@ -207,8 +207,9 @@ cannot be cancelled, and nothing is restarted: the default policy reports and ex
 ## Windows, chrome and dialogs
 
 The main window is a `Window`, and so is every other. A second window is declared in a recipe and the framework
-builds and remembers it the same way. Each window can have a close check (`Window.onClose`), for unsaved work; the
-framework installs none of its own, because the default has to be that closing closes.
+builds and remembers it the same way. A window's close can be a question, for unsaved work: a part that
+hears `CloseRequested` is asked before any window closes, and answers with a `CloseAnswer`. With no such part,
+closing closes, because that has to be the default.
 
 The title bar is drawn by the framework from the application's identity (its title and icon) and in the
 application's theme. Its placement and controls are the framework's, so every window behaves the same and tools

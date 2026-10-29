@@ -210,7 +210,6 @@ file ${artifactId}-gui/src/main/java/${packagePath}/${className}App.java  from A
 file ${artifactId}-gui/src/main/java/${packagePath}/Recipes.java       from Recipes.java
 file ${artifactId}-gui/src/main/java/${packagePath}/View.java          from View.java
 file ${artifactId}-gui/src/main/java/${packagePath}/Intent.java        from Intent.java
-file ${artifactId}-gui/src/main/java/${packagePath}/QuitGate.java      from QuitGate.java
 file ${artifactId}-gui/src/main/java/${packagePath}/Ui.java            from Ui.java
 file ${artifactId}-gui/src/main/java/${packagePath}/Look.java          from Look.java
 file ${artifactId}-gui/src/main/java/${packagePath}/Type.java          from Type.java

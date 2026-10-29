@@ -47,7 +47,7 @@ import java.util.List;
 public final class Windows {
 
     /** The main window's name, which no other window may take. */
-    static final String MAIN = "main";
+    static final String MAIN = dev.vexelray.framework.core.CloseRequested.MAIN;
 
     private final Shell shell;
     private final Window main;
@@ -62,8 +62,8 @@ public final class Windows {
     }
 
     /**
-     * The main window. Its {@link Window#close} is quitting, by the route its own close button takes, so a close
-     * gate is asked first; see {@link Window#onClose}.
+     * The main window. Its {@link Window#close} is quitting, by the route its own close button takes, so the
+     * application is asked first, when a part hears {@link dev.vexelray.framework.core.CloseRequested}.
      */
     public Window main() {
         return main;

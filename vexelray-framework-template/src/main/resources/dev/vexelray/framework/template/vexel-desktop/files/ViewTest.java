@@ -6,6 +6,8 @@ import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Go;
 import ${packageName}.core.Messages.Open;
 import ${packageName}.core.Messages.Status;
+import dev.vexelray.framework.core.CloseAnswer;
+import dev.vexelray.framework.core.CloseRequested;
 import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
@@ -129,8 +131,25 @@ class ViewTest {
         };
     }
 
-    private void tell(Intent.Command command, long id) {
-        shell.bus().publish(Intent.INTENTS, new Intent(command, id));
+    /**
+     * Ask what the framework asks when the main window's close button is pressed, and run {@code proceeded} or
+     * {@code cancelled} on the answer, as the framework does with the window's own two.
+     */
+    private void quit(Runnable proceeded, Runnable cancelled) {
+        long ticket = tickets.incrementAndGet();
+        shell.bus().subscribe(CloseAnswer.TOPIC, a -> {
+            if (a.ticket() == ticket) {
+                (a.proceed() ? proceeded : cancelled).run();
+            }
+        });
+        shell.bus().publish(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, ticket));
+    }
+
+    /** Far from the framework's own tickets, which start at 1, so its gate ignores these answers. */
+    private final AtomicInteger tickets = new AtomicInteger(1_000_000);
+
+    private void tell(Intent.Command command) {
+        shell.bus().publish(Intent.INTENTS, new Intent(command));
     }
 
     private Buffer opened(Path file) throws InterruptedException {
@@ -167,7 +186,7 @@ class ViewTest {
         b.field.caret(b.field.text().length());
         b.field.insert("three\n");
         eventually("unsaved", b::dirty);
-        tell(Intent.Command.SAVE_FRONT, Messages.NO_TAB);
+        tell(Intent.Command.SAVE_FRONT);
         // Clean the moment the text is taken, written a moment later: wait for the write to say it landed.
         eventually("the status to say so", () -> said.contains(new Status("Saved crlf.txt", false)));
         assertFalse(b.dirty());
@@ -237,17 +256,17 @@ class ViewTest {
     }
 
     @Test
-    void theCloseGateLetsACleanSessionGoWithoutAsking() throws Exception {
+    void quittingACleanSessionGoesWithoutAsking() throws Exception {
         List<String> asked = new CopyOnWriteArrayList<>();
         answer = pressing("Cancel", asked);
         AtomicInteger proceeded = new AtomicInteger();
-        wiring.gate().guard(proceeded::incrementAndGet, () -> { });
+        quit(proceeded::incrementAndGet, () -> { });
         eventually("the quit to proceed", () -> proceeded.get() == 1);
         assertTrue(asked.isEmpty());
     }
 
     @Test
-    void theCloseGateAsksAndCancelKeepsTheWindow() throws Exception {
+    void quittingAsksAndCancelKeepsTheWindow() throws Exception {
         Buffer b = opened(Files.writeString(dir.resolve("a.txt"), "a"));
         b.field.insert("x");
         eventually("unsaved", b::dirty);
@@ -255,7 +274,7 @@ class ViewTest {
         answer = pressing("Cancel", asked);
         AtomicInteger proceeded = new AtomicInteger();
         AtomicInteger cancelled = new AtomicInteger();
-        wiring.gate().guard(proceeded::incrementAndGet, cancelled::incrementAndGet);
+        quit(proceeded::incrementAndGet, cancelled::incrementAndGet);
         eventually("the quit to be cancelled", () -> cancelled.get() == 1);
         assertEquals(List.of("Quit with unsaved changes?"), asked);
         assertEquals(0, proceeded.get());
@@ -272,7 +291,7 @@ class ViewTest {
         eventually("both unsaved", () -> first.dirty() && second.dirty());
         answer = pressing("Save all", new CopyOnWriteArrayList<>());
         AtomicInteger proceeded = new AtomicInteger();
-        wiring.gate().guard(proceeded::incrementAndGet, () -> { });
+        quit(proceeded::incrementAndGet, () -> { });
         eventually("the quit to proceed", () -> proceeded.get() == 1);
         assertEquals("1a", Files.readString(a));
         assertEquals("2c", Files.readString(c));

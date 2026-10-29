@@ -176,6 +176,8 @@ final class Channels {
             all.addAll(mailboxes(component));
         }
         Set<String> heard = new HashSet<>();
+        Set<String> sent = new HashSet<>();
+        Set<TypeElement> closeHearers = new LinkedHashSet<>();
         for (Mailbox m : all) {
             // A payload that is not a plain class or interface is already an error where @Subscribe is declared, and one
             // that cannot cross is the mailbox's first problem: its channel is asked about once it can carry anything.
@@ -183,6 +185,9 @@ final class Channels {
                 declared(m.method(), m.payload(), "@Subscribe " + m.where() + " hears "
                         + Mirrors.simple(Mirrors.element(m.payload())), m.keys().isEmpty() ? null : m);
                 heard.add(Topics.name(m.payload()));
+                if (Topics.name(m.payload()).equals(Framework.CLOSE_REQUESTED)) {
+                    closeHearers.add(m.component());
+                }
             }
         }
         for (VariableElement s : senders(graph)) {
@@ -193,6 +198,7 @@ final class Channels {
                 continue;
             }
             declared(s, payload, describe(s) + " sends " + Mirrors.simple(Mirrors.element(payload)), null);
+            sent.add(Topics.name(payload));
         }
         for (TypeElement component : graph.componentsSeen()) {
             AnnotationMirror hears = mirrors.find(component, Hears.class);
@@ -202,6 +208,9 @@ final class Channels {
                         declared(component, payload, "@Hears on " + Mirrors.simple(component) + " lists "
                                 + Mirrors.simple(Mirrors.element(payload)), null);
                         heard.add(Topics.name(payload));
+                        if (Topics.name(payload).equals(Framework.CLOSE_REQUESTED)) {
+                            closeHearers.add(component);
+                        }
                     }
                 }
             }
@@ -211,10 +220,43 @@ final class Channels {
                 if (plain(payload)) {
                     declared(publisher, payload, "@Publishes on " + describe(publisher) + " lists "
                             + Mirrors.simple(Mirrors.element(payload)), null);
+                    sent.add(Topics.name(payload));
                 }
             }
         }
         jobs(graph.jobsSeen(), heard, application);
+        closes(closeHearers, sent, application);
+    }
+
+    /** Whether a part hears {@code CloseRequested}, so a window's close is asked of the application. After {@link #check}. */
+    boolean answersClose() {
+        return answersClose;
+    }
+
+    private boolean answersClose;
+
+    /**
+     * The close gate: a window's close is one question, answered once. So at most one part hears
+     * {@code CloseRequested}, and, in an application, something sends {@code CloseAnswer} when one does: without it,
+     * every window would stay open for good.
+     */
+    private void closes(Set<TypeElement> hearers, Set<String> sent, boolean application) {
+        answersClose = !hearers.isEmpty();
+        if (hearers.size() > 1) {
+            List<String> names = new ArrayList<>();
+            hearers.forEach(h -> names.add(Mirrors.simple(h)));
+            for (TypeElement h : hearers) {
+                error(h, Mirrors.simple(h) + " hears CloseRequested, and so do " + (names.size() - 1) + " other parts ("
+                        + String.join(", ", names) + "). A window's close is answered once: let one part hear it and"
+                        + " decide, and tell the others by a message of the application's own");
+            }
+        }
+        if (application && answersClose && !sent.contains(Framework.CLOSE_ANSWER)) {
+            TypeElement h = hearers.iterator().next();
+            error(h, Mirrors.simple(h) + " hears CloseRequested, and nothing sends CloseAnswer. Every window's close"
+                    + " now waits for an answer, so with no answer no window ever closes: take a Sender<CloseAnswer>,"
+                    + " or list CloseAnswer in @Publishes if a ledger's step sends it");
+        }
     }
 
     /**
