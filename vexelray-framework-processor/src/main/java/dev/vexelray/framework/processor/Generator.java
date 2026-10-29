@@ -58,6 +58,8 @@ import java.util.Set;
  *       {@code ClipboardBackend} replaces the framework's own, and so has to exist by the phase the framework
  *       reaches for it in ({@link Framework#HAND_BACKS}); anything else {@code AutoCloseable} is closed in reverse
  *       at shutdown; a {@code @BeforeFrame} method on a built value's type is put in the frame array.</li>
+ *   <li><b>A job is built like a component and subscribed, not placed</b> ({@code Job}): its {@code run} is handed to
+ *       {@code Jobs}, which runs each request on the offload lane and publishes what it returns.</li>
  *   <li><b>A provider answering null is reported once</b> ({@code Provides}): the null is still passed on, and the
  *       wiring calls {@code Absences} where the provider is called, naming it and every part that takes its type —
  *       through {@code -shell}, which logs, since the generated code and {@code -core} do not.</li>
@@ -103,6 +105,8 @@ final class Generator {
         final List<Arg> args = new ArrayList<>();
         final List<Hook> hooks = new ArrayList<>();
         final List<Channels.Mailbox> mailboxes = new ArrayList<>();
+        /** For a {@code @Job}, its channels; {@code component} is then the job's class. */
+        Channels.JobChannel job;
         Set<RunMode> modes;
         Slot slot;
         Phase phase = Phase.CONFIG;
@@ -270,6 +274,16 @@ final class Generator {
         for (TypeElement c : graph.componentsSeen()) {
             if (constructor(c) != null) {
                 bindings.add(new Binding(null, c, c.asType(), declaredModes(c)));
+            }
+        }
+        // A job is constructed as a component is, by its one constructor in the phase its parameters put it in, and
+        // then subscribed to its topic on the offload lane instead of being placed on one of its own.
+        for (TypeElement j : graph.jobsSeen()) {
+            Channels.JobChannel channel = channels.job(j);
+            if (constructor(j) != null && channel != null) {
+                Binding b = new Binding(null, j, j.asType(), declaredModes(j));
+                b.job = channel;
+                bindings.add(b);
             }
         }
         for (Binding b : bindings) {
@@ -562,8 +576,11 @@ final class Generator {
                         + " providers are public");
             }
         } else if (!visibleFrom(app, b.component) || !visibleFrom(app, constructor(b.component))) {
-            error(b.component, "@Component " + b.where() + " is not visible from " + Mirrors.simple(app)
-                    + "'s package, where the generated wiring constructs it");
+            error(b.component, (b.job != null ? "@Job " : "@Component ") + b.where() + " is not visible from "
+                    + Mirrors.simple(app) + "'s package, where the generated wiring constructs it");
+        } else if (b.job != null && !visibleFrom(app, b.job.run())) {
+            error(b.job.run(), Mirrors.where(b.job.run()) + " is not visible from " + Mirrors.simple(app)
+                    + "'s package, where the generated wiring hands it to the offload lane. Make it public");
         }
     }
 
@@ -689,7 +706,7 @@ final class Generator {
         // graph, which is an answer; a hand-written wiring has none.
         src.append("\n    /** The message graph this application declares (vexelray-inspector docs/bus-circuit.md, version 1). */\n")
                 .append("    static final String BUS_GRAPH =");
-        String[] lines = channels.text(graph.componentsSeen()).split("\n");
+        String[] lines = channels.text(graph.componentsSeen(), graph.jobsSeen()).split("\n");
         for (int i = 0; i < lines.length; i++) {
             src.append(i == 0 ? "\n            " : "\n            + ").append(literal(lines[i] + "\n"));
         }
@@ -857,6 +874,16 @@ final class Generator {
                     + Mirrors.element(m.payload()).getQualifiedName() + ".class), " + field + "::"
                     + Mirrors.simple(m.method()) + ", " + m.capacity() + ", sibarum.atchung.Backpressure."
                     + m.overflow().name() + ");");
+        }
+        if (b.job != null) {
+            Channels.JobChannel j = b.job;
+            String request = "sibarum.atchung.Topic.of(" + literal(j.topic()) + ", "
+                    + Mirrors.element(j.request()).getQualifiedName() + ".class)";
+            after.add(j.replyType() == null
+                    ? Framework.JOBS + ".effect(shell, " + literal(j.name()) + ", " + request + ", " + field + "::run);"
+                    : Framework.JOBS + ".reply(shell, " + literal(j.name()) + ", " + request + ", " + field
+                      + "::run, sibarum.atchung.Topic.of(" + literal(j.reply()) + ", "
+                      + Mirrors.element(j.replyType()).getQualifiedName() + ".class));");
         }
         // A provider may answer null, which means absent (Provides): reported here, once, since a provider is called
         // once, naming what is then built with the null. A constructor cannot return null, and a primitive is never

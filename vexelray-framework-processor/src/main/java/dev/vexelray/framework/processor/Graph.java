@@ -68,6 +68,7 @@ final class Graph {
 
     private final Set<TypeElement> configurations = new LinkedHashSet<>();
     private final Set<TypeElement> components = new LinkedHashSet<>();
+    private final Set<TypeElement> jobs = new LinkedHashSet<>();
 
     Graph(Mirrors mirrors, Declarations declarations, Elements elements, Types types, Messager messager) {
         this.mirrors = mirrors;
@@ -83,6 +84,21 @@ final class Graph {
 
     void component(TypeElement type) {
         components.add(type);
+    }
+
+    void job(TypeElement type) {
+        jobs.add(type);
+    }
+
+    /** Every live job, in the order the rounds and the configurations offered them. */
+    List<TypeElement> jobsSeen() {
+        List<TypeElement> out = new ArrayList<>();
+        for (TypeElement j : jobs) {
+            if (live(j)) {
+                out.add(j);
+            }
+        }
+        return out;
     }
 
     /** The live providers, as the last {@link #check()} found them — what the generator builds from. */
@@ -131,6 +147,19 @@ final class Graph {
             if (mirrors.owned(provider.method())) {
                 for (VariableElement p : provider.method().getParameters()) {
                     providerParameter(provider, p, providers);
+                }
+            }
+        }
+        for (TypeElement job : jobsSeen()) {
+            ExecutableElement constructor = constructor(job);
+            if (constructor != null) {
+                for (VariableElement p : constructor.getParameters()) {
+                    jobParameter(job, p, providers);
+                }
+            }
+            for (Element e : job.getEnclosedElements()) {
+                if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)) {
+                    jobField(job, (VariableElement) e, providers);
                 }
             }
         }
@@ -255,6 +284,7 @@ final class Graph {
                         + " never by holding");
             }
         }
+        heldJob(name, parameter);
     }
 
     /**
@@ -292,6 +322,69 @@ final class Graph {
             error(parameter, where + " takes a Placement, which is a component's thread and mailboxes, and the"
                     + " container's. Nothing is handed one: declare mailboxes with @Subscribe and the lane with"
                     + " @Component(lane = ...)");
+        }
+        heldJob(where, parameter);
+    }
+
+    /**
+     * A job's constructor parameter. A job runs on the offload lane, a pool, so it is a crossing on every request:
+     * never a main-thread value (T2.2), never a component (T2.3, which a pool has no lane to share), never the compute
+     * queue (T3.1). And never another job, which is reached by publishing like any.
+     */
+    private void jobParameter(TypeElement job, VariableElement parameter, List<Provider> providers) {
+        if (mirrors.has(parameter, Setting.class)) {
+            return;
+        }
+        String name = Mirrors.simple(job);
+        String main = whyOnMain(parameter.asType(), providers);
+        if (main != null) {
+            error(parameter, "T2.2: @Job " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
+                    + main + "), and a job runs on the offload lane. Answer with what the main thread needs, and let"
+                    + " a subscriber that is the main thread's act on it");
+        }
+        TypeElement other = Mirrors.element(parameter.asType());
+        if (other != null && mirrors.has(other, Component.class)) {
+            error(parameter, "T2.3: @Job " + name + " takes the component " + Mirrors.simple(other) + ". A job runs"
+                    + " on the offload lane, which shares a thread with no component: carry what it needs in the"
+                    + " request, and answer in the reply");
+        }
+        if (isComputeQueue(parameter)) {
+            error(parameter, "T3.1: @Job " + name + " takes the ComputeQueue, which is lent to one @Component and to"
+                    + " nothing else");
+        }
+        heldJob("@Job " + name, parameter);
+    }
+
+    /**
+     * A job's field: final ({@link Declarations#job}), and of a type that is shareable or that the container supplies.
+     * A field of any other type is state the job made for itself, which two requests running at once would share.
+     */
+    private void jobField(TypeElement job, VariableElement field, List<Provider> providers) {
+        TypeMirror type = field.asType();
+        if (Shareable.why(type) == null) {
+            return;
+        }
+        TypeElement element = Mirrors.element(type);
+        if (element != null && Framework.root(element.getQualifiedName().toString()) != null) {
+            return;
+        }
+        for (Provider p : providers) {
+            if (types.isSameType(p.type(), type)) {
+                return;
+            }
+        }
+        error(field, "@Job " + Mirrors.simple(job) + " has the field " + Mirrors.simple(field) + ", a " + type
+                + ", which is neither shareable nor something the container supplies. Two requests may run at once,"
+                + " so a job keeps no state of its own: take the part from the container, or make the value a record"
+                + " of immutable values");
+    }
+
+    /** A job named as a parameter: it is reached by publishing its topic, and nothing holds one. */
+    private void heldJob(String who, VariableElement parameter) {
+        TypeElement other = Mirrors.element(parameter.asType());
+        if (other != null && mirrors.has(other, dev.vexelray.framework.api.Job.class)) {
+            error(parameter, who + " takes the job " + Mirrors.simple(other) + ". A job is reached by publishing its"
+                    + " topic, never by holding it: publish the request and subscribe to the reply");
         }
     }
 

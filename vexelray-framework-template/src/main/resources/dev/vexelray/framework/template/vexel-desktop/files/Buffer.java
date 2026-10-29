@@ -1,7 +1,6 @@
 package ${packageName};
 
-import ${packageName}.text.Markdown;
-import ${packageName}.text.TextFile;
+import ${packageName}.core.Markdown;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.edit.History;
 import dev.vexelray.gui.core.layout.Length;
@@ -40,7 +39,6 @@ final class Buffer implements AutoCloseable {
     final TextField field;
 
     private final Gui gui;
-    private final boolean crlf;
     private final Markdown.Style markup;
     private final Consumer<Boolean> dirty;
     private final AtomicLong generation = new AtomicLong();
@@ -58,12 +56,11 @@ final class Buffer implements AutoCloseable {
      * @param dirty  told whether the document differs from what is on disk, each time that changes
      * @param caret  told where the caret is, each time it moves
      */
-    Buffer(Gui gui, long id, Path path, TextFile.Loaded content, Markdown.Style markup,
+    Buffer(Gui gui, long id, Path path, String initial, Markdown.Style markup,
            Consumer<Boolean> dirty, Consumer<Position> caret) {
         this.gui = gui;
         this.id = id;
         this.path = path;
-        this.crlf = content.crlf();
         this.markup = markup;
         this.dirty = dirty;
         // A document: its past is its own, so Ctrl+Z in one file never reaches into another, and its save mark
@@ -73,7 +70,7 @@ final class Buffer implements AutoCloseable {
 
         // Content this field has no past with, so text() rather than replace(): the history starts here, and the
         // mark says this is what is on disk.
-        field.text(content.text());
+        field.text(initial);
         field.caret(0);
         field.history().mark();
         marked = field.text();
@@ -101,16 +98,16 @@ final class Buffer implements AutoCloseable {
     }
 
     /**
-     * The bytes to write, and the history marked clean at this point — before the write, not after it. Typing that
-     * lands while the bytes are on their way to disk is not in them, so it has to stay unsaved, and {@code mark()}
-     * marks whatever the history is when it is called. {@link #saveFailed} undoes the claim if the write does not
-     * land.
+     * The text to write, and the history marked clean at this point — before the write, not after it. Typing that
+     * lands while the text is on its way to disk is not in it, so it has to stay unsaved, and {@code mark()} marks
+     * whatever the history is when it is called. {@link #saveFailed} undoes the claim if the write does not land. The
+     * line endings are the editor's to put back, since it knows how the file had them.
      */
-    byte[] takeForSave() {
-        byte[] bytes = TextFile.encode(field.text(), crlf);
+    String takeForSave() {
+        String text = field.text();
         unsavedWrite = false;
         field.history().mark();
-        return bytes;
+        return text;
     }
 
     /** The write {@link #takeForSave} was for did not land. */

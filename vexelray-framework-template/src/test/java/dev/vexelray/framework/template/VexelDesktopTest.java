@@ -80,16 +80,43 @@ class VexelDesktopTest {
 
     // ---- what it writes ---------------------------------------------------------------
 
+    /** Where plot-viewer's view and controller land: the two modules under the parent's folder. */
+    private static final String GUI = "plot-viewer-gui/src/main/java/dev/example/plotviewer/";
+    private static final String CORE = "plot-viewer-core/src/main/java/dev/example/plotviewer/core/";
+
     @Test
     void theMainClassLandsAtItsPackagePath() {
         Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
-        assertNotNull(blueprint.entry("src/main/java/dev/example/plotviewer/PlotViewer.java"),
-                "expected the main class; got " + blueprint.paths());
-        assertNotNull(blueprint.entry("src/main/java/dev/example/plotviewer/Ui.java"));
+        assertNotNull(blueprint.entry(GUI + "PlotViewer.java"), "expected the main class; got " + blueprint.paths());
+        assertNotNull(blueprint.entry(GUI + "Ui.java"));
+        assertNotNull(blueprint.entry(CORE + "Editor.java"), "the controller is in -core, in a package of its own");
         assertNotNull(blueprint.entry("pom.xml"));
         assertNotNull(blueprint.entry(".gitignore"));
         assertNotNull(blueprint.entry("docs/framework-notes.md"));
         assertNotNull(blueprint.entry("docs/retrospective.md"));
+    }
+
+    /**
+     * A parent and two modules: -core the controller, -gui the view. The parent builds both, and -gui depends on -core
+     * and not the other way round, which is the line the split is drawn on.
+     */
+    @Test
+    void theProjectIsAParentWithACoreAndAGuiModule() {
+        Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
+        String parent = blueprint.text("pom.xml");
+        assertTrue(parent.contains("<packaging>pom</packaging>"), parent);
+        assertTrue(parent.contains("<module>plot-viewer-core</module>") && parent.contains("<module>plot-viewer-gui</module>"));
+        String core = blueprint.text("plot-viewer-core/pom.xml");
+        String gui = blueprint.text("plot-viewer-gui/pom.xml");
+        assertTrue(core.contains("<artifactId>plot-viewer-core</artifactId>") && core.contains("<artifactId>plot-viewer</artifactId>"),
+                "-core names itself and its parent");
+        assertTrue(gui.contains("<artifactId>plot-viewer-core</artifactId>"), "-gui builds on -core");
+        assertFalse(core.contains("plot-viewer-gui") || core.contains("vexelray-gui-widget") || core.contains("framework-shell"),
+                "-core builds against no widget and no shell:\n" + core);
+        assertTrue(gui.contains("<app.run.skip>false</app.run.skip>") && parent.contains("<app.run.skip>true</app.run.skip>"),
+                "exec:exec from the parent runs the one module with an application in it");
+        assertTrue(blueprint.text(CORE + "Core.java").contains("@Configuration(components = Editor.class"),
+                "-core lists what it is made of, since the processor compiling -gui cannot see it");
     }
 
     @Test
@@ -105,17 +132,17 @@ class VexelDesktopTest {
     @Test
     void theApplicationIsDeclaredOnceWithItsAutomation() {
         Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
-        String app = blueprint.text("src/main/java/dev/example/plotviewer/PlotViewerApp.java");
+        String app = blueprint.text(GUI + "PlotViewerApp.java");
         assertNotNull(app, "expected the @VexelApp declaration; got " + blueprint.paths());
-        assertTrue(app.contains("starters = AutomationStarter.class"),
-                "every build, the release one too, can be driven");
-        assertFalse(blueprint.paths().stream().anyMatch(p -> p.startsWith("src/edition-")),
+        assertTrue(app.contains("starters = {AutomationStarter.class, Core.class}"),
+                "every build, the release one too, can be driven; and -core's parts are built");
+        assertFalse(blueprint.paths().stream().anyMatch(p -> p.contains("src/edition-")),
                 "one declaration, not one per edition: " + blueprint.paths());
-        assertFalse(blueprint.text("pom.xml").contains("automation.scope"),
+        assertFalse(blueprint.text("plot-viewer-gui/pom.xml").contains("automation.scope"),
                 "the automation modules are on every build's class path");
-        assertFalse(blueprint.text("src/main/java/dev/example/plotviewer/PlotViewer.java").contains("@VexelApp("),
+        assertFalse(blueprint.text(GUI + "PlotViewer.java").contains("@VexelApp("),
                 "the entry class declares nothing, or the build would have two @VexelApp classes");
-        assertTrue(blueprint.text("src/main/java/dev/example/plotviewer/PlotViewer.java")
+        assertTrue(blueprint.text(GUI + "PlotViewer.java")
                 .contains("new PlotViewerAppWiring()"), "main runs the wiring the processor makes from its declaration");
     }
 
@@ -134,7 +161,7 @@ class VexelDesktopTest {
         assertFalse(wrapper.replace("\r\n", "").contains("\n") || wrapper.replace("\r\n", "").contains("\r"),
                 "a batch file is CR LF throughout");
 
-        String pom = blueprint.text("pom.xml");
+        String pom = blueprint.text("plot-viewer-gui/pom.xml");
         int check = pom.indexOf("<fail unless=\"rc.exe.found\"");
         assertTrue(check > 0 && check < pom.indexOf("<exec executable=\"rc.exe\""),
                 "rc.exe is looked for before it is run");
@@ -154,26 +181,27 @@ class VexelDesktopTest {
     @Test
     void theMarkIsTheFrameworksAndTheWindowAndTheExecutableShareIt() throws IOException {
         Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example"));
-        Blueprint.Entry ico = blueprint.entry("src/main/rc/plot-viewer.ico");
+        String rc = "plot-viewer-gui/src/main/rc/";
+        Blueprint.Entry ico = blueprint.entry(rc + "plot-viewer.ico");
         assertNotNull(ico, "expected the icon; got " + blueprint.paths());
         Path shell = Path.of("../vexelray-framework-shell/src/main/resources/dev/vexelray/framework/shell/new-app.ico");
         assertTrue(java.util.Arrays.equals(Files.readAllBytes(shell), ico.bytes()),
                 "the template's new-app.ico has drifted from -shell's; copy it again (both render new-app.svg)");
         assertTrue(java.util.Arrays.equals(
                 Files.readAllBytes(Path.of("../vexelray-framework-shell/src/main/rc/new-app.svg")),
-                blueprint.entry("src/main/rc/plot-viewer.svg").bytes()), "and its source");
+                blueprint.entry(rc + "plot-viewer.svg").bytes()), "and its source");
 
-        assertTrue(blueprint.text("src/main/rc/plot-viewer.rc").contains("1 ICON \"plot-viewer.ico\""));
-        assertTrue(blueprint.text("src/main/rc/plot-viewer.rc").contains("1 24 \"plot-viewer.manifest\""),
+        assertTrue(blueprint.text(rc + "plot-viewer.rc").contains("1 ICON \"plot-viewer.ico\""));
+        assertTrue(blueprint.text(rc + "plot-viewer.rc").contains("1 24 \"plot-viewer.manifest\""),
                 "the executable declares its DPI awareness, as java.exe does");
-        assertTrue(blueprint.text("src/main/rc/plot-viewer.manifest").contains("PerMonitorV2"));
-        String pom = blueprint.text("pom.xml");
+        assertTrue(blueprint.text(rc + "plot-viewer.manifest").contains("PerMonitorV2"));
+        String pom = blueprint.text("plot-viewer-gui/pom.xml");
         assertTrue(pom.contains("<include>plot-viewer.ico</include>"), "on the class path for the window");
         assertTrue(pom.contains("/src/main/rc/plot-viewer.rc"), "compiled for the executable");
-        assertTrue(blueprint.text("src/main/java/dev/example/plotviewer/PlotViewer.java")
+        assertTrue(blueprint.text(GUI + "PlotViewer.java")
                 .contains("ICON = \"/plot-viewer.ico\""), "and named, from the root it lands at");
-        assertTrue(blueprint.text(
-                        "src/main/resources/META-INF/native-image/dev.example/plot-viewer/reachability-metadata.json")
+        assertTrue(blueprint.text("plot-viewer-gui/src/main/resources/META-INF/native-image/dev.example/plot-viewer/"
+                        + "reachability-metadata.json")
                 .contains("\"dev.example.plotviewer.PlotViewer\""), "the native entry point is this program's");
     }
 
@@ -191,10 +219,12 @@ class VexelDesktopTest {
 
     @Test
     void thePomKeepsMavensOwnProperties() {
-        String pom = blueprint(Map.of()).text("pom.xml");
-        assertTrue(pom.contains("${vexelray-gui.version}"), "Maven's own property should survive");
-        assertTrue(pom.contains("${java.home}/bin/java"), "the exec plugin's command line should survive");
-        assertFalse(pom.contains("$${"), "no escape should be left in the output");
+        Blueprint blueprint = blueprint(Map.of());
+        String poms = blueprint.text("pom.xml") + blueprint.text("my-app-core/pom.xml")
+                + blueprint.text("my-app-gui/pom.xml");
+        assertTrue(poms.contains("${vexelray-gui.version}"), "Maven's own property should survive");
+        assertTrue(poms.contains("${java.home}/bin/java"), "the exec plugin's command line should survive");
+        assertFalse(poms.contains("$${"), "no escape should be left in the output");
     }
 
     /**
@@ -246,7 +276,7 @@ class VexelDesktopTest {
             String text = blueprint.text(entry.path());
             // The package is the folder the file lands in, so a sub-package's file declares the sub-package.
             String folder = entry.path().substring(0, entry.path().lastIndexOf('/'))
-                    .replaceFirst("^src/(main|test)/java/", "");
+                    .replaceFirst("^plot-viewer-(core|gui)/src/(main|test)/java/", "");
             String expected = "package " + folder.replace('/', '.') + ";";
             assertTrue(folder.startsWith("dev/example/plotviewer"), entry.path() + " is outside the project's package");
             assertTrue(text.startsWith(expected),
@@ -260,11 +290,11 @@ class VexelDesktopTest {
         Map<String, String> off = new LinkedHashMap<>();
         off.put("tests", "no");
         Blueprint without = blueprint(off);
-        assertTrue(without.paths().stream().noneMatch(p -> p.startsWith("src/test/")),
+        assertTrue(without.paths().stream().noneMatch(p -> p.contains("/src/test/")),
                 "no tests should be written; got " + without.paths());
         assertFalse(without.notes().isEmpty(), "leaving files out should be said out loud");
         assertTrue(blueprint(Map.of("tests", "yes")).paths().stream()
-                .anyMatch(p -> p.startsWith("src/test/")));
+                .anyMatch(p -> p.contains("/src/test/")));
     }
 
     @Test

@@ -113,9 +113,11 @@ class GeneratedProjectTest {
 
         blueprint = Scaffold.of(template, answers, Catalogue.bundled());
         assertEquals(List.of(), Checks.malformedXml(blueprint));
-        String main = "src/main/java/dev/vexelray/acceptance/vexelacceptance/";
-        for (String path : List.of("pom.xml", main + "VexelAcceptance.java", main + "Recipes.java",
-                main + "Ui.java", main + "Model.java")) {
+        String gui = ARTIFACT + "-gui/src/main/java/dev/vexelray/acceptance/vexelacceptance/";
+        String core = ARTIFACT + "-core/src/main/java/dev/vexelray/acceptance/vexelacceptance/core/";
+        for (String path : List.of("pom.xml", ARTIFACT + "-core/pom.xml", ARTIFACT + "-gui/pom.xml",
+                gui + "VexelAcceptance.java", gui + "Recipes.java", gui + "View.java", gui + "Ui.java",
+                core + "Editor.java", core + "Messages.java", core + "Core.java")) {
             assertNotNull(blueprint.entry(path), "expected " + path + " in " + blueprint.paths());
         }
     }
@@ -156,15 +158,22 @@ class GeneratedProjectTest {
         assertEquals(0, build.exitValue(), () -> "the generated project did not build\n" + tail(log));
         // The wiring the application runs on is the processor's, not a file the template wrote: the tree carries
         // no Wiring of its own, and this is where javac put the generated one.
-        Path wiring = project.resolve(Support.BUILD_DIRECTORY
+        Path gui = project.resolve(ARTIFACT + "-gui");
+        Path wiring = gui.resolve(Support.BUILD_DIRECTORY
                 + "/generated-sources/annotations/dev/vexelray/acceptance/vexelacceptance/VexelAcceptanceAppWiring.java");
         assertTrue(Files.isRegularFile(wiring), "the processor did not generate the wiring at " + wiring);
         assertTrue(blueprint.paths().stream().noneMatch(p -> p.endsWith("Wiring.java")),
                 "the template should not ship a hand-written wiring beside the generated one");
+        // -core's parts are class files to the processor compiling -gui; Core, named as a starter, is how they are built.
+        String generated = Files.readString(wiring);
+        assertTrue(generated.contains("new dev.vexelray.acceptance.vexelacceptance.core.Editor("),
+                "the editor from -core is not built:\n" + generated);
+        assertTrue(generated.contains("Jobs.reply(shell, \"dev.vexelray.acceptance.vexelacceptance.core.ReadFile\""),
+                "the jobs from -core are not subscribed:\n" + generated);
         // The mark: on the class path where @VexelApp(icon) names it, and registered for native-image by the processor.
-        assertTrue(Files.isRegularFile(project.resolve(Support.BUILD_DIRECTORY + "/classes/" + ARTIFACT + ".ico")),
+        assertTrue(Files.isRegularFile(gui.resolve(Support.BUILD_DIRECTORY + "/classes/" + ARTIFACT + ".ico")),
                 "the pom did not put the icon on the class path");
-        String metadata = Files.readString(project.resolve(Support.BUILD_DIRECTORY + "/classes/META-INF/native-image/"
+        String metadata = Files.readString(gui.resolve(Support.BUILD_DIRECTORY + "/classes/META-INF/native-image/"
                 + "dev.vexelray.framework.generated/dev.vexelray.acceptance.vexelacceptance.VexelAcceptanceAppWiring/"
                 + "reachability-metadata.json"));
         assertTrue(metadata.contains("\"" + ARTIFACT + ".ico\""), metadata);

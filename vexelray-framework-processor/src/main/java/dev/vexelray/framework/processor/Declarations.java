@@ -437,6 +437,156 @@ final class Declarations {
         }
     }
 
+    // --- @Job ------------------------------------------------------------------------------------------------
+
+    /**
+     * A job is slow work as a declaration: a final class the wiring constructs, holding no state of its own, with one
+     * {@code run} taking the request and returning the reply. Everything here is the declaration's; whether a field's
+     * type is something the container supplies is {@link Graph}'s, and whether anyone hears the reply is the
+     * application's ({@link Channels}).
+     */
+    void job(TypeElement type) {
+        String name = Mirrors.simple(type);
+        if (type.getKind() != ElementKind.CLASS) {
+            error(type, "@Job " + name + " is not a class. A job is constructed by the wiring and holds no state, so"
+                    + " it is a final class whose run method is the work");
+            return;
+        }
+        if (!type.getModifiers().contains(Modifier.FINAL)) {
+            error(type, "@Job " + name + " is not final. A job holds no mutable state, and a subclass could add"
+                    + " some the checks never see");
+        }
+        if (type.getNestingKind() == NestingKind.MEMBER && !type.getModifiers().contains(Modifier.STATIC)) {
+            error(type, "@Job " + name + " is an inner class, so constructing it needs an instance of the class"
+                    + " around it, and it would hold that instance. Make it static, or top-level");
+        }
+        if (mirrors.has(type, Component.class) || mirrors.has(type, MainThread.class)) {
+            error(type, "@Job " + name + " is also a " + (mirrors.has(type, Component.class) ? "@Component" : "@MainThread")
+                    + ". A job runs on the offload lane, a pool with no order and no state; a component has a lane"
+                    + " of its own and the main thread is not a lane at all");
+        }
+        int constructors = 0;
+        for (Element e : type.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.CONSTRUCTOR && !e.getModifiers().contains(Modifier.PRIVATE)) {
+                constructors++;
+            }
+            if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)
+                    && !e.getModifiers().contains(Modifier.FINAL)) {
+                error(e, "@Job " + name + " has the field " + Mirrors.simple(e) + ", which is not final. Two requests"
+                        + " may run at once on the offload lane, so a job holds no state that changes: keep it in the"
+                        + " component that sent the request, and carry what the job needs in the request");
+            }
+        }
+        if (constructors != 1) {
+            error(type, "@Job " + name + " has " + constructors + " non-private constructors, and must have exactly"
+                    + " one. The container does not pick between them");
+        }
+        AnnotationMirror job = mirrors.find(type, dev.vexelray.framework.api.Job.class);
+        String topic = mirrors.string(job, "topic");
+        String reply = mirrors.string(job, "reply");
+        if (topic.isBlank()) {
+            error(type, "@Job " + name + " has a blank topic. The name is the channel its requests arrive on, and a"
+                    + " sender finds it by that name");
+        }
+        ExecutableElement run = null;
+        int runs = 0;
+        for (Element e : type.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.METHOD && Mirrors.simple(e).equals("run")
+                    && !e.getModifiers().contains(Modifier.PRIVATE) && !e.getModifiers().contains(Modifier.STATIC)) {
+                run = (ExecutableElement) e;
+                runs++;
+            }
+        }
+        if (runs != 1) {
+            error(type, "@Job " + name + " has " + runs + " run methods, and must have exactly one: an instance method"
+                    + " taking the request and returning the reply, or void for a job run only for its effect");
+            return;
+        }
+        String where = Mirrors.where(run);
+        if (run.getParameters().size() != 1) {
+            error(run, where + " takes " + run.getParameters().size() + " parameters, and must take exactly one: the"
+                    + " request, whose type is the topic's");
+        } else {
+            message(run, "request", run.getParameters().get(0).asType(), topic);
+        }
+        if (!run.getThrownTypes().isEmpty()) {
+            error(run, where + " declares " + run.getThrownTypes() + ". A failure a job expects is part of its reply,"
+                    + " a field the subscriber has to read; anything else that escapes ends the application. Catch it"
+                    + " here and answer with it");
+        }
+        boolean effect = run.getReturnType().getKind() == TypeKind.VOID;
+        if (effect && !reply.isBlank()) {
+            error(run, where + " returns nothing, and @Job " + name + " names the reply \"" + reply + "\". Return"
+                    + " the reply, or leave reply out for a job run only for its effect");
+        } else if (!effect && reply.isBlank()) {
+            error(run, where + " returns " + run.getReturnType() + ", and @Job " + name + " names no reply, so it"
+                    + " would be dropped. Name the reply topic, or return void");
+        } else if (!effect) {
+            message(run, "reply", run.getReturnType(), reply);
+        }
+    }
+
+    /** A job's request or reply: a class with no type arguments that can cross a lane as itself (T2.4). */
+    private void message(ExecutableElement run, String what, TypeMirror type, String topic) {
+        String where = Mirrors.where(run);
+        if (type.getKind() != TypeKind.DECLARED || !((DeclaredType) type).getTypeArguments().isEmpty()) {
+            error(run, where + "'s " + what + " is " + type + ", which cannot name a topic's type. A message is a"
+                    + " class or interface with no type arguments: wrap it in a record");
+            return;
+        }
+        String why = Shareable.why(type);
+        if (why != null) {
+            error(run, "T2.4: " + where + "'s " + what + " on \"" + topic + "\" is " + type + ", and it cannot cross"
+                    + " a lane as itself: " + why + ". Requests and replies cross between the sender's lane and the"
+                    + " offload lane, so they are deeply immutable: primitives, strings, enums, records and final"
+                    + " classes of those");
+        }
+    }
+
+    /** The type's one {@code run} method, or {@code null} when it has not exactly one (already reported). */
+    static ExecutableElement run(TypeElement job) {
+        ExecutableElement found = null;
+        for (Element e : job.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.METHOD && Mirrors.simple(e).equals("run")
+                    && !e.getModifiers().contains(Modifier.PRIVATE) && !e.getModifiers().contains(Modifier.STATIC)) {
+                if (found != null) {
+                    return null;
+                }
+                found = (ExecutableElement) e;
+            }
+        }
+        return found != null && found.getParameters().size() == 1 ? found : null;
+    }
+
+    // --- @Configuration's lists ------------------------------------------------------------------------------
+
+    /** What a configuration lists is what it says it is: every class literal resolves, to a component or a job. */
+    void listed(TypeElement configuration, AnnotationMirror mirror) {
+        String name = Mirrors.simple(configuration);
+        for (String member : List.of("components", "jobs")) {
+            if (mirrors.unresolved(mirror, member) > 0) {
+                error(configuration, "@Configuration " + name + " lists " + member + " that do not resolve. A listed"
+                        + " class comes from the module that declares it, so that module has to be on the class path");
+            }
+        }
+        for (TypeMirror type : mirrors.types(mirror, "components")) {
+            TypeElement c = Mirrors.element(type);
+            if (c == null || !mirrors.has(c, Component.class)) {
+                error(configuration, "@Configuration " + name + " lists " + type + " among its components, and it is"
+                        + " not a @Component." + (c != null && mirrors.has(c, dev.vexelray.framework.api.Job.class)
+                        ? " It is a @Job: list it under jobs" : ""));
+            }
+        }
+        for (TypeMirror type : mirrors.types(mirror, "jobs")) {
+            TypeElement j = Mirrors.element(type);
+            if (j == null || !mirrors.has(j, dev.vexelray.framework.api.Job.class)) {
+                error(configuration, "@Configuration " + name + " lists " + type + " among its jobs, and it is not a"
+                        + " @Job." + (j != null && mirrors.has(j, Component.class)
+                        ? " It is a @Component: list it under components" : ""));
+            }
+        }
+    }
+
     // --- @VexelApp -------------------------------------------------------------------------------------------
 
     /** Each starter is named by class literal, and has to be something the wiring can read providers off. */

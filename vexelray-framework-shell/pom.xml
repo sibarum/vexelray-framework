@@ -49,6 +49,11 @@
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-widget</artifactId>
         </dependency>
+        <!-- The About page scrolls in a Scroller with a Scrollbar beside it. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-scroll</artifactId>
+        </dependency>
         <!-- The save dialog the screenshot instrument asks through. A desktop application's working directory
              is wherever it was launched from, so a picture filed there is a picture nobody can find. -->
         <dependency>

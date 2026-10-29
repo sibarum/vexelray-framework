@@ -259,9 +259,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         each name to a local, a field or `this`, and runs `Shareable` on what it finds; and the heaviest piece in the
         processor, which has never run outside the annotation rounds), or leaving T2.5 as a rule the reader keeps. A
         syntactic check without attribution is not an option: it cannot tell a captured local from a class name.
-        **Not decided; a third option is proposed** ([components.md](components.md), section 10, 2026-10-18): slow
-        work as a declared `@Job` whose result is published on a reply topic, so there is no lambda to capture with
-        and the check reads declarations only. To rule on: adopt it, and failure's shape.
+        **Ruled and built 2026-10-26: the third option** ([components.md](components.md), section 10): slow work as a
+        declared `@Job` whose result is published on a reply topic, so there is no lambda to capture with and the
+        check reads declarations only. The template's disk work is four jobs. **Still to do before v1, and breaking:**
+        withdraw `Lanes.offload()` and `Gui.offload()` from application parts (the *what `Shell` hands over* decision,
+        per accessor), since until then a lambda handed to either is unchecked. The template's `Buffer` still uses
+        `gui.async` for its Markdown spans, which is CPU work on the view's own data and wants an answer of its own
+        (a job taking the text and answering the spans needs `List<Span>` to cross, which the copier would allow).
       - **Before v1, with the component model.** **Done 2026-10-02:** the copier's check half (a `@Subscribe` payload must be deeply immutable) and the blocking-cycle
         check (T4.4). **Additive, not built:** the generated copier. **Done 2026-10-19:** the graph exposed as data (the wiring's
         `BUS_GRAPH`, vexelray-inspector `docs/bus-circuit.md`).
@@ -1106,6 +1110,38 @@ applications back together found*. What is left, by shape:
       cannot be named (Inspector FN-13); and the socket answers before the main window is listed (MainFrame FN-2).
       The rule they share: anything a person can click is reachable by name when it is built, not by a workaround in
       the script.
+
+### Found by splitting the template into -core and -gui (2026-10-26)
+
+The template became a parent with a `-core` controller (an `Editor` component and four disk jobs) and a `-gui` view (a
+`View` component and the window), talking by messages and nothing else, at the user's direction: message passing is the
+primary protocol between an application's parts, and friction with it is to be raised rather than worked around. What
+it took is in components.md section 10 (`@Job`, and a configuration listing its module's components and jobs). What
+it found and left:
+
+- [ ] **A message cannot carry a list** (`-processor`, the copier, T2.4). Closing five tabs is five `Closing`
+      messages that each say how many make the set, and the editor collects them, because two mailboxes are in no
+      order with each other. It works and it is checked, and it is ceremony every application with a set will write
+      again. The generated copier (build order, step 3) would let a `List` of records cross. Additive.
+- [ ] **A per-item set meets the FAIL bound.** One message per tab, into a mailbox of the default capacity 64, halts the
+      application at the sixty-fifth tab (ruling 5). The template raises those mailboxes to 4096; nothing tells an
+      application it needs to. A set message, once lists can cross, removes the case.
+- [ ] **A component left off its module's list is built by nobody, silently** (`-processor`). `-core`'s `Core` lists its
+      parts because the processor compiling `-gui` cannot see them; forget one and there is no error. The processor
+      compiling `-core` could warn about a `@Component` or `@Job` no configuration in its own module lists, since that
+      compilation sees both. Additive.
+- [ ] **The close gate is a callback** (`-shell`, `Window.onClose`). Its `proceed` and `cancel` cannot cross a lane, so
+      the template keeps them in a `QuitGate` under a ticket and sends the ticket. A gate answered by a message (a
+      topic the framework subscribes to, with the ticket) would make that the framework's. The same holds for a
+      `Modal`'s buttons, which the view turns into an `Answer`.
+- [ ] **The tree's data source reads the disk on the view's side** (`vexelray-gui`, `TreeView.Source`). `FolderSource`
+      lists a folder when the tree asks, synchronously, on the tree's worker; it cannot be a job, because the source is
+      pulled rather than answered. An asynchronous source (ask for children, be handed them later) would let it be.
+- [ ] **The editor writes the session to `Settings` on its own lane.** A small file, and so far harmless, but it is disk
+      work on a component lane, which is what jobs are for; a job cannot take it while the session is a list of files.
+- [ ] **A job's request topic is not in the bus graph** (`BUS_GRAPH`, vexelray-inspector `docs/bus-circuit.md`). Version 1
+      of the text has a line for a component's mailbox and none for a job's, so the Inspector draws a job's reply and
+      not what asks for it. A `job` line is a version 2 of the text.
 
 ## Upstream
 

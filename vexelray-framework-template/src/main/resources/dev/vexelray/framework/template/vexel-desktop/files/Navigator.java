@@ -71,7 +71,7 @@ final class Navigator {
         });
         tree.action(TreeView.Action.<Path>of("›", "Open", (p, job) -> openFile.accept(p))
                 .enabledWhen(Files::isRegularFile));
-        tree.action(TreeView.Action.<Path>of("»", "Show this folder", (p, job) -> show(p))
+        tree.action(TreeView.Action.<Path>of("»", "Show this folder", (p, job) -> go.accept(p.toString()))
                 .shownWhen(Files::isDirectory));
         tree.onContextMenu((p, menu) -> menu
                 .separator()
@@ -105,25 +105,13 @@ final class Navigator {
         return source.base();
     }
 
-    /** Show {@code folder}. {@code then} runs once the new root is listed, on the offload lane. */
-    void show(Path folder, Runnable then) {
+    /** Show {@code folder}: list it on the offload lane, and say in the path bar which folder it is. */
+    void show(Path folder) {
         io.execute(() -> {
             source.base(folder);
             tree.refresh();
             path.text(String.valueOf(source.base()));
-            if (then != null) {
-                then.run();
-            }
         });
-    }
-
-    private void show(Path folder) {
-        show(folder, null);
-    }
-
-    /** Read the shown folder again: a file was created in it. */
-    void refresh() {
-        io.execute(tree::refresh);
     }
 
     /**

@@ -5,6 +5,7 @@ import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.ConditionalOnType;
 import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Default;
+import dev.vexelray.framework.api.Job;
 import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.OnMode;
 import dev.vexelray.framework.api.Provides;
@@ -49,6 +50,8 @@ import java.util.Set;
  *   <li><b>T2.1</b> — a component that is also {@code @MainThread}.</li>
  *   <li>Two providers for one type in one mode, with {@code @Default}'s back-off and {@code @OnMode}'s and
  *       {@code @ConditionalOnType}'s guards taken into account.</li>
+ *   <li>A {@code @Job}'s shape and its two messages, and the components and jobs a configuration lists, which is
+ *       how one compiled in another module reaches the wiring at all.</li>
  *   <li>The shapes: one non-private constructor, a {@code @Provides} inside a configuration returning an
  *       interface when the type is this build's own, a {@code @Setting} whose type has an accessor and whose
  *       default parses, a {@code @BeforeFrame} that takes nothing, throws nothing, and is not a component's,
@@ -73,7 +76,7 @@ public final class VexelProcessor extends AbstractProcessor {
     private static final List<Class<? extends Annotation>> VOCABULARY = List.of(
             VexelApp.class, Component.class, Configuration.class, Provides.class, Default.class,
             MainThread.class, Setting.class, BeforeFrame.class, OnMode.class, ConditionalOnType.class,
-            Subscribe.class, Publishes.class);
+            Subscribe.class, Publishes.class, Job.class);
 
     private Mirrors mirrors;
     private Declarations declarations;
@@ -85,6 +88,8 @@ public final class VexelProcessor extends AbstractProcessor {
     private StepCheck steps;
     private boolean checked;
     private final Set<ExecutableElement> hooks = new LinkedHashSet<>();
+    /** Every component and job read so far, so one a round offers and a configuration also lists is checked once. */
+    private final Set<TypeElement> parts = new LinkedHashSet<>();
 
     @Override
     public void init(ProcessingEnvironment env) {
@@ -130,12 +135,15 @@ public final class VexelProcessor extends AbstractProcessor {
             app((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Component.class)) {
-            declarations.component((TypeElement) e);
-            graph.component((TypeElement) e);
+            component((TypeElement) e);
+        }
+        for (Element e : round.getElementsAnnotatedWith(Job.class)) {
+            job((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Configuration.class)) {
             declarations.configuration((TypeElement) e);
             graph.configuration((TypeElement) e);
+            listed((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Provides.class)) {
             declarations.provides((ExecutableElement) e);
@@ -162,7 +170,7 @@ public final class VexelProcessor extends AbstractProcessor {
         if (app != null && !checked) {
             checked = true;
             graph.check();
-            channels.check(graph);
+            channels.check(graph, true);
             if (!report.failed()) {
                 generator.generate(app, hooks);
             }
@@ -170,7 +178,7 @@ public final class VexelProcessor extends AbstractProcessor {
             // A library -- a starter compiled on its own. Checked, and there is nothing to generate for.
             checked = true;
             graph.check();
-            channels.check(graph);
+            channels.check(graph, false);
         }
         return false;
     }
@@ -190,6 +198,59 @@ public final class VexelProcessor extends AbstractProcessor {
             TypeElement config = Mirrors.element(starter);
             if (config != null && config.getKind() == ElementKind.CLASS && mirrors.has(config, Configuration.class)) {
                 graph.configuration(config);
+                listed(config);
+            }
+        }
+    }
+
+    /**
+     * The components and jobs a configuration lists. One compiled in another module arrives as a class file, which no
+     * round offers, so this is the only way the wiring hears of it; its {@code @Publishes} are read off it here for the
+     * same reason. One compiled beside the configuration is offered by the round as well, and is read once.
+     */
+    private void listed(TypeElement configuration) {
+        AnnotationMirror mirror = mirrors.find(configuration, Configuration.class);
+        declarations.listed(configuration, mirror);
+        for (TypeMirror type : mirrors.types(mirror, "components")) {
+            TypeElement c = Mirrors.element(type);
+            // Not a component is Declarations.listed's to say; it is not read as one.
+            if (c != null && mirrors.has(c, Component.class) && component(c) && !mirrors.owned(c)) {
+                publishers(c);
+            }
+        }
+        for (TypeMirror type : mirrors.types(mirror, "jobs")) {
+            TypeElement j = Mirrors.element(type);
+            if (j != null && mirrors.has(j, Job.class)) {
+                job(j);
+            }
+        }
+    }
+
+    /** Read a component once; whether this was the first time. */
+    private boolean component(TypeElement type) {
+        if (!parts.add(type)) {
+            return false;
+        }
+        declarations.component(type);
+        graph.component(type);
+        return true;
+    }
+
+    private void job(TypeElement type) {
+        if (parts.add(type)) {
+            declarations.job(type);
+            graph.job(type);
+        }
+    }
+
+    /** The {@code @Publishes} on a type read from a class file, and on its methods: the sends a round would offer. */
+    private void publishers(TypeElement type) {
+        if (mirrors.has(type, Publishes.class)) {
+            channels.publishes(type);
+        }
+        for (Element member : type.getEnclosedElements()) {
+            if (member.getKind() == ElementKind.METHOD && mirrors.has(member, Publishes.class)) {
+                channels.publishes(member);
             }
         }
     }

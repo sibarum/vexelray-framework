@@ -71,6 +71,53 @@ class VexelProcessorTest {
                     @Default @Provides public Device device() { return null; }
                 }
                 """),
+            // Another module's component and job, which no round of the application's compilation offers: they reach
+            // the wiring only because Parts lists them and the application names Parts as a starter.
+            Map.entry("lib.Asked", """
+                package lib;
+                public record Asked(String what) {}
+                """),
+            Map.entry("lib.Measured", """
+                package lib;
+                public record Measured(String what, int size) {}
+                """),
+            Map.entry("lib.Remote", """
+                package lib;
+                import dev.vexelray.framework.api.*;
+                @Component(lane = "remote") @Publishes("lib.ask")
+                public final class Remote {
+                    @Subscribe(topic = "lib.measured") public void measured(Measured m) {}
+                }
+                """),
+            Map.entry("lib.Measure", """
+                package lib;
+                import dev.vexelray.framework.api.*;
+                @Job(topic = "lib.ask", reply = "lib.measured")
+                public final class Measure {
+                    public Measured run(Asked a) { return new Measured(a.what(), a.what().length()); }
+                }
+                """),
+            Map.entry("lib.Parts", """
+                package lib;
+                import dev.vexelray.framework.api.*;
+                @Configuration(components = Remote.class, jobs = Measure.class)
+                public final class Parts {}
+                """),
+            Map.entry("dev.vexelray.framework.shell.Jobs", """
+                package dev.vexelray.framework.shell;
+                public final class Jobs {
+                    public static <Q, R> void reply(Shell shell, String job, sibarum.atchung.Topic<Q> topic,
+                                                    java.util.function.Function<Q, R> run,
+                                                    sibarum.atchung.Topic<R> reply) {
+                        Shell.LOG.add("job " + job + " " + topic.name() + " " + topic.payloadType().getSimpleName()
+                                + " -> " + reply.name() + " " + reply.payloadType().getSimpleName());
+                    }
+                    public static <Q> void effect(Shell shell, String job, sibarum.atchung.Topic<Q> topic,
+                                                  java.util.function.Consumer<Q> run) {
+                        Shell.LOG.add("job " + job + " " + topic.name() + " " + topic.payloadType().getSimpleName());
+                    }
+                }
+                """),
             Map.entry("dev.vexelray.framework.shell.Shell", """
                 package dev.vexelray.framework.shell;
                 import dev.vexelray.framework.core.*;
@@ -904,6 +951,199 @@ class VexelProcessorTest {
                 public final class Toolbar {}
                 """), "T4.7: Toolbar runs on the main thread and declares a send on \"edits\", where Sink.on has a"
                 + " BLOCK mailbox");
+    }
+
+    // --- a part compiled in another module ----------------------------------------------------------------------
+
+    /**
+     * An application split into modules: lib.Remote and lib.Measure are class files to this compilation, which no
+     * round offers. Named through the starter that lists them, they are built, placed and subscribed as if they were
+     * the application's own, and checked against its channels: Remote's mailbox is what hears Measure's reply.
+     */
+    @Test
+    void aComponentAndAJobFromAnotherModuleAreWiredThroughTheConfigurationThatListsThem() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo", starters = Parts.class)
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        assertEquals(List.of("placed remote", "subscribed lib.Remote#measured lib.measured Measured 64 FAIL",
+                "job lib.Measure lib.ask Asked -> lib.measured Measured"), run.phase("config"));
+        String graph = run.busGraph();
+        assertTrue(graph.contains("publishes lib.Remote topic=lib.ask"), "a send read off a class file:\n" + graph);
+        assertTrue(graph.contains("publishes lib.Measure topic=lib.measured"), "a job answers:\n" + graph);
+    }
+
+    @Test
+    void withoutTheStarterAnotherModulesComponentIsNotBuilt() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config"));
+    }
+
+    @Test
+    void aConfigurationListsOnlyComponentsAsComponents() {
+        onlyError(app("""
+                @Configuration(components = Measure.class)
+                public final class Wrong {}
+                """), "lists lib.Measure among its components, and it is not a @Component. It is a @Job: list it"
+                + " under jobs");
+    }
+
+    // --- @Job --------------------------------------------------------------------------------------------------
+
+    @Test
+    void aJobIsBuiltAndSubscribedOnTheOffloadLane() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                public record Read(String path) {}
+                """, """
+                public record Text(String path, String text) {}
+                """, """
+                @Job(topic = "file.read", reply = "file.text")
+                public final class ReadFile {
+                    private final Device device;
+                    public ReadFile(Device device) { this.device = device; }
+                    public Text run(Read r) { return new Text(r.path(), ""); }
+                }
+                """, """
+                @Job(topic = "file.write")
+                public final class WriteFile {
+                    public void run(Text t) {}
+                }
+                """, """
+                @Component(lane = "editor")
+                public final class Editor { @Subscribe(topic = "file.text") public void read(Text t) {} }
+                """, """
+                @Configuration
+                public final class Parts { @Provides public Device device() { return null; } }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        List<String> config = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config");
+        assertTrue(config.contains("job app.ReadFile file.read Read -> file.text Text"), config.toString());
+        assertTrue(config.contains("job app.WriteFile file.write Text"), config.toString());
+    }
+
+    private static String job(String body) {
+        return """
+                @Job(topic = "ask", reply = "told")
+                public final class Answer {
+                %s
+                }
+                """.formatted(body);
+    }
+
+    private static final String TOLD = """
+            @Component(lane = "listener")
+            public final class Listener { @Subscribe(topic = "told") public void told(Told t) {} }
+            """;
+
+    private static final String MESSAGES_ASK = """
+            public record Ask(String q) {}
+            """;
+
+    private static final String MESSAGES_TOLD = """
+            public record Told(String a) {}
+            """;
+
+    @Test
+    void aJobKeepsNoStateThatChanges() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, job("""
+                    private int asked;
+                    public Told run(Ask a) { return new Told(a.q()); }
+                """)), "has the field asked, which is not final");
+    }
+
+    @Test
+    void aJobsFieldIsShareableOrSupplied() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, job("""
+                    private final java.util.List<String> seen = new java.util.ArrayList<>();
+                    public Told run(Ask a) { return new Told(a.q()); }
+                """)), "has the field seen, a java.util.List<java.lang.String>, which is neither shareable nor"
+                + " something the container supplies");
+    }
+
+    @Test
+    void aJobDeclaresNoThrows() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, job("""
+                    public Told run(Ask a) throws java.io.IOException { return new Told(a.q()); }
+                """)), "Answer.run declares java.io.IOException. A failure a job expects is part of its reply");
+    }
+
+    @Test
+    void aJobsRequestCrossesALaneAsItself() {
+        onlyError(app(MESSAGES_TOLD, TOLD, """
+                public final class Ask { public int[] counts; }
+                """, job("""
+                    public Told run(Ask a) { return new Told(""); }
+                """)), "T2.4: Answer.run's request on \"ask\" is app.Ask");
+    }
+
+    @Test
+    void aReplyNobodyHearsIsALostResult() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, MESSAGES_ASK, MESSAGES_TOLD, job("""
+                    public Told run(Ask a) { return new Told(a.q()); }
+                """)), "@Job Answer replies on \"told\", and no component subscribes to it");
+    }
+
+    @Test
+    void aReplyMustBeNamedWhenOneIsReturned() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, """
+                @Job(topic = "ask")
+                public final class Answer { public Told run(Ask a) { return new Told(a.q()); } }
+                """), "Answer.run returns app.Told, and @Job Answer names no reply");
+    }
+
+    @Test
+    void oneJobPerTopic() {
+        onlyError(app(MESSAGES_ASK, """
+                @Job(topic = "ask")
+                public final class One { public void run(Ask a) {} }
+                """, """
+                @Job(topic = "ask")
+                public final class Two { public void run(Ask a) {} }
+                """), "both take requests on \"ask\"");
+    }
+
+    @Test
+    void aJobIsReachedByPublishingNeverHeld() {
+        onlyError(app(MESSAGES_ASK, """
+                @Job(topic = "ask")
+                public final class Answer { public void run(Ask a) {} }
+                """, """
+                @Component(lane = "asker")
+                public final class Asker { public Asker(Answer answer) {} }
+                """), "Asker takes the job Answer. A job is reached by publishing its topic");
+    }
+
+    @Test
+    void aJobTakesNoComponent() {
+        onlyError(app(MESSAGES_ASK, """
+                @Component(lane = "asker")
+                public final class Asker {}
+                """, """
+                @Job(topic = "ask")
+                public final class Answer { public Answer(Asker asker) {} public void run(Ask a) {} }
+                """), "T2.3: @Job Answer takes the component Asker");
+    }
+
+    @Test
+    void aJobsRequestTopicCarriesOneType() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, """
+                @Component(lane = "watcher")
+                public final class Watcher { @Subscribe(topic = "ask") public void saw(Told t) {} }
+                """, """
+                @Job(topic = "ask")
+                public final class Answer { public void run(Ask a) {} }
+                """), "T4.1: the topic \"ask\" carries app.Ask at Answer.run and app.Told to Watcher.saw");
     }
 
     // --- T2.4: a payload must be able to cross a lane as itself --------------------------------------------------

@@ -26,7 +26,7 @@
 
 template  vexel-desktop
 title     VexelRay desktop application
-summary   a tabbed text editor with a file navigator, wired the way the reference implementation is
+summary   a tabbed text editor with a file navigator: a -core controller and a -gui view, talking by messages
 folder    ${artifactId}
 next      cd ${artifactId} && mvn compile exec:exec
 
@@ -130,7 +130,7 @@ slot tests
     kind      flag
     required  no
     preset    yes
-    help      unit tests for the model, the file policy, the Markdown spans, the navigator and the real tree headless
+    help      unit tests for the editor, the jobs, the file policy, the Markdown spans, the navigator and the real tree headless
 
 # ---- worked out rather than asked for ------------------------------------------------
 
@@ -147,8 +147,16 @@ fill always codecVersion     text     ${vexelrayVersion}
 fill always junitVersion   text     5.11.4
 
 # ---- the tree ------------------------------------------------------------------------
+#
+# A parent and two modules, split where the dependency edge falls. -core is the
+# controller: the editor, which decides, and the jobs that touch the disk; it builds
+# against no widget, so its tests need no window. -gui is the view and the framework
+# integration: the window, the entry point, the wiring and the native build. The two
+# talk by messages and nothing else. Everything is run from the parent's folder.
 
 file pom.xml
+file ${artifactId}-core/pom.xml                            from core-pom.xml
+file ${artifactId}-gui/pom.xml                             from gui-pom.xml
 file .gitignore                                            from gitignore
 file README.md
 
@@ -160,37 +168,53 @@ file docs/framework-notes.md
 file docs/retrospective.md
 file docs/TODO.md
 
+# ---- -core: the controller -----------------------------------------------------------
+#
 # A file's source is a plain name inside files/, and its path is where it lands, so
 # every one of these needs its "from" -- the two are only ever the same for a file
-# that sits at the top of the project.
+# that sits at the top of the project. Core lists the module's component and jobs:
+# the processor compiling -gui sees only the sources of -gui, and Core, named as a
+# starter, is how the wiring hears of the rest.
 
-file src/main/java/${packagePath}/${className}.java  from App.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/Core.java        from Core.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/Messages.java    from Messages.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/Editor.java      from Editor.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/Doc.java         from Doc.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/ReadFile.java    from ReadFile.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/WriteFile.java   from WriteFile.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/FindPath.java    from FindPath.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/CreateFile.java  from CreateFile.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/TextFile.java    from TextFile.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/Markdown.java    from Markdown.java
 
-# The one class the processor reads, @VexelApp's. It names the automation starter in
-# every build, the release one too: the sockets start off, and the title bar's plug
-# shows whether they are open and whether anything is or was connected.
+file ${artifactId}-core/src/test/java/${packagePath}/core/DocTest.java      from DocTest.java      when tests
+file ${artifactId}-core/src/test/java/${packagePath}/core/EditorTest.java   from EditorTest.java   when tests
+file ${artifactId}-core/src/test/java/${packagePath}/core/FilesTest.java    from FilesTest.java    when tests
+file ${artifactId}-core/src/test/java/${packagePath}/core/TextFileTest.java from TextFileTest.java when tests
+file ${artifactId}-core/src/test/java/${packagePath}/core/MarkdownTest.java from MarkdownTest.java when tests
 
-file src/main/java/${packagePath}/${className}App.java  from AppDeclaration.java
-file src/main/java/${packagePath}/Recipes.java       from Recipes.java
-file src/main/java/${packagePath}/Ui.java            from Ui.java
-file src/main/java/${packagePath}/Model.java         from Model.java
-file src/main/java/${packagePath}/Doc.java           from Doc.java
-file src/main/java/${packagePath}/Look.java          from Look.java
-file src/main/java/${packagePath}/Type.java          from Type.java
-file src/main/java/${packagePath}/Landmarks.java     from Landmarks.java
-file src/main/java/${packagePath}/Motion.java        from Motion.java
-file src/main/java/${packagePath}/Workspace.java     from Workspace.java
-file src/main/java/${packagePath}/Buffer.java        from Buffer.java
-file src/main/java/${packagePath}/Navigator.java     from Navigator.java
-file src/main/java/${packagePath}/FolderSource.java  from FolderSource.java
-file src/main/java/${packagePath}/Actions.java       from Actions.java
-file src/main/java/${packagePath}/Session.java       from Session.java
+# ---- -gui: the view and the framework integration --------------------------------------
 
-# Code with no Gui in it goes in a sub-package with public types, so it can be tested
-# without a window and grown without the view. See TextFile's note.
+file ${artifactId}-gui/src/main/java/${packagePath}/${className}.java  from App.java
 
-file src/main/java/${packagePath}/text/TextFile.java  from TextFile.java
-file src/main/java/${packagePath}/text/Markdown.java  from Markdown.java
+# The one class the processor reads, @VexelApp's. It names Core, and the automation
+# starter in every build, the release one too: the sockets start off, and the title
+# bar's plug shows whether they are open and whether anything is or was connected.
+
+file ${artifactId}-gui/src/main/java/${packagePath}/${className}App.java  from AppDeclaration.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Recipes.java       from Recipes.java
+file ${artifactId}-gui/src/main/java/${packagePath}/View.java          from View.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Intent.java        from Intent.java
+file ${artifactId}-gui/src/main/java/${packagePath}/QuitGate.java      from QuitGate.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Ui.java            from Ui.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Look.java          from Look.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Type.java          from Type.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Landmarks.java     from Landmarks.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Motion.java        from Motion.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Workspace.java     from Workspace.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Buffer.java        from Buffer.java
+file ${artifactId}-gui/src/main/java/${packagePath}/Navigator.java     from Navigator.java
+file ${artifactId}-gui/src/main/java/${packagePath}/FolderSource.java  from FolderSource.java
 
 # The mark, and what a native build needs. The .ico is copied as it is (it is not
 # text, so nothing is substituted into it): the window wears it from the class
@@ -198,25 +222,23 @@ file src/main/java/${packagePath}/text/Markdown.java  from Markdown.java
 # .svg is its source; the metadata is this program's own, everything else in a
 # native image registers itself.
 
-file src/main/rc/${artifactId}.ico  from new-app.ico
-file src/main/rc/${artifactId}.svg  from new-app.svg
-file src/main/rc/${artifactId}.rc   from app.rc
-file src/main/rc/${artifactId}.manifest  from app.manifest
+file ${artifactId}-gui/src/main/rc/${artifactId}.ico       from new-app.ico
+file ${artifactId}-gui/src/main/rc/${artifactId}.svg       from new-app.svg
+file ${artifactId}-gui/src/main/rc/${artifactId}.rc        from app.rc
+file ${artifactId}-gui/src/main/rc/${artifactId}.manifest  from app.manifest
 
 # The native build needs rc.exe and the MSVC link.exe, which are on PATH only in a
 # Visual Studio developer prompt (and under Git Bash coreutils' link.exe shadows the
-# linker). This finds vcvars64 with vswhere and runs mvn inside it. It is written
-# with CR LF line endings whatever this copy has: see Scaffold.isBatchFile.
+# linker). This finds vcvars64 with vswhere and runs mvn inside it, in the parent's
+# folder, so it builds both modules. It is written with CR LF line endings whatever
+# this copy has: see Scaffold.isBatchFile.
 
 file native-build.cmd
-file src/main/resources/META-INF/native-image/${groupId}/${artifactId}/reachability-metadata.json  from reachability-metadata.json
+file ${artifactId}-gui/src/main/resources/META-INF/native-image/${groupId}/${artifactId}/reachability-metadata.json  from reachability-metadata.json
 
-file src/test/java/${packagePath}/ModelTest.java     from ModelTest.java  when tests
-file src/test/java/${packagePath}/LookTest.java      from LookTest.java   when tests
-file src/test/java/${packagePath}/FolderSourceTest.java from FolderSourceTest.java when tests
-file src/test/java/${packagePath}/EditorTest.java    from EditorTest.java when tests
-file src/test/java/${packagePath}/text/TextFileTest.java from TextFileTest.java when tests
-file src/test/java/${packagePath}/text/MarkdownTest.java from MarkdownTest.java when tests
+file ${artifactId}-gui/src/test/java/${packagePath}/ViewTest.java          from ViewTest.java          when tests
+file ${artifactId}-gui/src/test/java/${packagePath}/LookTest.java          from LookTest.java          when tests
+file ${artifactId}-gui/src/test/java/${packagePath}/FolderSourceTest.java  from FolderSourceTest.java  when tests
 
 # ---- what it will not build without ---------------------------------------------------
 #
@@ -228,9 +250,12 @@ file src/test/java/${packagePath}/text/MarkdownTest.java from MarkdownTest.java 
 # absent.
 
 needs dev.vexelray.build:vexelray-build-maven-plugin:${buildVersion}
+needs dev.vexelray.framework:vexelray-framework-api:${frameworkVersion}
+needs dev.vexelray.framework:vexelray-framework-core:${frameworkVersion}
 needs dev.vexelray.framework:vexelray-framework-shell:${frameworkVersion}
 needs dev.vexelray.framework:vexelray-framework-automation:${frameworkVersion}
 needs dev.vexelray.framework:vexelray-framework-processor:${frameworkVersion}
+needs dev.vexelray.gui:vexelray-gui-core:${guiVersion}
 needs dev.vexelray.gui:vexelray-gui-widget:${guiVersion}
 needs dev.vexelray.gui:vexelray-gui-krono:${guiVersion}
 needs dev.vexelray.gui:vexelray-gui-automation:${guiVersion}

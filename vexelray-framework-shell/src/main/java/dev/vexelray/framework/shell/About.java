@@ -11,6 +11,7 @@ import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.icons.Icon;
+import dev.vexelray.gui.scroll.Scrollbars;
 import dev.vexelray.gui.widget.Button;
 import dev.vexelray.gui.widget.IconButton;
 import dev.vexelray.gui.widget.TitleBar;
@@ -233,8 +234,9 @@ final class About {
                 .children(signature, words);
         arrivals.add(words);
 
-        Node body = g.column().role("about-page").width(Length.FILL).height(Length.grow(1f))
-                .alignItems(AlignItems.CENTER).scroll(false, true).children(hero);
+        // The page scrolls in a Scroller with a bar beside it, for a window made shorter than the page.
+        Node body = Scrollbars.vertical(g, g.column().width(Length.FILL).alignItems(AlignItems.CENTER).children(hero))
+                .node().role("about-page").width(Length.FILL).height(Length.grow(1f));
         return new Page(body, foot, mark, signature, List.copyOf(arrivals), () -> copy.label("Copy info"));
     }
 

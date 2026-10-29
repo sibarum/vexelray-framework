@@ -64,7 +64,7 @@ component that throws ends the application, because nothing declared that failur
 | Declaration | `@Component(lane)`, `@Subscribe`, `@Publishes` | what the nine rulings below (accepted 2026-10-01) ordered and is not built: the capture rule | |
 | Colour | T2.1 to T2.4 (T2.4 as a check: payloads must be deeply immutable), T3.1, T3.7 | the copier's pattern (annotate a record, processor emits the copy) | its annotation's name; the capture check's mechanism |
 | Channels | T4.1, T4.3, T4.4, T4.7 for declared sends | | the graph as generated data (additive) |
-| Completion | `Lanes.offload()`, `app.post` | two doors | `kronometer` `offload` and the timeline door unbuilt |
+| Completion | `@Job` with its reply topic (section 10), `Lanes.offload()`, `app.post` | two doors; the executors withdrawn from application parts | `kronometer` `offload` and the timeline door unbuilt |
 | Liveness | watchdog, busy gauge, shutdown bound, policy seam | main-thread heartbeat that knows a dialog is up | |
 | Tree | | T3.5: the tree does not restrict messaging | **T3.4, T3.6, T6.3** |
 
@@ -254,7 +254,24 @@ and so took callbacks instead. 0.2 does not give a provided object a mailbox. It
 under one logic lane (T1.6) costs no thread. A provided value is then what its name says, a value: shareable or a
 framework service (T2.6), with no behaviour that reacts to anything.
 
-### 10. Offload as a request with a reply-to (proposed 2026-10-18, not ruled)
+### 10. Offload as a request with a reply-to (proposed 2026-10-18, ruled and built 2026-10-26)
+
+**Ruled 2026-10-26: `@Job` is the offload API, and it is built.** The user's reason: the application's parts should
+talk by message passing as far as it reaches, and slow work done as a lambda handed to an executor is the one place
+the framework still asked for a closure instead of a message. The template's split into a `-core` controller and a
+`-gui` view was the occasion: its disk work moved from `gui.offload()` lambdas to four jobs. What was built is
+`dev.vexelray.framework.api.Job` (topic and reply), the processor's checks (below, all of them, from declarations),
+`Jobs` in `-shell`, which the generated wiring calls to subscribe each job on the offload lane, and `JobsTest`. The
+half that withdraws the raw executors from application parts is **not** done: see *What it does not settle*, and
+TODO.md.
+
+**And the same day: a configuration lists the components and jobs of its module.** Splitting the template found that a
+`@Component` compiled in another module than the `@VexelApp` is a class file to the processor, which reads only the
+round's sources, so nothing constructed it and nothing said so. `@Configuration(components = ..., jobs = ...)` lists
+them, and the application names that configuration among its starters, for the reason `@VexelApp(starters)` gives:
+listed, not discovered. The processor reads a listed component's `@Subscribe` and `@Publishes` off its class file, so
+every channel check covers it as it covers the application's own (`VexelProcessorTest`,
+`aComponentAndAJobFromAnotherModuleAreWiredThroughTheConfigurationThatListsThem`).
 
 **Where it came from.** The capture rule (T2.5) was stuck between a heavy check and no check (build order, step 4),
 because offload today is callbacks: `GuiApp.offload(work, landed, failed)` takes three lambdas, and `Lanes.offload()`
@@ -330,8 +347,8 @@ written against v1 would write offload as lambdas into `Lanes.offload()`. Moving
 out. Adding `@Job` alone is additive; withdrawing the executors from application parts is not, so that half is the
 part to rule on before the freeze.
 
-**To rule on:** adopt this as the v1 offload API (`@Job`, the reply topic, and the executors withdrawn from
-application parts). Failure's shape is ruled (above).
+**Ruled (above):** `@Job` and the reply topic are the v1 offload API. Failure's shape is ruled (above). Still to do
+before the freeze: withdraw the executors from application parts, which is the breaking half.
 
 ## Build order once the rulings are taken
 
@@ -353,7 +370,9 @@ Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) ord
    lambda. What is left is a Trees-based check that resolves each captured name (accurate, and the heaviest
    piece in the processor) or a rule the reader keeps. See TODO, *Decide now. Two promises need a method body*.
    **Proposed 2026-10-18 instead: section 10**, which makes slow work a declared job with a reply topic, so there is
-   no lambda to capture with and the check needs only declarations.
+   no lambda to capture with and the check needs only declarations. **Ruled and built 2026-10-26** for the
+   framework's path; the raw executors are still reachable from an application part, so T2.5 is held only where an
+   application uses `@Job`.
 5. **Supervision's missing halves:** the main-thread heartbeat that knows a dialog is up, and `Overrun` per
    lane.
 6. **The completion path:** route offload completions into the timeline through `KronBridge`.

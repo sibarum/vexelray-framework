@@ -114,39 +114,48 @@ runs the tests that came with it, including one that builds the real window cont
 
 ## 5. Find your way around
 
-Read these in this order:
+Two modules, under the folder `mvn` runs in: `my-app-core` is the controller, `my-app-gui` the view and everything
+about the window. They talk by messages and nothing else. Read these in this order:
 
 | File | What it is |
 | --- | --- |
-| `MyApp.java` | The entry point and a few constants (name, title, size, icon). Nothing else |
-| `MyAppApp.java` | The `@VexelApp` declaration: the name, the window, and the starters (the automation sockets, [step 6](#6-build-a-native-executable)) |
-| `Recipes.java` | **What the application is made of.** One `@Provides` method per part. New parts go here |
-| `Model.java`, `Doc.java` | All of the application's state, as one immutable value that changes by being replaced |
-| `Ui.java` | The window's contents. Holds no state; it redraws from the model |
-| `Actions.java` | Every command, the questions some of them ask, and the close check |
-| `Session.java` | What is remembered between runs |
-| `text/` | Code with no user interface in it, in public classes, tested in milliseconds. Your own logic belongs in packages like this |
+| `my-app-core/.../core/Messages.java` | **Every message the parts send each other**, each record beside its topic. Start here |
+| `my-app-core/.../core/Editor.java` | **The controller**: a component on a lane of its own that makes every decision and owns the session (`Doc.java`) |
+| `my-app-core/.../core/ReadFile.java` and the other jobs | Every touch of the disk, as a `@Job` on the offload lane: a request in, a reply out |
+| `my-app-core/.../core/Core.java` | The list of `-core`'s components and jobs, which is how the wiring hears of them |
+| `my-app-gui/.../MyApp.java` | The entry point and a few constants (name, title, size, icon). Nothing else |
+| `my-app-gui/.../MyAppApp.java` | The `@VexelApp` declaration: the name, the window, and the starters (`Core`, and the automation sockets, [step 6](#6-build-a-native-executable)) |
+| `my-app-gui/.../Recipes.java` | What `-gui` builds: one `@Provides` method per part |
+| `my-app-gui/.../View.java` | **The view**: a component that shows what the editor decides and tells it what the person did. It decides nothing |
+| `my-app-gui/.../Ui.java` | The window's contents. Holds no state |
+
+`-core` builds against no widget, so its tests need no window: your own logic belongs there.
 
 What is **not** there is the point: opening input, the clipboard, remembering where the window was, the clock, the
 frame loop, the dialogs, the command line and closing everything in order are the framework's.
 
-After a build, open `target/generated-sources/annotations/.../MyAppAppWiring.java` (the `@VexelApp` class's name,
-plus `Wiring`). It is the code the framework wrote from `Recipes.java`, and it shows exactly which part is built
-when.
+After a build, open `my-app-gui/target/generated-sources/annotations/.../MyAppAppWiring.java` (the `@VexelApp`
+class's name, plus `Wiring`). It is the code the framework wrote from `Recipes.java`, the components and the jobs,
+and it shows exactly which part is built when, and on which lane.
 
 ### Adding a part
 
-A part is a method in `Recipes`. Its parameters are what it needs; the framework supplies them:
+Most new behaviour is a message: a record in `Messages`, a `@Subscribe` method where it arrives, and a `@Publishes`
+where it is sent. Something with state of its own and an order to keep is a `@Component(lane = "...")`; slow work, the
+disk or the network, is a `@Job`. A component or job in `-core` goes on `Core`'s list, or nothing builds it.
+
+A part that is built once and handed to others is a method in `Recipes`. Its parameters are what it needs; the
+framework supplies them:
 
 ```java
 @Provides
-WordCount wordCount(Model model, Gui gui) {
-    return new WordCount(model, gui);
+WordCount wordCount(Ui ui, Gui gui) {
+    return new WordCount(ui, gui);
 }
 ```
 
-There is no ordering to declare. Because this takes a `Gui`, it is built after the `Gui` exists; one that took only
-`Model` would be built before it. If you ask for something nothing provides, or two parts each need the other, it is
+There is no ordering to declare. Because this takes a `Gui`, it is built after the `Gui` exists; one that took
+neither would be built before it. If you ask for something nothing provides, or two parts each need the other, it is
 a compile error with the reason in it, not a crash at startup. [overview.md](overview.md#phases) explains how the
 order is worked out.
 
@@ -184,13 +193,13 @@ Visual Studio developer prompt.
 ./native-build.cmd -Pnative-release package -DskipTests
 ```
 
-writes `target/my-app.exe`, the build you ship: no console window.
+writes `my-app-gui/target/my-app.exe`, the build you ship: no console window.
 
 ```bash
 ./native-build.cmd -Pnative package -DskipTests
 ```
 
-writes `target/my-app-debug.exe`, with a console, for testing: it prints the `automation: localhost:<port>` line.
+writes `my-app-gui/target/my-app-debug.exe`, with a console, for testing: it prints the `automation: localhost:<port>` line.
 
 On Linux there is one build, with plain `mvn`:
 
@@ -198,7 +207,7 @@ On Linux there is one build, with plain `mvn`:
 mvn -Pnative-linux package -DskipTests
 ```
 
-writes `target-linux/my-app`.
+writes `my-app-gui/target-linux/my-app`.
 
 Every build carries the automation sockets, remote control and diagnostics, and starts with them off. A person turns
 them on from the plug in the title bar, which restarts the application with them open; its lamps show each socket
@@ -210,9 +219,9 @@ be driven. That includes `mvn compile exec:exec`, whose `automation` property is
 `--automation.available=none` (or `control`, or `diagnostics`; `VEXELRAY_AUTOMATION_AVAILABLE` in the environment)
 takes them out of a run altogether, and with neither available the plug is not shown.
 
-The sockets come from one annotation: `src/main/java/.../MyAppApp.java` declares the app with the automation starter.
+The sockets come from one annotation: `my-app-gui/src/main/java/.../MyAppApp.java` declares the app with the automation starter.
 
-The application's icon is `src/main/rc/my-app.ico`. It starts as the framework's "new app" mark; replace that one
+The application's icon is `my-app-gui/src/main/rc/my-app.ico`. It starts as the framework's "new app" mark; replace that one
 file and the window, the taskbar button and the `.exe` all change together. The generated project's README says how
 to render one from an SVG.
 

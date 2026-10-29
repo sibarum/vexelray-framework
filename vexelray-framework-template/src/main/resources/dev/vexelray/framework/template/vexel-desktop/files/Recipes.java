@@ -1,37 +1,37 @@
 package ${packageName};
 
+import ${packageName}.core.Messages;
+import ${packageName}.core.Messages.Begin;
 import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Provides;
-import dev.vexelray.framework.core.Launch;
+import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.shell.Appearance;
-import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.core.Gui;
-import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.widget.TitleBar;
+import sibarum.atchung.Atchung;
 import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
 
-import java.nio.file.Path;
-import java.util.List;
-
 /**
- * What this application builds — one recipe per part — and nothing about when.
+ * What this module builds — one recipe per part — and nothing about when.
  *
  * <h2>The wiring is generated from this</h2>
  *
- * <p>{@code ${className}AppWiring} is written by {@code vexelray-framework-processor} while this project compiles, and
+ * <p>{@code ${className}AppWiring} is written by {@code vexelray-framework-processor} while this module compiles, and
  * lands in {@code target/generated-sources/annotations}. It calls each method below once, in the phase its
- * parameters put it in: <b>a part's phase is the latest phase of anything it takes.</b> So the look, the model and
- * the session store exist before the {@code Gui} does; the window's contents wait for the {@code Gui}, its clock and
- * its title bar; and the restore, which takes the {@code Shell}, comes last, when the window and the dialogs exist.
- * There is no phase to declare and none to get wrong. Open the generated file after a build to see the order.
+ * parameters put it in: <b>a part's phase is the latest phase of anything it takes.</b> So the look exists before
+ * the {@code Gui} does; the window's contents wait for the {@code Gui}, its clock and its title bar; and the start,
+ * which takes the {@code Shell}, comes last, when the window and the dialogs exist. There is no phase to declare and
+ * none to get wrong. Open the generated file after a build to see the order.
  *
- * <p>The automation sockets are not here. They come from {@code AutomationStarter}, which {@code ${className}App}
- * names in its {@code @VexelApp} (see {@link ${className}}).
+ * <h2>Where the rest comes from</h2>
  *
- * <h2>What is not here is the point</h2>
+ * <p>Not every part is a recipe. The {@link View} is a {@code @Component}: a lane of its own, built from its one
+ * constructor, reached by messages. The editor and the jobs that touch the disk are in {@code -core}, and reach the
+ * wiring through {@code Core}, which {@code ${className}App} names among its starters beside {@code AutomationStarter},
+ * the automation sockets.
  *
  * <p>Opening an input backend, installing a clipboard, remembering where the window was, attaching a clock, wiring
  * the frame loop with its wakes and its pacing, parsing the command line, installing the dialogs, and closing
@@ -55,50 +55,27 @@ final class Recipes {
         return Appearance.of(Look.THEME, Length.rem(${className}.MIN_W_EM), Length.rem(${className}.MIN_H_EM));
     }
 
-    /** The one authoritative state, built before the tree because every label is a view onto it. */
-    @Provides
-    Model model() {
-        return new Model();
-    }
-
-    /** What is remembered between runs, over the framework's one settings store. */
-    @Provides
-    Session session(Settings settings, Model model) {
-        return new Session(settings, model);
-    }
-
     /**
      * The window's contents. Needs the {@code Gui}, its clock and its title bar, and no window — so a test can build
-     * the real tree headless ({@code VexelApplication.tree}), which {@code EditorTest} does.
+     * the real tree headless ({@code VexelApplication.tree}), which {@code ViewTest} does.
      *
-     * <p>The clock is for motion: {@link Motion} makes the ramps every widget here animates with. Every change to the
-     * session redraws what is derived from it, on the committing thread — a worker, because every handler is — and
-     * is remembered for next time.
+     * <p>The clock is for motion: {@link Motion} makes the ramps every widget here animates with.
      */
     @Provides
-    Ui ui(Gui gui, Model model, TitleBar titleBar, Session session) {
-        Ui ui = new Ui(gui, new Motion(gui), model, titleBar);
-        model.onChange(doc -> {
-            ui.show(doc);
-            session.remember();
-        });
+    Ui ui(Gui gui, TitleBar titleBar) {
+        Ui ui = new Ui(gui, new Motion(gui), titleBar);
         zoomShortcuts(gui);
         return ui;
     }
 
-    /**
-     * Every command, and the chords for them. Its questions go to the framework's {@code Dialogs}, which are there
-     * from the first phase: asked before the window exists, a question waits for it rather than throwing.
-     */
+    /** The main window's close gate, as messages: built here so the view can answer it and {@link #start} can arm it. */
     @Provides
-    Actions actions(Gui gui, Model model, Ui ui, Dialogs dialogs) {
-        Actions actions = new Actions(gui, model, ui, dialogs);
-        actions.shortcuts();
-        return actions;
+    QuitGate gate(Atchung bus) {
+        return new QuitGate(bus);
     }
 
     /**
-     * Arm the close gate and bring back last time's session.
+     * Arm the close gate and tell the editor to bring back last time's session.
      *
      * <p>Takes the {@code Shell} to be last: restoring the session opens files and writes settings, which a tree built
      * headless for a test must not, and the {@code Shell} is the framework's last-phase value. The gate is the main
@@ -106,12 +83,13 @@ final class Recipes {
      * one that knew about the unsaved files.
      *
      * <p>Run for what it does, so it returns nothing: the wiring calls it once, in the phase its parameters put it in.
+     * The message waits in the editor's mailbox until the framework starts the components.
      */
     @Provides
-    void start(Shell shell, Actions actions, Session session, Launch launch, Gui gui) {
-        shell.windows().main().onClose(actions::guardClose);
-        List<Path> paths = launch.rest().stream().map(Path::of).toList();
-        session.restore(actions, paths, gui.offload());
+    @Publishes(Messages.BEGIN)
+    void start(Shell shell, QuitGate gate, Atchung bus) {
+        shell.windows().main().onClose(gate::guard);
+        bus.publish(Messages.BEGIN_TOPIC, new Begin());
     }
 
     /**

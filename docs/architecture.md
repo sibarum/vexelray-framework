@@ -669,6 +669,14 @@ this build** and exempts a type that arrives as a class file. That is a clean di
 build is always a clean one — a module's own types are all source in the compilation that checks them, so
 a class file is always somebody else's.
 
+**Until an application is two modules, which the template has been since 2026-10-26.** Its `-core` is a class file to
+the processor compiling `-gui`, so for the interface rule `-core`'s public classes are "somebody else's", which only
+makes the rule more lenient there; it is still held in `-core`'s own compilation. What it broke was worse: a
+`@Component` in `-core` was never constructed, and nothing said so, because the processor finds components among the
+round's sources. The answer is the starters' answer: `-core`'s `@Configuration(components = ..., jobs = ...)` lists
+them, `-gui` names that configuration as a starter, and the processor reads the listed classes' mailboxes and sends off
+their class files. A component left off the list is still built by nobody, silently; see TODO.md.
+
 **And public ones, not package-private ones.** Generating the template's wiring found the second edge. Its
 `Model` and `Ui` are the application's own concrete classes, and neither a component nor a value, so the rule
 as it stood would have made the witness wrap each in an interface nothing else implements. The same argument

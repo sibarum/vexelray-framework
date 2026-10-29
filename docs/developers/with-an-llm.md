@@ -57,7 +57,7 @@ This project was generated from the vexel-desktop template, which is a small tex
 I'm turning it into a log viewer: it opens a .log file, follows it as it grows, colours
 lines by level, and filters them by a word typed into a field above the text.
 
-Read CLAUDE.md, README.md, Recipes.java, Model.java and Ui.java first. Then tell me which
+Read CLAUDE.md, README.md, Messages.java, Editor.java and View.java first. Then tell me which
 of the generated parts we keep as they are, which we change, and which we delete, and
 propose the order to do it in, smallest working step first. Don't change any files yet.
 ```
@@ -67,7 +67,7 @@ Correct the plan. That is much cheaper than correcting the code. Then ask for on
 ## Requests that work
 
 **One slice at a time, model to screen, with its test.** "Add level colouring: a pure function from a line to its
-spans in `text/`, unit-tested, called from where `Buffer` calls `Markdown.spans` now." A slice like that is small
+spans in `-core`, unit-tested, called from where `Buffer` calls `Markdown.spans` now." A slice like that is small
 enough to review in one sitting. "Build the log viewer" is not.
 
 **Say what done looks like, in a form that can be checked.** Name the `ottermate` run that proves it:

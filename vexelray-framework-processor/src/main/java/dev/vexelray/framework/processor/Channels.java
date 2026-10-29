@@ -105,7 +105,36 @@ final class Channels {
         return out;
     }
 
-    void check(Graph graph) {
+    /**
+     * One declared {@code @Job}: where its requests arrive and what they are, and where its answer goes. A job run
+     * only for its effect has no reply, and {@code replyType} is then {@code null}.
+     */
+    record JobChannel(TypeElement job, ExecutableElement run, String topic, TypeMirror request, String reply,
+                      TypeMirror replyType) {
+
+        String name() {
+            return job.getQualifiedName().toString();
+        }
+    }
+
+    /** A job's channels, or {@code null} when its shape is wrong (already reported by {@code Declarations}). */
+    JobChannel job(TypeElement job) {
+        ExecutableElement run = Declarations.run(job);
+        if (run == null) {
+            return null;
+        }
+        AnnotationMirror mirror = mirrors.find(job, dev.vexelray.framework.api.Job.class);
+        String reply = mirrors.string(mirror, "reply");
+        boolean effect = run.getReturnType().getKind() == javax.lang.model.type.TypeKind.VOID;
+        return new JobChannel(job, run, mirrors.string(mirror, "topic"), run.getParameters().get(0).asType(), reply,
+                effect || reply.isBlank() ? null : run.getReturnType());
+    }
+
+    /**
+     * @param application whether this compilation holds the {@code @VexelApp}, so every channel is in view: only then
+     *                    can a reply nobody hears be told from one heard in another module
+     */
+    void check(Graph graph, boolean application) {
         List<Mailbox> all = new ArrayList<>();
         for (TypeElement component : graph.componentsSeen()) {
             all.addAll(mailboxes(component));
@@ -124,6 +153,59 @@ final class Channels {
             mainThreadSends(publisher, byTopic);
         }
         blockingCycles(new LinkedHashSet<>(graph.componentsSeen()), byTopic);
+        jobs(graph.jobsSeen(), byTopic, application);
+    }
+
+    /**
+     * A job's two channels against everything else declared: one job per request topic, a topic carrying one type
+     * whoever is at the other end (T4.1), and, in an application, a reply somebody hears.
+     */
+    private void jobs(List<TypeElement> declared, Map<String, List<Mailbox>> byTopic, boolean application) {
+        Map<String, JobChannel> byRequest = new LinkedHashMap<>();
+        for (TypeElement j : declared) {
+            JobChannel job = job(j);
+            if (job == null) {
+                continue;
+            }
+            JobChannel first = byRequest.putIfAbsent(job.topic(), job);
+            if (first != null) {
+                error(j, "@Job " + Mirrors.simple(j) + " and @Job " + Mirrors.simple(first.job()) + " both take requests"
+                        + " on \"" + job.topic() + "\". A request is answered once: give each job its own topic");
+            }
+            sameType(job.run(), job.topic(), job.request(), byTopic);
+            if (job.replyType() == null) {
+                continue;
+            }
+            sameType(job.run(), job.reply(), job.replyType(), byTopic);
+            if (application && byTopic.getOrDefault(job.reply(), List.of()).isEmpty()) {
+                error(job.run(), "@Job " + Mirrors.simple(j) + " replies on \"" + job.reply() + "\", and no component"
+                        + " subscribes to it. A reply nobody hears is a lost result, which this framework refuses as"
+                        + " it refuses a full mailbox: subscribe to it, or make the job void if it is run for its"
+                        + " effect");
+            }
+        }
+        for (JobChannel a : byRequest.values()) {
+            for (JobChannel b : byRequest.values()) {
+                if (a.replyType() != null && a.reply().equals(b.topic())
+                        && !a.replyType().toString().equals(b.request().toString())) {
+                    error(a.run(), "T4.1: @Job " + Mirrors.simple(a.job()) + " replies " + a.replyType() + " on \""
+                            + a.reply() + "\", where @Job " + Mirrors.simple(b.job()) + " takes " + b.request()
+                            + ". A topic is a name and a type: rename one");
+                }
+            }
+        }
+    }
+
+    /** T4.1 for a job's end of a channel: the topic carries the same type to every mailbox on it. */
+    private void sameType(ExecutableElement run, String topic, TypeMirror type, Map<String, List<Mailbox>> byTopic) {
+        for (Mailbox m : byTopic.getOrDefault(topic, List.of())) {
+            if (!m.payload().toString().equals(type.toString())) {
+                error(run, "T4.1: the topic \"" + topic + "\" carries " + type + " at " + Mirrors.where(run) + " and "
+                        + m.payload() + " to " + m.where() + ". A topic is a name and a type, so these are two"
+                        + " channels that happen to share a spelling: rename one");
+                return;
+            }
+        }
     }
 
     /** T4.1. */
@@ -288,7 +370,7 @@ final class Channels {
      * construct ({@code @ConditionalOnType}) is left out, as its mailboxes are. Each section is sorted, so two builds
      * of the same declarations give the same text.
      */
-    String text(Collection<TypeElement> components) {
+    String text(Collection<TypeElement> components, Collection<TypeElement> jobs) {
         Set<TypeElement> live = new LinkedHashSet<>(components);
         List<String> chips = new ArrayList<>();
         List<String> pins = new ArrayList<>();
@@ -314,6 +396,15 @@ final class Channels {
             }
             for (String topic : mirrors.strings(mirrors.find(publisher, Publishes.class), "value")) {
                 sends.add("publishes " + type.getQualifiedName() + " topic=" + topic);
+            }
+        }
+        // A job answers on its reply topic, so it is a sender the Inspector draws. Where its requests arrive has no
+        // line in version 1 of the text: a mailbox there is a component's, drained on a lane, and a job has neither.
+        for (TypeElement j : jobs) {
+            JobChannel job = job(j);
+            if (job != null && job.replyType() != null) {
+                others.add("publisher " + job.name() + " lane=-");
+                sends.add("publishes " + job.name() + " topic=" + job.reply());
             }
         }
         Collections.sort(chips);

@@ -24,6 +24,8 @@ final class Framework {
     static final String PLACEMENTS = "dev.vexelray.framework.shell.Placements";
     /** What generated code calls to report a {@code @Provides} method that returned null; see {@code Absences}. */
     static final String ABSENCES = "dev.vexelray.framework.shell.Absences";
+    /** What the generated wiring calls to subscribe a {@code @Job} to its topic on the offload lane. */
+    static final String JOBS = "dev.vexelray.framework.shell.Jobs";
     static final String APPEARANCE ="dev.vexelray.framework.shell.Appearance";
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";

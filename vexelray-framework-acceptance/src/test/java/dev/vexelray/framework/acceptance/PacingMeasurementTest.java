@@ -163,7 +163,7 @@ class PacingMeasurementTest {
         // Every collection and every safepoint that held the JVM for 3 ms or more. A thread coming back from a
         // native wait cannot run Java until a safepoint in progress ends, so one of these inside a late gap is
         // the whole explanation for it.
-        Path gc = project.dir().resolve("gc-" + timer + ".log");
+        Path gc = project.gui().resolve("gc-" + timer + ".log");
         if (Files.isRegularFile(gc)) {
             for (String line : Files.readAllLines(gc, java.nio.charset.StandardCharsets.UTF_8)) {
                 java.util.regex.Matcher m = java.util.regex.Pattern
