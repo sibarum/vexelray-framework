@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 /** Make an empty file, which the path bar named into being. */
-@Job(topic = Messages.CREATE, reply = Messages.CREATED)
+@Job
 public final class CreateFile {
 
     private static final Log LOG = Log.of("${appName}.files");

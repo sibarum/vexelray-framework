@@ -75,27 +75,29 @@ class VexelProcessorTest {
             // the wiring only because Parts lists them and the application names Parts as a starter.
             Map.entry("lib.Asked", """
                 package lib;
-                public record Asked(String what) {}
+                public record Asked(String what) {
+                    public static final sibarum.atchung.Topic<Asked> TOPIC = sibarum.atchung.Topic.edge(Asked.class);
+                }
                 """),
             Map.entry("lib.Measured", """
                 package lib;
                 public record Measured(String what, int size) {
                     public static final sibarum.atchung.Topic<Measured> TOPIC =
-                            sibarum.atchung.Topic.edge("lib.measured", Measured.class);
+                            sibarum.atchung.Topic.edge(Measured.class);
                 }
                 """),
             Map.entry("lib.Remote", """
                 package lib;
                 import dev.vexelray.framework.api.*;
-                @Component(lane = "remote") @Publishes("lib.ask")
+                @Component(lane = "remote") @Publishes(Asked.class)
                 public final class Remote {
-                    @Subscribe(topic = "lib.measured") public void measured(Measured m) {}
+                    @Subscribe public void measured(Measured m) {}
                 }
                 """),
             Map.entry("lib.Measure", """
                 package lib;
                 import dev.vexelray.framework.api.*;
-                @Job(topic = "lib.ask", reply = "lib.measured")
+                @Job
                 public final class Measure {
                     public Measured run(Asked a) { return new Measured(a.what(), a.what().length()); }
                 }
@@ -216,10 +218,10 @@ class VexelProcessorTest {
             Map.entry("dev.vexelray.framework.shell.Views", """
                 package dev.vexelray.framework.shell;
                 public final class Views {
-                    public static <T> void mailbox(dev.vexelray.gui.core.Gui gui, String declared,
+                    public static <T> void mailbox(dev.vexelray.gui.core.Gui gui,
                                                    sibarum.atchung.Topic<T> topic, java.util.function.Consumer<T> on,
                                                    int capacity, String... keys) {
-                        Shell.LOG.add("view mailbox " + declared + " " + topic.name() + " " + java.util.List.of(keys));
+                        Shell.LOG.add("view mailbox " + topic.name() + " " + java.util.List.of(keys));
                     }
                 }
                 """),
@@ -227,21 +229,26 @@ class VexelProcessorTest {
                 package dev.vexelray.gui.widget;
                 public final class Tree {
                     public static final sibarum.atchung.Topic<Chosen> CHOSEN =
-                            sibarum.atchung.Topic.edge("tree.chosen", Chosen.class);
+                            sibarum.atchung.Topic.edge(Chosen.class);
                     public record Chosen(String tree, Object item) {}
                 }
                 """),
             Map.entry("dev.vexelray.framework.shell.Inboxes", """
                 package dev.vexelray.framework.shell;
                 public final class Inboxes {
-                    public static sibarum.atchung.Inbox of(Shell shell, String name, String lane, String... hears) {
-                        LOG_HEARS.add(String.join(",", hears));
+                    public static sibarum.atchung.Inbox of(Shell shell, String name, String lane,
+                                                           sibarum.atchung.Topic<?>... hears) {
+                        java.util.List<String> names = new java.util.ArrayList<>();
+                        for (sibarum.atchung.Topic<?> t : hears) {
+                            names.add(t.name());
+                        }
+                        LOG_HEARS.add(String.join(",", names));
                         return shell.inbox(name);
                     }
-                    public static <T> void mailbox(Shell shell, String component, String lane, String declared,
+                    public static <T> void mailbox(Shell shell, String component, String lane,
                                                    sibarum.atchung.Topic<T> topic, java.util.function.Consumer<T> on,
                                                    int capacity, String... keys) {
-                        Shell.LOG.add("mailbox " + component + " " + lane + " " + declared + " " + topic.name() + " "
+                        Shell.LOG.add("mailbox " + component + " " + lane + " " + topic.name() + " "
                                 + capacity + " " + java.util.List.of(keys));
                     }
                     public static <T> sibarum.atchung.Sender<T> sender(Shell shell, String component, String lane,
@@ -320,7 +327,7 @@ class VexelProcessorTest {
                 """,
                 """
                 public record Edit(int at) {
-                    public static final sibarum.atchung.Topic<Edit> TOPIC = sibarum.atchung.Topic.edge("edits", Edit.class);
+                    public static final sibarum.atchung.Topic<Edit> TOPIC = sibarum.atchung.Topic.edge(Edit.class);
                 }
                 """,
                 """
@@ -353,7 +360,7 @@ class VexelProcessorTest {
                 @Component
                 public final class Helper {
                     private int heard;
-                    @Subscribe(topic = "edits") public void on(Edit e) { heard++; }
+                    @Subscribe public void on(Edit e) { heard++; }
                 }
                 """,
                 """
@@ -804,7 +811,7 @@ class VexelProcessorTest {
                 @Component
                 public final class Editor {
                     public Editor(sibarum.atchung.Inbox inbox) {}
-                    @Subscribe(topic = "edits") public void on(Edit e) {}
+                    @Subscribe public void on(Edit e) {}
                 }
                 """), "Editor takes its Inbox and also declares a @Subscribe mailbox");
     }
@@ -812,14 +819,14 @@ class VexelProcessorTest {
     /** A payload with its topic declared beside it: what most fixtures below hear. */
     private static final String EDIT = """
             public record Edit(int at) {
-                public static final sibarum.atchung.Topic<Edit> TOPIC = sibarum.atchung.Topic.edge("edits", Edit.class);
+                public static final sibarum.atchung.Topic<Edit> TOPIC = sibarum.atchung.Topic.edge(Edit.class);
             }
             """;
 
     /** A second payload and topic, for a component hearing two channels. */
     private static final String MOVE = """
             public record Move(int by) {
-                public static final sibarum.atchung.Topic<Move> TOPIC = sibarum.atchung.Topic.edge("moves", Move.class);
+                public static final sibarum.atchung.Topic<Move> TOPIC = sibarum.atchung.Topic.edge(Move.class);
             }
             """;
 
@@ -835,12 +842,13 @@ class VexelProcessorTest {
 
     /**
      * T4: a component that hears through its inbox says so with {@code @Hears}, and the channel checks read it: a job's
-     * reply it hears is heard, and the wiring hands the names to the inbox for the startup check.
+     * reply it hears is heard, and the wiring hands the topics to the inbox for the startup check, by the constants the
+     * class literals name.
      */
     @Test
     void aReplyHeardThroughAnInboxIsHeardWhenItIsDeclared() throws Exception {
         String job = """
-                @Job(topic = "ask", reply = "told")
+                @Job
                 public final class Answerer {
                     public Told run(Ask a) { return new Told(a.q()); }
                 }
@@ -849,21 +857,43 @@ class VexelProcessorTest {
                 @VexelApp(name = "demo", title = "Demo")
                 public final class DemoApp {}
                 """;
-        String ask = "public record Ask(String q) {}";
-        String told = "public record Told(String a) {}";
+        String ask = """
+                public record Ask(String q) {
+                    static final sibarum.atchung.Topic<Ask> TOPIC = sibarum.atchung.Topic.edge(Ask.class);
+                }
+                """;
+        String told = """
+                public record Told(String a) {
+                    static final sibarum.atchung.Topic<Told> TOPIC = sibarum.atchung.Topic.edge(Told.class);
+                }
+                """;
+        String other = """
+                public record Other(String o) {
+                    static final sibarum.atchung.Topic<Other> TOPIC = sibarum.atchung.Topic.edge(Other.class);
+                }
+                """;
         assertTrue(build(app, ask, told, job, """
                 @Component
                 public final class Editor { public Editor(sibarum.atchung.Inbox inbox) {} }
-                """).errors().stream().anyMatch(e -> e.contains("replies on \"told\", and no component subscribes")),
+                """).errors().stream().anyMatch(e -> e.contains("answers with Told, and no component hears it")),
                 "without the declaration the reply is unheard");
 
-        Compiled compiled = build(app, ask, told, job, """
-                @Component @Hears({"told", "other"})
+        Compiled compiled = build(app, ask, told, other, job, """
+                @Component @Hears({Told.class, Other.class})
                 public final class Editor { public Editor(sibarum.atchung.Inbox inbox) {} }
                 """);
         assertEquals(List.of(), compiled.errors());
         assertTrue(Files.readString(compiled.out().resolve("app/DemoAppWiring.java"))
-                .contains("Inboxes.of(shell, \"app.Editor\", \"<default>\", \"told\", \"other\")"));
+                .contains("Inboxes.of(shell, \"app.Editor\", \"<default>\", app.Told.TOPIC, app.Other.TOPIC)"));
+    }
+
+    /** A class in {@code @Hears} is a channel like any: one with no declared topic does not compile. */
+    @Test
+    void hearsNamingAPayloadWithNoTopicIsAnError() {
+        onlyError(app("public record Loose(String a) {}", """
+                @Component @Hears(Loose.class)
+                public final class Editor { public Editor(sibarum.atchung.Inbox inbox) {} }
+                """), "T4.1: @Hears on Editor lists Loose, and no topic of it is declared");
     }
 
     /** A component that declares a lane of its own is handed its inbox on that lane of the logic's tick. */
@@ -883,8 +913,8 @@ class VexelProcessorTest {
 
     @Test
     void hearsIsForAComponentThatTakesItsInbox() {
-        onlyError(app("""
-                @Component @Hears("told")
+        onlyError(app(MESSAGES_TOLD, """
+                @Component @Hears(Told.class)
                 public final class Editor { public Editor() {} }
                 """), "Editor declares @Hears and takes no Inbox");
     }
@@ -905,17 +935,17 @@ class VexelProcessorTest {
                 @View
                 public final class Navigator {
                     public Navigator() {}
-                    @Subscribe(topic = "tree.chosen") public void chosen(dev.vexelray.gui.widget.Tree.Chosen c) {}
+                    @Subscribe public void chosen(dev.vexelray.gui.widget.Tree.Chosen c) {}
                 }
                 """);
         assertEquals(List.of(), compiled.errors());
         String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
-        assertTrue(wiring.contains("dev.vexelray.framework.shell.Views.mailbox(shell.gui(), \"tree.chosen\","
+        assertTrue(wiring.contains("dev.vexelray.framework.shell.Views.mailbox(shell.gui(),"
                 + " dev.vexelray.gui.widget.Tree.CHOSEN, navigator::chosen, 64);"), wiring);
 
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
         assertEquals(List.of(), run.phase("config"));
-        assertEquals(List.of("view mailbox tree.chosen tree.chosen []"), run.phase("tree"));
+        assertEquals(List.of("view mailbox dev.vexelray.gui.widget.Tree.Chosen []"), run.phase("tree"));
     }
 
     @Test
@@ -923,7 +953,7 @@ class VexelProcessorTest {
         assertTrue(app("""
                 @Component
                 public final class Logic {
-                    @Subscribe(topic = "tree.chosen") public void chosen(dev.vexelray.gui.widget.Tree.Chosen c) {}
+                    @Subscribe public void chosen(dev.vexelray.gui.widget.Tree.Chosen c) {}
                 }
                 """).stream().anyMatch(e -> e.startsWith("T2.4: Logic.chosen receives")));
     }
@@ -1065,17 +1095,17 @@ class VexelProcessorTest {
                 """, EDIT, MOVE, """
                 @Component(lane = "compose")
                 public final class Composer {
-                    @Subscribe(topic = "edits", capacity = 8) public void edited(Edit e) {}
-                    @Subscribe(topic = "moves") public void moved(Move m) {}
+                    @Subscribe(capacity = 8) public void edited(Edit e) {}
+                    @Subscribe public void moved(Move m) {}
                 }
                 """);
         assertEquals(List.of(), compiled.errors());
         assertTrue(Files.readString(compiled.out().resolve("app/DemoAppWiring.java")).contains(
-                "dev.vexelray.framework.shell.Inboxes.mailbox(shell, \"app.Composer\", \"compose\", \"edits\","
+                "dev.vexelray.framework.shell.Inboxes.mailbox(shell, \"app.Composer\", \"compose\","
                         + " app.Edit.TOPIC, composer::edited, 8);"));
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
-        assertEquals(List.of("mailbox app.Composer compose edits edits 8 []",
-                "mailbox app.Composer compose moves moves 64 []"), run.phase("config"));
+        assertEquals(List.of("mailbox app.Composer compose app.Edit 8 []",
+                "mailbox app.Composer compose app.Move 64 []"), run.phase("config"));
     }
 
     @Test
@@ -1085,14 +1115,14 @@ class VexelProcessorTest {
                 public final class DemoApp {}
                 """, EDIT, MOVE, """
                 @Component
-                public final class One { @Subscribe(topic = "edits") public void on(Edit e) {} }
+                public final class One { @Subscribe public void on(Edit e) {} }
                 """, """
                 @Component
-                public final class Two { @Subscribe(topic = "moves") public void on(Move m) {} }
+                public final class Two { @Subscribe public void on(Move m) {} }
                 """);
         assertEquals(List.of(), compiled.errors());
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
-        assertEquals(List.of("mailbox app.One <default> edits edits 64 []", "mailbox app.Two <default> moves moves 64 []"),
+        assertEquals(List.of("mailbox app.One <default> app.Edit 64 []", "mailbox app.Two <default> app.Move 64 []"),
                 run.phase("config"));
     }
 
@@ -1105,18 +1135,18 @@ class VexelProcessorTest {
                 """, """
                 public record Cell(String id, int value) {
                     public static final sibarum.atchung.Topic<Cell> TOPIC =
-                            sibarum.atchung.Topic.state("cells", Cell.class, Cell::id);
+                            sibarum.atchung.Topic.state(Cell.class, Cell::id);
                 }
                 """, """
                 @Component
                 public final class Sum {
-                    @Subscribe(topic = "cells", key = {"main.a", "main.b"}) public void on(Cell c) {}
+                    @Subscribe(key = {"main.a", "main.b"}) public void on(Cell c) {}
                 }
                 """);
         assertEquals(List.of(), compiled.errors());
         assertTrue(Files.readString(compiled.out().resolve("app/DemoAppWiring.java")).contains(
                 "app.Cell.TOPIC, sum::on, 64, \"main.a\", \"main.b\");"));
-        assertEquals(List.of("mailbox app.Sum <default> cells cells 64 [main.a, main.b]"),
+        assertEquals(List.of("mailbox app.Sum <default> app.Cell 64 [main.a, main.b]"),
                 compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config"));
     }
 
@@ -1124,7 +1154,7 @@ class VexelProcessorTest {
     void aKeyFilterOnAnEdgeIsAnError() {
         onlyError(app(EDIT, """
                 @Component
-                public final class Sink { @Subscribe(topic = "edits", key = "main.a") public void on(Edit e) {} }
+                public final class Sink { @Subscribe(key = "main.a") public void on(Edit e) {} }
                 """), "T4.8: @Subscribe Sink.on filters by key [main.a], and TOPIC is an edge");
     }
 
@@ -1133,11 +1163,11 @@ class VexelProcessorTest {
         onlyError(app("""
                 public record Cell(String id) {
                     public static final sibarum.atchung.Topic<Cell> TOPIC =
-                            sibarum.atchung.Topic.state("cells", Cell.class, Cell::id);
+                            sibarum.atchung.Topic.state(Cell.class, Cell::id);
                 }
                 """, """
                 @Component
-                public final class Sink { @Subscribe(topic = "cells", key = {"a", "a"}) public void on(Cell c) {} }
+                public final class Sink { @Subscribe(key = {"a", "a"}) public void on(Cell c) {} }
                 """), "filters by the keys [a, a], which has a blank or a repeated one");
     }
 
@@ -1148,7 +1178,7 @@ class VexelProcessorTest {
                 public record Edit(int at) {}
                 """, """
                 @Component
-                public final class Sink { @Subscribe(topic = "edits") public void on(Edit e) {} }
+                public final class Sink { @Subscribe public void on(Edit e) {} }
                 """), "T4.1: @Subscribe Sink.on hears Edit, and no topic of it is declared");
     }
 
@@ -1156,12 +1186,12 @@ class VexelProcessorTest {
     void aPayloadWithTwoDeclaredTopicsIsAnError() {
         onlyError(app("""
                 public record Edit(int at) {
-                    public static final sibarum.atchung.Topic<Edit> A = sibarum.atchung.Topic.edge("a", Edit.class);
-                    public static final sibarum.atchung.Topic<Edit> B = sibarum.atchung.Topic.edge("b", Edit.class);
+                    public static final sibarum.atchung.Topic<Edit> A = sibarum.atchung.Topic.edge(Edit.class);
+                    public static final sibarum.atchung.Topic<Edit> B = sibarum.atchung.Topic.edge(Edit.class);
                 }
                 """, """
                 @Component
-                public final class Sink { @Subscribe(topic = "a") public void on(Edit e) {} }
+                public final class Sink { @Subscribe public void on(Edit e) {} }
                 """), "and 2 topics of it are declared (A, B)");
     }
 
@@ -1173,26 +1203,26 @@ class VexelProcessorTest {
                     public record Said(String s) {}
                     public static final sibarum.atchung.Topic<Said> SAID = sibarum.atchung.Topic.of("said", Said.class);
                 }
-                """), "T4.1: the topic SAID does not declare its kind: it is made with Topic.of");
+                """), "T4.1: the topic SAID is not declared as a channel is: it is made with Topic.of");
     }
 
+    /**
+     * T4.1: a channel is named by its payload, so a topic named by a string is refused, edge or state alike. A string is
+     * a name nothing can check the other ends against; a class literal is one javac checks.
+     */
     @Test
-    void aTopicNameCarryingTwoPayloadTypesIsAnError() {
+    void aTopicNamedByAStringIsNotDeclaredAsAChannelIs() {
         onlyError(app("""
                 public record Edit(int at) {
                     public static final sibarum.atchung.Topic<Edit> TOPIC = sibarum.atchung.Topic.edge("edits", Edit.class);
                 }
-                """, """
-                public record Move(int by) {
-                    public static final sibarum.atchung.Topic<Move> TOPIC = sibarum.atchung.Topic.edge("edits", Move.class);
+                """), "T4.1: the topic TOPIC is not declared as a channel is: it is named by a string");
+        onlyError(app("""
+                public record Cell(String id) {
+                    public static final sibarum.atchung.Topic<Cell> TOPIC =
+                            sibarum.atchung.Topic.state("cells", Cell.class, Cell::id);
                 }
-                """, """
-                @Component(lane = "a")
-                public final class Sink { @Subscribe(topic = "edits") public void on(Edit e) {} }
-                """, """
-                @Component(lane = "b")
-                public final class Other { @Subscribe(topic = "edits") public void on(Move m) {} }
-                """), "T4.1: the topic \"edits\" carries");
+                """), "T4.1: the topic TOPIC is not declared as a channel is: it is named by a string");
     }
 
     /**
@@ -1222,7 +1252,7 @@ class VexelProcessorTest {
                 + " \"compose\", app.Edit.TOPIC))"), wiring);
         assertTrue(wiring.contains("new app.Toolbar(shell.senders().to(app.Edit.TOPIC))"), wiring);
         assertTrue(wiring.contains("recipes.start(shell.senders().to(app.Edit.TOPIC))"), wiring);
-        assertEquals(java.util.Set.of("sender app.Composer compose edits", "senders edits"), java.util.Set.copyOf(
+        assertEquals(java.util.Set.of("sender app.Composer compose app.Edit", "senders app.Edit"), java.util.Set.copyOf(
                 compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config")));
     }
 
@@ -1239,7 +1269,7 @@ class VexelProcessorTest {
     @Test
     void aJobAnswersWithItsReplyAndTakesNoSender() {
         onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, EDIT, """
-                @Job(topic = "ask", reply = "told")
+                @Job
                 public final class Answer {
                     public Answer(sibarum.atchung.Sender<Edit> edits) {}
                     public Told run(Ask a) { return new Told(a.q()); }
@@ -1262,12 +1292,12 @@ class VexelProcessorTest {
                 """);
         assertEquals(List.of(), compiled.errors());
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
-        assertEquals(List.of("mailbox lib.Remote remote lib.measured lib.measured 64 []",
+        assertEquals(List.of("mailbox lib.Remote remote lib.Measured 64 []",
                 "inbox lib.Ledgered",
-                "job lib.Measure lib.ask Asked -> lib.measured Measured"), run.phase("config"));
+                "job lib.Measure lib.Asked Asked -> lib.Measured Measured"), run.phase("config"));
         String graph = run.busGraph();
-        assertTrue(graph.contains("publishes lib.Remote topic=lib.ask"), "a send read off a class file:\n" + graph);
-        assertTrue(graph.contains("publishes lib.Measure topic=lib.measured"), "a job answers:\n" + graph);
+        assertTrue(graph.contains("publishes lib.Remote topic=lib.Asked"), "a send read off a class file:\n" + graph);
+        assertTrue(graph.contains("publishes lib.Measure topic=lib.Measured"), "a job answers:\n" + graph);
     }
 
     @Test
@@ -1296,39 +1326,43 @@ class VexelProcessorTest {
                 @VexelApp(name = "demo", title = "Demo")
                 public final class DemoApp {}
                 """, """
-                public record Read(String path) {}
-                """, """
-                public record Text(String path, String text) {
-                    public static final sibarum.atchung.Topic<Text> TOPIC = sibarum.atchung.Topic.edge("file.text", Text.class);
+                public record Read(String path) {
+                    public static final sibarum.atchung.Topic<Read> TOPIC = sibarum.atchung.Topic.edge(Read.class);
                 }
                 """, """
-                @Job(topic = "file.read", reply = "file.text")
+                public record Text(String path, String text) {
+                    public static final sibarum.atchung.Topic<Text> TOPIC = sibarum.atchung.Topic.edge(Text.class);
+                }
+                """, """
+                @Job
                 public final class ReadFile {
                     private final Device device;
                     public ReadFile(Device device) { this.device = device; }
                     public Text run(Read r) { return new Text(r.path(), ""); }
                 }
                 """, """
-                @Job(topic = "file.write")
+                @Job
                 public final class WriteFile {
                     public void run(Text t) {}
                 }
                 """, """
                 @Component(lane = "editor")
-                public final class Editor { @Subscribe(topic = "file.text") public void read(Text t) {} }
+                public final class Editor { @Subscribe public void read(Text t) {} }
                 """, """
                 @Configuration
                 public final class Parts { @Provides public Device device() { return null; } }
                 """);
         assertEquals(List.of(), compiled.errors());
         List<String> config = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config");
-        assertTrue(config.contains("job app.ReadFile file.read Read -> file.text Text"), config.toString());
-        assertTrue(config.contains("job app.WriteFile file.write Text"), config.toString());
+        assertTrue(config.contains("job app.ReadFile app.Read Read -> app.Text Text"), config.toString());
+        assertTrue(config.contains("job app.WriteFile app.Text Text"), config.toString());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("app.Read.TOPIC, readFile::run, app.Text.TOPIC);"), wiring);
     }
 
     private static String job(String body) {
         return """
-                @Job(topic = "ask", reply = "told")
+                @Job
                 public final class Answer {
                 %s
                 }
@@ -1337,16 +1371,18 @@ class VexelProcessorTest {
 
     private static final String TOLD = """
             @Component(lane = "listener")
-            public final class Listener { @Subscribe(topic = "told") public void told(Told t) {} }
+            public final class Listener { @Subscribe public void told(Told t) {} }
             """;
 
     private static final String MESSAGES_ASK = """
-            public record Ask(String q) {}
+            public record Ask(String q) {
+                public static final sibarum.atchung.Topic<Ask> TOPIC = sibarum.atchung.Topic.edge(Ask.class);
+            }
             """;
 
     private static final String MESSAGES_TOLD = """
             public record Told(String a) {
-                public static final sibarum.atchung.Topic<Told> TOPIC = sibarum.atchung.Topic.edge("told", Told.class);
+                public static final sibarum.atchung.Topic<Told> TOPIC = sibarum.atchung.Topic.edge(Told.class);
             }
             """;
 
@@ -1377,10 +1413,13 @@ class VexelProcessorTest {
     @Test
     void aJobsRequestCrossesALaneAsItself() {
         onlyError(app(MESSAGES_TOLD, TOLD, """
-                public final class Ask { public int[] counts; }
+                public final class Ask {
+                    public static final sibarum.atchung.Topic<Ask> TOPIC = sibarum.atchung.Topic.edge(Ask.class);
+                    public int[] counts;
+                }
                 """, job("""
                     public Told run(Ask a) { return new Told(""); }
-                """)), "T2.4: Answer.run's request on \"ask\" is app.Ask");
+                """)), "T2.4: Answer.run's request is app.Ask");
     }
 
     @Test
@@ -1390,32 +1429,34 @@ class VexelProcessorTest {
                 public final class DemoApp {}
                 """, MESSAGES_ASK, MESSAGES_TOLD, job("""
                     public Told run(Ask a) { return new Told(a.q()); }
-                """)), "@Job Answer replies on \"told\", and no component subscribes to it");
+                """)), "@Job Answer answers with Told, and no component hears it");
     }
 
+    /** A reply is {@code run}'s return type, so a job answers on that type's channel with nothing to name. */
     @Test
-    void aReplyMustBeNamedWhenOneIsReturned() {
-        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, """
-                @Job(topic = "ask")
-                public final class Answer { public Told run(Ask a) { return new Told(a.q()); } }
-                """), "Answer.run returns app.Told, and @Job Answer names no reply");
+    void aJobsReplyIsItsReturnTypesChannel() {
+        onlyError(app(MESSAGES_ASK, "public record Loose(String a) {}", """
+                @Job
+                public final class Answer { public Loose run(Ask a) { return new Loose(a.q()); } }
+                """), "T4.1: @Job Answer answers Loose, and no topic of it is declared");
     }
 
+    /** A request is answered once, so one job takes each request type. */
     @Test
-    void oneJobPerTopic() {
+    void oneJobPerRequestType() {
         onlyError(app(MESSAGES_ASK, """
-                @Job(topic = "ask")
+                @Job
                 public final class One { public void run(Ask a) {} }
                 """, """
-                @Job(topic = "ask")
+                @Job
                 public final class Two { public void run(Ask a) {} }
-                """), "both take requests on \"ask\"");
+                """), "@Job Two and @Job One both take Ask");
     }
 
     @Test
     void aJobIsReachedByPublishingNeverHeld() {
         onlyError(app(MESSAGES_ASK, """
-                @Job(topic = "ask")
+                @Job
                 public final class Answer { public void run(Ask a) {} }
                 """, """
                 @Component(lane = "asker")
@@ -1429,20 +1470,18 @@ class VexelProcessorTest {
                 @Component(lane = "asker")
                 public final class Asker {}
                 """, """
-                @Job(topic = "ask")
+                @Job
                 public final class Answer { public Answer(Asker asker) {} public void run(Ask a) {} }
                 """), "T2.3: @Job Answer takes the component Asker");
     }
 
+    /** A job's channels are its types: a request with no declared topic is a channel nobody can send on. */
     @Test
-    void aJobsRequestTopicCarriesOneType() {
-        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, """
-                @Component(lane = "watcher")
-                public final class Watcher { @Subscribe(topic = "ask") public void saw(Told t) {} }
-                """, """
-                @Job(topic = "ask")
-                public final class Answer { public void run(Ask a) {} }
-                """), "T4.1: the topic \"ask\" carries app.Ask at Answer.run and app.Told to Watcher.saw");
+    void aJobWhoseRequestHasNoTopicIsAnError() {
+        onlyError(app("public record Loose(String q) {}", """
+                @Job
+                public final class Answer { public void run(Loose a) {} }
+                """), "T4.1: @Job Answer takes Loose, and no topic of it is declared");
     }
 
     // --- T2.4: a payload must be able to cross a lane as itself --------------------------------------------------
@@ -1451,7 +1490,7 @@ class VexelProcessorTest {
         return """
                 @Component(lane = "a")
                 public final class Sink {
-                    @Subscribe(topic = "t") public void on(%s p) {}
+                    @Subscribe public void on(%s p) {}
                 }
                 """.formatted(payload);
     }
@@ -1463,7 +1502,7 @@ class VexelProcessorTest {
                 """, """
                 public record Edit(Range range, String text, java.time.Instant at, java.util.Optional<String> note,
                                    java.util.UUID id) {
-                    public static final sibarum.atchung.Topic<Edit> T = sibarum.atchung.Topic.edge("t", Edit.class);
+                    public static final sibarum.atchung.Topic<Edit> T = sibarum.atchung.Topic.edge(Edit.class);
                 }
                 """, sink("Edit")));
     }
@@ -1472,7 +1511,7 @@ class VexelProcessorTest {
     void aFinalClassOfFinalValuesCanCrossALane() {
         assertEquals(List.of(), app("""
                 public final class Point {
-                    public static final sibarum.atchung.Topic<Point> T = sibarum.atchung.Topic.edge("t", Point.class);
+                    public static final sibarum.atchung.Topic<Point> T = sibarum.atchung.Topic.edge(Point.class);
                     private final int x;
                     private final int y;
                     public Point(int x, int y) { this.x = x; this.y = y; }
@@ -1484,7 +1523,7 @@ class VexelProcessorTest {
     void aSealedInterfaceOfRecordsCanCrossALane() {
         assertEquals(List.of(), app("""
                 public sealed interface Shape permits Circle, Square {
-                    sibarum.atchung.Topic<Shape> T = sibarum.atchung.Topic.edge("t", Shape.class);
+                    sibarum.atchung.Topic<Shape> T = sibarum.atchung.Topic.edge(Shape.class);
                 }
                 """, """
                 public record Circle(int r) implements Shape {}
@@ -1498,7 +1537,7 @@ class VexelProcessorTest {
         assertEquals(List.of(), app("""
                 public record Edit(java.util.List<String> lines, java.util.Set<Long> ids,
                                    java.util.Map<String, java.util.List<Integer>> marks) {
-                    public static final sibarum.atchung.Topic<Edit> T = sibarum.atchung.Topic.edge("t", Edit.class);
+                    public static final sibarum.atchung.Topic<Edit> T = sibarum.atchung.Topic.edge(Edit.class);
                     public Edit {
                         lines = java.util.List.copyOf(lines);
                         ids = java.util.Set.copyOf(ids);
@@ -1512,7 +1551,7 @@ class VexelProcessorTest {
     void aCollectionOfSomethingMutableIsRefusedAndTheMessageNamesThePath() {
         onlyError(app("""
                 public record Edit(java.util.List<StringBuilder> lines) {}
-                """, sink("Edit")), "T2.4: Sink.on receives app.Edit on \"t\", and it cannot cross a lane as itself:"
+                """, sink("Edit")), "T2.4: Sink.on receives app.Edit, and it cannot cross a lane as itself:"
                 + " Edit.lines -> List of java.lang.StringBuilder -> AbstractStringBuilder.value: is not final");
     }
 
@@ -1548,7 +1587,7 @@ class VexelProcessorTest {
                 public abstract class Base { private final int x = 0; }
                 """, """
                 public final class Derived extends Base {
-                    public static final sibarum.atchung.Topic<Derived> T = sibarum.atchung.Topic.edge("t", Derived.class);
+                    public static final sibarum.atchung.Topic<Derived> T = sibarum.atchung.Topic.edge(Derived.class);
                     private final String y = "";
                 }
                 """, sink("Derived")));
@@ -1570,7 +1609,7 @@ class VexelProcessorTest {
                 public final class Sink {
                     int mutable;
                     public final class Ping {}
-                    @Subscribe(topic = "t") public void on(Ping p) {}
+                    @Subscribe public void on(Ping p) {}
                 }
                 """), "Ping: is an inner class, so it holds a reference to the instance that made it");
     }
@@ -1582,9 +1621,9 @@ class VexelProcessorTest {
                 public final class Sink {
                     int mutable;
                     public static final class Ping {
-                        public static final sibarum.atchung.Topic<Ping> T = sibarum.atchung.Topic.edge("t", Ping.class);
+                        public static final sibarum.atchung.Topic<Ping> T = sibarum.atchung.Topic.edge(Ping.class);
                     }
-                    @Subscribe(topic = "t") public void on(Ping p) {}
+                    @Subscribe public void on(Ping p) {}
                 }
                 """));
     }
@@ -1593,7 +1632,7 @@ class VexelProcessorTest {
     void aSealedClassOfFinalSubclassesCanCrossALane() {
         assertEquals(List.of(), app("""
                 public sealed abstract class Shape permits Circle {
-                    public static final sibarum.atchung.Topic<Shape> T = sibarum.atchung.Topic.edge("t", Shape.class);
+                    public static final sibarum.atchung.Topic<Shape> T = sibarum.atchung.Topic.edge(Shape.class);
                     private final int id = 0;
                 }
                 """, """
@@ -1620,7 +1659,8 @@ class VexelProcessorTest {
     // --- the declared graph, as text (T4.5) ---------------------------------------------------------------------
     /**
      * A publisher that is not a component is a chip too; a method's send is its type's; a constructor's
-     * {@code Sender<T>} is a send on T's declared topic, by the name its constant is made with; a component this build
+     * {@code Sender<T>} is a send on T's declared topic; every channel is named by its payload's canonical name, which is
+     * the name a topic named by its payload carries at run time; a component this build
      * does not construct is not drawn; and every mailbox is {@code FAIL}, which is what the tick does with an edge one
      * past its capacity, and what a state topic never reaches.
      */
@@ -1631,31 +1671,31 @@ class VexelProcessorTest {
                 public final class DemoApp {}
                 """, """
                 public record Job(int id) {
-                    public static final sibarum.atchung.Topic<Job> TOPIC = sibarum.atchung.Topic.edge("witness.job", Job.class);
+                    public static final sibarum.atchung.Topic<Job> TOPIC = sibarum.atchung.Topic.edge(Job.class);
                 }
                 """, """
                 public record Ping(int n) {
-                    public static final sibarum.atchung.Topic<Ping> TOPIC = sibarum.atchung.Topic.edge("witness.ping", Ping.class);
+                    public static final sibarum.atchung.Topic<Ping> TOPIC = sibarum.atchung.Topic.edge(Ping.class);
                 }
                 """, """
                 @Component(lane = "worker")
                 public final class Worker {
-                    @Subscribe(topic = "witness.job", capacity = 8) public void onJob(Job j) {}
-                    @Publishes("witness.ping") public void reply() {}
+                    @Subscribe(capacity = 8) public void onJob(Job j) {}
+                    @Publishes(Ping.class) public void reply() {}
                 }
                 """, """
                 @Component
                 public final class Echo {
-                    @Subscribe(topic = "witness.ping") public void onPing(Ping p) {}
+                    @Subscribe public void onPing(Ping p) {}
                 }
                 """, """
                 @Component(lane = "pinger")
                 public final class Pinger { public Pinger(sibarum.atchung.Sender<Ping> ping) {} }
                 """, """
-                @Publishes({"witness.ping", "witness.job"})
+                @Publishes({Ping.class, Job.class})
                 public final class Ui {}
                 """, """
-                @Component(lane = "ghost") @ConditionalOnType("does.not.Exist") @Publishes("witness.job")
+                @Component(lane = "ghost") @ConditionalOnType("does.not.Exist") @Publishes(Job.class)
                 public final class Ghost {}
                 """);
         assertEquals("""
@@ -1664,13 +1704,48 @@ class VexelProcessorTest {
                 component app.Pinger lane=pinger
                 component app.Worker lane=worker
                 publisher app.Ui lane=-
-                mailbox app.Echo#onPing topic=witness.ping type=app.Ping overflow=FAIL capacity=64
-                mailbox app.Worker#onJob topic=witness.job type=app.Job overflow=FAIL capacity=8
-                publishes app.Pinger topic=witness.ping
-                publishes app.Ui topic=witness.job
-                publishes app.Ui topic=witness.ping
-                publishes app.Worker topic=witness.ping
+                mailbox app.Echo#onPing topic=app.Ping type=app.Ping overflow=FAIL capacity=64
+                mailbox app.Worker#onJob topic=app.Job type=app.Job overflow=FAIL capacity=8
+                publishes app.Pinger topic=app.Ping
+                publishes app.Ui topic=app.Job
+                publishes app.Ui topic=app.Ping
+                publishes app.Worker topic=app.Ping
                 """, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).busGraph());
+    }
+
+    /**
+     * The graph names a channel as the processor knows it, its payload's canonical name, and that is the name the topic
+     * carries at run time: a record nested in {@code Messages} is {@code app.Messages.Open} in the text and in the
+     * mailbox the wiring subscribes, so the Inspector matches the two with nothing read off a declaration.
+     */
+    @Test
+    void theGraphNamesAChannelAsItIsNamedAtRunTime() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                public final class Messages {
+                    public static final sibarum.atchung.Topic<Open> OPEN = sibarum.atchung.Topic.edge(Open.class);
+                    public record Open(String path) {}
+                }
+                """, """
+                @Component
+                public final class Editor { @Subscribe public void open(Messages.Open o) {} }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        assertTrue(run.busGraph().contains("mailbox app.Editor#open topic=app.Messages.Open type=app.Messages.Open"),
+                run.busGraph());
+        assertEquals(List.of("mailbox app.Editor <default> app.Messages.Open 64 []"), run.phase("config"));
+    }
+
+    /** A class in {@code @Publishes} is a channel like any: one with no declared topic does not compile. */
+    @Test
+    void publishesNamingAPayloadWithNoTopicIsAnError() {
+        onlyError(app("public record Loose(String a) {}", """
+                @Publishes(Loose.class)
+                public final class Ui {}
+                """), "T4.1: @Publishes on Ui lists Loose, and no topic of it is declared");
     }
 
     @Test
@@ -1695,23 +1770,23 @@ class VexelProcessorTest {
     void aCycleOfDeclaredSendsIsRequestAndResponseAndIsFine() {
         assertEquals(List.of(), app("""
                 public record Order(int id) {
-                    public static final sibarum.atchung.Topic<Order> TOPIC = sibarum.atchung.Topic.edge("orders", Order.class);
+                    public static final sibarum.atchung.Topic<Order> TOPIC = sibarum.atchung.Topic.edge(Order.class);
                 }
                 """, """
                 public record Ack(int id) {
-                    public static final sibarum.atchung.Topic<Ack> TOPIC = sibarum.atchung.Topic.edge("acks", Ack.class);
+                    public static final sibarum.atchung.Topic<Ack> TOPIC = sibarum.atchung.Topic.edge(Ack.class);
                 }
                 """, """
                 @Component(lane = "a")
                 public final class Orders {
                     public Orders(sibarum.atchung.Sender<Order> orders) {}
-                    @Subscribe(topic = "acks") public void acked(Ack a) {}
+                    @Subscribe public void acked(Ack a) {}
                 }
                 """, """
                 @Component(lane = "b")
                 public final class Billing {
                     public Billing(sibarum.atchung.Sender<Ack> acks) {}
-                    @Subscribe(topic = "orders") public void billed(Order o) {}
+                    @Subscribe public void billed(Order o) {}
                 }
                 """));
     }
@@ -1721,7 +1796,7 @@ class VexelProcessorTest {
         onlyError(app("""
                 public record Edit(int at) {}
                 """, """
-                public final class Loose { @Subscribe(topic = "edits") public void on(Edit e) {} }
+                public final class Loose { @Subscribe public void on(Edit e) {} }
                 """), "@Subscribe Loose.on is not on a @Component");
     }
 
@@ -1729,24 +1804,24 @@ class VexelProcessorTest {
     void aSubscribeMustTakeOnePayloadThatCanNameATopic() {
         onlyError(app("""
                 @Component(lane = "a")
-                public final class Sink { @Subscribe(topic = "n") public void on(int n) {} }
-                """), "takes int, which cannot name a topic's type");
+                public final class Sink { @Subscribe public void on(int n) {} }
+                """), "takes int, which cannot name a channel");
         onlyError(app("""
                 @Component(lane = "a")
-                public final class Sink { @Subscribe(topic = "n") public void on(java.util.List<String> n) {} }
-                """), "cannot name a topic's type");
+                public final class Sink { @Subscribe public void on(java.util.List<String> n) {} }
+                """), "cannot name a channel");
         onlyError(app("""
                 @Component(lane = "a")
-                public final class Sink { @Subscribe(topic = "n") public void on(String a, String b) {} }
+                public final class Sink { @Subscribe public void on(String a, String b) {} }
                 """), "takes 2 parameters, and must take exactly one");
-        onlyError(app("""
+        onlyError(app(MESSAGES_TOLD, """
                 @Component(lane = "a")
-                public final class Sink { @Subscribe(topic = "n") public String on(String a) { return a; } }
+                public final class Sink { @Subscribe public String on(Told a) { return a.a(); } }
                 """), "returns a value");
         onlyError(app("""
                 @Component(lane = "a")
-                public final class Sink { @Subscribe(topic = " ") public void on(String a) {} }
-                """), "has a blank topic");
+                public final class Sink { @Subscribe public void on(String a) {} }
+                """), "T4.1: @Subscribe Sink.on hears String, and no topic of it is declared");
     }
 
     @Test
@@ -1867,7 +1942,7 @@ class VexelProcessorTest {
             """,
             """
             record Task(String what) {
-                static final sibarum.atchung.Topic<Task> TOPIC = sibarum.atchung.Topic.edge("jobs", Task.class);
+                static final sibarum.atchung.Topic<Task> TOPIC = sibarum.atchung.Topic.edge(Task.class);
             }
             """,
             """
@@ -1898,7 +1973,7 @@ class VexelProcessorTest {
             @Component(lane = "work")
             public final class Worker {
                 public Worker(Model model) { dev.vexelray.framework.shell.Shell.LOG.add("worker"); }
-                @Subscribe(topic = "jobs") public void job(Task task) {}
+                @Subscribe public void job(Task task) {}
             }
             """};
 
@@ -1933,7 +2008,7 @@ class VexelProcessorTest {
         // CONFIG: the look is applied the moment it exists; the model takes only a setting; the worker takes the
         // model, a CONFIG value, and its mailbox is subscribed on the logic lane's tick as it is built.
         assertEquals(List.of("look", "appearance applied", "model 4", "preview", "worker",
-                "mailbox app.Worker work jobs jobs 64 []"),
+                "mailbox app.Worker work app.Task 64 []"),
                 run.phase("config"));
         assertEquals(List.of(), run.phase("model"));
         assertEquals(List.of(), run.phase("gui"), "GUI is the framework's: no part is handed the Gui in it");
@@ -2201,7 +2276,7 @@ class VexelProcessorTest {
                 }
                 """), "Recipes.store takes bus, a Atchung. T4.5: the raw bus");
         onlyError(app(MESSAGES_ASK, """
-                @Job(topic = "ask")
+                @Job
                 public final class Answer {
                     public Answer(java.util.concurrent.Executor pool) {}
                     public void run(Ask a) {}

@@ -208,7 +208,7 @@ final class Generator {
             StringBuilder call = new StringBuilder(Framework.INBOXES).append(".of(shell, ").append(literal(name))
                     .append(", ").append(literal(lane));
             for (String topic : hears) {
-                call.append(", ").append(literal(topic));
+                call.append(", ").append(topic);
             }
             return call.append(')').toString();
         }
@@ -400,12 +400,17 @@ final class Generator {
             // Graph has refused an inbox anywhere but a component's constructor.
             if (element.getQualifiedName().contentEquals(Framework.INBOX) && b.component != null && b.job == null) {
                 AnnotationMirror hears = mirrors.find(b.component, Hears.class);
-                return new InboxArg(b.component.getQualifiedName().toString(), declarations.lane(b.component),
-                        hears == null ? List.of() : mirrors.strings(hears, "value"));
+                List<String> heard = new ArrayList<>();
+                if (hears != null) {
+                    for (TypeMirror payload : mirrors.types(hears, "value")) {
+                        heard.add(topic(app, b.component, payload));
+                    }
+                }
+                return new InboxArg(b.component.getQualifiedName().toString(), declarations.lane(b.component), heard);
             }
             // Channels has refused a sender with no declared topic, and Graph a job's.
             if (Channels.isSender(parameter) && Channels.sent(parameter) != null) {
-                String topic = topic(app, parameter, Channels.sent(parameter), null);
+                String topic = topic(app, parameter, Channels.sent(parameter));
                 boolean component = b.component != null && b.job == null && !mirrors.has(b.component, View.class);
                 return new SenderArg(component
                         ? Framework.INBOXES + ".sender(shell, " + literal(b.component.getQualifiedName().toString())
@@ -565,15 +570,10 @@ final class Generator {
     /**
      * The declared constant a channel of {@code payload} is, as the wiring writes it: what a mailbox subscribes to and a
      * sender sends on, so the channel's kind is its declaration's and every subscriber hears it alike. {@link Channels}
-     * has refused a payload of the application's own with none or with several. A library's payload with none, or one
-     * several of its topics carry, is heard as the edge {@code named} names, which is what {@code @Subscribe} says.
+     * has refused a payload with none or with several, so there is exactly one by the time anything is written.
      */
-    private String topic(TypeElement app, Element at, TypeMirror payload, String named) {
+    private String topic(TypeElement app, Element at, TypeMirror payload) {
         VariableElement constant = channels.topicOf(payload);
-        if (constant == null) {
-            return "sibarum.atchung.Topic.edge(" + literal(named) + ", "
-                    + Mirrors.element(payload).getQualifiedName() + ".class)";
-        }
         if (!visibleFrom(app, constant) || !visibleFrom(app, constant.getEnclosingElement())) {
             error(at, "the topic " + Topics.expression(constant) + " is not visible from " + Mirrors.simple(app)
                     + "'s package, where the generated wiring names it. Make it public");
@@ -899,24 +899,22 @@ final class Generator {
             for (String k : m.keys()) {
                 keys.append(", ").append(literal(k));
             }
-            String topic = topic(app, m.method(), m.payload(), m.topic());
+            String topic = topic(app, m.method(), m.payload());
             String subscriber = field + "::" + Mirrors.simple(m.method());
             after.add(view
-                    ? Framework.VIEWS + ".mailbox(shell.gui(), " + literal(m.topic()) + ", " + topic + ", " + subscriber
+                    ? Framework.VIEWS + ".mailbox(shell.gui(), " + topic + ", " + subscriber
                       + ", " + m.capacity() + keys + ");"
                     : Framework.INBOXES + ".mailbox(shell, " + literal(b.component.getQualifiedName().toString())
-                      + ", " + literal(declarations.lane(b.component)) + ", " + literal(m.topic()) + ", " + topic + ", "
+                      + ", " + literal(declarations.lane(b.component)) + ", " + topic + ", "
                       + subscriber + ", " + m.capacity() + keys + ");");
         }
         if (b.job != null) {
             Channels.JobChannel j = b.job;
-            String request = "sibarum.atchung.Topic.edge(" + literal(j.topic()) + ", "
-                    + Mirrors.element(j.request()).getQualifiedName() + ".class)";
+            String request = topic(app, j.run(), j.request());
             after.add(j.replyType() == null
                     ? Framework.JOBS + ".effect(shell, " + literal(j.name()) + ", " + request + ", " + field + "::run);"
                     : Framework.JOBS + ".reply(shell, " + literal(j.name()) + ", " + request + ", " + field
-                      + "::run, sibarum.atchung.Topic.edge(" + literal(j.reply()) + ", "
-                      + Mirrors.element(j.replyType()).getQualifiedName() + ".class));");
+                      + "::run, " + topic(app, j.run(), j.replyType()) + ");");
         }
         // A provider may answer null, which means absent (Provides): reported here, once, since a provider is called
         // once, naming what is then built with the null. A constructor cannot return null, and a primitive is never

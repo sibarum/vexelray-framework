@@ -21,20 +21,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Where a topic is declared: the {@code static final Topic} of a payload, which is how both ends of a channel name it
- * without a string the processor would have to trust (ROADMAP fork 5, {@code docs/threading.md} T4.1 and T4.5).
+ * Where a channel is declared: the {@code static final Topic} of a payload, named by that payload, which is how both
+ * ends of a channel refer to it with no string anywhere (ROADMAP fork 5, {@code docs/threading.md} T4.1 and T4.5).
  *
  * <p><b>The constant is found by its payload.</b> A topic carries one type, and a payload's topic is declared beside
  * it: in the payload's own type ({@code Intent.INTENTS}) or in the type enclosing it ({@code Messages.OPEN_TOPIC} for
- * {@code Messages.Open}, {@code TextField.CHANGED} for {@code TextField.Changed}). So a {@code Sender<Open>} and a
- * {@code @Subscribe} taking an {@code Open} both name {@code Messages.OPEN_TOPIC}, and its kind, state or edge, is the
- * one its declaration chose, for every subscriber alike.
+ * {@code Messages.Open}, {@code TextField.CHANGED} for {@code TextField.Changed}). So a {@code Sender<Open>}, a
+ * {@code @Subscribe} taking an {@code Open}, a job answering one and an {@code @Hears(Open.class)} all name
+ * {@code Messages.OPEN_TOPIC}, and its kind, state or edge, is the one its declaration chose, for every end alike.
  *
- * <p><b>Every topic declares its kind.</b> A constant this compilation has the source of must be made with
- * {@code Topic.edge} or {@code Topic.state}: {@code Topic.of} is atchung's older spelling of an edge, and reads as if
- * the question had not been asked. Read syntactically, from the declaration's tree, which asks javac for nothing it has
- * not already parsed (see {@link StepCheck} for why attributing a tree during processing is not done). A constant from a
- * class file is the library's, which has no tree here and was its own build's to check.
+ * <p><b>Every topic is named by its payload and declares its kind.</b> A constant this compilation has the source of
+ * must be made with {@code Topic.edge(P.class)}, {@code Topic.state(P.class, key)} or {@code Topic.state(P.class)}:
+ * named by the payload's canonical name, so the processor knows a channel's name without reading it, and nothing can
+ * spell one; and saying whether every message counts or only the last per key. {@code Topic.of} says neither. Read
+ * syntactically, from the declaration's tree, which asks javac for nothing it has not already parsed (see
+ * {@link StepCheck} for why attributing a tree during processing is not done). A constant from a class file is the
+ * library's, which has no tree here and was its own build's to check.
  */
 final class Topics {
 
@@ -83,50 +85,26 @@ final class Topics {
         }
     }
 
-    /**
-     * Whether {@code type} is this compilation's own source, which its topics' declarations are held to. A library's
-     * type is a class file here, and its topics are its own build's to declare.
-     */
-    boolean inSource(TypeElement type) {
-        return trees != null && trees.getTree(type) != null;
-    }
-
     /** The constant as the generated wiring writes it: {@code pkg.Owner.NAME}. */
     static String expression(VariableElement constant) {
         return ((TypeElement) constant.getEnclosingElement()).getQualifiedName() + "." + constant.getSimpleName();
     }
 
     /**
-     * The topic's name, when it can be read off the declaration: its first argument, a string literal or a
-     * {@code static final String} of the type that declares the constant ({@code Topic.edge(OPEN, Open.class)}). Read
-     * from the tree without attributing it, so a name built any other way, or one from a class file, is {@code null},
-     * and the channel is then matched by its payload, which T4.1 makes equivalent.
+     * The name of {@code payload}'s channel: its canonical name, which is what a topic named by its payload carries
+     * (atchung's {@code Topic.edge(Class)}). Known here without reading any declaration, so the graph the Inspector draws
+     * names every channel as it will be named at run time.
      */
-    String name(VariableElement constant) {
-        if (trees == null || !(trees.getTree(constant) instanceof VariableTree variable)
-                || !(variable.getInitializer() instanceof MethodInvocationTree call) || call.getArguments().isEmpty()) {
-            return null;
-        }
-        ExpressionTree first = call.getArguments().get(0);
-        if (first instanceof com.sun.source.tree.LiteralTree literal && literal.getValue() instanceof String s) {
-            return s;
-        }
-        if (first instanceof IdentifierTree id) {
-            for (Element e : constant.getEnclosingElement().getEnclosedElements()) {
-                if (e.getKind() == ElementKind.FIELD && e.getSimpleName().contentEquals(id.getName())
-                        && ((VariableElement) e).getConstantValue() instanceof String s) {
-                    return s;
-                }
-            }
-        }
-        return null;
+    static String name(TypeMirror payload) {
+        return Mirrors.element(payload).getQualifiedName().toString();
     }
 
     /**
-     * Why {@code constant} does not declare its kind, or {@code null} when it does, or when there is no source to read
-     * (a class file, or a compiler without javac's trees).
+     * Why {@code constant} is not declared as a channel is, or {@code null} when it is, or when there is no source to
+     * read (a class file, or a compiler without javac's trees): made with {@code Topic.of}, which says nothing of its
+     * kind, or named by a string rather than by its payload.
      */
-    String undeclaredKind(VariableElement constant) {
+    String undeclared(VariableElement constant) {
         if (trees == null) {
             return null;
         }
@@ -150,8 +128,14 @@ final class Topics {
         } else {
             return null;
         }
-        return method.equals("of") ? "it is made with Topic.of, which does not say whether the channel is state or edge"
-                : null;
+        if (method.equals("of")) {
+            return "it is made with Topic.of, which does not say whether the channel is state or edge";
+        }
+        if (!call.getArguments().isEmpty() && !(call.getArguments().get(0) instanceof MemberSelectTree literal
+                && literal.getIdentifier().contentEquals("class"))) {
+            return "it is named by a string, which nothing can check the other ends against";
+        }
+        return null;
     }
 
     /** Whether {@code constant} is read, from its source, to be made with {@code Topic.edge} or {@code Topic.of}. */

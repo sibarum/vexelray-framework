@@ -23,7 +23,7 @@ import java.util.stream.Stream;
  * path, name and whether it is a folder), so the view can tell the tree what to draw without touching the disk on the
  * GUI thread. An unreadable folder answers empty rather than taking the tree down.
  */
-@Job(topic = Messages.LISTING, reply = Messages.LISTED)
+@Job
 public final class ListFolder {
 
     /** Directories nobody opens a file in, left out of the listing so a project's tree is the project. */

@@ -14,6 +14,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.tools.Diagnostic;
@@ -29,27 +30,29 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * The message graph, as far as declarations reach: every {@code @Subscribe} mailbox, every {@code Sender} a part takes
- * and every {@code @Publishes}, and the rules that need both ends of a channel in view.
+ * The message graph, as far as declarations reach: every {@code @Subscribe} mailbox, every {@code Sender} a part
+ * takes, every job's request and reply, and what {@code @Hears} and {@code @Publishes} list, with the rules that need
+ * both ends of a channel in view.
  *
- * <p><b>Why this could not exist before {@code @Subscribe}.</b> A mailbox used to be a {@code Placement.subscribe}
- * call in a body and a send a {@code bus.publish}, so the processor saw neither end of any channel. Declaring both ends
- * is what makes a channel a fact the compiler holds ({@code docs/threading.md} T4.5, <i>an emergent graph cannot be
- * checked; a declared one can</i>).
+ * <p><b>A channel is a payload type.</b> Each is declared once, as the payload's {@code static final Topic}, named by the
+ * payload ({@link Topics}), and every end refers to it by the type: a mailbox's parameter, a sender's type argument, a
+ * job's {@code run}, a class literal in {@code @Hears} or {@code @Publishes}. So no end names a channel with a string,
+ * and a reference to one that is not declared is a compile error rather than a message heard by nobody (T4.1).
  *
  * <p><b>A send is declared by construction</b> (ROADMAP fork 5): a part that sends takes a {@code Sender<T>} in its
- * constructor, one per topic, and the wiring builds it. A ledger's steps send through their {@code Out}, which no
- * constructor shows, so a component with a ledger still lists those topics in {@code @Publishes}.
+ * constructor, and the wiring builds it. A ledger's steps send through their {@code Out}, which no constructor shows, so
+ * a component with a ledger lists those payloads in {@code @Publishes}.
  *
- * <p><b>What is checked, and how far to trust it.</b>
+ * <p><b>What is checked.</b>
  * <ul>
- *   <li><b>T4.1</b>: every topic a part hears or sends is a declared constant ({@link Topics}), one per payload, and
- *       declares its kind; a topic name carries one payload type; a key filter is on a state topic.</li>
+ *   <li><b>T4.1</b>: every channel a part hears or sends is one declared constant, named by its payload, that
+ *       declares its kind; a key filter is on a state topic (T4.8).</li>
  *   <li><b>T2.4</b>: a mailbox payload that is not deeply immutable.</li>
- *   <li>In an application, a job's reply that nobody hears.</li>
+ *   <li>One job per request type, and, in an application, a job's reply that somebody hears.</li>
  * </ul>
- * 0.1 also checked a blocking edge in a cycle (T4.4) and a blocking send from the main thread (T4.7). Under the tick no
- * send blocks, so both hold by construction and their checks are gone with {@code Overflow}.
+ * 0.1 also checked a blocking edge in a cycle (T4.4) and a blocking send from the main thread (T4.7); under the tick no
+ * send blocks, so both hold by construction. It checked that a topic name carried one type, which a channel named by its
+ * type makes true by construction too.
  *
  * <p>Mailboxes are read only off live components, the ones the graph keeps after {@code @ConditionalOnType}, so a
  * component that does not exist in this build cannot make a channel inconsistent.
@@ -60,7 +63,7 @@ final class Channels {
     static final String SENDER = "sibarum.atchung.Sender";
 
     /** One declared mailbox. {@code keys} is its key filter, empty for every key (T4.8). */
-    record Mailbox(TypeElement component, ExecutableElement method, String topic, TypeMirror payload, int capacity,
+    record Mailbox(TypeElement component, ExecutableElement method, TypeMirror payload, int capacity,
                    List<String> keys) {
 
         String where() {
@@ -82,8 +85,6 @@ final class Channels {
     private final Topics topics;
 
     private final Set<Element> publishers = new LinkedHashSet<>();
-    /** The topics components declare they hear through their inboxes ({@code @Hears}), read in {@link #check}. */
-    private final Set<String> heard = new HashSet<>();
     /** The constants already judged, so one used in ten places is reported once. */
     private final Set<VariableElement> judged = new HashSet<>();
     /** The widget library's package: what a widget publishes, and a view hears on the same thread. */
@@ -112,9 +113,8 @@ final class Channels {
             if (method.getParameters().size() != 1) {
                 continue; // Declarations has already said so.
             }
-            out.add(new Mailbox(component, method, mirrors.string(subscribe, "topic"),
-                    method.getParameters().get(0).asType(), (Integer) mirrors.value(subscribe, "capacity"),
-                    mirrors.strings(subscribe, "key")));
+            out.add(new Mailbox(component, method, method.getParameters().get(0).asType(),
+                    (Integer) mirrors.value(subscribe, "capacity"), mirrors.strings(subscribe, "key")));
         }
         return out;
     }
@@ -141,11 +141,10 @@ final class Channels {
     }
 
     /**
-     * One declared {@code @Job}: where its requests arrive and what they are, and where its answer goes. A job run
-     * only for its effect has no reply, and {@code replyType} is then {@code null}.
+     * One declared {@code @Job}: its request type, which names the channel requests arrive on, and its reply type,
+     * which names the one its answer goes to; {@code replyType} is {@code null} for a job run only for its effect.
      */
-    record JobChannel(TypeElement job, ExecutableElement run, String topic, TypeMirror request, String reply,
-                      TypeMirror replyType) {
+    record JobChannel(TypeElement job, ExecutableElement run, TypeMirror request, TypeMirror replyType) {
 
         String name() {
             return job.getQualifiedName().toString();
@@ -158,11 +157,13 @@ final class Channels {
         if (run == null) {
             return null;
         }
-        AnnotationMirror mirror = mirrors.find(job, dev.vexelray.framework.api.Job.class);
-        String reply = mirrors.string(mirror, "reply");
-        boolean effect = run.getReturnType().getKind() == javax.lang.model.type.TypeKind.VOID;
-        return new JobChannel(job, run, mirrors.string(mirror, "topic"), run.getParameters().get(0).asType(), reply,
-                effect || reply.isBlank() ? null : run.getReturnType());
+        boolean effect = run.getReturnType().getKind() == TypeKind.VOID;
+        return new JobChannel(job, run, run.getParameters().get(0).asType(), effect ? null : run.getReturnType());
+    }
+
+    /** Whether {@code type} can name a channel at all: a class or interface with no type arguments. */
+    static boolean plain(TypeMirror type) {
+        return type instanceof DeclaredType d && d.getTypeArguments().isEmpty();
     }
 
     /**
@@ -174,12 +175,14 @@ final class Channels {
         for (TypeElement component : graph.componentsSeen()) {
             all.addAll(mailboxes(component));
         }
+        Set<String> heard = new HashSet<>();
         for (Mailbox m : all) {
             // A payload that is not a plain class or interface is already an error where @Subscribe is declared, and one
-            // that cannot cross is the mailbox's first problem: its topic is asked about once it can carry anything.
-            if (m.payload() instanceof DeclaredType d && d.getTypeArguments().isEmpty() && crossing(m)) {
+            // that cannot cross is the mailbox's first problem: its channel is asked about once it can carry anything.
+            if (plain(m.payload()) && crossing(m)) {
                 declared(m.method(), m.payload(), "@Subscribe " + m.where() + " hears "
                         + Mirrors.simple(Mirrors.element(m.payload())), m.keys().isEmpty() ? null : m);
+                heard.add(Topics.name(m.payload()));
             }
         }
         for (VariableElement s : senders(graph)) {
@@ -191,20 +194,27 @@ final class Channels {
             }
             declared(s, payload, describe(s) + " sends " + Mirrors.simple(Mirrors.element(payload)), null);
         }
-        Map<String, List<Mailbox>> byTopic = new LinkedHashMap<>();
-        for (Mailbox m : all) {
-            byTopic.computeIfAbsent(m.topic(), t -> new ArrayList<>()).add(m);
-        }
-        for (Map.Entry<String, List<Mailbox>> e : byTopic.entrySet()) {
-            oneType(e.getKey(), e.getValue());
-        }
-        heard.clear();
         for (TypeElement component : graph.componentsSeen()) {
-            if (mirrors.has(component, Hears.class)) {
-                heard.addAll(mirrors.strings(mirrors.find(component, Hears.class), "value"));
+            AnnotationMirror hears = mirrors.find(component, Hears.class);
+            if (hears != null) {
+                for (TypeMirror payload : mirrors.types(hears, "value")) {
+                    if (plain(payload)) {
+                        declared(component, payload, "@Hears on " + Mirrors.simple(component) + " lists "
+                                + Mirrors.simple(Mirrors.element(payload)), null);
+                        heard.add(Topics.name(payload));
+                    }
+                }
             }
         }
-        jobs(graph.jobsSeen(), byTopic, application);
+        for (Element publisher : publishers) {
+            for (TypeMirror payload : mirrors.types(mirrors.find(publisher, Publishes.class), "value")) {
+                if (plain(payload)) {
+                    declared(publisher, payload, "@Publishes on " + describe(publisher) + " lists "
+                            + Mirrors.simple(Mirrors.element(payload)), null);
+                }
+            }
+        }
+        jobs(graph.jobsSeen(), heard, application);
     }
 
     /**
@@ -234,31 +244,26 @@ final class Channels {
     }
 
     /**
-     * T4.1, the declaration: a channel of {@code payload} is one declared constant, which says its kind; and a key
-     * filter, when {@code filtered} has one, is on a state topic.
+     * T4.1, the declaration: a channel of {@code payload} is one declared constant, named by the payload, which says its
+     * kind; and a key filter, when {@code filtered} has one, is on a state topic.
      */
     private void declared(Element at, TypeMirror payload, String what, Mailbox filtered) {
         List<VariableElement> found = topics.declared(payload);
         TypeElement type = Mirrors.element(payload);
-        if (found.size() != 1 && filtered == null && at instanceof ExecutableElement && !topics.inSource(type)) {
-            // A library's payload carried by several of its topics (a widget library's Chosen, on every widget that has
-            // a menu), or by none declared beside it: the @Subscribe names the channel, and the library's build was
-            // the one to judge its kind. The wiring hears it as the edge it names.
-            return;
-        }
         if (found.isEmpty()) {
-            error(at, "T4.1: " + what + ", and no topic of it is declared. Declare one beside the payload, as a"
-                    + " static final Topic<" + Mirrors.simple(type) + "> in " + Mirrors.simple(type) + " or in the type"
-                    + " that encloses it, made with Topic.edge or Topic.state: the constant is the channel, and it"
-                    + " says whether every message counts or only the last one per key");
+            error(at, "T4.1: " + what + ", and no topic of it is declared. Declare one beside the payload, as a static"
+                    + " final Topic<" + Mirrors.simple(type) + "> in " + Mirrors.simple(type) + " or in the type that"
+                    + " encloses it, made with Topic.edge(" + Mirrors.simple(type) + ".class) or Topic.state("
+                    + Mirrors.simple(type) + ".class, key): the constant is the channel, and it says whether every"
+                    + " message counts or only the last one per key");
             return;
         }
         if (found.size() > 1) {
             List<String> names = new ArrayList<>();
             found.forEach(v -> names.add(Mirrors.simple(v)));
             error(at, "T4.1: " + what + ", and " + names.size() + " topics of it are declared (" + String.join(", ",
-                    names) + "). A channel is found by its payload, so each topic carries a type of its own: give"
-                    + " each a record of its own");
+                    names) + "). A channel is its payload type, so each topic carries a type of its own: give each a"
+                    + " record of its own");
             return;
         }
         VariableElement constant = found.get(0);
@@ -271,82 +276,51 @@ final class Channels {
     }
 
     /**
-     * T4.1: a topic declared in this compilation's source says its kind. Every {@code static final Topic} the rounds
-     * offer is judged, whether or not anything here hears it, and each once.
+     * T4.1: a topic declared in this compilation's source is named by its payload and says its kind. Every
+     * {@code static final Topic} the rounds offer is judged, whether or not anything here hears it, and each once.
      */
     void kind(VariableElement constant) {
         if (!judged.add(constant)) {
             return;
         }
-        String why = topics.undeclaredKind(constant);
+        String why = topics.undeclared(constant);
         if (why != null) {
-            error(constant, "T4.1: the topic " + Mirrors.simple(constant) + " does not declare its kind: " + why
-                    + ". Make it with Topic.edge (every message, in order) or Topic.state (the last write per key in a"
-                    + " tick), so every subscriber agrees on what the channel carries");
+            error(constant, "T4.1: the topic " + Mirrors.simple(constant) + " is not declared as a channel is: " + why
+                    + ". Make it with Topic.edge(P.class) (every message, in order) or Topic.state(P.class, key) (the"
+                    + " last write per key in a tick): named by its payload, so every end refers to it by the type,"
+                    + " and saying what kind it is, so every subscriber agrees on what it carries");
         }
     }
 
     /**
-     * A job's two channels against everything else declared: one job per request topic, a topic carrying one type
-     * whoever is at the other end (T4.1), and, in an application, a reply somebody hears.
+     * A job's two channels against everything else declared: each is declared (T4.1), one job takes each request type,
+     * and, in an application, somebody hears the reply.
      */
-    private void jobs(List<TypeElement> declared, Map<String, List<Mailbox>> byTopic, boolean application) {
+    private void jobs(List<TypeElement> declared, Set<String> heard, boolean application) {
         Map<String, JobChannel> byRequest = new LinkedHashMap<>();
         for (TypeElement j : declared) {
             JobChannel job = job(j);
-            if (job == null) {
+            if (job == null || !plain(job.request())) {
                 continue;
             }
-            JobChannel first = byRequest.putIfAbsent(job.topic(), job);
+            declared(job.run(), job.request(), "@Job " + Mirrors.simple(j) + " takes "
+                    + Mirrors.simple(Mirrors.element(job.request())), null);
+            JobChannel first = byRequest.putIfAbsent(Topics.name(job.request()), job);
             if (first != null) {
-                error(j, "@Job " + Mirrors.simple(j) + " and @Job " + Mirrors.simple(first.job()) + " both take requests"
-                        + " on \"" + job.topic() + "\". A request is answered once: give each job its own topic");
+                error(j, "@Job " + Mirrors.simple(j) + " and @Job " + Mirrors.simple(first.job()) + " both take "
+                        + Mirrors.simple(Mirrors.element(job.request())) + ". A request is answered once: give each job a"
+                        + " request of its own");
             }
-            sameType(job.run(), job.topic(), job.request(), byTopic);
-            if (job.replyType() == null) {
+            if (job.replyType() == null || !plain(job.replyType())) {
                 continue;
             }
-            sameType(job.run(), job.reply(), job.replyType(), byTopic);
-            if (application && byTopic.getOrDefault(job.reply(), List.of()).isEmpty()
-                    && !heard.contains(job.reply())) {
-                error(job.run(), "@Job " + Mirrors.simple(j) + " replies on \"" + job.reply() + "\", and no component"
-                        + " subscribes to it. A reply nobody hears is a lost result, which this framework refuses as"
-                        + " it refuses a full mailbox: subscribe to it, or make the job void if it is run for its"
-                        + " effect");
-            }
-        }
-        for (JobChannel a : byRequest.values()) {
-            for (JobChannel b : byRequest.values()) {
-                if (a.replyType() != null && a.reply().equals(b.topic())
-                        && !a.replyType().toString().equals(b.request().toString())) {
-                    error(a.run(), "T4.1: @Job " + Mirrors.simple(a.job()) + " replies " + a.replyType() + " on \""
-                            + a.reply() + "\", where @Job " + Mirrors.simple(b.job()) + " takes " + b.request()
-                            + ". A topic is a name and a type: rename one");
-                }
-            }
-        }
-    }
-
-    /** T4.1 for a job's end of a channel: the topic carries the same type to every mailbox on it. */
-    private void sameType(ExecutableElement run, String topic, TypeMirror type, Map<String, List<Mailbox>> byTopic) {
-        for (Mailbox m : byTopic.getOrDefault(topic, List.of())) {
-            if (!m.payload().toString().equals(type.toString())) {
-                error(run, "T4.1: the topic \"" + topic + "\" carries " + type + " at " + Mirrors.where(run) + " and "
-                        + m.payload() + " to " + m.where() + ". A topic is a name and a type, so these are two"
-                        + " channels that happen to share a spelling: rename one");
-                return;
-            }
-        }
-    }
-
-    /** T4.1: one topic name, one payload type, across every mailbox on it. */
-    private void oneType(String topic, List<Mailbox> mailboxes) {
-        Mailbox first = mailboxes.get(0);
-        for (Mailbox m : mailboxes.subList(1, mailboxes.size())) {
-            if (!m.payload().toString().equals(first.payload().toString())) {
-                error(m.method(), "T4.1: the topic \"" + topic + "\" carries " + first.payload() + " to "
-                        + first.where() + " and " + m.payload() + " to " + m.where() + ". A topic is a name and a"
-                        + " type, so these are two channels that happen to share a spelling: rename one");
+            declared(job.run(), job.replyType(), "@Job " + Mirrors.simple(j) + " answers "
+                    + Mirrors.simple(Mirrors.element(job.replyType())), null);
+            if (application && !heard.contains(Topics.name(job.replyType()))) {
+                error(job.run(), "@Job " + Mirrors.simple(j) + " answers with "
+                        + Mirrors.simple(Mirrors.element(job.replyType())) + ", and no component hears it. A reply"
+                        + " nobody hears is a lost result, which this framework refuses as it refuses a full mailbox:"
+                        + " subscribe to it, or make the job void if it is run for its effect");
             }
         }
     }
@@ -369,12 +343,11 @@ final class Channels {
         }
         String why = Shareable.crossing(m.payload());
         if (why != null) {
-            error(m.method(), "T2.4: " + m.where() + " receives " + m.payload() + " on \"" + m.topic() + "\", and"
-                    + " it cannot cross a lane as itself: " + why + ". A value crossing a lane must share nothing"
-                    + " with its sender, and the copier that would make a mutable one safe is not built, so the"
-                    + " payload has to be deeply immutable: primitives, strings, enums, records and final classes"
-                    + " of those, and lists, sets and maps of those. Send a record of the values instead of the"
-                    + " object that holds them");
+            error(m.method(), "T2.4: " + m.where() + " receives " + m.payload() + ", and it cannot cross a lane as"
+                    + " itself: " + why + ". A value crossing a lane must share nothing with its sender, and the copier"
+                    + " that would make a mutable one safe is not built, so the payload has to be deeply immutable:"
+                    + " primitives, strings, enums, records and final classes of those, and lists, sets and maps of"
+                    + " those. Send a record of the values instead of the object that holds them");
         }
         return why == null;
     }
@@ -385,24 +358,25 @@ final class Channels {
      * T4.5's "exposing the graph": what this class holds, written as version 1 of the bus-graph text
      * (vexelray-inspector {@code docs/bus-circuit.md} §1), for the generated wiring's {@code BUS_GRAPH}.
      *
-     * <p>A part that sends but hears nothing, a {@code Ui} or a recipe, is a {@code publisher}. A send on a component
-     * this build does not construct ({@code @ConditionalOnType}) is left out, as its mailboxes are. Every mailbox's
-     * {@code overflow} is {@code FAIL}, which is what the tick does with an edge one more than its capacity, and a state
-     * topic never reaches. Each section is sorted, so two builds of the same declarations give the same text.
+     * <p>Each channel is named as it is at run time, by its payload's canonical name ({@link Topics#name}). A part that
+     * sends but hears nothing, a {@code Ui} or a recipe, is a {@code publisher}. A send on a component this build does
+     * not construct ({@code @ConditionalOnType}) is left out, as its mailboxes are. Every mailbox's {@code overflow} is
+     * {@code FAIL}, which is what the tick does with an edge one more than its capacity, and a state topic never reaches.
+     * Each section is sorted, so two builds of the same declarations give the same text.
      */
     String text(Collection<TypeElement> components, Collection<TypeElement> jobs, Graph graph) {
         Set<TypeElement> live = new LinkedHashSet<>(components);
         List<String> chips = new ArrayList<>();
         List<String> pins = new ArrayList<>();
-        Map<String, String> nameOf = new LinkedHashMap<>();
         for (TypeElement c : live) {
             chips.add("component " + c.getQualifiedName() + " lane=" + (mirrors.has(c, View.class) ? View.LANE
                     : mirrors.string(mirrors.find(c, Component.class), "lane")));
             for (Mailbox m : mailboxes(c)) {
-                String type = Mirrors.element(m.payload()).getQualifiedName().toString();
-                nameOf.putIfAbsent(type, m.topic());
-                pins.add("mailbox " + m.name() + " topic=" + m.topic() + " type=" + type + " overflow=FAIL"
-                        + " capacity=" + m.capacity());
+                if (plain(m.payload())) {
+                    String name = Topics.name(m.payload());
+                    pins.add("mailbox " + m.name() + " topic=" + name + " type=" + name + " overflow=FAIL capacity="
+                            + m.capacity());
+                }
             }
         }
         Set<String> others = new TreeSet<>();
@@ -415,36 +389,30 @@ final class Channels {
             if (!live.contains(type)) {
                 others.add("publisher " + type.getQualifiedName() + " lane=-");
             }
-            for (String topic : mirrors.strings(mirrors.find(publisher, Publishes.class), "value")) {
-                sends.add("publishes " + type.getQualifiedName() + " topic=" + topic);
+            for (TypeMirror payload : mirrors.types(mirrors.find(publisher, Publishes.class), "value")) {
+                if (plain(payload)) {
+                    sends.add("publishes " + type.getQualifiedName() + " topic=" + Topics.name(payload));
+                }
             }
         }
         for (VariableElement s : senders(graph)) {
             TypeElement type = enclosingType(s);
             TypeMirror payload = sent(s);
-            VariableElement constant = payload == null ? null : topicOf(payload);
-            if (type == null || constant == null) {
+            if (type == null || payload == null) {
                 continue;
-            }
-            String name = topics.name(constant);
-            if (name == null) {
-                name = nameOf.get(Mirrors.element(payload).getQualifiedName().toString());
-            }
-            if (name == null) {
-                continue;   // a name built at run time, which nothing here hears: no line to draw it on
             }
             if (!live.contains(type)) {
                 others.add("publisher " + type.getQualifiedName() + " lane=-");
             }
-            sends.add("publishes " + type.getQualifiedName() + " topic=" + name);
+            sends.add("publishes " + type.getQualifiedName() + " topic=" + Topics.name(payload));
         }
-        // A job answers on its reply topic, so it is a sender the Inspector draws. Where its requests arrive has no
+        // A job answers on its reply's channel, so it is a sender the Inspector draws. Where its requests arrive has no
         // line in version 1 of the text: a mailbox there is a component's, drained on a lane, and a job has neither.
         for (TypeElement j : jobs) {
             JobChannel job = job(j);
-            if (job != null && job.replyType() != null) {
+            if (job != null && job.replyType() != null && plain(job.replyType())) {
                 others.add("publisher " + job.name() + " lane=-");
-                sends.add("publishes " + job.name() + " topic=" + job.reply());
+                sends.add("publishes " + job.name() + " topic=" + Topics.name(job.replyType()));
             }
         }
         Collections.sort(chips);
@@ -466,9 +434,12 @@ final class Channels {
         return (TypeElement) e;
     }
 
-    private static String describe(VariableElement parameter) {
-        Element owner = parameter.getEnclosingElement();
-        return owner instanceof ExecutableElement method ? Mirrors.where(method) : Mirrors.simple(owner);
+    private static String describe(Element element) {
+        if (element instanceof VariableElement parameter
+                && parameter.getEnclosingElement() instanceof ExecutableElement method) {
+            return Mirrors.where(method);
+        }
+        return element instanceof ExecutableElement method ? Mirrors.where(method) : Mirrors.simple(element);
     }
 
     private void error(Element element, String message) {

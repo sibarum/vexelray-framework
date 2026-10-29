@@ -5,7 +5,7 @@ The rules an application and this framework both keep, stated normatively and in
 **Rewritten for 0.2 on 2026-10-26.** The model changed. Everything an application does is now a component
 that owns its state and talks by messages. Components drain their mailboxes once per *tick*, in one order, and
 the last write to a piece of state within a tick wins. The six rulings that set this up are in §0 with their
-reasons. The roadmap that builds it is `ROADMAP.md` beside the `v0.2` checkouts, and its phases are what the
+reasons. The roadmap that builds it is [ROADMAP.md](../ROADMAP.md), and its phases are what the
 **owed** entries below point at. [architecture.md](architecture.md#the-concurrency-model) is the reasoning for
 what survived from 0.1, and [its 0.2 section](architecture.md#the-message-model-02) records what changed and why.
 
@@ -258,18 +258,21 @@ tab's title, a document's dirty flag, a progress value. It names a key, and with
 delivered only the last write per key. An **edge** topic carries what happened: a keystroke, Save, Close, the
 answer to a question. Every message is delivered, in order. The kind belongs to the topic, so every subscriber
 agrees on it. *0.1 chose a loss policy per subscription, and held only that one topic was not an edge to one
-subscriber and a sample to another.* *(owed, phase 4. **The bus half is built** (atchung 1.4, 2026-10-26): `Topic.state(name,
+subscriber and a sample to another.* *(held. **The bus half is built** (atchung 1.4, 2026-10-26): `Topic.state(name,
 type, key)` and `Topic.edge`, a `Tick` folding state by key and delivering every edge, and the bus refusing two
 declarations of one channel that disagree about its kind, held by `TickTest.theLastWritePerKeyWinsAndEveryEdgeIsDelivered`
 and `twoDeclarationsOfOneChannelMustAgreeAboutItsKind`. **The framework half is built, phase 4:** every
-component runs on the tick, and a channel is a declared constant found by its payload, `static final Topic<P>` in the
-payload's type or the one enclosing it, which both ends name: a mailbox subscribes with it and a sender sends on it,
-so its kind is its declaration's. A constant in source made with `Topic.of` is refused for not saying its kind
-(`VexelProcessorTest.aTopicMadeWithOfDoesNotDeclareItsKind`), and an application's payload heard or sent with no
-constant, or with two, is refused (`aSubscribedPayloadWithNoDeclaredTopicIsAnError`,
-`aPayloadWithTwoDeclaredTopicsIsAnError`). **One exception:** a library's payload that several of its topics carry,
-as the widget library's `Chosen` is, is heard as the edge its `@Subscribe` names, since the library's own build judged
-its kind and a payload cannot pick one of its topics)*
+component runs on the tick, and **a channel is its payload type** (ruled 2026-10-29: no string topic names). Each is
+declared once, as `static final Topic<P>` in the payload's type or the one enclosing it, named by the payload
+(`Topic.edge(P.class)`, `Topic.state(P.class, key)`, atchung's name for it being P's canonical name), and every end
+refers to it by the type: a `@Subscribe` method's parameter, a `Sender<P>`, a job's `run`, a class literal in `@Hears`
+or `@Publishes`. So a reference to a channel that does not exist is a compile error, never a message heard by nobody;
+a topic name carrying two types cannot be written; and each channel's kind is its declaration's, for every end alike.
+A constant in source made with `Topic.of` or named by a string is refused, and a payload heard or sent with no
+constant, or with two, is refused, a library's as well as the application's (`VexelProcessorTest`'s T4.1 cases). The
+widget library's one payload shared by three widgets' menus, and its one shared by two widgets' placements, were split
+into a record per widget for it. A topic whose name is made at run time, a tree's own input and node events (T4.6),
+keeps its string, since the tree's name is in it by design)*
 
 **T4.2 — An edge is never lost quietly.** An edge mailbox is bounded, and overflowing it ends the application,
 naming the topic, the bound and the subscriber, as `Backpressure.FAIL` does now. A state mailbox cannot overflow:
@@ -316,9 +319,9 @@ wider: the main thread never waits for a tick, a reply or a lock.* In single-thr
 tick itself, which is not waiting on it. *(owed, phases 2 and 5)*
 
 **T4.8 — A subscription may filter by key.** The author's "subscribe to any desired event streams with a
-filter": a subscriber to a state topic may name the keys it wants (`@Subscribe(topic = ..., key = ...)`), and the
+filter": a subscriber to a state topic may name the keys it wants (`@Subscribe(key = ...)`), and the
 wiring does the filtering, so a component is never handed a message it would discard. A filter is a declaration,
-never a predicate lambda, so the processor can see it. *(held, phase 4: `@Subscribe(topic = ..., key = {...})`,
+never a predicate lambda, so the processor can see it. *(held, phase 4: `@Subscribe(key = {...})`,
 keys compared as strings, which is what a widget's address is, and handed to the inbox (`Inboxes.mailbox`) or the
 view's frame (`Gui.mailbox` with keys). A filter on an edge constant is a compile error, and on an edge the processor
 cannot read, a startup one (`VexelProcessorTest.aKeyFilterIsHandedToTheMailbox`, `aKeyFilterOnAnEdgeIsAnError`; the

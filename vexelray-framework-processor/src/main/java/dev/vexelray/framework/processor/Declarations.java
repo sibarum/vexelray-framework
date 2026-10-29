@@ -473,18 +473,14 @@ final class Declarations {
         }
         if (method.getParameters().size() != 1) {
             error(method, "@Subscribe " + where + " takes " + method.getParameters().size() + " parameters, and"
-                    + " must take exactly one: the payload. The topic's type is that parameter's type");
+                    + " must take exactly one: the payload, whose type names the channel");
         } else {
             TypeMirror payload = method.getParameters().get(0).asType();
             if (payload.getKind() != TypeKind.DECLARED || !((DeclaredType) payload).getTypeArguments().isEmpty()) {
-                error(method, "@Subscribe " + where + " takes " + payload + ", which cannot name a topic's type."
+                error(method, "@Subscribe " + where + " takes " + payload + ", which cannot name a channel."
                         + " A payload is a class or interface with no type arguments — wrap a primitive or a"
                         + " generic in a record, which is also what makes the channel readable");
             }
-        }
-        if (mirrors.string(subscribe, "topic").isBlank()) {
-            error(method, "@Subscribe " + where + " has a blank topic. The name is the channel, and publishers"
-                    + " find it by that name");
         }
         if ((Integer) mirrors.value(subscribe, "capacity") < 1) {
             error(method, "@Subscribe " + where + " has a capacity below one. A mailbox holds at least a message");
@@ -539,13 +535,6 @@ final class Declarations {
             error(type, "@Job " + name + " has " + constructors + " non-private constructors, and must have exactly"
                     + " one. The container does not pick between them");
         }
-        AnnotationMirror job = mirrors.find(type, dev.vexelray.framework.api.Job.class);
-        String topic = mirrors.string(job, "topic");
-        String reply = mirrors.string(job, "reply");
-        if (topic.isBlank()) {
-            error(type, "@Job " + name + " has a blank topic. The name is the channel its requests arrive on, and a"
-                    + " sender finds it by that name");
-        }
         ExecutableElement run = null;
         int runs = 0;
         for (Element e : type.getEnclosedElements()) {
@@ -563,38 +552,31 @@ final class Declarations {
         String where = Mirrors.where(run);
         if (run.getParameters().size() != 1) {
             error(run, where + " takes " + run.getParameters().size() + " parameters, and must take exactly one: the"
-                    + " request, whose type is the topic's");
+                    + " request, whose type names the channel it arrives on");
         } else {
-            message(run, "request", run.getParameters().get(0).asType(), topic);
+            message(run, "request", run.getParameters().get(0).asType());
         }
         if (!run.getThrownTypes().isEmpty()) {
             error(run, where + " declares " + run.getThrownTypes() + ". A failure a job expects is part of its reply,"
                     + " a field the subscriber has to read; anything else that escapes ends the application. Catch it"
                     + " here and answer with it");
         }
-        boolean effect = run.getReturnType().getKind() == TypeKind.VOID;
-        if (effect && !reply.isBlank()) {
-            error(run, where + " returns nothing, and @Job " + name + " names the reply \"" + reply + "\". Return"
-                    + " the reply, or leave reply out for a job run only for its effect");
-        } else if (!effect && reply.isBlank()) {
-            error(run, where + " returns " + run.getReturnType() + ", and @Job " + name + " names no reply, so it"
-                    + " would be dropped. Name the reply topic, or return void");
-        } else if (!effect) {
-            message(run, "reply", run.getReturnType(), reply);
+        if (run.getReturnType().getKind() != TypeKind.VOID) {
+            message(run, "reply", run.getReturnType());
         }
     }
 
     /** A job's request or reply: a class with no type arguments that can cross a lane as itself (T2.4). */
-    private void message(ExecutableElement run, String what, TypeMirror type, String topic) {
+    private void message(ExecutableElement run, String what, TypeMirror type) {
         String where = Mirrors.where(run);
         if (type.getKind() != TypeKind.DECLARED || !((DeclaredType) type).getTypeArguments().isEmpty()) {
-            error(run, where + "'s " + what + " is " + type + ", which cannot name a topic's type. A message is a"
+            error(run, where + "'s " + what + " is " + type + ", which cannot name a channel. A message is a"
                     + " class or interface with no type arguments: wrap it in a record");
             return;
         }
         String why = Shareable.crossing(type);
         if (why != null) {
-            error(run, "T2.4: " + where + "'s " + what + " on \"" + topic + "\" is " + type + ", and it cannot cross"
+            error(run, "T2.4: " + where + "'s " + what + " is " + type + ", and it cannot cross"
                     + " a lane as itself: " + why + ". Requests and replies cross between the sender's lane and the"
                     + " job lane, so they are deeply immutable: primitives, strings, enums, records and final"
                     + " classes of those, and lists, sets and maps of those");

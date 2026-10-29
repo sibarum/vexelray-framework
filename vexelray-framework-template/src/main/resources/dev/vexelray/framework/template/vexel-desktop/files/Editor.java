@@ -100,12 +100,12 @@ import java.util.Set;
  * thing without a window.
  */
 @Component
-@Hears({Messages.BEGIN, Messages.RECALLED, Messages.GO, Messages.OPEN, Messages.FILE_READ, Messages.FOUND,
-        Messages.CREATED, Messages.FRONTED, Messages.EDITED, Messages.SAVE, Messages.WRITTEN, Messages.ANSWER,
-        Messages.CLOSE, Messages.QUIT})
-@Publishes({Messages.SHOW_FOLDER, Messages.ADD_TAB, Messages.FRONT_TAB, Messages.CLOSE_TAB, Messages.RETITLE,
-        Messages.CAPTION, Messages.STATUS, Messages.ASK, Messages.FLUSH, Messages.SAVE_FAILED, Messages.QUIT_ANSWER,
-        Messages.READ, Messages.WRITE, Messages.FIND, Messages.CREATE, Messages.RECALL, Messages.REMEMBER})
+@Hears({Begin.class, Recalled.class, Go.class, Open.class, FileRead.class, Found.class,
+        Created.class, Fronted.class, Edited.class, Save.class, Written.class, Answer.class,
+        Close.class, Quit.class})
+@Publishes({ShowFolder.class, AddTab.class, FrontTab.class, CloseTab.class, Retitle.class,
+        Caption.class, Status.class, Ask.class, Flush.class, SaveFailed.class, QuitAnswer.class,
+        Read.class, Write.class, Find.class, Create.class, Recall.class, Remember.class})
 public final class Editor {
 
     /** How many of each message the editor's inbox holds before a sender is refused: far more than a person sends. */

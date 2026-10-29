@@ -10,7 +10,6 @@ import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
 import dev.vexelray.gui.nfd.FileDialog;
-import dev.vexelray.gui.widget.Chosen;
 import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Tabs;
 import org.junit.jupiter.api.AfterEach;
@@ -231,7 +230,7 @@ class ViewTest {
         eventually("unsaved", b::dirty);
         List<String> asked = new CopyOnWriteArrayList<>();
         answer = pressing("Don't save", asked);
-        shell.bus().publish(Tabs.CHOSEN, new Chosen(ws.address(), Workspace.CLOSE, ws.all().indexOf(b)));
+        shell.bus().publish(Tabs.CHOSEN, new Tabs.Chosen(ws.address(), Workspace.CLOSE, ws.all().indexOf(b)));
         eventually("the tab to close", () -> ws.byId(b.id) == null);
         assertEquals(List.of("Unsaved changes"), asked);
         assertEquals("a", Files.readString(dir.resolve("a.txt")), "Don't save does not save");

@@ -11,7 +11,7 @@ import dev.vexelray.framework.api.Job;
  * names the version of the text it was computed from, and the view applies it only if the field still says that, so a
  * slow answer about old text is dropped rather than drawn over new text.
  */
-@Job(topic = Messages.MARK, reply = Messages.MARKED)
+@Job
 public final class MarkText {
 
     public Marked run(Mark m) {

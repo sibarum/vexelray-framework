@@ -58,11 +58,11 @@ for now.
 | `@VexelApp` | The application: its name (the settings directory), title, size, `icon` and `starters` |
 | `@Configuration` / `@Provides` | Recipes: one method per part, its parameters what it needs |
 | `@Default` | The framework's answer, unless the application provides its own |
-| `@Component` | An actor on a lane: the shared default lane unless it names one |
-| `@Subscribe` | A component method that receives a topic, through a mailbox of its own with a declared overflow |
-| `@Publishes` | Which topics a type or method sends on, so a blocking send from the main thread is a compile error |
-| `@MainThread` | May only be touched on the main thread, checked at compile time |
-| `@BeforeFrame(FrameStage)` | Per-frame work, in a named stage |
+| `@Component` | An actor on the logic lane, or on a lane of its own if it names one; it sends through the `Sender<T>`s it takes |
+| `@View` | Presentation on the GUI thread, told by messages in the frame |
+| `@Subscribe` | A method that receives its parameter's message type, through a mailbox of its own |
+| `@Job` | Slow work: a request type in, a reply type out, on the job lane |
+| `@Hears` / `@Publishes` | The message types a ledger-built component hears and sends, as class literals |
 | `@OnMode(RunMode)` | Exists only in some run modes |
 | `@ConditionalOnType` | Contributes only if a type is on the compile classpath |
 | `@Setting` | Binds one configuration value, by key, overridable for one launch with `--key=value` |
@@ -126,12 +126,12 @@ the widget tree and presents it:
 | --- | --- |
 | `INPUT` | Device input onto the bus |
 | `CLOCK` | The timeline ticks: animations and anything scheduled for now |
-| `APP` | The application's own per-frame work, usually draining what a background thread produced |
+| `APP` | The framework's draining of what arrived; with `--logic=main`, the application's logic tick |
 | `SETTLE` | Deferred bookkeeping |
 
-Input comes before the clock so that a frame shows the value it computed, rather than one frame late. Per-frame
-work joins a stage with `@BeforeFrame(FrameStage.APP)`; the stages are a closed list rather than numeric priorities,
-so no part's position depends on another part's number.
+Input comes before the clock so that a frame shows the value it computed, rather than one frame late. The stages
+are the framework's own, a closed list rather than numeric priorities, and no application code runs in them: the
+application's logic runs in its tick, and what it shows is a view's, told by messages.
 
 **The loop sleeps when there is nothing to do.** It does not redraw at a fixed rate: it waits until the earliest
 deadline any part holds (the next animation step, a window position to save) or until something wakes it. Parts
@@ -158,24 +158,24 @@ Vulkan, the window and presenting stay on the main thread. Everything else runs 
 | **Offload lane** | Slow work such as reading and writing files, bounded so it waits rather than grows |
 | **Component lanes** | Each `@Component`: a shared default lane, or one it names for itself |
 
-A component is one part, on one thread, with one mailbox. It does not hold references to other components; it
-receives messages through `@Subscribe` methods and sends them on the bus. Each mailbox says what happens when it is
-full (fail, drop, keep the latest, or wait), and a send that could block the main thread is a compile error.
+A component is one part with its own state and mailbox. It does not hold references to other components; it receives
+messages through `@Subscribe` methods and sends them through the `Sender<T>` it takes for each message type. A channel
+is its message type, declared once beside it, so neither end spells a name. Every component runs on one logic lane by
+default, one delivery at a time; one that declares a lane gets a thread of its own in the same rounds.
 
 ```java
 @Component(lane = "physics")
 final class Physics {
 
-    @Subscribe(topic = Messages.START, overflow = Overflow.COALESCE_LATEST)
-    public void start(Start s) {
+    @Subscribe
+    public void start(Start s) {          // Start's topic, Topic.state(Start.class), says it is state
         ...
     }
 }
 ```
 
 Lanes are assigned when the application is compiled, never at runtime, and are platform threads rather than virtual
-ones. A value that may only be used on the main thread is marked `@MainThread`, and handing one to anything else is
-a compile error.
+ones. No application code runs on the main thread, and handing a part a main-thread value is a compile error.
 
 *More: [threading.md](threading.md) for the rules, [components.md](components.md) for the component model, and
 [architecture.md](architecture.md#the-concurrency-model) for the reasoning.*

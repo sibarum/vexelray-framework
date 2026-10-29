@@ -2,7 +2,7 @@
 
 Status: **Direction ruled 2026-10-28; steps 2 to 5 built, and 6 for the controller (see *Order of work*).** The
 author's words first, then the rules settled in the same conversation, then the design, what it changes in the 0.2
-roadmap (`ROADMAP.md` beside the `v0.2` checkouts), the questions it leaves open, and the order of work. It builds on
+roadmap ([ROADMAP.md](../../ROADMAP.md)), the questions it leaves open, and the order of work. It builds on
 the 0.2 message model, on vexelray-gui's
 [tree-thread.md](../../../vexelray-gui/docs/plans/tree-thread.md) and [undo.md](../../../vexelray-gui/docs/plans/undo.md),
 and on atchung's `State`.

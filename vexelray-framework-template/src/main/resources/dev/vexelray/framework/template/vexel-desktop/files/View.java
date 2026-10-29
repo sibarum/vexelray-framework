@@ -30,7 +30,6 @@ import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.input.Shortcut;
-import dev.vexelray.gui.widget.Chosen;
 import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Tabs;
 import dev.vexelray.gui.widget.TextField;
@@ -81,19 +80,6 @@ import java.util.List;
  */
 @dev.vexelray.framework.api.View
 final class View {
-
-    // The widgets' topics, by name, since @Subscribe takes a constant. The wiring subscribes with the widget's own
-    // Topic, and checks at startup that these names are its names.
-    static final String TABS_SELECTED = "vexelray.gui.tabs.selected";
-    static final String TABS_CHOSEN = "vexelray.gui.tabs.chosen";
-    static final String FIELD_CHANGED = "vexelray.gui.textfield.changed";
-    static final String FIELD_CARET = "vexelray.gui.textfield.caret";
-    static final String FIELD_SUBMITTED = "vexelray.gui.textfield.submitted";
-    static final String TREE_WANTED = "vexelray.gui.tree.children-wanted";
-    static final String TREE_SELECTED = "vexelray.gui.tree.selected";
-    static final String TREE_ACTIVATED = "vexelray.gui.tree.activated";
-    static final String TREE_CHOSEN = "vexelray.gui.tree.chosen";
-    static final String TREE_REVEALED = "vexelray.gui.tree.revealed";
 
     /** Closing every tab is a {@code CloseTab} each, so a whole set waits for one frame. */
     static final int SET = 4096;
@@ -171,14 +157,14 @@ final class View {
         gui.shortcut(shortcut, intents, new Intent(command, Messages.NO_TAB));
     }
 
-    @Subscribe(topic = Intent.TOPIC)
+    @Subscribe
     public void intent(Intent intent) {
         intent.command().on(this, intent.id());
     }
 
     // ------------------------------------------------------------------ what the editor says
 
-    @Subscribe(topic = Messages.SHOW_FOLDER)
+    @Subscribe
     public void showFolder(ShowFolder m) {
         Listing first = nav.show(m.path());
         if (first != null) {
@@ -186,12 +172,12 @@ final class View {
         }
     }
 
-    @Subscribe(topic = Messages.ADD_TAB)
+    @Subscribe
     public void addTab(AddTab m) {
         ws.add(m.id(), m.path(), m.text(), m.focus());
     }
 
-    @Subscribe(topic = Messages.FRONT_TAB)
+    @Subscribe
     public void frontTab(FrontTab m) {
         Buffer b = ws.byId(m.id());
         if (b != null) {
@@ -199,28 +185,28 @@ final class View {
         }
     }
 
-    @Subscribe(topic = Messages.CLOSE_TAB, capacity = SET)
+    @Subscribe(capacity = SET)
     public void closeTab(CloseTab m) {
         ws.close(m.id());
     }
 
-    @Subscribe(topic = Messages.RETITLE, capacity = SET)
+    @Subscribe(capacity = SET)
     public void retitle(Retitle m) {
         ws.retitle(m.id(), m.title());
     }
 
-    @Subscribe(topic = Messages.CAPTION)
+    @Subscribe
     public void caption(Caption m) {
         ui.caption(m.file());
     }
 
-    @Subscribe(topic = Messages.STATUS)
+    @Subscribe
     public void status(Status m) {
         ui.status(m.message(), m.alert());
     }
 
     /** A question, as the framework's dialog: each button sends its answer back to the editor. */
-    @Subscribe(topic = Messages.ASK)
+    @Subscribe
     public void ask(Ask m) {
         dialogs.ask(Modal.of(m.title(), m.message())
                 .defaultButton(m.confirm(), answer, new Answer(m.question(), Choice.CONFIRM))
@@ -228,7 +214,7 @@ final class View {
                 .cancelButton("Cancel", answer, new Answer(m.question(), Choice.CANCEL)));
     }
 
-    @Subscribe(topic = Messages.FLUSH, capacity = SET)
+    @Subscribe(capacity = SET)
     public void flush(Flush m) {
         Buffer b = ws.byId(m.id());
         if (b == null) {
@@ -238,7 +224,7 @@ final class View {
         }
     }
 
-    @Subscribe(topic = Messages.SAVE_FAILED)
+    @Subscribe
     public void saveFailed(SaveFailed m) {
         Buffer b = ws.byId(m.id());
         if (b != null) {
@@ -247,21 +233,21 @@ final class View {
         }
     }
 
-    @Subscribe(topic = Messages.QUIT_ANSWER)
+    @Subscribe
     public void quitAnswer(QuitAnswer m) {
         gate.answer(m.gate(), m.proceed());
     }
 
     // ------------------------------------------------------------------ what the jobs answer
 
-    @Subscribe(topic = Messages.LISTED)
+    @Subscribe
     public void listed(Listed m) {
         if (m.tree().equals(nav.treeAddress())) {
             children.send(nav.children(m));
         }
     }
 
-    @Subscribe(topic = Messages.MARKED)
+    @Subscribe
     public void marked(Marked m) {
         Buffer b = ws.byField(m.field());
         if (b != null) {
@@ -272,7 +258,7 @@ final class View {
     // ------------------------------------------------------------------ what the widgets say
 
     /** The bar's selection moved: the editor hears which file is in front, and the status line where its caret is. */
-    @Subscribe(topic = TABS_SELECTED)
+    @Subscribe
     public void tabSelected(Tabs.Selected m) {
         Buffer b = m.tabs().equals(ws.address()) ? ws.at(m.index()) : null;
         if (b != null && b.id != front) {
@@ -283,8 +269,8 @@ final class View {
     }
 
     /** One of the tab menu's actions. */
-    @Subscribe(topic = TABS_CHOSEN)
-    public void tabChosen(Chosen m) {
+    @Subscribe
+    public void tabChosen(Tabs.Chosen m) {
         Buffer b = m.at().equals(ws.address()) && m.item() instanceof Integer i ? ws.at(i) : null;
         if (b == null) {
             return;
@@ -305,7 +291,7 @@ final class View {
     }
 
     /** A document's text changed: whether it is now unsaved, and its colours. */
-    @Subscribe(topic = FIELD_CHANGED)
+    @Subscribe
     public void fieldChanged(TextField.Changed m) {
         Buffer b = ws.byField(m.field());
         if (b == null) {
@@ -318,7 +304,7 @@ final class View {
         }
     }
 
-    @Subscribe(topic = FIELD_CARET)
+    @Subscribe
     public void fieldCaret(TextField.Caret m) {
         Buffer b = ws.byField(m.field());
         if (b != null) {
@@ -330,7 +316,7 @@ final class View {
     }
 
     /** The path bar was submitted: what the text names is the editor's call. */
-    @Subscribe(topic = FIELD_SUBMITTED)
+    @Subscribe
     public void fieldSubmitted(TextField.Submitted m) {
         if (m.field().equals(nav.pathAddress())) {
             go.send(new Go(m.text().strip()));
@@ -338,7 +324,7 @@ final class View {
     }
 
     /** The tree wants a level: ask {@code ListFolder}, or answer an empty top when no folder is shown yet. */
-    @Subscribe(topic = TREE_WANTED)
+    @Subscribe
     public void treeWanted(TreeView.ChildrenWanted m) {
         if (!m.tree().equals(nav.treeAddress())) {
             return;
@@ -352,7 +338,7 @@ final class View {
     }
 
     /** A file selected in the tree opens, and the keyboard stays in the tree, so walking it keeps walking. */
-    @Subscribe(topic = TREE_SELECTED)
+    @Subscribe
     public void treeSelected(TreeView.Selected m) {
         if (m.tree().equals(nav.treeAddress()) && m.item() instanceof Path p && !nav.isFolder(p)) {
             open.send(new Open(p, false));
@@ -360,7 +346,7 @@ final class View {
     }
 
     /** Enter on a folder opens it in place. */
-    @Subscribe(topic = TREE_ACTIVATED)
+    @Subscribe
     public void treeActivated(TreeView.Activated m) {
         if (m.tree().equals(nav.treeAddress()) && m.item() instanceof Path p && nav.isFolder(p)) {
             nav.expand(p);
@@ -368,8 +354,8 @@ final class View {
     }
 
     /** One of a row's menu actions. */
-    @Subscribe(topic = TREE_CHOSEN)
-    public void treeChosen(Chosen m) {
+    @Subscribe
+    public void treeChosen(TreeView.Chosen m) {
         if (!m.at().equals(nav.treeAddress()) || !(m.item() instanceof Path p)) {
             return;
         }
@@ -382,7 +368,7 @@ final class View {
         }
     }
 
-    @Subscribe(topic = TREE_REVEALED)
+    @Subscribe
     public void treeRevealed(TreeView.Revealed m) {
         if (m.tree().equals(nav.treeAddress())) {
             nav.revealed(m.item(), m.reached());

@@ -11,7 +11,7 @@ import java.io.IOException;
  * Write a file with its own line endings, on the offload lane. A write that does not land is an answer
  * ({@code problem}), and the {@link Editor} cancels whatever was waiting on it.
  */
-@Job(topic = Messages.WRITE, reply = Messages.WRITTEN)
+@Job
 public final class WriteFile {
 
     private static final Log LOG = Log.of("${appName}.files");

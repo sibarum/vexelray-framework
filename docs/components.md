@@ -35,7 +35,7 @@ carries its reason*. Rulings 1 and 2 are complete.
 A `@Component` is **a thread and a mailbox**: a class constructed once, before the loop runs, by its one
 constructor, that runs on a *lane* and is reached by publishing, never by holding. A value that needs only a
 lifetime and swappable behaviour is a `@Provides`; a value is neither. The main thread is not a lane and a
-component is never `@MainThread`.
+component never runs there: no application code does (T7.1).
 
 ## What a component is owed
 
@@ -288,18 +288,22 @@ is nothing left to capture: the question goes away rather than being checked.
 **The shape.** Slow work is a *declared job*, not a lambda, and its result is a *message*, not a callback.
 
 ```java
-@Job(topic = "file.read", reply = "file.opened")
+@Job
 final class ReadFile {                                  // no mutable state: checked
     ReadFile(FileSystem files) { ... }                  // injected like any part; must be Shareable or a declared service
-    Opened run(OpenFile request) throws IOException { ... }   // runs on the offload pool
+    Opened run(OpenFile request) { ... }                // runs on the job lane; its types name both channels
 }
-record OpenFile(Path path) {}                           // request: deeply immutable, as any payload
-record Opened(Path path, String text) {}                // reply: deeply immutable, carries what the caller needs
+record OpenFile(Path path) {                            // request: deeply immutable, as any payload
+    static final Topic<OpenFile> TOPIC = Topic.edge(OpenFile.class);
+}
+record Opened(Path path, String text) {                 // reply: deeply immutable, carries what the caller needs
+    static final Topic<Opened> TOPIC = Topic.edge(Opened.class);
+}
 
 @Component
 final class Documents {
-    @Publishes("file.read") ...                         // asks
-    @Subscribe(topic = "file.opened")                   // hears back, on its own lane, in order
+    Documents(Sender<OpenFile> open) { ... }            // asks: a declared send, by its payload
+    @Subscribe                                          // hears back, on the logic lane, in order
     void opened(Opened o) { ... }
 }
 ```

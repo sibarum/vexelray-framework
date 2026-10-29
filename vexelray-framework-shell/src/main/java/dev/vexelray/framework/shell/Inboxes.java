@@ -5,6 +5,7 @@ import sibarum.atchung.Sender;
 import sibarum.atchung.Subscriber;
 import sibarum.atchung.Topic;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -29,23 +30,27 @@ public final class Inboxes {
 
     /**
      * The inbox named {@code name} on {@code shell}'s logic lane, on {@code lane}, made the first time it is asked for.
-     * {@code hears} is what the component declared it hears; when the lane starts, the inbox must be subscribed to
-     * exactly those, as well as its ledgers' own topics, or the application does not start.
+     * {@code hears} is what the component declared it hears ({@code @Hears}, its payloads' topics); when the lane
+     * starts, the inbox must be subscribed to exactly those, as well as its ledgers' own topics, or the application
+     * does not start.
      */
-    public static Inbox of(Shell shell, String name, String lane, String... hears) {
-        return shell.inbox(name, lane, List.of(hears));
+    public static Inbox of(Shell shell, String name, String lane, Topic<?>... hears) {
+        List<String> names = new ArrayList<>(hears.length);
+        for (Topic<?> t : hears) {
+            names.add(t.name());
+        }
+        return shell.inbox(name, lane, names);
     }
 
     /**
      * A mailbox for a component: {@code topic} delivered to {@code subscriber} on the component's inbox, at most
      * {@code capacity} edges queued (a state topic holds one message per key and cannot overflow). {@code keys}, when
-     * any, are the keys of a state topic the subscription hears and the only ones it is handed (T4.8). {@code declared}
-     * is the name {@code @Subscribe} gave; the topic is the payload's own declared constant, so its kind is the one its
-     * publisher declared, and the two names must agree or the application does not start.
+     * any, are the keys of a state topic the subscription hears and the only ones it is handed (T4.8). The topic
+     * is the payload's own declared constant, the one the {@code @Subscribe} method's parameter names, so its kind is the
+     * one its declaration chose.
      */
-    public static <T> void mailbox(Shell shell, String component, String lane, String declared, Topic<T> topic,
+    public static <T> void mailbox(Shell shell, String component, String lane, Topic<T> topic,
                                    Subscriber<T> subscriber, int capacity, String... keys) {
-        named(declared, topic);
         Inbox in = shell.inbox(component, lane);
         if (keys.length == 0) {
             in.subscribe(topic, subscriber, capacity);
@@ -61,13 +66,5 @@ public final class Inboxes {
      */
     public static <T> Sender<T> sender(Shell shell, String component, String lane, Topic<T> topic) {
         return shell.inbox(component, lane).sender(topic);
-    }
-
-    /** The topic a declaration names by its name is the one the wiring found, or the application does not start. */
-    static void named(String declared, Topic<?> topic) {
-        if (!topic.name().equals(declared)) {
-            throw new IllegalStateException("\"" + declared + "\" is declared, and " + topic.payloadType().getName()
-                    + "'s topic is \"" + topic.name() + "\": write that name in the declaration");
-        }
     }
 }

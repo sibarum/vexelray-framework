@@ -6,17 +6,25 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Slow work as a declaration: a request arrives on {@link #topic()}, runs on the offload lane, and its answer is
- * published on {@link #reply()}.
+ * Slow work as a declaration: a request arrives on its payload's topic, runs on the job lane, and its answer is
+ * published on its own payload's topic.
  *
  * <pre>{@code
- * @Job(topic = "file.read", reply = "file.opened")
+ * @Job
  * public final class ReadFile {                         // no mutable state: checked
- *     public Opened run(OpenFile request) { ... }       // runs on the offload pool; declares no throws
+ *     public Opened run(OpenFile request) { ... }       // runs on the job lane; declares no throws
  * }
- * record OpenFile(Path path) {}                         // the request: deeply immutable, as any payload
- * record Opened(Path path, String text, String problem) {}  // the reply carries what the caller needs
+ * record OpenFile(Path path) {                          // the request: deeply immutable, as any payload
+ *     static final Topic<OpenFile> TOPIC = Topic.edge(OpenFile.class);
+ * }
+ * record Opened(Path path, String text, String problem) {   // the reply carries what the caller needs
+ *     static final Topic<Opened> TOPIC = Topic.edge(Opened.class);
+ * }
  * }</pre>
+ *
+ * <p><b>Its channels are its types.</b> The request's topic is the one declared for {@code run}'s parameter, the
+ * reply's the one declared for its return type, as every channel is found (T4.1): no name to spell, so none to get
+ * wrong.
  *
  * <h2>Why a job and not a lambda</h2>
  *
@@ -29,13 +37,13 @@ import java.lang.annotation.Target;
  *
  * <h2>What it runs on, and what it does not promise</h2>
  *
- * <p>The offload lane: a bounded pool of platform threads, not a lane of its own. A job has no state to confine and
+ * <p>The job lane: a bounded pool of platform threads, not a lane of its own. A job has no state to confine and
  * no order to keep, so two requests may run at once and their replies may arrive in either order. A caller that needs
  * an order — tabs restored as they were — sends the next request when the last reply arrives. The pool is not
  * watched by the liveness watchdog, which is the point of putting disk and network here rather than on a component's
  * lane: a read stuck on a network drive is a slow reply, not a stalled lane.
  *
- * <p>The reply is published on the offload thread, and whoever subscribes to it receives it on <em>their own</em>
+ * <p>The reply is published on the job lane's thread, and whoever subscribes to it receives it on <em>their own</em>
  * lane, in order with the rest of their mail. A job never touches the tree, the timeline or a component.
  *
  * <h2>Failure</h2>
@@ -51,22 +59,13 @@ import java.lang.annotation.Target;
  * <p>{@code vexelray-framework-processor} holds: a final class with one constructor, injected like any part (a job
  * may not take a component or a main-thread value); final fields only, each of a shareable type or a type the
  * container supplies; one {@code run} method taking the request and returning the reply, or {@code void} for a job
- * run only for its effect, which then names no reply; request and reply deeply immutable; one job per topic; and,
- * in an application, at least one mailbox on the reply topic, since a reply nobody hears is a lost result. Nothing
+ * run only for its effect, which then names no reply; request and reply deeply immutable; one job per request type; and,
+ * in an application, someone hearing the reply, since a reply nobody hears is a lost result. Nothing
  * holds a job: it is reached by publishing its topic. The generated wiring constructs it in the phase its parameters
- * put it in and subscribes it to its topic on the offload lane.
+ * put it in and subscribes it to its request's topic on the job lane.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)
 @Stability(Stability.Level.EXPERIMENTAL)
 public @interface Job {
-
-    /** The topic requests arrive on. Its type is {@code run}'s parameter. */
-    String topic();
-
-    /**
-     * The topic the answer is published on. Its type is {@code run}'s return type. Empty, the default, is a job run
-     * only for its effect, whose {@code run} returns {@code void}.
-     */
-    String reply() default "";
 }

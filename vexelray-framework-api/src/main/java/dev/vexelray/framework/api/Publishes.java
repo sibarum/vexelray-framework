@@ -9,8 +9,9 @@ import java.lang.annotation.Target;
  * Says which channels this code sends on — the other end of {@link Subscribe}, and what makes a rule about
  * senders checkable at all.
  *
- * <p>The processor reads declarations, not method bodies, so a {@code bus.publish(...)} call is invisible to it.
- * This is how a sender is made visible: name the topics, on the type or on the method that sends. It is an
+ * <p>The processor reads declarations, not method bodies, so a send in a body is invisible to it. This is how such a
+ * sender is made visible: name the payload types it sends, on the type or on the method that sends. A payload names
+ * its channel (T4.1), so these are class literals javac checks, never topic names. It is an
  * honest declaration and not a proof — a send that is not declared is not checked — which is the same trade
  * {@code docs/threading.md} T4.5 makes for the whole message graph: <i>an emergent graph cannot be checked; a
  * declared one can.</i>
@@ -28,6 +29,6 @@ import java.lang.annotation.Target;
 @Stability(Stability.Level.EXPERIMENTAL)
 public @interface Publishes {
 
-    /** The names of the topics sent on. */
-    String[] value();
+    /** The payload types sent, each with its one declared topic. */
+    Class<?>[] value();
 }

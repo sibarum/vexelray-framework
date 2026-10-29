@@ -6,7 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * A mailbox on a {@link Component} or a {@link View}, declared: this method receives {@link #topic}, on the
+ * A mailbox on a {@link Component} or a {@link View}, declared: this method receives its parameter's channel, on the
  * component's lane (the logic lane, unless it declares one of its own) or in a view's frame.
  *
  * <p><b>The channel is on the declaration, because a processor reads declarations.</b> Until this existed a
@@ -14,10 +14,11 @@ import java.lang.annotation.Target;
  * channels existed or who was on the far end. Everything in {@code docs/threading.md} §4 that needs the message
  * graph was unreachable for that reason and nothing else.
  *
- * <p>The payload type is the method's parameter, so a topic is {@code (topic, type)} and cannot disagree with its
- * handler. The topic itself is the payload's declared constant, a {@code static final Topic} of the payload in the
- * payload's own type or the type enclosing it, as {@code Messages} and the widgets declare theirs; its name must be
- * {@link #topic}, and it says whether the channel is state or edge (T4.1). The generated wiring subscribes the mailbox
+ * <p><b>The parameter names the channel.</b> A channel is a payload type, declared once as the payload's
+ * {@code static final Topic}, in the payload's own type or the type enclosing it, made with {@code Topic.edge(P.class)}
+ * or {@code Topic.state(P.class, key)}, as {@code Messages} and the widgets declare theirs. That constant says whether
+ * the channel is state or edge (T4.1), and this method's parameter type is how it is found: there is no topic name to
+ * write here, so none to misspell. A payload with no declared topic, or with two, does not compile. The generated wiring subscribes the mailbox
  * where it constructs the component, and the framework starts it once every publisher exists; there is no teardown to
  * write.
  *
@@ -34,9 +35,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.CLASS)
 @Stability(Stability.Level.EXPERIMENTAL)
 public @interface Subscribe {
-
-    /** The channel's name. The payload type comes from the method's parameter. */
-    String topic();
 
     /** How many edges may wait in this mailbox at once. A state topic holds one message per key and ignores it. */
     int capacity() default 64;

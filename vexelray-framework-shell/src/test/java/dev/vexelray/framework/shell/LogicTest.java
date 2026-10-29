@@ -49,7 +49,7 @@ final class LogicTest {
         assertFalse(java.lang.reflect.Modifier.isPublic(Logic.class.getDeclaredConstructors()[0].getModifiers()));
         assertFalse(java.lang.reflect.Modifier.isPublic(Logic.class.getDeclaredMethod("start").getModifiers()));
         assertTrue(java.lang.reflect.Modifier.isPublic(Inboxes.class.getDeclaredMethod(
-                "of", Shell.class, String.class, String.class, String[].class).getModifiers()),
+                "of", Shell.class, String.class, String.class, sibarum.atchung.Topic[].class).getModifiers()),
                 "the one door generated code uses");
     }
 

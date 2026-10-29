@@ -10,7 +10,7 @@ import java.nio.file.Path;
  * Keep the session for next time, on the offload lane: the settings store writes a file. Run only for its effect, so
  * it has no reply. The {@link Editor} sends one only when the session differs from the last it sent.
  */
-@Job(topic = Messages.REMEMBER)
+@Job
 public final class WriteSession {
 
     private final Settings settings;

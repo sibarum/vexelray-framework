@@ -268,7 +268,7 @@ class StepCheckTest {
     @Test
     void stateArgumentsOutConstantsAndItsOwnLocalsAreFine() throws IOException {
         accepted("""
-                static final sibarum.atchung.Topic<String> SAID = sibarum.atchung.Topic.edge("said", String.class);
+                static final sibarum.atchung.Topic<String> SAID = sibarum.atchung.Topic.edge(String.class);
                 static void build(Ledger.Builder<Notes> b) {
                     b.<String>step("add", (n, line, out) -> {
                         String shown = PREFIX + line.trim();

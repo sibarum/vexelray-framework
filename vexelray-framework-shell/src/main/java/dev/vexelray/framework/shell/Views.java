@@ -20,12 +20,10 @@ public final class Views {
 
     /**
      * A mailbox for a view: {@code topic} delivered to {@code subscriber} on the GUI thread, in the widget tick.
-     * {@code declared} is the name {@code @Subscribe} gave; the topic is the payload owner's own constant where it has
-     * one, so its kind is the publisher's, and the two names must agree or the application does not start.
+     * The topic is the payload's own declared constant, the one the {@code @Subscribe} method's parameter names, so its
+     * kind is the publisher's. {@code keys}, when any, are the keys of a state topic it is handed and the only ones.
      */
-    public static <T> void mailbox(Gui gui, String declared, Topic<T> topic, Subscriber<T> subscriber, int capacity,
-                                   String... keys) {
-        Inboxes.named(declared, topic);
+    public static <T> void mailbox(Gui gui, Topic<T> topic, Subscriber<T> subscriber, int capacity, String... keys) {
         if (keys.length == 0) {
             gui.mailbox(topic, subscriber, capacity);
         } else {

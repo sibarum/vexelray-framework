@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /** What is at a path, as far as opening it goes: a folder, a file, a name a file could be made under, or nothing. */
-@Job(topic = Messages.FIND, reply = Messages.FOUND)
+@Job
 public final class FindPath {
 
     public Found run(Find f) {

@@ -20,7 +20,7 @@ import java.util.Optional;
  * editor should not complain about it, and every path is made absolute here, so the editor never asks where the
  * application started. That is in the reply too ({@code started}), for a session that showed no folder.
  */
-@Job(topic = Messages.RECALL, reply = Messages.RECALLED)
+@Job
 public final class ReadSession {
 
     static final String FOLDER = "session.folder";

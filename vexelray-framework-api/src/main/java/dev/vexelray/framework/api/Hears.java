@@ -6,8 +6,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Says which topics a component hears through its inbox: the other end of {@link Publishes}, for a component on the
- * logic lane.
+ * Says which topics a component hears through its inbox, by their payload types: the other end of {@link Publishes},
+ * for a component that takes its {@code Inbox}. A payload names its channel (T4.1), so a class literal is a reference
+ * javac checks, where a topic's name would be a string nobody could.
  *
  * <p>A component that takes an atchung {@code Inbox} hears by subscribing it, typically through a ledger's
  * {@code Builder.on(topic, step)}, which is a call in a constructor and invisible to a processor that reads
@@ -20,6 +21,6 @@ import java.lang.annotation.Target;
 @Stability(Stability.Level.EXPERIMENTAL)
 public @interface Hears {
 
-    /** The names of the topics heard. */
-    String[] value();
+    /** The payload types of the topics heard, each with its one declared topic. */
+    Class<?>[] value();
 }

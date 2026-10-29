@@ -15,7 +15,7 @@ import java.io.IOException;
  * a slow answer. What can go wrong with a file is part of the answer ({@code problem}), so the editor has to look at
  * it; the job declares no {@code throws}.
  */
-@Job(topic = Messages.READ, reply = Messages.FILE_READ)
+@Job
 public final class ReadFile {
 
     private static final Log LOG = Log.of("${appName}.files");
