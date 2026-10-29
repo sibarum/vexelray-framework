@@ -14,6 +14,7 @@ import dev.vexelray.gui.automation.window.AutomationButton;
 import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.app.LoopCounters;
 import dev.vexelray.gui.inspector.link.InspectorLink;
+import dev.vexelray.gui.krono.KronoGui;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -271,9 +272,17 @@ public final class Driver implements AutoCloseable {
             LoopCounters counters = Objects.requireNonNull(shell.app(), "the GuiApp the recorder stamps frames from");
             // The clock goes with the Gui, so settle waits out a transition as well as the frame loop, with the
             // reasons, so a settle that never goes quiet says which loop is running. The sampled form, because the
-            // sockets answer on threads of their own.
-            Windows windows = new Windows(shell.windows()::views,
-                    Timeline.of(shell.krono()::quiescentAtLastTick, shell.krono()::whyBusyAtLastTick), counters);
+            // sockets answer on threads of their own. And what the application owes: a job not finished, a message
+            // for the logic lane not delivered, so a capture after a request waits for its answer to land (ROADMAP
+            // phase 5); before, a tree listed by a job was photographed before the listing arrived.
+            KronoGui krono = shell.krono();
+            Windows windows = new Windows(shell.windows()::views, Timeline.of(
+                    () -> shell.owesNothing() && krono.quiescentAtLastTick(),
+                    () -> {
+                        List<String> why = new ArrayList<>(shell.owed());
+                        why.addAll(krono.whyBusyAtLastTick());
+                        return why;
+                    }), counters);
             // What this build is, exactly, before any socket writes its discovery file: the coordinates and commit
             // (plus any uncommitted change) the generated wiring baked in, and the stack's (vexelray-build/README.md).
             Discovery.build(shell.build().facts());

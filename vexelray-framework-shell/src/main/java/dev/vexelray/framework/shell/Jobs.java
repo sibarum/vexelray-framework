@@ -74,7 +74,7 @@ public final class Jobs {
                         + ", and nothing declared the failure: " + e, e));
                 throw e;
             }
-        }, shell.lanes().jobs());
+        }, shell.jobLane());
         closing.subscription = subscription;
         shell.disposer().register(closing);
     }

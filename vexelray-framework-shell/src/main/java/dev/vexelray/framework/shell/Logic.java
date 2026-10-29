@@ -93,6 +93,10 @@ public final class Logic implements WakeSource, AutoCloseable {
     private Tick.Lanes runner = Tick.ONE_THREAD;
     /** Whether the last tick on the main thread stopped at its deadline. The main thread's alone. */
     private boolean carriedOnMain;
+    /** Every message staged for the tick, counted on the publisher's thread: what a quiet lane has delivered. */
+    private final java.util.concurrent.atomic.AtomicLong arrivals = new java.util.concurrent.atomic.AtomicLong();
+    /** How many arrivals the last tick that ended with nothing left over had seen. Written by whoever runs ticks. */
+    private volatile long delivered;
 
     /** The logic lane on a thread of its own: the default mode. */
     Logic(Atchung bus, Lanes lanes) {
@@ -147,6 +151,7 @@ public final class Logic implements WakeSource, AutoCloseable {
      * the frame that runs one. On the publisher's thread, holding no lock.
      */
     private void arrived() {
+        arrivals.incrementAndGet();
         arrived = true;
         if (onMain) {
             if (running) {
@@ -281,10 +286,31 @@ public final class Logic implements WakeSource, AutoCloseable {
         };
     }
 
+    /**
+     * Whether every message that has arrived for the lane has been delivered, and every send those deliveries made
+     * between the lane's own inboxes with them: what the automation driver's {@code settle} waits for besides the
+     * clock. Any thread. A tick marks delivered only the arrivals counted before it began, so a quiet answer is never
+     * earlier than the truth; one counted after it has been delivered costs at most one more tick.
+     */
+    boolean quiet() {
+        return delivered == arrivals.get();
+    }
+
+    /** How many arrivals are not yet delivered, for a settle that says what it is waiting on. Any thread. */
+    long undelivered() {
+        return arrivals.get() - delivered;
+    }
+
     /** One tick, with a throw nothing declared sent to the fault policy. */
     private int runTick() {
+        // Read before the tick: an arrival during it is the next tick's, and keeps the lane from reading as quiet.
+        long seen = arrivals.get();
         try {
-            return tick.run(System.nanoTime() + DEADLINE_NANOS, runner);
+            int n = tick.run(System.nanoTime() + DEADLINE_NANOS, runner);
+            if (!tick.carried()) {
+                delivered = seen;
+            }
+            return n;
         } catch (RuntimeException | Error e) {
             // A step or a subscriber threw and nothing declared it, so what it was handling is lost and its state is
             // whatever the throw left. Ruled 2026-10-18: that ends the application, through the process-wide fault

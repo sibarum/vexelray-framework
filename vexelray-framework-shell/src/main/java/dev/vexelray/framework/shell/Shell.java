@@ -262,6 +262,58 @@ public final class Shell {
         return lanes;
     }
 
+    /** Jobs handed to the job lane and not yet finished: the requests waiting for a thread among them. */
+    private final java.util.concurrent.atomic.AtomicInteger jobsOwed = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * The job lane, counting what it owes: a job counts from the moment it is handed over until it has finished, and
+     * so until after its reply is published. With {@link Logic#quiet}, which counts that reply's arrival before the job
+     * stops counting, there is no instant at which an answer under way is owed by nobody.
+     */
+    java.util.concurrent.Executor jobLane() {
+        java.util.concurrent.Executor jobs = lanes.jobs();
+        return work -> {
+            jobsOwed.incrementAndGet();
+            try {
+                jobs.execute(() -> {
+                    try {
+                        work.run();
+                    } finally {
+                        jobsOwed.decrementAndGet();
+                    }
+                });
+            } catch (RuntimeException | Error e) {
+                jobsOwed.decrementAndGet();
+                throw e;
+            }
+        };
+    }
+
+    /**
+     * <b>Whether the application owes nothing</b>: no job is in flight and every message for the logic lane has been
+     * delivered. What the automation driver's {@code settle} waits for besides the clock and the frame loop, so a
+     * capture after a request waits for its answer to land (ROADMAP phase 5). Any thread.
+     */
+    public boolean owesNothing() {
+        Logic l = logic;
+        return jobsOwed.get() == 0 && (l == null || l.quiet());
+    }
+
+    /** What {@link #owesNothing} is waiting on, one line per reason; empty when nothing is owed. Any thread. */
+    public List<String> owed() {
+        List<String> why = new java.util.ArrayList<>();
+        int jobs = jobsOwed.get();
+        if (jobs > 0) {
+            why.add(jobs + (jobs == 1 ? " job" : " jobs") + " on the job lane not finished");
+        }
+        Logic l = logic;
+        long messages = l == null ? 0 : l.undelivered();
+        if (messages > 0) {
+            why.add(messages + (messages == 1 ? " message" : " messages") + " for the logic lane not delivered");
+        }
+        return why;
+    }
+
     /** The launch setting choosing where the ticks run ({@code docs/threading.md} T1.7). */
     static final String LOGIC = "logic";
 

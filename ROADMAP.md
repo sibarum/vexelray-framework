@@ -956,6 +956,18 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
 * **Capture waits for what is owed** (phase 3, step 5): a capture plays animation to rest but does not wait for
   answers not yet had, so a tree whose listing runs on another thread can be captured before it lands. The shell's
   quiescence includes answers outstanding.
+  ***Done 2026-10-29.*** *`Shell.owesNothing()`: no job in flight and every message for the logic lane delivered,
+  with `owed()` saying what is not. The job lane counts a job from the moment it is handed over to the moment it has
+  finished, which is after its reply is published; the logic lane counts each arrival as it is staged and marks
+  delivered only what a tick saw before it began, when nothing is carried. So an answer under way is owed by one or
+  the other at every instant, and a quiet answer is never early. The automation driver's `settle` waits for it beside
+  the clock and the frame loop, and a settle that does not go quiet names the jobs and messages it is waiting on.
+  Held by `JobsTest.aRequestIsOwedUntilItsAnswerIsDeliveredOnTheLogicLane` (owed while the job runs, still owed while
+  its answer is being delivered, and not after). Driven live: About's first opening, photographed after one `settle`,
+  is the finished page (before, three settles photographed it blank while its art was read), and a folder expanded
+  in the template's navigator, listed by a job, shows its children after one `settle`.*
+  *Not counted: a part's own `Timer` (a beat is not an answer owed), and the declared lanes' share runs inside the
+  logic lane's tick, so it is counted with it.*
 * **Watchdog:** stays outside the lanes, reports by message.
 
 ### Phase 6. Template

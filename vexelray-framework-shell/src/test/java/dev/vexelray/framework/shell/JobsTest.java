@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -47,6 +48,58 @@ final class JobsTest {
 
             assertEquals(4, answers.poll(5, TimeUnit.SECONDS));
             assertTrue(ranOn.get().startsWith("vexel-job-"), "ran on " + ranOn.get());
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
+    /**
+     * What the automation driver's settle waits for: a job in flight is owed, and so is its answer until the component
+     * that hears it has been delivered it. At no point between the request and the delivery is nothing owed.
+     */
+    @Test
+    void aRequestIsOwedUntilItsAnswerIsDeliveredOnTheLogicLane() throws Exception {
+        Shell shell = shell();
+        try {
+            CountDownLatch release = new CountDownLatch(1);
+            Jobs.reply(shell, "test.Held", ASK, s -> {
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return s.length();
+            }, ANSWER);
+            BlockingQueue<Integer> delivered = new ArrayBlockingQueue<>(4);
+            CountDownLatch inDelivery = new CountDownLatch(1);
+            CountDownLatch finish = new CountDownLatch(1);
+            shell.inbox("app.Hearer").subscribe(ANSWER, n -> {
+                inDelivery.countDown();
+                try {
+                    finish.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                delivered.add(n);
+            }, 4);
+            shell.startComponents();
+            assertTrue(shell.owesNothing(), "owed before anything was asked: " + shell.owed());
+
+            shell.bus().publish(ASK, "four");
+            assertFalse(shell.owesNothing(), "a request on the job lane is owed");
+            assertTrue(shell.owed().stream().anyMatch(w -> w.contains("job")), shell.owed().toString());
+
+            release.countDown();
+            assertTrue(inDelivery.await(5, TimeUnit.SECONDS), "the answer never reached the hearer");
+            assertFalse(shell.owesNothing(), "an answer being delivered is still owed: " + shell.owed());
+
+            finish.countDown();
+            assertEquals(4, delivered.poll(5, TimeUnit.SECONDS));
+            long until = System.nanoTime() + 5_000_000_000L;
+            while (!shell.owesNothing() && System.nanoTime() < until) {
+                Thread.onSpinWait();
+            }
+            assertTrue(shell.owesNothing(), "still owed once delivered: " + shell.owed());
         } finally {
             shell.disposer().close();
         }
