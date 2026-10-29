@@ -10,7 +10,6 @@ import dev.vexelray.gui.widget.Cue;
 import dev.vexelray.gui.widget.Cues;
 
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * What the user is shown when an undo or a redo cannot happen, installed on every window the framework builds
@@ -34,18 +33,19 @@ final class UndoFeedback implements Consumer<UndoEvent> {
     private static final Timing RING = Timing.millis(520, Timing.Curve.LINEAR);
 
     private final Gui gui;
-    private final Supplier<Dialogs> dialogs;
-    /** Built on the first refusal, and timed on the tree's clock, which the window's motion installs. */
-    private volatile Cues cues;
+    /** The shell's, which is one value from the first phase to the last whoever ends up answering. */
+    private final Dialogs dialogs;
+    /** Built on the first refusal, and timed on the tree's clock, which the window's motion installs. Main thread. */
+    private Cues cues;
 
-    UndoFeedback(Gui gui, Supplier<Dialogs> dialogs) {
+    UndoFeedback(Gui gui, Dialogs dialogs) {
         this.gui = gui;
         this.dialogs = dialogs;
     }
 
-    /** Install on {@code gui}, asking {@code shell}'s dialogs. */
+    /** Install on {@code gui}, asking {@code shell}'s dialogs. Told on the main thread, in the frame. */
     static void install(Gui gui, Shell shell) {
-        Seams.of(gui).onUndo(new UndoFeedback(gui, shell::dialogs));
+        Seams.of(gui).onUndo(new UndoFeedback(gui, shell.dialogs()));
     }
 
     @Override
@@ -58,16 +58,14 @@ final class UndoFeedback implements Consumer<UndoEvent> {
             cues().play(e.target(), Cue.ring(gui.theme().color(Role.DANGER)));
             return;
         }
-        dialogs.get().info(e.redo() ? "Can't redo" : "Can't undo", message(outcome, e.redo()));
+        dialogs.info(e.redo() ? "Can't redo" : "Can't undo", message(outcome, e.redo()));
     }
 
     private Cues cues() {
-        Cues c = cues;
-        if (c == null) {
-            c = new Cues(gui, RING);
-            cues = c;   // a race builds two, each equally good; one is kept
+        if (cues == null) {
+            cues = new Cues(gui, RING);
         }
-        return c;
+        return cues;
     }
 
     /** Why, in the user's terms: what happened to the thing, never the name of a stack or an outcome. */

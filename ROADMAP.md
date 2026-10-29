@@ -941,6 +941,14 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
   and undo feedback, capture's wait for answers, and the watchdog. No application can reach any of it.*
 * **The host's sinks** (phase 3, steps 3 and 4): `onUndo`, `onCursorChange`, `onPointerLock` and `onPointerWarp`
   are the host's seams (`GuiApp`, the automation driver, undo feedback), not a node's, and move with the shell.
+  ***Done 2026-10-29, and smaller than it read.*** *The four already left `Gui` for vexelray-gui's `Seams` in phase 3
+  (step 10), the host's door, which no application part reaches, by the same ruling as `WidgetSeams`. Each is told on
+  the main thread, in the frame: undo's outcome, the cursor's shape and the pointer lock from the dispatcher, a warp
+  from a ride. What was left was the framework's side of them guarding against paths 0.2 has closed: `PointerLock`'s
+  `wanted` was volatile because a worker could remove a node, and `UndoFeedback` built its `Cues` under a benign race
+  behind a volatile and asked its dialogs through a `Supplier`. Under 0.2 nothing off the GUI thread holds a `Gui`, so
+  both are plain fields of the main thread, and the feedback holds the shell's one `Dialogs`. `PointerLockTest` and
+  `UndoFeedbackTest` hold them; neither was driven live.*
 * **About intro, slow-frames prompt, undo feedback:** components and widgets like any application's. The About
   intro is also where vexelray-mini's installer benchmark is planned (phase 8), so it waits on this.
   ***The About intro done 2026-10-29.*** *§3's row for it is answered: gone are eight volatiles, a `synchronized load`, an
