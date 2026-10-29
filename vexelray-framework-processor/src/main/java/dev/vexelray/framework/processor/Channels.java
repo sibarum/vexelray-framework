@@ -240,13 +240,14 @@ final class Channels {
         if (!(m.payload() instanceof javax.lang.model.type.DeclaredType d) || !d.getTypeArguments().isEmpty()) {
             return;
         }
-        String why = Shareable.why(m.payload());
+        String why = Shareable.crossing(m.payload());
         if (why != null) {
             error(m.method(), "T2.4: " + m.where() + " receives " + m.payload() + " on \"" + m.topic() + "\", and"
                     + " it cannot cross a lane as itself: " + why + ". A value crossing a lane must share nothing"
                     + " with its sender, and the copier that would make a mutable one safe is not built, so the"
                     + " payload has to be deeply immutable: primitives, strings, enums, records and final classes"
-                    + " of those. Send a record of the values instead of the object that holds them");
+                    + " of those, and lists, sets and maps of those. Send a record of the values instead of the"
+                    + " object that holds them");
         }
     }
 

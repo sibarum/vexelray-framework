@@ -534,12 +534,12 @@ final class Declarations {
                     + " class or interface with no type arguments: wrap it in a record");
             return;
         }
-        String why = Shareable.why(type);
+        String why = Shareable.crossing(type);
         if (why != null) {
             error(run, "T2.4: " + where + "'s " + what + " on \"" + topic + "\" is " + type + ", and it cannot cross"
                     + " a lane as itself: " + why + ". Requests and replies cross between the sender's lane and the"
                     + " offload lane, so they are deeply immutable: primitives, strings, enums, records and final"
-                    + " classes of those");
+                    + " classes of those, and lists, sets and maps of those");
         }
     }
 

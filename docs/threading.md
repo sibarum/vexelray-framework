@@ -154,10 +154,14 @@ that it should cost capacity, never behaviour. Two components talk by messages w
 sender's heap, anywhere in the reachable graph. Sharing a deeply immutable value is indistinguishable from copying
 it, so that is how it crosses. **Identity does not survive a crossing**: `a == b` is false afterwards. *(held for
 `@Subscribe` payloads, by `VexelProcessorTest`'s T2.4 cases: a payload must be primitives, strings, enums,
-records, final classes of those, or a sealed type of them. **Amended by ruling 6, owed in phase 4:** a `List`,
-`Set` or `Map` whose elements may cross may cross too, provided it is unmodifiable. Which collections the check
-accepts as unmodifiable, and whether that is the JDK's `copyOf` collections or a framework type, is settled when
-the check is rewritten. The copier 0.1 planned is not needed and not built)*
+records, final classes of those, or a sealed type of them. **Amended by ruling 6, built 2026-10-28:** inside a
+payload, a `List`, `Set` or `Map` whose elements may cross may cross too, held by
+`aListSetOrMapOfShareableValuesMayCrossInAPayload` and `aCollectionOfSomethingMutableIsRefusedAndTheMessageNamesThePath`.
+The JDK's own interfaces, not a framework type, so a payload meets ordinary Java code without a conversion. The type
+cannot show that the collection is unmodifiable, so that is the sender's part, kept by building it with `List.copyOf`;
+a record that copies in its compact constructor keeps it for every sender. That is chains.md's rule 4: the check
+refuses what is certainly wrong, and a list of shareable values is not. A collection held as state, a job's field,
+is still refused. The copier 0.1 planned is not needed and not built)*
 
 **T2.5 — No closure crosses an owner.** *0.1 stated this as "a lambda that crosses a lane may capture only what
 T2.4 lets cross", and could not enforce it without reading method bodies.* In 0.2 it holds by construction instead:

@@ -30,13 +30,19 @@ import java.util.Set;
  *   <li>a {@code final} class whose fields, and every superclass's, are all {@code final} and shareable;</li>
  *   <li>a {@code sealed} interface or class whose every permitted subtype is shareable (and, for a class, whose
  *       own fields are);</li>
- *   <li>{@code Optional} of a shareable type.</li>
+ *   <li>{@code Optional} of a shareable type;</li>
+ *   <li>in a payload only ({@link #crossing}), a {@code List}, {@code Set} or {@code Map} of shareable types.</li>
  * </ul>
  * <b>What is refused, and why it is not a limitation of the check:</b> an array (mutable), an interface that is not
- * sealed (its implementations are unknown), any other generic type (a {@code List<String>} might hold an
- * {@code ArrayList} its sender still holds, and the type cannot say), a class with a mutable field, and an inner
- * class (it holds the instance that made it, through a field the declaration does not show). That
- * includes every collection. A payload that needs one wants the copier.
+ * sealed (its implementations are unknown), any other generic type, a class with a mutable field, and an inner
+ * class (it holds the instance that made it, through a field the declaration does not show). A collection is refused
+ * outside a payload: as a job's field it is state the job made and can change.
+ *
+ * <p><b>Why a collection in a payload is accepted on trust.</b> {@code List<String>} might be an {@code ArrayList} its
+ * sender still holds, and the type cannot say. Refusing it made the template send "close these five tabs" as five
+ * messages with a count, a protocol written around the checker rather than the problem (ROADMAP fork 6, ruled
+ * 2026-10-26 and built 2026-10-28). Unmodifiable is the sender's part, kept by building it with {@code List.copyOf};
+ * a record that copies in its compact constructor keeps it for every sender.
  */
 final class Shareable {
 
@@ -47,18 +53,33 @@ final class Shareable {
             "java.time.Instant", "java.time.Duration", "java.time.LocalDate", "java.time.LocalTime",
             "java.time.LocalDateTime", "java.time.ZonedDateTime", "java.time.OffsetDateTime");
 
+    /** What a payload may hold when what each holds is shareable: {@link #crossing}. */
+    private static final Set<String> COLLECTIONS = Set.of("java.util.List", "java.util.Set", "java.util.Map");
+
     private Shareable() {
     }
 
     /**
      * Why a value of this type cannot cross a lane as itself, as a path from the payload to the first thing that
-     * stops it, or {@code null} when it can.
+     * stops it, or {@code null} when it can. For state that stays, a job's field: a collection there is refused,
+     * because it is one the holder made and can change.
      */
     static String why(TypeMirror type) {
-        return why(type, "", new HashSet<>());
+        return why(type, "", new HashSet<>(), false);
     }
 
-    private static String why(TypeMirror type, String path, Set<String> visiting) {
+    /**
+     * Why a payload of this type cannot cross, as {@link #why(TypeMirror)}, except that a {@code List}, {@code Set} or
+     * {@code Map} inside it is accepted when what it holds is shareable (ruling 6, ROADMAP fork 6). The type cannot
+     * show that the collection itself is unmodifiable, so that part is the sender's: build it with {@code List.of} or
+     * {@code List.copyOf}, as a record does in its compact constructor. That is rule 4 of {@code docs/plans/chains.md}:
+     * the check refuses what is certainly wrong, and a collection of shareable values is not.
+     */
+    static String crossing(TypeMirror type) {
+        return why(type, "", new HashSet<>(), true);
+    }
+
+    private static String why(TypeMirror type, String path, Set<String> visiting, boolean collections) {
         if (type.getKind().isPrimitive()) {
             return null;
         }
@@ -76,7 +97,16 @@ final class Shareable {
         }
         if (!declared.getTypeArguments().isEmpty()) {
             if (name.equals("java.util.Optional")) {
-                return why(declared.getTypeArguments().get(0), path, visiting);
+                return why(declared.getTypeArguments().get(0), path, visiting, collections);
+            }
+            if (collections && COLLECTIONS.contains(name)) {
+                for (TypeMirror held : declared.getTypeArguments()) {
+                    String why = why(held, join(path, Mirrors.simple(element) + " of " + held), visiting, true);
+                    if (why != null) {
+                        return why;
+                    }
+                }
+                return null;
             }
             return at(path, type + " has type arguments, and what they hold cannot be proven immutable from the"
                     + " type: a " + Mirrors.simple(element) + " may be a mutable one its sender still holds");
@@ -85,18 +115,18 @@ final class Shareable {
             return null; // a recursive type: the first visit decides it
         }
         try {
-            return structure(element, path, visiting);
+            return structure(element, path, visiting, collections);
         } finally {
             visiting.remove(name);
         }
     }
 
-    private static String structure(TypeElement element, String path, Set<String> visiting) {
+    private static String structure(TypeElement element, String path, Set<String> visiting, boolean collections) {
         String simple = Mirrors.simple(element);
         switch (element.getKind()) {
             case RECORD -> {
                 for (RecordComponentElement c : element.getRecordComponents()) {
-                    String why = why(c.asType(), join(path, simple + "." + c.getSimpleName()), visiting);
+                    String why = why(c.asType(), join(path, simple + "." + c.getSimpleName()), visiting, collections);
                     if (why != null) {
                         return why;
                     }
@@ -108,7 +138,7 @@ final class Shareable {
                     return at(path, simple + " is an interface that is not sealed, so what implements it is unknown");
                 }
                 for (TypeMirror permitted : element.getPermittedSubclasses()) {
-                    String why = why(permitted, join(path, simple), visiting);
+                    String why = why(permitted, join(path, simple), visiting, collections);
                     if (why != null) {
                         return why;
                     }
@@ -117,12 +147,12 @@ final class Shareable {
             }
             case CLASS -> {
                 if (element.getModifiers().contains(Modifier.SEALED)) {
-                    String why = fields(element, path, visiting);
+                    String why = fields(element, path, visiting, collections);
                     if (why != null) {
                         return why;
                     }
                     for (TypeMirror permitted : element.getPermittedSubclasses()) {
-                        why = why(permitted, join(path, simple), visiting);
+                        why = why(permitted, join(path, simple), visiting, collections);
                         if (why != null) {
                             return why;
                         }
@@ -132,7 +162,7 @@ final class Shareable {
                 if (!element.getModifiers().contains(Modifier.FINAL)) {
                     return at(path, simple + " is neither final nor sealed, so a subclass could add mutable state");
                 }
-                return fields(element, path, visiting);
+                return fields(element, path, visiting, collections);
             }
             default -> {
                 return at(path, simple + " is " + element.getKind().toString().toLowerCase().replace('_', ' ')
@@ -147,7 +177,7 @@ final class Shareable {
      * it is what it holds. A class that holds its enclosing instance is refused at any level, because that
      * reference is a field javac never shows.
      */
-    private static String fields(TypeElement element, String path, Set<String> visiting) {
+    private static String fields(TypeElement element, String path, Set<String> visiting, boolean collections) {
         for (TypeElement at = element; at != null; at = superclass(at)) {
             String simple = Mirrors.simple(at);
             if (holdsItsMaker(at)) {
@@ -162,7 +192,7 @@ final class Shareable {
                 if (!f.getModifiers().contains(Modifier.FINAL)) {
                     return at(where, "is not final, so it can change after the value has been sent");
                 }
-                String why = why(f.asType(), where, visiting);
+                String why = why(f.asType(), where, visiting, collections);
                 if (why != null) {
                     return why;
                 }

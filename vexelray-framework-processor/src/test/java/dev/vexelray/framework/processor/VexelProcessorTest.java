@@ -1190,11 +1190,25 @@ class VexelProcessorTest {
     }
 
     @Test
-    void aCollectionInAPayloadIsRefusedAndTheMessageNamesThePath() {
+    void aListSetOrMapOfShareableValuesMayCrossInAPayload() {
+        assertEquals(List.of(), app("""
+                public record Edit(java.util.List<String> lines, java.util.Set<Long> ids,
+                                   java.util.Map<String, java.util.List<Integer>> marks) {
+                    public Edit {
+                        lines = java.util.List.copyOf(lines);
+                        ids = java.util.Set.copyOf(ids);
+                        marks = java.util.Map.copyOf(marks);
+                    }
+                }
+                """, sink("Edit")));
+    }
+
+    @Test
+    void aCollectionOfSomethingMutableIsRefusedAndTheMessageNamesThePath() {
         onlyError(app("""
-                public record Edit(java.util.List<String> lines) {}
+                public record Edit(java.util.List<StringBuilder> lines) {}
                 """, sink("Edit")), "T2.4: Sink.on receives app.Edit on \"t\", and it cannot cross a lane as itself:"
-                + " Edit.lines: java.util.List<java.lang.String> has type arguments");
+                + " Edit.lines -> List of java.lang.StringBuilder -> AbstractStringBuilder.value: is not final");
     }
 
     @Test
