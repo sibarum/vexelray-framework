@@ -109,9 +109,10 @@ class LongRunWitnessTest {
                     + " frames in five seconds, so its wakes are not reaching the loop");
 
             // Recorded, not asserted: settle cannot tell "quiet" from "between two beats", and a timer's beat is not
-            // an answer owed, so it answers in a gap. The ceiling is the wake rate, not 60 Hz.
+            // an answer owed, so it answers in a gap. The recorder counts passes, and since fork 7 a beat's wake runs
+            // one at once whether or not it may draw, so this is the beat rate; draws stay at the 60 Hz ceiling.
             System.out.println("W3 settle while running: " + d.send("settle"));
-            System.out.println("W3 ceiling: " + runFrames / 5.0 + " frames a second against a 60 Hz ceiling");
+            System.out.println("W3 passes: " + runFrames / 5.0 + " a second, draws held to the 60 Hz ceiling");
 
             // And the window is still a window: input is answered while the loop is flat out.
             d.ok("click " + d.ref("button.count"));

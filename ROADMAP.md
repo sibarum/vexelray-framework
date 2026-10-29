@@ -215,6 +215,45 @@ with a batch id and a count. That is a protocol written around a checker, not ar
 type cannot show the collection is unmodifiable, so that is the sender's part (`List.copyOf`, or a record that copies
 in its constructor), which chains.md's rule 4 lets the check leave to it.*
 
+### Fork 7. Input, logic and drawing on their own clocks
+
+> **Ruled 2026-10-29**, by the author, after phase 7's measurements: *"the framework was engineered so that it would be
+> possible to run everything on independent clocks, so we may as well."* Built the same day (vexelray-gui `63b2abb`).
+
+**What was wrong:** three rates were one. The frame ceiling (60 Hz, kept as ruled in phase 7) was enforced by sleeping
+out the rest of a gap after anything ended the park, so OS input that landed inside a gap sat unread until it ran out,
+the input snapshot and its dispatch ran only when a frame did, and the logic's answers reached a view only in the next
+frame. Phase 7 measured a click's result through the logic at 17.5 ms, and called it fork 4's cost; most of it was input
+and messages waiting for the drawing clock.
+
+**The ruling:** the ceiling caps draws and nothing else. OS input and a wake from another thread (a lane, a job, the
+automation socket) run a pass at once: pump, input snapshot, dispatch, the views' mailboxes, layout. The pass draws only
+if the ceiling's slot has come; otherwise its draw stays owed and the loop parks until the slot, still woken by input.
+The logic already runs on its own thread when messages arrive; now what it sends is heard when it arrives too.
+
+**One thread, three clocks.** The OS pump stays on the main thread (Win32 binds a window to its thread), so this is two
+kinds of pass on the loop that exists, not a new thread. **A wake the loop posts to itself** (motion still moving, a
+relayout, a widget's write) is a draw request, held to the slot, and posts no OS message: posting it would end the next
+park at once and spin the loop through the gap. That is the one rule that keeps the split safe.
+
+**What it costs:** a pointer sweeping a window runs an update (hit-test, hover, the widgets' messages) per batch of mouse
+messages rather than per slot, which the 2026-10-25 change had stopped; it still draws at most once a slot. A burst of
+wakes from a busy lane runs a pass each (W3's metronome: about 200 passes a second against 57 draws).
+
+**Measured** (phase 7's instrument, the same machine): a click's result through the logic from **17.5 ms to 1.9 ms**
+median (p95 8.3), in both modes. At fifteen frames a second it is **1.1 ms in `--logic=main`** (was 66) and still
+**64 ms on a lane**: a draw that slow holds the main thread for as long as it takes (the instrument's slowed draw parks
+it 62 ms, as a slow GPU would), and an answer arriving during it waits for the draw to finish; in `--logic=main` the
+answer is produced inside the pass that took the click, before it draws. So on a slow machine single-thread mode is
+the faster one for a click, which is what it was meant for. A wake from a parked loop is unchanged at 0.6 ms. Animation and idle are unchanged: draws at ~57 a second, five idle
+refreshes a second, 0.8–2.7 % CPU. Held by `LoopCountersTest.aWakeInsideTheCeilingsGapIsTakenAtOnceAndOnlyItsDrawWaitsForTheSlot`
+(a wake 50 ms into a 400 ms gap runs its pass at once; its draw waits for the slot).
+
+**Found while measuring it, and not caused by it:** presenting to a background (cloaked) window sometimes blocks for
+100 to 360 ms, inside the presenter, after the tree update. The old loop shows the same on the same probe (worst wakes of
+245 and 143 ms against the new loop's 153). It is what the p95 outliers in the table are, and it is vexelray-gui's
+presenter's to explain: a background run only, so far.
+
 ---
 
 ## 3. Evidence: what the current shape costs
@@ -1130,6 +1169,10 @@ found*). Both modes measure the same to within noise, as fork 4 intends.
 | Idle, focused: frames | 5 a second | 18 in ~3.4 s (5 a second) | the same |
 | Idle: process CPU over 4 s | 0.8–3 % of a core | 0.8–7.4 % across runs | 1.6–7.0 % |
 | Arrivals faster than frames | 134–143 frames a second | 1,400–1,500 beats in 3 s, **~59 frames a second**, nothing lost | the same |
+
+*Superseded the same day for the click row by **fork 7**: with input and messages on their own clocks, a click's result
+through the logic is 1.9 ms median at 60 Hz (both modes), and at fifteen a second 1.1 ms in `--logic=main` and 64 ms on
+a lane. The other rows are unchanged. Acceptance green after it (18 of 18).*
 
 **What they say. Accepted by the author 2026-10-29 (§5's sixth point):**
 * **Fork 4 costs exactly one frame**, as predicted: 17.5 ms at 60 Hz, 66 ms at fifteen a second. A result the view
