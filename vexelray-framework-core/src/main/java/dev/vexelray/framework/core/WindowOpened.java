@@ -14,4 +14,9 @@ import sibarum.atchung.Topic;
 public record WindowOpened(String window) {
 
     public static final Topic<WindowOpened> TOPIC = Topic.edge(WindowOpened.class);
+
+    /** Whether this is the main window, which opens once, with the application: "the window exists". */
+    public boolean main() {
+        return CloseRequested.MAIN.equals(window);
+    }
 }

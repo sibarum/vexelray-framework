@@ -167,6 +167,20 @@ final class Framework {
             "dev.vexelray.framework.core.Disposer", "the disposer runs code at shutdown that nothing declares. A"
                     + " part that holds a resource implements AutoCloseable, and the wiring closes it");
 
+    /** The framework's own packages: a starter there (the automation driver, the host's) may still take the shell. */
+    static final String OWN = "dev.vexelray.framework.";
+
+    /**
+     * Why an application part may not take the {@link #SHELL}, though the framework's own starters may (ROADMAP
+     * phase 5). It reaches everything: the frame hooks, the disposer, the wake source, the windows' commands, the
+     * restart, every value in every phase, so a part holding it could run code anywhere and send anything with nothing
+     * declared. What a part needs from it is a root of its own, or a message.
+     */
+    static final String SHELL_REFUSED = "the Shell is the framework's, and reaches everything it does: the frame"
+            + " hooks, the disposer, every value in every phase. Take what is needed as a value of its own (Windows,"
+            + " Dialogs, Settings, Launch, the Gui), send a message (WindowCommand, Ask, PickFile), or hear one: a"
+            + " recipe that took the Shell to be built last can hear WindowOpened for the main window instead";
+
     /** The root for a type, by qualified name, or {@code null}. */
     static Root root(String qualifiedName) {
         for (Root r : ROOTS) {

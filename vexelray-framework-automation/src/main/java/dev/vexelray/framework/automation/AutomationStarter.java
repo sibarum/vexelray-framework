@@ -22,11 +22,11 @@ import dev.vexelray.framework.shell.Shell;
  * the one place somebody reads when they want to know."</i> A starter that is named and not on the path is a
  * compile error, so the two cannot drift apart silently.
  *
- * <p><b>A {@code @Default}, because the application may want its own.</b> Unlike the input backend and the
- * clipboard, the framework does not consume a {@link Driver} itself — nothing in {@code -shell} can name one, since
- * this module depends on {@code -shell} — so there is no fallback to hand one back to, and this is the case
- * {@code Default} was written for: a {@code @Provides Driver} of the application's own backs this one off, and the
- * application is then the one deciding when and where the socket binds.
+ * <p><b>A {@code @Default}, though since phase 5 nothing backs it off.</b> A driver is opened on the {@code Shell},
+ * which this starter, the framework's own, may take and an application part may not (the processor refuses it: the
+ * shell reaches everything the framework does). So an application's say is naming this starter or not, and where the
+ * socket binds is the launch's ({@link Driver#SETTING}). The {@code @Default} stays, for a framework starter that
+ * might one day open a driver differently.
  *
  * <p>Built in {@code ATTACH}, which the generated wiring infers from the {@code Shell} parameter rather than being
  * told: the driver needs the window's real controls, and those exist only once the window does. Closed at shutdown,

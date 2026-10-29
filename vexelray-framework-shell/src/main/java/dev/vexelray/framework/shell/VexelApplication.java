@@ -340,7 +340,7 @@ public final class VexelApplication {
         // dragLocksPointer declaration -- the designer's viewport among them -- was stated and never carried
         // out. See PointerLock.
         input.bridge(gui, shell.pointerLock());
-        app.input(InputBackend.perWindow(shell.pointerLock()));
+        app.input(TactrollerInputBackend.perWindow(shell.pointerLock()));
         // Held rather than discarded once installed: a clipboard belongs to a Gui, so every other window is bound
         // too -- the named ones at their claim, below, and a Gui the application built itself through
         // Shell.clipboard. The application's, if the wiring handed one back by WINDOW.

@@ -87,12 +87,6 @@ public final class Messages {
     public record Save(long id, String text, boolean open) {
     }
 
-    /** The window exists: bring back last time's session and open what the command line named. */
-    public static final Topic<Begin> BEGIN_TOPIC = Topic.edge(Begin.class);
-
-    public record Begin() {
-    }
-
     // ------------------------------------------------------------------ the editor tells the view
 
     /** Point the navigator at a folder, or list it again. */

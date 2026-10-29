@@ -149,6 +149,7 @@ class VexelProcessorTest {
                     public Shell appearance(Appearance a) { LOG.add("appearance applied"); return this; }
                     public Shell input(InputBackend i) { LOG.add("input handed back"); return this; }
                     public Shell clipboard(ClipboardBackend c) { LOG.add("clipboard handed back"); return this; }
+                    public ClipboardBackend clipboard() { return null; }
                     public Shell liveness(LivenessPolicy p) { LOG.add("liveness handed back"); return this; }
                     sibarum.atchung.Inbox inbox(String name) { LOG.add("inbox " + name); return sibarum.atchung.Atchung.create().tick(null).inbox(name); }
                     public Senders senders() { return new Senders(); }
@@ -2007,7 +2008,7 @@ class VexelProcessorTest {
             """,
             """
             final class Socket implements AutoCloseable {
-                Socket(dev.vexelray.framework.shell.Shell shell) { dev.vexelray.framework.shell.Shell.LOG.add("socket"); }
+                Socket(dev.vexelray.framework.shell.ClipboardBackend clipboard) { dev.vexelray.framework.shell.Shell.LOG.add("socket"); }
                 public void close() { dev.vexelray.framework.shell.Shell.LOG.add("socket closed"); }
             }
             """,
@@ -2025,7 +2026,7 @@ class VexelProcessorTest {
                 }
                 @Provides Model model(@Setting(value = "store.size", def = "4") int size) { return new Model(size); }
                 @Provides Ui ui(dev.vexelray.gui.core.Gui gui, Model model) { return new Ui(gui, model); }
-                @Provides Socket socket(dev.vexelray.framework.shell.Shell shell) { return new Socket(shell); }
+                @Provides Socket socket(dev.vexelray.framework.shell.ClipboardBackend clipboard) { return new Socket(clipboard); }
                 @OnMode(RunMode.WINDOWED) @Provides Preview preview(Model model) { return new Preview(model); }
             }
             """,
@@ -2264,7 +2265,7 @@ class VexelProcessorTest {
                 @Configuration
                 final class Recipes {
                     @Provides dev.vexelray.framework.shell.InputBackend input(
-                            dev.vexelray.framework.shell.Shell shell) {
+                            dev.vexelray.framework.shell.ClipboardBackend clipboard) {
                         return null;
                     }
                 }
@@ -2272,20 +2273,23 @@ class VexelProcessorTest {
                 + " backend is opened at the start of WINDOW");
     }
 
+    /**
+     * Phase 5: the shell reaches everything the framework does, so an application part never takes it. What it took
+     * the shell for is a value of its own, or a message. (The framework's own starters, the automation driver, may.)
+     */
     @Test
-    void aClipboardBuiltAfterTheFrameworkInstallsItsOwnIsAnError() {
+    void aPartTakingTheShellIsAnError() {
         onlyError(app("""
                 @VexelApp(name = "demo", title = "Demo")
                 public final class DemoApp {}
                 """, """
                 @Configuration
                 final class Recipes {
-                    @Provides dev.vexelray.framework.shell.ClipboardBackend clipboard(
-                            dev.vexelray.framework.shell.Shell shell) {
-                        return null;
+                    @Provides String start(dev.vexelray.framework.shell.Shell shell) {
+                        return "";
                     }
                 }
-                """), "provides the ClipboardBackend, and takes something that exists only from ATTACH");
+                """), "takes shell, a Shell. the Shell is the framework's");
     }
 
     @Test

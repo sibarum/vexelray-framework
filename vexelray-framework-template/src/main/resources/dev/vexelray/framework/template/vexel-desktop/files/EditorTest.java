@@ -1,7 +1,6 @@
 package ${packageName}.core;
 
 import ${packageName}.core.Messages.AddTab;
-import ${packageName}.core.Messages.Begin;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Close;
 import ${packageName}.core.Messages.CloseTab;
@@ -32,6 +31,7 @@ import dev.vexelray.framework.core.Answer;
 import dev.vexelray.framework.core.Ask;
 import dev.vexelray.framework.core.CloseAnswer;
 import dev.vexelray.framework.core.CloseRequested;
+import dev.vexelray.framework.core.WindowOpened;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -353,7 +353,9 @@ class EditorTest {
     void theSessionComesBackInOrderAndIsRememberedOnlyAfterwards() {
         Path a = file("a.txt");
         Path b = file("b.txt");
-        tell(Messages.BEGIN_TOPIC, new Begin());
+        tell(WindowOpened.TOPIC, new WindowOpened("about"));
+        assertTrue(took(Recall.class).isEmpty(), "another window opening brought the session back");
+        tell(WindowOpened.TOPIC, new WindowOpened(CloseRequested.MAIN));
         assertEquals(List.of(new Recall()), took(Recall.class));
 
         tell(Messages.RECALLED_TOPIC, new Recalled(Optional.of(dir), List.of(a, b), Optional.of(a), List.of(), dir));

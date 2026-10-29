@@ -40,9 +40,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>{@code VexelApplication.tree} runs the wiring as far as the tree and starts the components, so the editor and the
  * jobs run on their own lanes here, exactly as in the window. The view runs in frames, and there is no loop to run
- * them, so the test runs them while it waits ({@code VexelApplication.frame}): this thread is the GUI thread. What does
- * not run is the last recipe, the one that takes the {@code Shell}: no session is restored and no settings are
- * written, so this test leaves the user's own settings alone.
+ * them, so the test runs them while it waits ({@code VexelApplication.frame}): this thread is the GUI thread. No window
+ * opens, so the framework never says {@code WindowOpened} for the main one: no session is restored and no settings are
+ * written, and this test leaves the user's own settings alone.
  *
  * <p>The test listens on the bus as one more subscriber, which is how it sees what the editor told the view. Every
  * part answers in its own time, so the test waits for what it asked for, running frames, rather than sleeping.

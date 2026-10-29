@@ -356,6 +356,10 @@ final class Graph {
             return false;
         }
         String why = Framework.REFUSED.get(type.getQualifiedName().toString());
+        if (why == null && type.getQualifiedName().contentEquals(Framework.SHELL)
+                && !elements.getPackageOf(parameter).getQualifiedName().toString().startsWith(Framework.OWN)) {
+            why = Framework.SHELL_REFUSED;
+        }
         if (why == null) {
             TypeElement executor = elements.getTypeElement("java.util.concurrent.Executor");
             if (executor != null && types.isAssignable(types.erasure(parameter.asType()), executor.asType())) {

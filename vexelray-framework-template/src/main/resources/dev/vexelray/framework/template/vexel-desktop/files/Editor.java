@@ -1,7 +1,6 @@
 package ${packageName}.core;
 
 import ${packageName}.core.Messages.AddTab;
-import ${packageName}.core.Messages.Begin;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Close;
 import ${packageName}.core.Messages.CloseTab;
@@ -36,6 +35,7 @@ import dev.vexelray.framework.core.Answer;
 import dev.vexelray.framework.core.Ask;
 import dev.vexelray.framework.core.CloseAnswer;
 import dev.vexelray.framework.core.CloseRequested;
+import dev.vexelray.framework.core.WindowOpened;
 import sibarum.atchung.Chain;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Ledger;
@@ -100,7 +100,7 @@ import java.util.Set;
  * thing without a window.
  */
 @Component
-@Hears({Begin.class, Recalled.class, Go.class, Open.class, FileRead.class, Found.class,
+@Hears({WindowOpened.class, Recalled.class, Go.class, Open.class, FileRead.class, Found.class,
         Created.class, Fronted.class, Edited.class, Save.class, Written.class, Answer.class,
         Close.class, CloseRequested.class})
 @Publishes({ShowFolder.class, AddTab.class, FrontTab.class, CloseTab.class, Retitle.class,
@@ -288,7 +288,7 @@ public final class Editor {
     public Editor(Inbox inbox) {
         Ledger.Builder<State> b = Ledger.of(State.initial());
 
-        Step<State, Begin> begin = b.step("begin", Editor::begin);
+        Step<State, WindowOpened> begin = b.step("begin", Editor::begin);
         Step<State, Recalled> recalled = b.step("recalled", Editor::recalled);
         Step<State, Go> go = b.step("go", Editor::go);
         Step<State, Open> open = b.step("open", Editor::open);
@@ -309,7 +309,7 @@ public final class Editor {
         Step<State, Ready> finish = b.step("finish", Editor::finish);
         Step<State, Stop> stop = b.step("stop", Editor::stop);
 
-        b.on(Messages.BEGIN_TOPIC, begin)
+        b.on(WindowOpened.TOPIC, begin)
                 .on(Messages.RECALLED_TOPIC, recalled)
                 .on(Messages.GO_TOPIC, go)
                 .on(Messages.OPEN_TOPIC, open)
@@ -351,8 +351,15 @@ public final class Editor {
 
     // ------------------------------------------------------------------ the session, brought back
 
-    /** The window exists: ask what there is to bring back. */
-    private static State begin(State s, Begin b, Out out) {
+    /**
+     * The main window exists: ask what there is to bring back. Heard from the framework, so a test that builds the tree
+     * headless, which never opens a window, restores nothing and writes no settings. Any other window opening (the
+     * framework's About) changes nothing here.
+     */
+    private static State begin(State s, WindowOpened opened, Out out) {
+        if (!opened.main()) {
+            return s;
+        }
         out.send(Messages.RECALL_TOPIC, new Recall());
         return s;
     }

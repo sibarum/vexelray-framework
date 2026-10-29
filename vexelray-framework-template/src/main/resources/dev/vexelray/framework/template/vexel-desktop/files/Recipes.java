@@ -1,14 +1,11 @@
 package ${packageName};
 
-import ${packageName}.core.Messages.Begin;
 import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.shell.Appearance;
-import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.widget.TitleBar;
-import sibarum.atchung.Sender;
 
 /**
  * What this module builds — one recipe per part — and nothing about when.
@@ -18,9 +15,10 @@ import sibarum.atchung.Sender;
  * <p>{@code ${className}AppWiring} is written by {@code vexelray-framework-processor} while this module compiles, and
  * lands in {@code target/generated-sources/annotations}. It calls each method below once, in the phase its
  * parameters put it in: <b>a part's phase is the latest phase of anything it takes.</b> So the look exists before
- * the {@code Gui} does; the window's contents wait for the {@code Gui}, its clock and its title bar; and the start,
- * which takes the {@code Shell}, comes last, when the window and the dialogs exist. There is no phase to declare and
- * none to get wrong. Open the generated file after a build to see the order.
+ * the {@code Gui} does, and the window's contents wait for the {@code Gui}, its clock and its title bar. There is no
+ * phase to declare and none to get wrong. Open the generated file after a build to see the order. Nothing here waits
+ * for the window itself: what happens once it exists (the editor bringing back the last session) is heard as the
+ * framework's {@code WindowOpened}, and no part takes the {@code Shell}, which the processor refuses.
  *
  * <h2>Where the rest comes from</h2>
  *
@@ -60,22 +58,6 @@ final class Recipes {
     @Provides
     Ui ui(Gui gui, TitleBar titleBar) {
         return new Ui(gui, new Motion(gui), titleBar);
-    }
-
-    /**
-     * Tell the editor to bring back last time's session. The close gate needs nothing here: the editor hears the
-     * framework's {@code CloseRequested} and answers it, and that it hears it is what makes a close a question.
-     *
-     * <p>Takes the {@code Shell} to be last: restoring the session opens files and writes settings, which a tree built
-     * headless for a test must not, and the {@code Shell} is the framework's last-phase value.
-     *
-     * <p>Run for what it does, so it returns nothing: the wiring calls it once, in the phase its parameters put it in.
-     * The message waits in the editor's mailbox until the framework starts the components. What it sends is a
-     * parameter, as everything a part sends is, so the wiring builds its sender on {@code Begin}'s topic.
-     */
-    @Provides
-    void start(Shell shell, Sender<Begin> begin) {
-        begin.send(new Begin());
     }
 
 }

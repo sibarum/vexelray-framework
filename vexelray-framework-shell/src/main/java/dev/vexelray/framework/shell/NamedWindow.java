@@ -20,14 +20,15 @@ import dev.vexelray.gui.core.style.Theme;
  * @param title    what its caption says
  * @param width    how wide it opens when nothing is remembered, in pixels
  * @param height   how tall, on the same terms
- * @param standing where it stands relative to the main window. {@link Standing#PEER}, its own place in the stack and
- *                 the taskbar, unless this says otherwise; {@link Standing#SATELLITE} for a window that belongs to
- *                 the main one and is minimized with it
+ * @param owned    whether it belongs to the main window ({@link Standing#SATELLITE}: above it, without a taskbar
+ *                 button, minimized with it) rather than standing beside it with its own place in the stack and the
+ *                 taskbar ({@link Standing#PEER}). A flag and not the {@code Standing} itself, which is a function: see
+ *                 {@link #satellite()}
  * @param theme    its look, or {@code null} for the application's. A window with a look of its own is a real case
  *                 (the text editor's file drawer is a different hue on purpose); see {@link Appearance#applyTo}
  */
 @Stability(Stability.Level.EXPERIMENTAL)
-public record NamedWindow(String key, String title, int width, int height, Standing standing, Theme theme) {
+public record NamedWindow(String key, String title, int width, int height, boolean owned, Theme theme) {
 
     public NamedWindow {
         if (key == null || key.isBlank()) {
@@ -40,28 +41,25 @@ public record NamedWindow(String key, String title, int width, int height, Stand
         if (title == null) {
             title = "";
         }
-        if (standing == null) {
-            standing = Standing.PEER;
-        }
     }
 
     /** A window beside the main one, in the application's look. */
     public static NamedWindow of(String key, String title, int width, int height) {
-        return new NamedWindow(key, title, width, height, null, null);
-    }
-
-    /** The same, standing as this says. */
-    public NamedWindow standing(Standing standing) {
-        return new NamedWindow(key, title, width, height, standing, theme);
+        return new NamedWindow(key, title, width, height, false, null);
     }
 
     /** The same, belonging to the main window: above it, without a taskbar button, minimized with it. */
     public NamedWindow satellite() {
-        return standing(Standing.SATELLITE);
+        return new NamedWindow(key, title, width, height, true, theme);
+    }
+
+    /** Where it stands, as the window is created: the framework's, at the claim. */
+    Standing standing() {
+        return owned ? Standing.SATELLITE : Standing.PEER;
     }
 
     /** The same, in a look of its own rather than the application's. */
     public NamedWindow theme(Theme theme) {
-        return new NamedWindow(key, title, width, height, standing, theme);
+        return new NamedWindow(key, title, width, height, owned, theme);
     }
 }

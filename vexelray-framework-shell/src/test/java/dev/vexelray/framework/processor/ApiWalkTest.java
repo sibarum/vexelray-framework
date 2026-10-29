@@ -35,26 +35,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class ApiWalkTest {
 
-    /** Every door still open, by the phase that closes it. */
-    private static final Set<String> OWED = Set.of(
-            // Phase 5, the shell: the close gate, the dialogs and the windows are messages already. Left is the Shell
-            // itself, which the generated wiring needs and a recipe still takes (today only to be last). The
-            // processor hands none of these to a part (Framework.REFUSED), so this is the Shell's reach.
-            "dev.vexelray.framework.core.Disposer#beforeClose takes java.lang.Runnable",
-            "dev.vexelray.framework.core.FrameHooks#add takes java.lang.Runnable",
-            "dev.vexelray.framework.core.FrameHooks#onFailure takes dev.vexelray.framework.core.FrameHooks$HookFailure",
-            "dev.vexelray.framework.core.FrameHooks#onOverrun takes dev.vexelray.framework.core.FrameHooks$StageOverrun",
-            "dev.vexelray.framework.core.WakeSource#onWake takes java.lang.Runnable",
-            "dev.vexelray.framework.shell.InputBackend#perWindow returns dev.vexelray.gui.core.app.WindowInput$Factory",
-            "dev.vexelray.framework.shell.NamedWindow#<init> takes dev.vexelray.gui.core.app.Standing",
-            "dev.vexelray.framework.shell.NamedWindow#standing returns dev.vexelray.gui.core.app.Standing",
-            "dev.vexelray.framework.shell.NamedWindow#standing takes dev.vexelray.gui.core.app.Standing");
+    /**
+     * Every door still open, by the phase that closes it. Empty since phase 5 (ROADMAP): the close gate, the dialogs
+     * and the windows are messages, a window's standing is a flag, and the Shell, which reaches the frame hooks, the
+     * disposer and the wake source, is refused to an application part (Framework.SHELL_REFUSED). A door found here
+     * now is a new one, and is closed rather than listed.
+     */
+    private static final Set<String> OWED = Set.of();
 
     @Test
     void noFrameworkTypeAnApplicationReachesTakesOrReturnsAFunction() throws Exception {
         Set<Class<?>> seeds = new LinkedHashSet<>();
+        // What an application part can be handed, and what it may hand back: never the Shell, which only the generated
+        // wiring and the framework's own starters take (Framework.SHELL_REFUSED).
         for (Framework.Root r : Framework.ROOTS) {
-            seeds.add(Class.forName(r.type()));
+            if (!r.type().equals(Framework.SHELL)) {
+                seeds.add(Class.forName(r.type()));
+            }
+        }
+        for (Framework.HandBack h : Framework.HAND_BACKS) {
+            seeds.add(Class.forName(h.type()));
         }
         Set<Class<?>> seen = new LinkedHashSet<>();
         Deque<Class<?>> todo = new ArrayDeque<>(seeds);

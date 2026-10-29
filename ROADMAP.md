@@ -922,6 +922,23 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
   `NamedWindow`'s `Standing` are reached only through the `Shell`, which the generated wiring needs and a recipe
   still takes. A recipe stops taking it. `Shell.krono()` is public only because the automation driver reads
   quiescence from it (phase 3, step 18 part 1); the driver reaches it another way.
+  ***Done 2026-10-29: `ApiWalkTest.OWED` is empty,*** *phase 5's exit check for what an application can reach. The
+  processor refuses the `Shell` to an application part (`Framework.SHELL_REFUSED`): it stays a root for the generated
+  wiring and the framework's own starters, and the automation driver, the host's instrument, keeps taking it. So
+  `FrameHooks`, `Disposer` and `WakeSource` leave an application's reach with it, and `Shell.krono()` with them, which
+  needed no other route. The walk now seeds from what a part can be handed (the roots but the shell) and what it may
+  hand back (the hand-back types, which it implements), which found two doors the shell had been hiding:
+  `InputBackend.perWindow` (an interface's static, so public whatever it was meant to be) moved to
+  `TactrollerInputBackend`, and `NamedWindow`'s `Standing`, a function, became a declared `owned` flag (`satellite()`
+  sets it). The template's start recipe, which took the shell only to be built last, is gone, with `Begin`: the
+  `Editor` brings the session back on `WindowOpened` for the main window, which a headless test never hears, as it never
+  ran that recipe. An application can no longer provide a driver of its own (`Driver.open` takes the shell), so naming
+  `AutomationStarter` is its whole say. Held by `VexelProcessorTest.aPartTakingTheShellIsAnError`,
+  `AutomationStarterTest.anApplicationCannotOpenADriverOfItsOwn` and `EditorTest` (another window opening restores
+  nothing). Driven live: a generated application started, and its navigator listed the start folder, which only the
+  restore that `WindowOpened` begins sends.*
+  *What phase 5 still owes is the framework's own inside: the host's sinks, the About intro, the slow-frames prompt
+  and undo feedback, capture's wait for answers, and the watchdog. No application can reach any of it.*
 * **The host's sinks** (phase 3, steps 3 and 4): `onUndo`, `onCursorChange`, `onPointerLock` and `onPointerWarp`
   are the host's seams (`GuiApp`, the automation driver, undo feedback), not a node's, and move with the shell.
 * **About intro, slow-frames prompt, undo feedback:** components and widgets like any application's. The About
