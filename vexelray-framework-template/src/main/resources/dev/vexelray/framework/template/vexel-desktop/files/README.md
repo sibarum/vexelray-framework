@@ -109,19 +109,19 @@ it). The parts talk by messages, and every message is in one file. Read these in
 
 | File | What belongs in it |
 | --- | --- |
-| `Messages.java` | **every message the parts send each other**, grouped by who sends it to whom, each record beside its topic. A record crosses as itself, so it holds only immutable values and no lists. |
-| `Editor.java` | **the controller**, a component on the `editor` lane: every decision — what a typed path names, whether a file is already open, when closing needs a question, what the status line says, what comes back next time. It owns the session and needs no lock, because nothing else can reach it. |
-| `Doc.java` | the shape of the session — which files, which in front, which unsaved, which folder — as one immutable value in one field of the editor's. |
-| `ReadFile.java`, `WriteFile.java`, `FindPath.java`, `CreateFile.java` | the jobs: every touch of the disk, on the offload lane. What can go wrong is part of the reply. |
+| `Messages.java` | **every message the parts send each other**, grouped by who sends it to whom, each record beside its topic. A record crosses as itself, so it holds only immutable values; a list it holds is copied in its constructor. |
+| `Editor.java` | **the controller**: every decision (what a typed path names, whether a file is already open, when closing needs a question, what the status line says, what comes back next time) as a declared step on one immutable state, held by a ledger. Each message it hears runs one step; closing is a chain of them that waits on the person and the disk without anything waiting on a thread. It needs no lock, because only its steps change its state and they run one at a time. |
+| `Doc.java` | the shape of the session (which files, which in front, which unsaved, which folder) as one immutable value, part of the editor's state. |
+| `ReadFile.java`, `WriteFile.java`, `FindPath.java`, `CreateFile.java`, `ReadSession.java`, `WriteSession.java` | the jobs: every touch of the disk, on the offload lane. What can go wrong is part of the reply. |
 | `TextFile.java`, `Markdown.java` | the policy between bytes and text, and Markdown as spans: pure functions. |
-| `Core.java` | the list of this module's component and jobs. The processor compiling `-gui` sees only `-gui`'s sources, so this list, named among `${className}App`'s starters, is how the wiring hears of them. A new component or job goes on it. |
+| `Core.java` | the list of this module's jobs. The processor compiling `-gui` sees only `-gui`'s sources, so this list, named among `${className}App`'s starters, is how the wiring hears of them. A new job goes on it. The editor joins it when the framework gives a component its inbox (0.2 roadmap, phase 4). |
 
 **`${artifactId}-gui`, the view and the framework integration.**
 
 | File | What belongs in it |
 | --- | --- |
 | `Recipes.java` | **what this module builds.** One `@Provides` method per part; `${className}AppWiring`, which builds them and the components and jobs in order, is generated while it compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. |
-| `View.java` | **the view**, a component on the `view` lane: the editor's messages shown (`AddTab` is a tab, `Ask` is a dialog) and the person's gestures told (`Open`, `Closing`, `Save`). It decides nothing. |
+| `View.java` | **the view**, a component on the `view` lane: the editor's messages shown (`AddTab` is a tab, `Ask` is a dialog) and the person's gestures told (`Open`, `Close`, `Save`). It decides nothing. |
 | `Intent.java` | what a key, a menu item or a tab selection asks of the view, sent from the thread it arrived on to the view's lane. |
 | `QuitGate.java` | the window's close gate, as messages: its two callbacks kept under a ticket, the ticket sent. |
 | `Ui.java` | the window. Holds no state; it shows what the view hands it. |
@@ -154,17 +154,18 @@ Open `${artifactId}-gui/target/generated-sources/annotations/.../${className}App
 
 The GUI loop runs on the main thread, which owns Vulkan, the window and present, and nothing of this application's
 runs there. The editor has a lane of its own and so does the view; each handles one message at a time, and each owns
-its state outright, so there is no lock anywhere in the application. Input arrives on the handler lane and is only
+its state outright, so there is no lock anywhere in the application. The editor's state is changed only by its declared
+steps, which the processor reads: a step that touches the disk, waits or reaches outside itself does not compile. Input arrives on the handler lane and is only
 told: a key or a menu item becomes an `Intent` for the view, or a message straight to the editor. Every read and write
 of a file is a job on the offload lane, so a slow disk is a slow reply and never a frozen window or a stalled lane
 (the lanes are named in the framework's `docs/threading.md`). Writing a node's props from the view's lane is correct,
 because a prop written off the GUI thread is applied by the next drain.
 
-Two things follow from messages, and both are written where they bite. **Each mailbox is in order, and two mailboxes
-are not in order with each other**: so a set of tabs being closed is one message per tab, each saying how many make
-the set and whether its tab is unsaved, and the editor decides when the last one arrives. **Jobs are in no order at
-all**: so the restored session asks for one file at a time. The processor checks every message it can see: a
-mailbox's payload is deeply immutable, a topic carries one type, and no cycle of sends can block.
+Two things follow from messages, and both are written where they bite. **One sender's messages to one receiver keep
+their order**: so the view says a tab went unsaved before it asks to close it, and the editor already knows when the
+`Close` arrives. **Jobs are in no order at all**: so the restored session asks for one file at a time. The processor
+checks every message it can see: a mailbox's payload is deeply immutable, a topic carries one type, and no cycle of
+sends can block.
 
 ### Spans
 

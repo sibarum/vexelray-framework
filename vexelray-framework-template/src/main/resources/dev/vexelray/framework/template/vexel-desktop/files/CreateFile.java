@@ -14,13 +14,16 @@ public final class CreateFile {
 
     private static final Log LOG = Log.of("${appName}.files");
 
+    /** A new file gets this platform's line endings: asked here, so the editor never reads the platform. */
+    private static final boolean CRLF = System.lineSeparator().equals("\r\n");
+
     public Created run(Create c) {
         try {
             Files.createFile(c.path());
-            return new Created(c.path(), "");
+            return new Created(c.path(), CRLF, "");
         } catch (IOException e) {
             LOG.warn("could not create {}", c.path(), e);
-            return new Created(c.path(), String.valueOf(e.getMessage()));
+            return new Created(c.path(), CRLF, String.valueOf(e.getMessage()));
         }
     }
 }

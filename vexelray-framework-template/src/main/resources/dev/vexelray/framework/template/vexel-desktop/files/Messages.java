@@ -3,22 +3,24 @@ package ${packageName}.core;
 import sibarum.atchung.Topic;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Every message the application's parts send each other: what each one says, and the topic it travels on.
  *
  * <h2>Message passing is how the parts talk</h2>
  *
- * <p>The application is three kinds of part, and none of them holds another. The {@link Editor} decides; it runs
- * on a lane of its own and owns the session. The view, in the {@code -gui} module, shows; it runs on a lane of its
- * own and owns the widgets. The jobs ({@link ReadFile}, {@link WriteFile}, {@link FindPath}, {@link CreateFile}) touch
- * the disk, on the offload lane. Each sends a record on a topic and the others hear it on their own thread, so no
- * state is shared and nothing needs a lock.
+ * <p>The application is three kinds of part, and none of them holds another. The {@link Editor} decides; it owns the
+ * session, and changes it only by running its own declared steps. The view, in the {@code -gui} module, shows; it
+ * owns the widgets. The jobs ({@link ReadFile}, {@link WriteFile}, {@link FindPath}, {@link CreateFile},
+ * {@link ReadSession}, {@link WriteSession}) touch the disk, on the offload lane. Each sends a record on a topic and
+ * the others hear it on their own lane, so no state is shared and nothing needs a lock.
  *
  * <p>A record here is what crossed, and it crosses as itself: the processor refuses a payload that is not deeply
- * immutable (T2.4). That is why nothing here holds a list. A list cannot cross until the framework can copy one, so
- * "close these five tabs" is five {@link Closing} messages that say how many make the set, and the restored session
- * is one {@link Read} per file.
+ * immutable (T2.4). A list may cross when what it holds may, and the list itself must not change after it is sent,
+ * which no type can show: so each record that holds one copies it in its constructor, and no sender can get that
+ * wrong.
  *
  * <h2>Reading this file</h2>
  *
@@ -31,7 +33,7 @@ public final class Messages {
     private Messages() {
     }
 
-    /** The id of no tab: nothing is in front, or a quit with nothing open. */
+    /** The id of no tab: nothing is in front. */
     public static final long NO_TAB = -1;
 
     // ------------------------------------------------------------------ the view asks the editor
@@ -64,25 +66,28 @@ public final class Messages {
     public record Edited(long id, boolean dirty) {
     }
 
-    /** What a set of {@link Closing} messages is for. */
-    public enum Purpose {
-        /** Closing tabs: one, the others, or all of them. */
-        TABS,
-        /** The window is being asked to close, and its batch is the close gate's ticket. */
-        QUIT
+    /**
+     * Close these tabs: one, the others, or all of them. The editor asks first if any is unsaved. Whether one is
+     * unsaved is the editor's to know, from the {@link Edited}s the view sent before this, which arrive first because
+     * one sender's messages to one receiver keep their order.
+     */
+    public static final String CLOSE = "editor.close";
+    public static final Topic<Close> CLOSE_TOPIC = Topic.of(CLOSE, Close.class);
+
+    public record Close(List<Long> tabs) {
+        public Close {
+            tabs = List.copyOf(tabs);
+        }
     }
 
     /**
-     * One tab of a set being closed, or of a window being quit. A set is {@code of} messages with one {@code batch};
-     * they may arrive in any order, and the editor decides once it has them all. {@code dirty} is the view's word on
-     * the tab at the moment it was asked, because an {@link Edited} sent just before may still be on its way, and a
-     * tab must never be closed unasked because the news that it changed arrived second. A quit with no tab open is one
-     * message whose {@code id} is {@link #NO_TAB}.
+     * The window is being asked to close: answer the close gate with this ticket, after asking if anything is
+     * unsaved.
      */
-    public static final String CLOSING = "editor.closing";
-    public static final Topic<Closing> CLOSING_TOPIC = Topic.of(CLOSING, Closing.class);
+    public static final String QUIT = "editor.quit";
+    public static final Topic<Quit> QUIT_TOPIC = Topic.of(QUIT, Quit.class);
 
-    public record Closing(long batch, int of, long id, boolean dirty, Purpose purpose) {
+    public record Quit(long gate) {
     }
 
     /**
@@ -96,9 +101,18 @@ public final class Messages {
     public record Save(long id, String text, boolean open) {
     }
 
-    /** How a question was answered: its first button, its second, or cancel. */
+    /**
+     * How a question was answered: its first button, its second, or cancel. Each carries what the question's run goes
+     * on with, so the editor turns an answer into the next step without a switch.
+     */
     public enum Choice {
-        CONFIRM, OTHER, CANCEL
+        CONFIRM(new Editor.Confirmed()), OTHER(new Editor.Declined()), CANCEL(new Editor.Cancelled());
+
+        final Object outcome;
+
+        Choice(Object outcome) {
+            this.outcome = outcome;
+        }
     }
 
     /** The answer to an {@link Ask}. */
@@ -219,6 +233,7 @@ public final class Messages {
 
     /** What {@link Read} found: the text, or why not ({@code problem}, empty when there is none). */
     public static final String FILE_READ = "file.read.done";
+    public static final Topic<FileRead> FILE_READ_TOPIC = Topic.of(FILE_READ, FileRead.class);
 
     public record FileRead(Path path, Why why, boolean focus, String text, boolean crlf, String notes, String problem) {
     }
@@ -232,6 +247,7 @@ public final class Messages {
 
     /** What {@link Write} did: {@code problem} is empty when it landed. */
     public static final String WRITTEN = "file.written";
+    public static final Topic<Written> WRITTEN_TOPIC = Topic.of(WRITTEN, Written.class);
 
     public record Written(long id, Path path, String problem) {
     }
@@ -253,6 +269,7 @@ public final class Messages {
     }
 
     public static final String FOUND = "path.found";
+    public static final Topic<Found> FOUND_TOPIC = Topic.of(FOUND, Found.class);
 
     public record Found(Path path, Why why, Kind kind) {
     }
@@ -264,8 +281,45 @@ public final class Messages {
     public record Create(Path path) {
     }
 
+    /** What {@link Create} did, and the line endings a new file gets here. */
     public static final String CREATED = "file.created";
+    public static final Topic<Created> CREATED_TOPIC = Topic.of(CREATED, Created.class);
 
-    public record Created(Path path, String problem) {
+    public record Created(Path path, boolean crlf, String problem) {
+    }
+
+    /** Read back what the last session remembered, and what the command line named ({@link ReadSession}). */
+    public static final String RECALL = "session.recall";
+    public static final Topic<Recall> RECALL_TOPIC = Topic.of(RECALL, Recall.class);
+
+    public record Recall() {
+    }
+
+    /**
+     * What there is to bring back, every path absolute and normalised: the folder shown, the files open in tab order,
+     * the one in front, the command line's paths, and the folder the application started in, for when there is none.
+     */
+    public static final String RECALLED = "session.recalled";
+    public static final Topic<Recalled> RECALLED_TOPIC = Topic.of(RECALLED, Recalled.class);
+
+    public record Recalled(Optional<Path> folder, List<Path> files, Optional<Path> front, List<Path> arguments,
+                           Path started) {
+        public Recalled {
+            files = List.copyOf(files);
+            arguments = List.copyOf(arguments);
+        }
+    }
+
+    /**
+     * Keep the session for next time ({@link WriteSession}): the folder shown, the files open, the one in front. A
+     * value, so the editor tells whether it changed with {@code equals}.
+     */
+    public static final String REMEMBER = "session.remember";
+    public static final Topic<Remember> REMEMBER_TOPIC = Topic.of(REMEMBER, Remember.class);
+
+    public record Remember(Optional<Path> folder, List<Path> files, Optional<Path> front) {
+        public Remember {
+            files = List.copyOf(files);
+        }
     }
 }

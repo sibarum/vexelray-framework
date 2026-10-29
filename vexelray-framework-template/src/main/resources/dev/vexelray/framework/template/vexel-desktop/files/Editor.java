@@ -5,8 +5,8 @@ import ${packageName}.core.Messages.Answer;
 import ${packageName}.core.Messages.Ask;
 import ${packageName}.core.Messages.Begin;
 import ${packageName}.core.Messages.Caption;
+import ${packageName}.core.Messages.Close;
 import ${packageName}.core.Messages.CloseTab;
-import ${packageName}.core.Messages.Closing;
 import ${packageName}.core.Messages.Create;
 import ${packageName}.core.Messages.Created;
 import ${packageName}.core.Messages.Edited;
@@ -19,9 +19,12 @@ import ${packageName}.core.Messages.Fronted;
 import ${packageName}.core.Messages.Go;
 import ${packageName}.core.Messages.Kind;
 import ${packageName}.core.Messages.Open;
-import ${packageName}.core.Messages.Purpose;
+import ${packageName}.core.Messages.Quit;
 import ${packageName}.core.Messages.QuitAnswer;
 import ${packageName}.core.Messages.Read;
+import ${packageName}.core.Messages.Recall;
+import ${packageName}.core.Messages.Recalled;
+import ${packageName}.core.Messages.Remember;
 import ${packageName}.core.Messages.Retitle;
 import ${packageName}.core.Messages.Save;
 import ${packageName}.core.Messages.SaveFailed;
@@ -30,186 +33,353 @@ import ${packageName}.core.Messages.Status;
 import ${packageName}.core.Messages.Why;
 import ${packageName}.core.Messages.Write;
 import ${packageName}.core.Messages.Written;
-import dev.vexelray.framework.api.Component;
-import dev.vexelray.framework.api.Publishes;
-import dev.vexelray.framework.api.Subscribe;
-import dev.vexelray.framework.core.Launch;
-import dev.vexelray.gui.core.app.Settings;
-import sibarum.atchung.Atchung;
-import sibarum.probe.Log;
+import sibarum.atchung.Chain;
+import sibarum.atchung.Inbox;
+import sibarum.atchung.Ledger;
+import sibarum.atchung.Out;
+import sibarum.atchung.Step;
 
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * The controller: every decision the editor makes, on a lane of its own, reached only by messages.
+ * The controller: every decision the editor makes, as declared steps on one state, reached only by messages.
  *
- * <h2>One thread, so no locks</h2>
+ * <h2>A state, and the steps that change it</h2>
  *
- * <p>Everything here runs on the {@code editor} lane, one message at a time, in the order each mailbox received them.
- * The session ({@link Doc}) is a field nothing else can reach, the questions waiting for an answer and the saves
- * waiting to land are maps nothing else can reach, and so none of them needs a lock. Reaching across lanes is a
- * compile error (T2.3); a message is the only way in, and what goes out is a message too ({@link Messages}).
+ * <p>Everything the editor knows is one immutable value, a {@link State}, held by a {@link Ledger}. Nothing changes it
+ * but a step declared below, and a step is a static method of the shape {@code (state, message, out) → next state}:
+ * it reads the state and the message, says what it sends through its {@link Out}, and returns what the state is now.
+ * The ledger runs one step at a time on the editor's lane and commits what it returns, so no step sees another
+ * half-done, nothing needs a lock, and a step that throws changes nothing and sends nothing. The processor reads each
+ * step's body and refuses one that captures, waits or touches the disk (chains.md's rule 1, design F): a step sees its
+ * state, its message and its {@code Out}, and that is all.
  *
- * <h2>What it decides</h2>
+ * <p>So the editor holds no maps of callbacks, no flags and no counters outside its state: a question waiting for an
+ * answer, a set of saves waiting to land and the session being restored are all in the {@link State}, as values.
  *
- * <ul>
- *   <li>What a typed path names: a folder to show, a file to open, a new file to create, or nothing.</li>
- *   <li>Whether a file is already open, and which id a new tab gets.</li>
- *   <li>Nothing is lost without being asked: closing a tab with unsaved work, closing several, and quitting all go
- *       through one question, and a save that fails cancels whatever was waiting on it, quitting included.</li>
- *   <li>What the status line says.</li>
- *   <li>What comes back next time (the session), kept in the framework's one {@link Settings}.</li>
- * </ul>
+ * <h2>What it hears</h2>
  *
- * <p>The disk is the jobs' ({@link ReadFile}, {@link WriteFile}, {@link FindPath}, {@link CreateFile}): this sends a
- * request and acts on the reply, which comes back here like any other message. A slow disk is a slow answer, never a
- * stalled lane.
+ * <p>Each message the editor acts on runs one step ({@link Ledger.Builder#on}): what the view reports, and what the
+ * jobs reply. The sender publishes a plain message and does not know which step runs; the list in the constructor is
+ * the whole of what the editor hears, the way a component's {@code @Subscribe} methods are.
  *
- * <h2>Order</h2>
+ * <h2>Closing is a chain</h2>
  *
- * <p>Each mailbox is in order, and two mailboxes are not in order with each other. So nothing here depends on one
- * kind of message arriving before another: a set of {@link Closing}s says how many make it and is decided when the
- * last arrives, and each carries the view's own word on whether its tab is unsaved. Jobs are not in order at all, so
- * the restored session asks for one file at a time and asks for the next when the last is answered.
+ * <p>Closing tabs and quitting ask the same question and wait on the same saves, so they are one {@link Chain} with two
+ * ways in ({@link #closing}): its first step decides whether anything is unsaved, the next asks, the person's answer
+ * picks a branch (save, discard, cancel), and the last closes the tabs or answers the close gate. Read top to bottom,
+ * it is the whole of what a close does, with every step it takes named; each run has one id, which is the question's
+ * number and what a trace groups its steps by. A step that waits (on the person, on the disk) holds the run and keeps
+ * the {@link Chain.Resume} in the state; the answer resumes it. Nothing waits on a thread.
+ *
+ * <h2>Effects are jobs</h2>
+ *
+ * <p>The disk is the jobs' ({@link ReadFile}, {@link WriteFile}, {@link FindPath}, {@link CreateFile},
+ * {@link ReadSession}, {@link WriteSession}): a step sends a request and a later step acts on the reply. A slow disk is
+ * a slow answer, never a stalled lane. Jobs are not in order with each other, so the restored session asks for one
+ * file at a time and asks for the next when the last is answered.
+ *
+ * <h2>Where it is built</h2>
+ *
+ * <p>The editor is given the inbox it owns, which is where its messages arrive and where its steps run. Until the
+ * framework gives a component its inbox (phase 4 of the 0.2 roadmap), nothing in {@code -gui}'s wiring builds this,
+ * and {@code EditorTest} builds it on a tick of its own.
  */
-@Component(lane = "editor")
-@Publishes({Messages.SHOW_FOLDER, Messages.ADD_TAB, Messages.FRONT_TAB, Messages.CLOSE_TAB, Messages.RETITLE,
-        Messages.CAPTION, Messages.STATUS, Messages.ASK, Messages.FLUSH, Messages.SAVE_FAILED, Messages.QUIT_ANSWER,
-        Messages.READ, Messages.WRITE, Messages.FIND, Messages.CREATE})
 public final class Editor {
 
-    private static final Log LOG = Log.of("${appName}.editor");
+    /** How many of each message the editor's inbox holds before a sender is refused: far more than a person sends. */
+    static final int CAPACITY = 256;
 
-    static final String FOLDER = "session.folder";
-    static final String FILES = "session.files";
-    static final String FRONT = "session.front";
+    /** No close gate: the closing is of tabs, not of the window. */
+    static final long NO_GATE = -1;
+
+    // ------------------------------------------------------------------ the state
 
     /**
-     * Per-item mailboxes take a whole set at once: closing every tab is a message per tab, and a full mailbox ends the
-     * application (components.md, ruling 5). Far more than a person keeps open, so a burst never meets it.
+     * Everything the editor knows, in one value.
+     *
+     * @param doc       the session's shape: the tabs, the one in front, the folder shown
+     * @param ids       the last tab id given out; ids are never reused, so a late message about a closed tab finds none
+     * @param reading   files asked of {@link ReadFile} and not yet answered, so a second click opens no second tab
+     * @param closings  each close or quit waiting on the person or the disk, by its run's id
+     * @param restoring what is left of bringing the last session back, one request at a time
+     * @param front     the tab to put in front when the restore is done
+     * @param started   the folder the application started in, shown when there is no other
+     * @param armed     whether the restore is done: before then a write would overwrite what is being restored
+     * @param last      the session last sent to be remembered, so an unchanged one is not written again
      */
-    static final int SET = 4096;
+    record State(Doc doc, long ids, Set<Path> reading, Map<Long, Closing> closings, List<Restore> restoring,
+                 Optional<Path> front, Optional<Path> started, boolean armed, Optional<Remember> last) {
 
-    private final Atchung bus;
-    private final Settings settings;
-    private final List<String> arguments;
+        State {
+            reading = Set.copyOf(reading);
+            closings = Map.copyOf(closings);
+            restoring = List.copyOf(restoring);
+        }
 
-    private Doc doc = Doc.initial();
-    private long ids;
-    private long questions;
-    /** Files asked for and not yet answered, so a second click does not open a second tab. */
-    private final Set<Path> reading = new HashSet<>();
-    /** The questions on screen, by number: what each answer does. */
-    private final Map<Long, Choices> asked = new HashMap<>();
-    /** Each tab whose text has been asked for to save, and what is waiting for it to land. */
-    private final Map<Long, Saving> saving = new HashMap<>();
-    /** The sets of {@link Closing}s still arriving. */
-    private final Map<Batch, List<Closing>> closing = new HashMap<>();
-    /** The restore's steps still to take, one at a time. */
-    private final Queue<Runnable> restoring = new ArrayDeque<>();
-    /** Off until the restore has finished: before that, a write would overwrite what is being restored. */
-    private boolean armed;
-    private Remembered last;
+        static State initial() {
+            return new State(Doc.initial(), 0, Set.of(), Map.of(), List.of(), Optional.empty(), Optional.empty(),
+                    false, Optional.empty());
+        }
 
-    public Editor(Atchung bus, Settings settings, Launch launch) {
-        this.bus = bus;
-        this.settings = settings;
-        this.arguments = List.copyOf(launch.rest());
+        State withDoc(Doc value) {
+            return new State(value, ids, reading, closings, restoring, front, started, armed, last);
+        }
+
+        /** A new tab's id, taken. */
+        State withNextId() {
+            return new State(doc, ids + 1, reading, closings, restoring, front, started, armed, last);
+        }
+
+        State reading(Path file, boolean asked) {
+            Set<Path> next = new HashSet<>(reading);
+            if (asked) {
+                next.add(file);
+            } else {
+                next.remove(file);
+            }
+            return new State(doc, ids, next, closings, restoring, front, started, armed, last);
+        }
+
+        State withClosing(long run, Closing value) {
+            Map<Long, Closing> next = new HashMap<>(closings);
+            next.put(run, value);
+            return new State(doc, ids, reading, next, restoring, front, started, armed, last);
+        }
+
+        State withoutClosing(long run) {
+            Map<Long, Closing> next = new HashMap<>(closings);
+            next.remove(run);
+            return new State(doc, ids, reading, next, restoring, front, started, armed, last);
+        }
+
+        State withRestoring(List<Restore> steps, Optional<Path> inFront, Path startedIn) {
+            return new State(doc, ids, reading, closings, steps, inFront, Optional.of(startedIn), armed, last);
+        }
+
+        State withRestoring(List<Restore> steps) {
+            return new State(doc, ids, reading, closings, steps, front, started, armed, last);
+        }
+
+        State withArmed() {
+            return new State(doc, ids, reading, closings, restoring, Optional.empty(), started, true, last);
+        }
+
+        State withLast(Remember value) {
+            return new State(doc, ids, reading, closings, restoring, front, started, armed, Optional.of(value));
+        }
+    }
+
+    /**
+     * One close or quit in flight.
+     *
+     * @param tabs    the tabs it closes; none for a quit, which closes the window instead
+     * @param unsaved those of them with unsaved work, which the question is about
+     * @param gate    the close gate to answer, or {@link #NO_GATE}
+     * @param held    the run, held while it waits for the person's answer or for its saves to land
+     * @param waiting the tabs whose saves have still to land
+     */
+    record Closing(List<Long> tabs, List<Long> unsaved, long gate, Optional<Chain.Resume> held, Set<Long> waiting) {
+
+        Closing {
+            tabs = List.copyOf(tabs);
+            unsaved = List.copyOf(unsaved);
+            waiting = Set.copyOf(waiting);
+        }
+
+        Closing holding(Chain.Resume run, Set<Long> saves) {
+            return new Closing(tabs, unsaved, gate, Optional.of(run), saves);
+        }
+
+        Closing landed(long id) {
+            Set<Long> next = new HashSet<>(waiting);
+            next.remove(id);
+            return new Closing(tabs, unsaved, gate, held, next);
+        }
+
+        Closing released() {
+            return new Closing(tabs, unsaved, gate, Optional.empty(), Set.of());
+        }
+    }
+
+    /** One request of the restore: a file to read, or a path to look at first. */
+    record Restore(Why why, Path path) {
+    }
+
+    // ------------------------------------------------------------------ what a closing run goes on with
+
+    /** Something is unsaved: ask. */
+    record Unsaved() {
+    }
+
+    /** Save, then close. */
+    record Confirmed() {
+    }
+
+    /** Close without saving. */
+    record Declined() {
+    }
+
+    /** Everything is saved or let go: close. */
+    record Ready() {
+    }
+
+    /** What ends a closing without closing: the person cancelled, or a save did not land. */
+    interface Stop {
+    }
+
+    record Cancelled() implements Stop {
+    }
+
+    record Failed() implements Stop {
+    }
+
+    // ------------------------------------------------------------------ the declarations
+
+    private final Ledger<State> ledger;
+
+    public Editor(Inbox inbox) {
+        Ledger.Builder<State> b = Ledger.of(State.initial());
+
+        Step<State, Begin> begin = b.step("begin", Editor::begin);
+        Step<State, Recalled> recalled = b.step("recalled", Editor::recalled);
+        Step<State, Go> go = b.step("go", Editor::go);
+        Step<State, Open> open = b.step("open", Editor::open);
+        Step<State, FileRead> fileRead = b.step("fileRead", Editor::fileRead);
+        Step<State, Found> found = b.step("found", Editor::found);
+        Step<State, Created> created = b.step("created", Editor::created);
+        Step<State, Fronted> fronted = b.step("fronted", Editor::fronted);
+        Step<State, Edited> edited = b.step("edited", Editor::edited);
+        Step<State, Save> save = b.step("save", Editor::save);
+        Step<State, Written> written = b.step("written", Editor::written);
+        Step<State, Answer> answered = b.step("answered", Editor::answered);
+
+        Step<State, Close> closeAsked = b.step("closeAsked", Editor::closeAsked);
+        Step<State, Quit> quitAsked = b.step("quitAsked", Editor::quitAsked);
+        Step<State, Unsaved> ask = b.step("ask", Editor::ask);
+        Step<State, Confirmed> saveThem = b.step("saveThem", Editor::saveThem);
+        Step<State, Declined> discard = b.step("discard", Editor::discard);
+        Step<State, Ready> finish = b.step("finish", Editor::finish);
+        Step<State, Stop> stop = b.step("stop", Editor::stop);
+
+        b.on(Messages.BEGIN_TOPIC, begin)
+                .on(Messages.RECALLED_TOPIC, recalled)
+                .on(Messages.GO_TOPIC, go)
+                .on(Messages.OPEN_TOPIC, open)
+                .on(Messages.FILE_READ_TOPIC, fileRead)
+                .on(Messages.FOUND_TOPIC, found)
+                .on(Messages.CREATED_TOPIC, created)
+                .on(Messages.FRONTED_TOPIC, fronted)
+                .on(Messages.EDITED_TOPIC, edited)
+                .on(Messages.SAVE_TOPIC, save)
+                .on(Messages.WRITTEN_TOPIC, written)
+                .on(Messages.ANSWER_TOPIC, answered);
+        ledger = b.build(inbox, "editor", CAPACITY);
+
+        closing(Chain.start("close tabs", ledger, closeAsked).on(Messages.CLOSE_TOPIC), ask, saveThem, discard, finish,
+                stop);
+        closing(Chain.start("quit", ledger, quitAsked).on(Messages.QUIT_TOPIC), ask, saveThem, discard, finish, stop);
+    }
+
+    /**
+     * The rest of a close, after its first step: ask; then save, discard or stop on the answer; then close, or stop if
+     * a save did not land. The same for closing tabs and for quitting, which differ only in how they start and in
+     * what {@link #finish} does at the end.
+     */
+    private <A> void closing(Chain.Builder<State, A> start, Step<State, Unsaved> ask, Step<State, Confirmed> saveThem,
+                             Step<State, Declined> discard, Step<State, Ready> finish, Step<State, Stop> stop) {
+        start.then(Unsaved.class, ledger, ask)
+                .then(Confirmed.class, ledger, saveThem)
+                .or(Declined.class, ledger, discard)
+                .or(Cancelled.class, ledger, stop)
+                .then(Ready.class, ledger, finish)
+                .or(Failed.class, ledger, stop)
+                .build();
+    }
+
+    /** The editor's state, as last committed: for reading, from any thread. */
+    public State state() {
+        return ledger.state().value();
     }
 
     // ------------------------------------------------------------------ the session, brought back
 
+    /** The window exists: ask what there is to bring back. */
+    private static State begin(State s, Begin b, Out out) {
+        out.send(Messages.RECALL_TOPIC, new Recall());
+        return s;
+    }
+
     /**
-     * The window exists: bring back the folder, then the files that were open, then what the command line named, in
-     * that order and one at a time, so the tabs come back as they were. A remembered file that has gone is skipped and
-     * a folder that has gone is forgotten; the user moved them, and an editor should not complain about it.
+     * Bring back the folder, then the files that were open, then what the command line named, in that order and one
+     * at a time, so the tabs come back as they were. A remembered file that has gone is skipped and a folder that has
+     * gone is forgotten; the person moved them, and an editor should not complain about it.
      */
-    @Subscribe(topic = Messages.BEGIN)
-    public void begin(Begin begin) {
-        String folder = settings.getString(FOLDER, "");
-        Path remembered = path(folder);
-        if (remembered != null) {
-            restoring.add(() -> bus.publish(Messages.FIND_TOPIC, new Find(remembered, Why.RESTORE_FOLDER)));
+    private static State recalled(State s, Recalled r, Out out) {
+        List<Restore> steps = new ArrayList<>();
+        State next = s;
+        if (r.folder().isPresent()) {
+            steps.add(new Restore(Why.RESTORE_FOLDER, r.folder().get()));
         } else {
-            restoring.add(() -> {
-                showFolder(Path.of("").toAbsolutePath());
-                next();
-            });
+            next = showFolder(next, r.started(), out);
         }
-        for (String f : settings.getList(FILES)) {
-            Path p = path(f);
-            if (p != null) {
-                restoring.add(() -> read(p, Why.RESTORE_FILE, true));
-            }
+        for (Path p : r.files()) {
+            steps.add(new Restore(Why.RESTORE_FILE, p));
         }
-        for (String a : arguments) {
-            Path p = path(a);
-            if (p != null) {
-                restoring.add(() -> bus.publish(Messages.FIND_TOPIC, new Find(p, Why.ARGUMENT)));
-            }
+        for (Path p : r.arguments()) {
+            steps.add(new Restore(Why.ARGUMENT, p));
         }
-        Path front = path(settings.getString(FRONT, ""));
-        restoring.add(() -> {
-            if (arguments.isEmpty() && front != null && doc.entry(front) != null) {
-                frontTab(doc.entry(front).id(), true);
-            }
-            armed = true;
-            remember();
-        });
-        next();
+        Optional<Path> front = r.arguments().isEmpty() ? r.front() : Optional.empty();
+        return next(next.withRestoring(steps, front, r.started()), out);
     }
 
-    private void next() {
-        Runnable step = restoring.poll();
-        if (step != null) {
-            step.run();
+    /** The restore's next request, or, when there is none left, the front tab and the end of the restore. */
+    private static State next(State s, Out out) {
+        if (s.armed()) {
+            return s;
         }
-    }
-
-    /** A path from a remembered or typed string, absolute and normalised; null for none or one that is not a path. */
-    private static Path path(String text) {
-        if (text == null || text.isBlank()) {
-            return null;
+        if (!s.restoring().isEmpty()) {
+            Restore r = s.restoring().getFirst();
+            State rest = s.withRestoring(s.restoring().subList(1, s.restoring().size()));
+            if (r.why() == Why.RESTORE_FILE) {
+                return read(rest, r.path(), Why.RESTORE_FILE, true, out);
+            }
+            out.send(Messages.FIND_TOPIC, new Find(r.path(), r.why()));
+            return rest;
         }
-        try {
-            return Path.of(text).toAbsolutePath().normalize();
-        } catch (InvalidPathException e) {
-            return null;
+        State done = s;
+        Doc.Entry front = s.front().map(p -> s.doc().entry(p)).orElse(null);
+        if (front != null) {
+            done = frontTab(done, front.id(), true, out);
         }
+        return remember(done.withArmed(), out);
     }
 
     /**
-     * Write the session if it differs from what was last written. Unsaved work is not part of it, so this runs when
-     * the set of files, the one in front or the folder changes, not on every keystroke.
+     * Send the session to be remembered if it differs from what was last sent. Unsaved work is not part of it, so
+     * this runs when the set of files, the one in front or the folder changes, not on every keystroke.
      */
-    private void remember() {
-        if (!armed) {
-            return;
+    private static State remember(State s, Out out) {
+        if (!s.armed()) {
+            return s;
         }
-        Doc.Entry f = doc.front();
-        Remembered now = new Remembered(doc.folder() == null ? "" : doc.folder().toString(),
-                doc.files().stream().map(Path::toString).toList(), f == null ? "" : f.path().toString());
-        if (now.equals(last)) {
-            return;
+        Doc d = s.doc();
+        Doc.Entry f = d.front();
+        Remember now = new Remember(Optional.ofNullable(d.folder()), d.files(),
+                f == null ? Optional.empty() : Optional.of(f.path()));
+        if (s.last().equals(Optional.of(now))) {
+            return s;
         }
-        last = now;
-        settings.putString(FOLDER, now.folder()).putList(FILES, now.files()).putString(FRONT, now.front()).save();
-    }
-
-    /** What is remembered, as a value, so "did it change" is an equals. */
-    private record Remembered(String folder, List<String> files, String front) {
+        out.send(Messages.REMEMBER_TOPIC, now);
+        return s.withLast(now);
     }
 
     // ------------------------------------------------------------------ opening
@@ -218,352 +388,341 @@ public final class Editor {
      * What the path bar was given: a folder to show, a file to open, or a name that is not there yet, to create. A
      * relative path is relative to the folder shown.
      */
-    @Subscribe(topic = Messages.GO)
-    public void go(Go go) {
+    private static State go(State s, Go go, Out out) {
         String text = go.text().strip();
         if (text.isEmpty()) {
-            return;
+            return s;
         }
         Path typed;
         try {
             typed = Path.of(text);
         } catch (InvalidPathException e) {
-            refuse("Not a path: " + text);
-            return;
+            refuse(out, "Not a path: " + text);
+            return s;
         }
-        Path base = doc.folder();
+        Path base = s.doc().folder();
         Path target = (typed.isAbsolute() || base == null ? typed : base.resolve(typed)).toAbsolutePath().normalize();
-        bus.publish(Messages.FIND_TOPIC, new Find(target, Why.GO));
+        out.send(Messages.FIND_TOPIC, new Find(target, Why.GO));
+        return s;
     }
 
-    @Subscribe(topic = Messages.OPEN)
-    public void open(Open open) {
+    private static State open(State s, Open open, Out out) {
         Path file = open.path().toAbsolutePath().normalize();
-        Doc.Entry already = doc.entry(file);
+        Doc.Entry already = s.doc().entry(file);
         if (already != null) {
-            frontTab(already.id(), open.focus());
-        } else {
-            read(file, Why.OPEN, open.focus());
+            return frontTab(s, already.id(), open.focus(), out);
         }
+        return read(s, file, Why.OPEN, open.focus(), out);
     }
 
-    private void read(Path file, Why why, boolean focus) {
-        if (doc.entry(file) != null || !reading.add(file)) {
-            if (why == Why.RESTORE_FILE) {
-                next();
-            }
-            return;
+    /** Ask for a file, unless it is open or already asked for; a restore that skips one goes on to the next. */
+    private static State read(State s, Path file, Why why, boolean focus, Out out) {
+        if (s.doc().entry(file) != null || s.reading().contains(file)) {
+            return why == Why.RESTORE_FILE ? next(s, out) : s;
         }
-        bus.publish(Messages.READ_TOPIC, new Read(file, why, focus));
+        out.send(Messages.READ_TOPIC, new Read(file, why, focus));
+        return s.reading(file, true);
     }
 
     /** What {@link ReadFile} made of a file: a new tab, or a reason on the status line. */
-    @Subscribe(topic = Messages.FILE_READ)
-    public void read(FileRead r) {
-        reading.remove(r.path());
+    private static State fileRead(State s, FileRead r, Out out) {
+        State next = s.reading(r.path(), false);
         boolean restoring = r.why() == Why.RESTORE_FILE;
         String name = String.valueOf(r.path().getFileName());
         if (!r.problem().isEmpty()) {
-            if (restoring) {
-                LOG.info("not restoring {}: {}", r.path(), r.problem());
-            } else {
-                refuse("Could not open " + name + ": " + r.problem());
+            if (!restoring) {
+                refuse(out, "Could not open " + name + ": " + r.problem());
             }
-        } else if (doc.entry(r.path()) == null) {
-            addTab(r.path(), r.text(), r.crlf(), r.focus());
-            say(r.notes().isEmpty() ? "Opened " + name : "Opened " + name + " (" + r.notes() + ")");
+        } else if (next.doc().entry(r.path()) == null) {
+            next = addTab(next, r.path(), r.text(), r.crlf(), r.focus(), out);
+            say(out, r.notes().isEmpty() ? "Opened " + name : "Opened " + name + " (" + r.notes() + ")");
         }
-        if (restoring) {
-            next();
-        }
+        return restoring ? next(next, out) : next;
     }
 
     /** What {@link FindPath} found at a path, acted on for whoever asked. */
-    @Subscribe(topic = Messages.FOUND)
-    public void found(Found f) {
+    private static State found(State s, Found f, Out out) {
         if (f.why() == Why.RESTORE_FOLDER) {
-            showFolder(f.kind() == Kind.FOLDER ? f.path() : Path.of("").toAbsolutePath());
-            next();
-        } else if (f.why() == Why.ARGUMENT) {
-            if (f.kind() == Kind.FILE) {
-                read(f.path(), Why.RESTORE_FILE, true);
-                return;
-            }
-            if (f.kind() == Kind.FOLDER) {
-                showFolder(f.path());
-            }
-            next();
-        } else if (f.kind() == Kind.FOLDER) {
-            showFolder(f.path());
-        } else if (f.kind() == Kind.FILE) {
-            open(new Open(f.path(), true));
-        } else if (f.kind() == Kind.NEW) {
-            bus.publish(Messages.CREATE_TOPIC, new Create(f.path()));
-        } else {
-            refuse("No such folder: " + f.path().getParent());
+            Path shown = f.kind() == Kind.FOLDER ? f.path() : s.started().orElse(f.path());
+            return next(showFolder(s, shown, out), out);
         }
+        if (f.why() == Why.ARGUMENT) {
+            if (f.kind() == Kind.FILE) {
+                return read(s, f.path(), Why.RESTORE_FILE, true, out);
+            }
+            return next(f.kind() == Kind.FOLDER ? showFolder(s, f.path(), out) : s, out);
+        }
+        if (f.kind() == Kind.FOLDER) {
+            return showFolder(s, f.path(), out);
+        }
+        if (f.kind() == Kind.FILE) {
+            return open(s, new Open(f.path(), true), out);
+        }
+        if (f.kind() == Kind.NEW) {
+            out.send(Messages.CREATE_TOPIC, new Create(f.path()));
+            return s;
+        }
+        refuse(out, "No such folder: " + f.path().getParent());
+        return s;
     }
 
     /** A file the path bar named into being: list the folder again, and open it empty. */
-    @Subscribe(topic = Messages.CREATED)
-    public void created(Created c) {
+    private static State created(State s, Created c, Out out) {
         String name = String.valueOf(c.path().getFileName());
         if (!c.problem().isEmpty()) {
-            refuse("Could not create " + name + ": " + c.problem());
-            return;
+            refuse(out, "Could not create " + name + ": " + c.problem());
+            return s;
         }
-        if (doc.folder() != null) {
-            bus.publish(Messages.SHOW_FOLDER_TOPIC, new ShowFolder(doc.folder()));
+        if (s.doc().folder() != null) {
+            out.send(Messages.SHOW_FOLDER_TOPIC, new ShowFolder(s.doc().folder()));
         }
-        addTab(c.path(), "", System.lineSeparator().equals("\r\n"), true);
-        say("Created " + name);
+        State next = addTab(s, c.path(), "", c.crlf(), true, out);
+        say(out, "Created " + name);
+        return next;
     }
 
-    private void addTab(Path path, String text, boolean crlf, boolean focus) {
-        long id = ++ids;
-        doc = doc.withTab(new Doc.Entry(id, path, false, crlf)).withActive(id);
-        bus.publish(Messages.ADD_TAB_TOPIC, new AddTab(id, path, text, focus));
-        caption();
-        remember();
+    private static State addTab(State s, Path path, String text, boolean crlf, boolean focus, Out out) {
+        State next = s.withNextId();
+        long id = next.ids();
+        next = next.withDoc(next.doc().withTab(new Doc.Entry(id, path, false, crlf)).withActive(id));
+        out.send(Messages.ADD_TAB_TOPIC, new AddTab(id, path, text, focus));
+        caption(next, out);
+        return remember(next, out);
     }
 
-    private void frontTab(long id, boolean focus) {
-        doc = doc.withActive(id);
-        bus.publish(Messages.FRONT_TAB_TOPIC, new FrontTab(id, focus));
-        caption();
-        remember();
+    private static State frontTab(State s, long id, boolean focus, Out out) {
+        State next = s.withDoc(s.doc().withActive(id));
+        out.send(Messages.FRONT_TAB_TOPIC, new FrontTab(id, focus));
+        caption(next, out);
+        return remember(next, out);
     }
 
-    private void showFolder(Path folder) {
-        doc = doc.withFolder(folder);
-        bus.publish(Messages.SHOW_FOLDER_TOPIC, new ShowFolder(folder));
-        remember();
+    private static State showFolder(State s, Path folder, Out out) {
+        State next = s.withDoc(s.doc().withFolder(folder));
+        out.send(Messages.SHOW_FOLDER_TOPIC, new ShowFolder(folder));
+        return remember(next, out);
     }
 
     // ------------------------------------------------------------------ what the view reports
 
-    @Subscribe(topic = Messages.FRONTED)
-    public void fronted(Fronted f) {
-        if (doc.entry(f.id()) != null && doc.active() != f.id()) {
-            doc = doc.withActive(f.id());
-            caption();
-            remember();
+    private static State fronted(State s, Fronted f, Out out) {
+        if (s.doc().entry(f.id()) == null || s.doc().active() == f.id()) {
+            return s;
         }
+        State next = s.withDoc(s.doc().withActive(f.id()));
+        caption(next, out);
+        return remember(next, out);
     }
 
-    @Subscribe(topic = Messages.EDITED)
-    public void edited(Edited e) {
-        Doc.Entry entry = doc.entry(e.id());
+    private static State edited(State s, Edited e, Out out) {
+        Doc.Entry entry = s.doc().entry(e.id());
         if (entry == null || entry.dirty() == e.dirty()) {
-            return;
+            return s;
         }
-        doc = doc.withEntry(e.id(), x -> x.withDirty(e.dirty()));
-        bus.publish(Messages.RETITLE_TOPIC, new Retitle(e.id(), doc.entry(e.id()).title()));
-        if (doc.active() == e.id()) {
-            caption();
+        State next = s.withDoc(s.doc().withDirty(e.id(), e.dirty()));
+        out.send(Messages.RETITLE_TOPIC, new Retitle(e.id(), next.doc().entry(e.id()).title()));
+        if (next.doc().active() == e.id()) {
+            caption(next, out);
         }
+        return next;
     }
 
     // ------------------------------------------------------------------ saving
 
     /** Write a tab's text, whether the view sent it of its own accord (Ctrl+S) or because a close asked for it. */
-    @Subscribe(topic = Messages.SAVE)
-    public void save(Save s) {
-        Doc.Entry entry = doc.entry(s.id());
-        if (!s.open() || entry == null) {
+    private static State save(State s, Save save, Out out) {
+        Doc.Entry entry = s.doc().entry(save.id());
+        if (!save.open() || entry == null) {
             // The tab went while its text was asked for: there is nothing left to write, and nothing lost by not.
-            landed(s.id());
-            return;
+            return landed(s, save.id(), out);
         }
-        bus.publish(Messages.WRITE_TOPIC, new Write(s.id(), entry.path(), s.text(), entry.crlf()));
+        out.send(Messages.WRITE_TOPIC, new Write(save.id(), entry.path(), save.text(), entry.crlf()));
+        return s;
     }
 
-    @Subscribe(topic = Messages.WRITTEN)
-    public void written(Written w) {
+    private static State written(State s, Written w, Out out) {
         String name = String.valueOf(w.path().getFileName());
         if (!w.problem().isEmpty()) {
-            bus.publish(Messages.SAVE_FAILED_TOPIC, new SaveFailed(w.id()));
-            refuse("Could not save " + name + ": " + w.problem());
-            Saving run = saving.remove(w.id());
-            if (run != null) {
-                run.failed();
+            out.send(Messages.SAVE_FAILED_TOPIC, new SaveFailed(w.id()));
+            refuse(out, "Could not save " + name + ": " + w.problem());
+            return failed(s, w.id(), out);
+        }
+        say(out, "Saved " + name);
+        return landed(s, w.id(), out);
+    }
+
+    /** A save landed: the closing waiting on it goes on once it waits on nothing else. */
+    private static State landed(State s, long id, Out out) {
+        for (Map.Entry<Long, Closing> e : s.closings().entrySet()) {
+            Closing c = e.getValue();
+            if (c.waiting().contains(id)) {
+                Closing next = c.landed(id);
+                if (next.waiting().isEmpty()) {
+                    out.resume(c.held().orElseThrow(), new Ready());
+                    next = next.released();
+                }
+                return s.withClosing(e.getKey(), next);
             }
-            return;
         }
-        say("Saved " + name);
-        landed(w.id());
+        return s;
     }
 
-    private void landed(long id) {
-        Saving run = saving.remove(id);
-        if (run != null) {
-            run.landed(id);
+    /** A save did not land: the closing waiting on it stops, and nothing it would have closed is closed. */
+    private static State failed(State s, long id, Out out) {
+        for (Map.Entry<Long, Closing> e : s.closings().entrySet()) {
+            Closing c = e.getValue();
+            if (c.waiting().contains(id)) {
+                out.resume(c.held().orElseThrow(), new Failed());
+                return s.withClosing(e.getKey(), c.released());
+            }
         }
+        return s;
     }
 
-    /** Save each of {@code ids}: {@code done} once all have landed, {@code failed} on the first that does not. */
-    private void saveAll(List<Long> ids, Runnable done, Runnable failed) {
-        Saving run = new Saving(new LinkedHashSet<>(ids), done, failed);
+    // ------------------------------------------------------------------ closing and quitting: the chain's steps
+
+    /** Close these tabs: at once if none is unsaved, else ask. */
+    private static State closeAsked(State s, Close close, Out out) {
+        List<Long> tabs = new ArrayList<>();
+        List<Long> unsaved = new ArrayList<>();
+        for (long id : close.tabs()) {
+            Doc.Entry entry = s.doc().entry(id);
+            if (entry != null) {
+                tabs.add(id);
+                if (entry.dirty()) {
+                    unsaved.add(id);
+                }
+            }
+        }
+        Closing c = new Closing(tabs, unsaved, NO_GATE, Optional.empty(), Set.of());
+        if (unsaved.isEmpty()) {
+            return close(s, c, out);
+        }
+        out.result(new Unsaved());
+        return s.withClosing(out.run(), c);
+    }
+
+    /**
+     * The close gate's question: let the window close, or keep it. The window is still open and drawing while it is
+     * unanswered, and every way through the chain answers the gate exactly once.
+     */
+    private static State quitAsked(State s, Quit quit, Out out) {
+        List<Long> unsaved = new ArrayList<>();
+        for (Doc.Entry e : s.doc().tabs()) {
+            if (e.dirty()) {
+                unsaved.add(e.id());
+            }
+        }
+        Closing c = new Closing(List.of(), unsaved, quit.gate(), Optional.empty(), Set.of());
+        if (unsaved.isEmpty()) {
+            return close(s, c, out);
+        }
+        out.result(new Unsaved());
+        return s.withClosing(out.run(), c);
+    }
+
+    /** Ask about the unsaved tabs, and hold the run for the answer. The question's number is the run's. */
+    private static State ask(State s, Unsaved u, Out out) {
+        Closing c = s.closings().get(out.run());
+        String names = names(s.doc(), c.unsaved());
+        String several = c.unsaved().size() == 1
+                ? names + " has unsaved changes."
+                : c.unsaved().size() + " files have unsaved changes: " + names + ".";
+        Ask question;
+        if (c.gate() != NO_GATE) {
+            question = new Ask(out.run(), "Quit with unsaved changes?", several, "Save all", "Discard");
+        } else if (c.tabs().size() == 1) {
+            question = new Ask(out.run(), "Unsaved changes", "Save the changes to " + names + " before closing it?",
+                    "Save", "Don't save");
+        } else {
+            question = new Ask(out.run(), "Unsaved changes", several, "Save all", "Discard");
+        }
+        out.send(Messages.ASK_TOPIC, question);
+        return s.withClosing(out.run(), c.holding(out.hold(), Set.of()));
+    }
+
+    /**
+     * The person answered: the run goes on with what the answer means. Only a question still waiting is answered; once
+     * its saves are under way the run waits on them, and a second answer finds nothing to resume.
+     */
+    private static State answered(State s, Answer a, Out out) {
+        Closing c = s.closings().get(a.question());
+        if (c == null || c.held().isEmpty() || !c.waiting().isEmpty()) {
+            return s;
+        }
+        out.resume(c.held().get(), a.choice().outcome);
+        return s.withClosing(a.question(), c.released());
+    }
+
+    /** Ask the view for each unsaved tab's text, and hold the run until every write has landed. */
+    private static State saveThem(State s, Confirmed yes, Out out) {
+        Closing c = s.closings().get(out.run());
+        for (long id : c.unsaved()) {
+            out.send(Messages.FLUSH_TOPIC, new Flush(id));
+        }
+        return s.withClosing(out.run(), c.holding(out.hold(), Set.copyOf(c.unsaved())));
+    }
+
+    private static State discard(State s, Declined no, Out out) {
+        out.result(new Ready());
+        return s;
+    }
+
+    private static State finish(State s, Ready ready, Out out) {
+        Closing c = s.closings().get(out.run());
+        return close(s.withoutClosing(out.run()), c, out);
+    }
+
+    /** The person cancelled, or a save did not land: close nothing, and keep the window if it was a quit. */
+    private static State stop(State s, Stop why, Out out) {
+        Closing c = s.closings().get(out.run());
+        if (c.gate() != NO_GATE) {
+            out.send(Messages.QUIT_ANSWER_TOPIC, new QuitAnswer(c.gate(), false));
+        }
+        return s.withoutClosing(out.run());
+    }
+
+    /** What a closing does at its end: close its tabs, or let the window close. */
+    private static State close(State s, Closing c, Out out) {
+        if (c.gate() != NO_GATE) {
+            out.send(Messages.QUIT_ANSWER_TOPIC, new QuitAnswer(c.gate(), true));
+            return s;
+        }
+        State next = s;
+        for (long id : c.tabs()) {
+            if (next.doc().entry(id) != null) {
+                next = next.withDoc(next.doc().without(id));
+                out.send(Messages.CLOSE_TAB_TOPIC, new CloseTab(id));
+            }
+        }
+        caption(next, out);
+        return remember(next, out);
+    }
+
+    private static String names(Doc doc, List<Long> ids) {
+        List<String> names = new ArrayList<>();
         for (long id : ids) {
-            saving.put(id, run);
-            bus.publish(Messages.FLUSH_TOPIC, new Flush(id));
-        }
-    }
-
-    /** One "save these, then" in flight: which have still to land, and exactly one of its two endings, once. */
-    private final class Saving {
-        private final Set<Long> waiting;
-        private final Runnable done;
-        private final Runnable failed;
-        private boolean over;
-
-        Saving(Set<Long> waiting, Runnable done, Runnable failed) {
-            this.waiting = waiting;
-            this.done = done;
-            this.failed = failed;
-        }
-
-        void landed(long id) {
-            waiting.remove(id);
-            if (waiting.isEmpty() && !over) {
-                over = true;
-                done.run();
+            Doc.Entry e = doc.entry(id);
+            if (e != null) {
+                names.add(e.name());
             }
         }
-
-        void failed() {
-            if (over) {
-                return;
-            }
-            over = true;
-            for (long id : waiting) {
-                saving.remove(id, this);
-            }
-            failed.run();
-        }
-    }
-
-    // ------------------------------------------------------------------ closing and quitting
-
-    private record Batch(long batch, Purpose purpose) {
-    }
-
-    /**
-     * One tab of a set being closed or quit. Nothing is decided until the whole set is here, because they come one
-     * message each and in no promised order; then the set is decided at once, with one question for all its unsaved
-     * tabs.
-     */
-    @Subscribe(topic = Messages.CLOSING, capacity = SET)
-    public void closing(Closing c) {
-        Batch key = new Batch(c.batch(), c.purpose());
-        List<Closing> set = closing.computeIfAbsent(key, k -> new ArrayList<>());
-        set.add(c);
-        if (set.size() < c.of()) {
-            return;
-        }
-        closing.remove(key);
-        List<Long> all = set.stream().map(Closing::id).filter(id -> id != Doc.NONE).toList();
-        List<Long> unsaved = set.stream().filter(x -> x.dirty() && x.id() != Doc.NONE).map(Closing::id).toList();
-        if (c.purpose() == Purpose.QUIT) {
-            quit(c.batch(), unsaved);
-        } else {
-            closeTabs(all, unsaved);
-        }
-    }
-
-    private void closeTabs(List<Long> all, List<Long> unsaved) {
-        Runnable closeThem = () -> all.forEach(this::closeTab);
-        if (unsaved.isEmpty()) {
-            closeThem.run();
-            return;
-        }
-        if (all.size() == 1) {
-            ask("Unsaved changes", "Save the changes to " + names(unsaved) + " before closing it?",
-                    "Save", "Don't save",
-                    () -> saveAll(unsaved, closeThem, () -> { }), closeThem, () -> { });
-        } else {
-            ask("Unsaved changes", unsavedMessage(unsaved), "Save all", "Discard",
-                    () -> saveAll(unsaved, closeThem, () -> { }), closeThem, () -> { });
-        }
-    }
-
-    /**
-     * The close gate's question. The window is still open and drawing while it is unanswered, and every path through
-     * it answers the gate exactly once.
-     */
-    private void quit(long gate, List<Long> unsaved) {
-        Runnable proceed = () -> bus.publish(Messages.QUIT_ANSWER_TOPIC, new QuitAnswer(gate, true));
-        Runnable cancel = () -> bus.publish(Messages.QUIT_ANSWER_TOPIC, new QuitAnswer(gate, false));
-        if (unsaved.isEmpty()) {
-            proceed.run();
-            return;
-        }
-        ask("Quit with unsaved changes?", unsavedMessage(unsaved), "Save all", "Discard",
-                () -> saveAll(unsaved, proceed, cancel), proceed, cancel);
-    }
-
-    private void closeTab(long id) {
-        if (doc.entry(id) == null) {
-            return;
-        }
-        doc = doc.without(id);
-        bus.publish(Messages.CLOSE_TAB_TOPIC, new CloseTab(id));
-        caption();
-        remember();
-    }
-
-    private String names(List<Long> ids) {
-        return ids.stream().map(doc::entry).filter(Objects::nonNull).map(Doc.Entry::name)
-                .collect(Collectors.joining(", "));
-    }
-
-    private String unsavedMessage(List<Long> unsaved) {
-        return unsaved.size() == 1
-                ? names(unsaved) + " has unsaved changes."
-                : unsaved.size() + " files have unsaved changes: " + names(unsaved) + ".";
-    }
-
-    // ------------------------------------------------------------------ questions
-
-    /** What each of a question's three answers does. */
-    private record Choices(Runnable confirm, Runnable other, Runnable cancel) {
-    }
-
-    private void ask(String title, String message, String confirm, String other,
-                     Runnable onConfirm, Runnable onOther, Runnable onCancel) {
-        long q = ++questions;
-        asked.put(q, new Choices(onConfirm, onOther, onCancel));
-        bus.publish(Messages.ASK_TOPIC, new Ask(q, title, message, confirm, other));
-    }
-
-    @Subscribe(topic = Messages.ANSWER)
-    public void answer(Answer a) {
-        Choices c = asked.remove(a.question());
-        if (c == null) {
-            return;
-        }
-        if (a.choice() == Messages.Choice.CONFIRM) {
-            c.confirm().run();
-        } else if (a.choice() == Messages.Choice.OTHER) {
-            c.other().run();
-        } else {
-            c.cancel().run();
-        }
+        return String.join(", ", names);
     }
 
     // ------------------------------------------------------------------ the status line and the caption
 
-    private void say(String message) {
-        bus.publish(Messages.STATUS_TOPIC, new Status(message, false));
+    private static void say(Out out, String message) {
+        out.send(Messages.STATUS_TOPIC, new Status(message, false));
     }
 
     /** Say why on the status line, and draw the eye to it. A refusal is not worth a dialog. */
-    private void refuse(String why) {
-        bus.publish(Messages.STATUS_TOPIC, new Status(why, true));
+    private static void refuse(Out out, String why) {
+        out.send(Messages.STATUS_TOPIC, new Status(why, true));
     }
 
-    private void caption() {
-        Doc.Entry f = doc.front();
-        bus.publish(Messages.CAPTION_TOPIC, new Caption(f == null ? "" : f.title()));
+    private static void caption(State s, Out out) {
+        Doc.Entry f = s.doc().front();
+        out.send(Messages.CAPTION_TOPIC, new Caption(f == null ? "" : f.title()));
     }
 }

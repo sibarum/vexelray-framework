@@ -1,8 +1,9 @@
 # Transactions and chains: a function sent to the state that runs it
 
-Status: **Direction ruled 2026-10-28, not started.** The author's words first, then the rules settled in the same
-conversation, then the design, what it changes in the 0.2 roadmap (`ROADMAP.md` beside the `v0.2` checkouts), the
-questions it leaves open, and the order of work. It builds on the 0.2 message model, on vexelray-gui's
+Status: **Direction ruled 2026-10-28; steps 2 to 5 built, and 6 for the controller (see *Order of work*).** The
+author's words first, then the rules settled in the same conversation, then the design, what it changes in the 0.2
+roadmap (`ROADMAP.md` beside the `v0.2` checkouts), the questions it leaves open, and the order of work. It builds on
+the 0.2 message model, on vexelray-gui's
 [tree-thread.md](../../../vexelray-gui/docs/plans/tree-thread.md) and [undo.md](../../../vexelray-gui/docs/plans/undo.md),
 and on atchung's `State`.
 
@@ -218,6 +219,13 @@ Each step lands on its own and leaves the suites green.
    Held by the processor's `StepCheckTest`: each refusal once, and the safe bodies that must compile (constants,
    locals, nested lambdas, `StringWriter`, a `File`'s name, the thread's name, an anonymous class's own field, an
    interface call). `@View`'s lambda check, when `@View` comes, is the same scanner over a different call.
+
+   **When it reads, fixed the same day:** the check first read bodies while annotations were processed, and asking
+   javac what a name means in a tree it has not attributed makes it attribute the class there and then, rewriting
+   trees in place. The trees outlive the round, so every record with a compact constructor came back to the real pass
+   with a `super()` call javac refused as the source's. It now reads each class at its `ANALYZE` event, after flow
+   analysis and before desugaring, as javac plugins do. A helper in a class analyzed earlier has been desugared since,
+   so a call into one is not read and is let through (rule 4). Held by `aRecordWithACompactConstructorStillCompiles`.
 4. **Chains**, with one id per run and its tracing. **Built 2026-10-28** as atchung's `Chain`, on ledgers:
    - a step gives its outcome through its `Out` (`out.result`), since what it returns is its ledger's state; a step
      that gives none ends the run;
@@ -263,8 +271,40 @@ Each step lands on its own and leaves the suites green.
    (navigate to what is about to change), which needs a target per group and belongs with the GUI; and effects'
    declared inverses or barriers, which wait for a mailbox that does effects.
 6. **The witness: closing a dirty document** in the template. It crosses a view, a controller, a dialog and undo,
-   and it is the chain the rules above were written against.
+   and it is the chain the rules above were written against. **The controller's half built 2026-10-28**, as the
+   template's `-core`:
+   - the `Editor` is one ledger whose state (`Editor.State`) is everything it knows, the session's shape and what it
+     is in the middle of: a question, a set of saves, a restore. The maps of callbacks, the batch protocol and the
+     counters it kept as fields are gone, each now a value in that state;
+   - every decision is a static method declared as a step, which the step check reads; each message the editor acts
+     on runs one (`Ledger.Builder.on`), so the view and the jobs stay plain publishers;
+   - closing tabs and quitting are one chain with two ways in, started by a plain message (`Chain.Builder.on`): the
+     first step decides whether anything is unsaved, `ask` holds the run for the person, the answer resumes it into
+     save, discard or stop, `saveThem` holds it until every write has landed, and `finish` closes the tabs or answers
+     the close gate. Every way through answers a gate exactly once;
+   - the disk is jobs, the session's reading and writing included (`ReadSession`, `WriteSession`), and so is
+     anything about the platform (where the application started, a new file's line endings), so a step reads only its
+     state and its message;
+   - held by the generated project's `EditorTest`, on a tick of its own: 19 tests, the close ones the witness.
+
+   **Not yet, and why:** the view's half and undo. The view is not a ledger until the framework gives a component its
+   inbox (phase 4), so nothing in `-gui` builds the editor yet, and the chain's first link is the editor's step rather
+   than the view's click. Undo of a close would need the view's tabs and texts restored with the editor's state, so
+   it waits for the view's ledger too.
 
 ## Decided
 
 The four rules above, 2026-10-28 (rule 4 after the plan was first written).
+
+**A plain message runs a step, and starts a chain** (2026-10-28, building step 6). `Ledger.Builder.on(topic, step)`
+and `Chain.Builder.on(topic)`, additions to atchung. *Reason:* a job's reply, a view's report and a close gate's
+request come from senders that do not know the ledger, and must not: a job that published
+`editor.fileRead.with(reply)` would depend on the editor's steps, which is the coupling messages exist to avoid. The
+receiver declares what it hears, as `@Subscribe` does, which is the shape a component's subscription takes when its
+handler is a step. Rule 3 still holds: the steps are the editor's, declared on its state, and the chain is written
+where the editor first hears its cause.
+
+**Lists cross in payloads** (ROADMAP fork 6, built the same day): the processor accepts a `List`, `Set` or `Map` of
+shareable values inside a payload, and a record holding one copies it in its constructor. *Reason:* "close these
+five tabs" was five messages with a batch id and a count, a protocol written around the checker; and that the list is
+unmodifiable is the sender's part, which rule 4 lets the check leave to it.

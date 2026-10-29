@@ -3,18 +3,18 @@ package ${packageName}.core;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.UnaryOperator;
 
 /**
- * Everything the application knows about its session, in one immutable value: which files are open, in what
- * order, which one is in front, which have unsaved work, and which folder the navigator shows.
+ * The shape of the session, in one immutable value: which files are open, in what order, which one is in front,
+ * which have unsaved work, and which folder the navigator shows.
  *
  * <h2>Whose it is</h2>
  *
- * <p>The {@link Editor}'s, and nobody else's. It lives in one field on the editor's lane, every change to it is made
- * there, and the view hears about a change as a message rather than by reading this. So it needs no lock and no
- * versioned store: one thread is the whole of the synchronisation story. Add fields here rather than adding state
- * elsewhere.
+ * <p>The {@link Editor}'s, and nobody else's. It is part of the editor's {@code State}, which only the editor's
+ * declared steps change, and the view hears about a change as a message rather than by reading this. So it needs no
+ * lock: a step runs on the editor's lane, one at a time, and returns the next value rather than changing this one.
+ * What the session is goes here; what the editor is in the middle of (a question, a save, a restore) goes in the
+ * {@code State}.
  *
  * <h2>What it does not hold is the text</h2>
  *
@@ -27,7 +27,7 @@ import java.util.function.UnaryOperator;
  */
 record Doc(List<Entry> tabs, long active, Path folder) {
 
-    /** No tab: none is in front, or a quit with nothing open. */
+    /** No tab: none is in front. */
     static final long NONE = Messages.NO_TAB;
 
     /**
@@ -105,11 +105,11 @@ record Doc(List<Entry> tabs, long active, Path folder) {
         return new Doc(next, active == id ? NONE : active, folder);
     }
 
-    /** Change one entry, whatever it currently is. A no-op on one that has gone. */
-    Doc withEntry(long id, UnaryOperator<Entry> change) {
+    /** Mark one entry unsaved or saved. A no-op on one that has gone. */
+    Doc withDirty(long id, boolean dirty) {
         List<Entry> next = new ArrayList<>(tabs.size());
         for (Entry e : tabs) {
-            next.add(e.id() == id ? change.apply(e) : e);
+            next.add(e.id() == id ? e.withDirty(dirty) : e);
         }
         return new Doc(next, active, folder);
     }

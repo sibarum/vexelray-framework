@@ -115,7 +115,8 @@ class VexelDesktopTest {
                 "-core builds against no widget and no shell:\n" + core);
         assertTrue(gui.contains("<app.run.skip>false</app.run.skip>") && parent.contains("<app.run.skip>true</app.run.skip>"),
                 "exec:exec from the parent runs the one module with an application in it");
-        assertTrue(blueprint.text(CORE + "Core.java").contains("@Configuration(components = Editor.class"),
+        String listed = blueprint.text(CORE + "Core.java");
+        assertTrue(listed.contains("@Configuration(jobs = {ReadFile.class") && listed.contains("WriteSession.class"),
                 "-core lists what it is made of, since the processor compiling -gui cannot see it");
     }
 

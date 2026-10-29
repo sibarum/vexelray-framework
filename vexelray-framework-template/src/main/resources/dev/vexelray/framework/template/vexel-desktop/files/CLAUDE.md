@@ -7,8 +7,8 @@ changing anything, and `Messages.java` before adding a part.
 
 ## Where things are
 
-- **Two modules.** `${artifactId}-core` is the controller: `Editor.java`, a component that makes every decision, and
-  the jobs that touch the disk. `${artifactId}-gui` is the view and the framework integration: `View.java`, a component
+- **Two modules.** `${artifactId}-core` is the controller: `Editor.java`, which makes every decision as declared steps
+  on one state, and the jobs that touch the disk. `${artifactId}-gui` is the view and the framework integration: `View.java`, a component
   that shows what the editor decides and tells it what the person did, and everything about the window. Run every
   `mvn` command from this folder, the parent of both.
 - **The parts talk by messages, and nothing else.** Every message is a record in `-core`'s `Messages.java`. A part
@@ -21,10 +21,18 @@ changing anything, and `Messages.java` before adding a part.
   it, the components and the jobs by an annotation processor while `-gui` compiles. Nobody writes it, so never create
   or edit a file of that name. After a build it is in `${artifactId}-gui/target/generated-sources/annotations/`, and it
   shows what is built in which phase.
-- **`-core`'s `Core.java` lists its components and jobs.** The processor compiling `-gui` cannot see `-core`'s sources,
-  so a component or job missing from that list is never built, with no error. Add every new one there.
-- **`Doc.java`** is the session's state, one immutable value in one field of the editor's, replaced and never mutated.
-  `Ui.java` holds no state.
+- **The editor's state changes only by its steps.** Everything it knows is one immutable `Editor.State` on a ledger,
+  and a step is a static method `(state, message, out) → next state`, declared in `Editor`'s constructor and run on
+  each message it hears (`.on(topic, step)`). A step sends through its `Out` and never touches the disk, waits,
+  or reads anything but its state and its message: the processor refuses one that does, and says what to do instead.
+  A new decision is a new step; a new thing the editor is in the middle of is a field of `State`, not a field of
+  `Editor`. Something that waits on the person or the disk is a chain (closing is the example): its step holds the
+  run and a later step resumes it.
+- **`-core`'s `Core.java` lists its jobs.** The processor compiling `-gui` cannot see `-core`'s sources, so a job
+  missing from that list is never built, with no error. Add every new one there. The editor is not listed yet: until
+  the framework gives a component its inbox, nothing in `-gui` builds it, and `EditorTest` builds it on a tick.
+- **`Doc.java`** is the session's shape, part of the editor's state, replaced and never mutated. `Ui.java` holds no
+  state.
 - **`-core` builds against no widget**, so its tests need no window. Code with no `Gui` in it goes there.
 - **`Landmarks.java`** names everything an automation script may refer to. A new control a test needs to reach gets
   a landmark there, not a string literal.

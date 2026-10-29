@@ -172,7 +172,7 @@ file docs/TODO.md
 #
 # A file's source is a plain name inside files/, and its path is where it lands, so
 # every one of these needs its "from" -- the two are only ever the same for a file
-# that sits at the top of the project. Core lists the module's component and jobs:
+# that sits at the top of the project. Core lists the module's jobs:
 # the processor compiling -gui sees only the sources of -gui, and Core, named as a
 # starter, is how the wiring hears of the rest.
 
@@ -184,6 +184,8 @@ file ${artifactId}-core/src/main/java/${packagePath}/core/ReadFile.java    from 
 file ${artifactId}-core/src/main/java/${packagePath}/core/WriteFile.java   from WriteFile.java
 file ${artifactId}-core/src/main/java/${packagePath}/core/FindPath.java    from FindPath.java
 file ${artifactId}-core/src/main/java/${packagePath}/core/CreateFile.java  from CreateFile.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/ReadSession.java from ReadSession.java
+file ${artifactId}-core/src/main/java/${packagePath}/core/WriteSession.java from WriteSession.java
 file ${artifactId}-core/src/main/java/${packagePath}/core/TextFile.java    from TextFile.java
 file ${artifactId}-core/src/main/java/${packagePath}/core/Markdown.java    from Markdown.java
 

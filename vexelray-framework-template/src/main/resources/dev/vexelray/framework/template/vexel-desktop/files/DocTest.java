@@ -33,7 +33,7 @@ class DocTest {
     @Test
     void unsavedShowsInTheTitle() {
         Doc doc = Doc.initial().withTab(entry(1, "dir/a.txt")).withTab(entry(2, "b.md"))
-                .withEntry(2, e -> e.withDirty(true));
+                .withDirty(2, true);
         assertEquals("a.txt", doc.entry(1).title());
         assertEquals("• b.md", doc.entry(2).title());
     }
@@ -41,7 +41,7 @@ class DocTest {
     @Test
     void changingAnEntryThatHasGoneChangesNothing() {
         Doc doc = Doc.initial().withTab(entry(1, "a.txt"));
-        assertEquals(doc, doc.withEntry(7, e -> e.withDirty(true)));
+        assertEquals(doc, doc.withDirty(7, true));
     }
 
     @Test

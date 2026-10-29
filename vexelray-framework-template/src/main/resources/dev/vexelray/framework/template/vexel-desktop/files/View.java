@@ -8,13 +8,13 @@ import ${packageName}.core.Messages.Ask;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Choice;
 import ${packageName}.core.Messages.CloseTab;
-import ${packageName}.core.Messages.Closing;
+import ${packageName}.core.Messages.Close;
 import ${packageName}.core.Messages.Flush;
 import ${packageName}.core.Messages.FrontTab;
 import ${packageName}.core.Messages.Fronted;
 import ${packageName}.core.Messages.Go;
 import ${packageName}.core.Messages.Open;
-import ${packageName}.core.Messages.Purpose;
+import ${packageName}.core.Messages.Quit;
 import ${packageName}.core.Messages.QuitAnswer;
 import ${packageName}.core.Messages.Retitle;
 import ${packageName}.core.Messages.Save;
@@ -41,7 +41,7 @@ import java.util.List;
  *
  * <p>Every decision is the {@code Editor}'s, in {@code -core}: whether a file is already open, what a typed path names,
  * whether closing needs a question. This turns the editor's messages into widgets ({@code AddTab} is a tab,
- * {@code Ask} is a dialog) and the person's gestures into messages ({@code Open}, {@code Closing}, {@code Save}).
+ * {@code Ask} is a dialog) and the person's gestures into messages ({@code Open}, {@code Close}, {@code Save}).
  *
  * <h2>Threads</h2>
  *
@@ -52,11 +52,13 @@ import java.util.List;
  * framework's idiom: a prop written off the GUI thread is queued and applied by the next drain.
  */
 @Component(lane = "view")
-@Publishes({Messages.OPEN, Messages.GO, Messages.FRONTED, Messages.EDITED, Messages.CLOSING, Messages.SAVE,
+@Publishes({Messages.OPEN, Messages.GO, Messages.FRONTED, Messages.EDITED, Messages.CLOSE, Messages.QUIT, Messages.SAVE,
         Messages.ANSWER, Intent.TOPIC})
 final class View {
 
-    /** As the editor's: a whole set of tabs is a message each, and a full mailbox ends the application. */
+    /**
+     * Closing every tab is a {@code CloseTab} each, and a full mailbox ends the application (components.md, ruling 5).
+     */
     static final int SET = 4096;
 
     private final Gui gui;
@@ -66,7 +68,6 @@ final class View {
     private final Atchung bus;
     private final Dialogs dialogs;
     private final QuitGate gate;
-    private long batches;
 
     View(Gui gui, Ui ui, Atchung bus, Dialogs dialogs, QuitGate gate) {
         this.gui = gui;
@@ -225,42 +226,39 @@ final class View {
     void closeFront() {
         Buffer b = ws.front();
         if (b != null) {
-            closing(List.of(b), ++batches, Purpose.TABS);
+            close(List.of(b));
         }
     }
 
     void close(long id) {
         Buffer b = ws.byId(id);
         if (b != null) {
-            closing(List.of(b), ++batches, Purpose.TABS);
+            close(List.of(b));
         }
     }
 
     void closeOthers(long keep) {
         List<Buffer> rest = new ArrayList<>(ws.all());
         rest.removeIf(b -> b.id == keep);
-        closing(rest, ++batches, Purpose.TABS);
+        close(rest);
     }
 
     void closeAll() {
-        closing(ws.all(), ++batches, Purpose.TABS);
+        close(ws.all());
     }
 
-    /** The window was asked to close: tell the editor every tab, and whether each is unsaved now. */
+    /** The window was asked to close: the editor knows every tab and which are unsaved, and answers the gate. */
     void quit(long ticket) {
-        List<Buffer> all = ws.all();
-        if (all.isEmpty()) {
-            bus.publish(Messages.CLOSING_TOPIC, new Closing(ticket, 1, Messages.NO_TAB, false, Purpose.QUIT));
-        } else {
-            closing(all, ticket, Purpose.QUIT);
-        }
+        bus.publish(Messages.QUIT_TOPIC, new Quit(ticket));
     }
 
-    /** One {@link Closing} per tab, each carrying how many make the set and whether its tab is unsaved now. */
-    private void closing(List<Buffer> buffers, long batch, Purpose purpose) {
+    /** Ask the editor to close these tabs, in one message: whether any is unsaved is the editor's to know. */
+    private void close(List<Buffer> buffers) {
+        List<Long> ids = new ArrayList<>(buffers.size());
         for (Buffer b : buffers) {
-            bus.publish(Messages.CLOSING_TOPIC, new Closing(batch, buffers.size(), b.id, b.dirty(), purpose));
+            ids.add(b.id);
         }
+        bus.publish(Messages.CLOSE_TOPIC, new Close(ids));
     }
 
     void cycle(int delta) {
