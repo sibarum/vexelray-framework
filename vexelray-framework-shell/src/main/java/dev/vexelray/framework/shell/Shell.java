@@ -76,7 +76,7 @@ public final class Shell {
     private final Senders senders = new Senders(bus);
     private final Timer timer = new Timer(bus);
     private final PointerLock pointerLock = new PointerLock();
-    private final HeldDialogs dialogs = new HeldDialogs();
+    private final HeldDialogs dialogs = new HeldDialogs(bus);
     private final Lanes lanes;
     private final Watchdog watchdog;
     /** Where the ticks run, read from the launch when the shell is made, so a bad value fails before anything is built. */
@@ -369,11 +369,12 @@ public final class Shell {
     }
 
     /**
-     * <b>The questions this application asks the person using it</b>: a {@code Modal}, and the native pickers for a
-     * file or a folder. See {@link Dialogs}.
+     * <b>What shows this application's dialogs</b>, for a view asking with a {@code Modal} of its own. A question
+     * that is only words is an {@code Ask} message, and a picker a {@code PickFile}, which need no part to take this.
+     * See {@link Dialogs}.
      *
      * <p><b>Available in every phase</b>, like the bus, and safe from any thread: a question asked before there is a
-     * window is held and asked once there is. The same value throughout, whoever ends up answering — the
+     * window is held and asked once there is, in the main window's frame. The same value throughout, whoever ends up answering — the
      * application's own, if it handed some back through {@link #dialogs(Dialogs)}, or the framework's from
      * {@link Phase#ATTACH}.
      */
@@ -868,6 +869,8 @@ public final class Shell {
 
     void gui(Gui gui) {
         this.gui = gui;
+        // Every question is heard in the main window's frame from here: an Ask, a PickFile, a Modal asked directly.
+        dialogs.install(gui);
     }
 
     void krono(KronoGui krono) {

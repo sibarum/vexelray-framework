@@ -87,26 +87,6 @@ public final class Messages {
     public record Save(long id, String text, boolean open) {
     }
 
-    /**
-     * How a question was answered: its first button, its second, or cancel. Each carries what the question's run goes
-     * on with, so the editor turns an answer into the next step without a switch.
-     */
-    public enum Choice {
-        CONFIRM(new Editor.Confirmed()), OTHER(new Editor.Declined()), CANCEL(new Editor.Cancelled());
-
-        final Object outcome;
-
-        Choice(Object outcome) {
-            this.outcome = outcome;
-        }
-    }
-
-    /** The answer to an {@link Ask}. */
-    public static final Topic<Answer> ANSWER_TOPIC = Topic.edge(Answer.class);
-
-    public record Answer(long question, Choice choice) {
-    }
-
     /** The window exists: bring back last time's session and open what the command line named. */
     public static final Topic<Begin> BEGIN_TOPIC = Topic.edge(Begin.class);
 
@@ -155,12 +135,6 @@ public final class Messages {
     public static final Topic<Status> STATUS_TOPIC = Topic.edge(Status.class);
 
     public record Status(String message, boolean alert) {
-    }
-
-    /** Ask the person: two buttons and Cancel. The answer comes back as an {@link Answer} with this question. */
-    public static final Topic<Ask> ASK_TOPIC = Topic.edge(Ask.class);
-
-    public record Ask(long question, String title, String message, String confirm, String other) {
     }
 
     /** Send the text of a tab back as a {@link Save}: the editor is saving it before closing or quitting. */

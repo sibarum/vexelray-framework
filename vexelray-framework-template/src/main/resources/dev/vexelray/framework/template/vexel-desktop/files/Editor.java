@@ -1,8 +1,6 @@
 package ${packageName}.core;
 
 import ${packageName}.core.Messages.AddTab;
-import ${packageName}.core.Messages.Answer;
-import ${packageName}.core.Messages.Ask;
 import ${packageName}.core.Messages.Begin;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Close;
@@ -34,6 +32,8 @@ import ${packageName}.core.Messages.Written;
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.Hears;
 import dev.vexelray.framework.api.Publishes;
+import dev.vexelray.framework.core.Answer;
+import dev.vexelray.framework.core.Ask;
 import dev.vexelray.framework.core.CloseAnswer;
 import dev.vexelray.framework.core.CloseRequested;
 import sibarum.atchung.Chain;
@@ -255,6 +255,32 @@ public final class Editor {
     record Failed() implements Stop {
     }
 
+    /**
+     * The buttons of a closing's question, in the order the {@link Ask} lists them: its first, its second, and Cancel,
+     * which the framework makes Escape and the close box. Each carries what the run goes on with, so an {@link Answer}
+     * becomes the next step without a switch.
+     */
+    enum Choice {
+        CONFIRM(new Confirmed()), OTHER(new Declined()), CANCEL(new Cancelled());
+
+        final Object outcome;
+
+        Choice(Object outcome) {
+            this.outcome = outcome;
+        }
+
+        /** The question's buttons: {@code confirm}, {@code other}, and Cancel. */
+        static List<String> labels(String confirm, String other) {
+            return List.of(confirm, other, "Cancel");
+        }
+
+        /** The choice the button at {@code index} stands for; anything unknown is a cancel. */
+        static Choice of(int index) {
+            Choice[] all = values();
+            return index >= 0 && index < all.length ? all[index] : CANCEL;
+        }
+    }
+
     // ------------------------------------------------------------------ the declarations
 
     private final Ledger<State> ledger;
@@ -294,7 +320,7 @@ public final class Editor {
                 .on(Messages.EDITED_TOPIC, edited)
                 .on(Messages.SAVE_TOPIC, save)
                 .on(Messages.WRITTEN_TOPIC, written)
-                .on(Messages.ANSWER_TOPIC, answered);
+                .on(Answer.TOPIC, answered);
         ledger = b.build(inbox, "editor", CAPACITY);
 
         closing(Chain.start("close tabs", ledger, closeAsked).on(Messages.CLOSE_TOPIC), ask, saveThem, discard, finish,
@@ -648,14 +674,15 @@ public final class Editor {
                 : c.unsaved().size() + " files have unsaved changes: " + names + ".";
         Ask question;
         if (c.gate() != NO_GATE) {
-            question = new Ask(out.run(), "Quit with unsaved changes?", several, "Save all", "Discard");
+            question = new Ask(out.run(), "Quit with unsaved changes?", several,
+                    Choice.labels("Save all", "Discard"));
         } else if (c.tabs().size() == 1) {
             question = new Ask(out.run(), "Unsaved changes", "Save the changes to " + names + " before closing it?",
-                    "Save", "Don't save");
+                    Choice.labels("Save", "Don't save"));
         } else {
-            question = new Ask(out.run(), "Unsaved changes", several, "Save all", "Discard");
+            question = new Ask(out.run(), "Unsaved changes", several, Choice.labels("Save all", "Discard"));
         }
-        out.send(Messages.ASK_TOPIC, question);
+        out.send(Ask.TOPIC, question);
         return s.withClosing(out.run(), c.holding(out.hold(), Set.of()));
     }
 
@@ -664,12 +691,12 @@ public final class Editor {
      * its saves are under way the run waits on them, and a second answer finds nothing to resume.
      */
     private static State answered(State s, Answer a, Out out) {
-        Closing c = s.closings().get(a.question());
+        Closing c = s.closings().get(a.id());
         if (c == null || c.held().isEmpty() || !c.waiting().isEmpty()) {
             return s;
         }
-        out.resume(c.held().get(), a.choice().outcome);
-        return s.withClosing(a.question(), c.released());
+        out.resume(c.held().get(), Choice.of(a.button()).outcome);
+        return s.withClosing(a.id(), c.released());
     }
 
     /** Ask the view for each unsaved tab's text, and hold the run until every write has landed. */

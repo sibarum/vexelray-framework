@@ -1,23 +1,25 @@
 package ${packageName};
 
 import ${packageName}.core.Messages;
-import ${packageName}.core.Messages.Answer;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Go;
 import ${packageName}.core.Messages.Open;
 import ${packageName}.core.Messages.Status;
+import dev.vexelray.framework.core.Answer;
 import dev.vexelray.framework.core.CloseAnswer;
 import dev.vexelray.framework.core.CloseRequested;
+import dev.vexelray.framework.core.PickFile;
+import dev.vexelray.framework.core.Picked;
 import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
-import dev.vexelray.gui.nfd.FileDialog;
 import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Tabs;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import sibarum.atchung.Sender;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -81,19 +83,8 @@ class ViewTest {
         }
 
         @Override
-        public void openFile(Path start, List<FileDialog.Filter> filters, Consumer<Path> picked, Runnable cancelled) {
-            cancelled.run();
-        }
-
-        @Override
-        public void openFolder(Path start, Consumer<Path> picked, Runnable cancelled) {
-            cancelled.run();
-        }
-
-        @Override
-        public void saveFile(Path start, String name, List<FileDialog.Filter> filters, Consumer<Path> picked,
-                             Runnable cancelled) {
-            cancelled.run();
+        public void pick(PickFile request, Sender<Picked> picked) {
+            picked.send(Picked.cancelled(request.id()));
         }
     }
 
@@ -127,7 +118,7 @@ class ViewTest {
             asked.add(modal.title());
             Object message = modal.buttons().stream().filter(b -> b.label().equals(label)).findFirst().orElseThrow()
                     .message();
-            shell.bus().publish(Messages.ANSWER_TOPIC, (Answer) message);
+            shell.bus().publish(Answer.TOPIC, (Answer) message);
         };
     }
 

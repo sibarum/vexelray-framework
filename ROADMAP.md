@@ -863,6 +863,25 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
 * **Dialogs:** `Ask`/`Answer`, `PickFile`/`Picked` topics, in place of `confirm`'s `Runnable`s and the pickers'
   `Consumer<Path>` (phase 3, step 18 part 2). `HeldDialogs`' queue becomes the dialog component's mailbox. The native
   dialogs stop answering on a thread of their own (phase 4).
+  ***Done 2026-10-29.*** *All four records are in `-core`, so a component on the logic lane asks with no `Dialogs`
+  in hand. `Ask(id, title, message, buttons)` is a question that is only words: the first button is the default, the
+  last (of two or more) the cancel that Escape and the close box press, and `Answer(id, button)` carries the index.
+  `PickFile(id, kind, start, name, filters)` is answered by `Picked(id, path)`, empty for a cancel or a picker that
+  could not open; paths are strings, since a `Path` cannot cross as itself. `Dialogs` keeps `ask(Modal)` for a view
+  whose dialog is its own shape, and its pickers and `confirm` became one `pick(PickFile, Sender<Picked>)`, which is
+  what a test's or a kiosk's dialogs implement; six entries are off `OWED`. `HeldDialogs` is the dialog component:
+  every question, an `Ask`, a `PickFile` or a `Modal` handed to `ask` from any thread, arrives in the main window's
+  frame, so what it holds and whom it asks are the main thread's, with no lock. `NativeDialogs` lost its
+  `vexel-dialog` thread: a picker's answer is one send from wherever NFD finished. The template's own `Ask`, `Answer`
+  and `Choice` messages are gone: the `Editor` sends the framework's `Ask` and reads the `Answer` by index
+  (`Editor.Choice`), and the view no longer takes `Dialogs` or turns questions into dialogs. Held by `DialogsTest`
+  (6), and in a generated application by `EditorTest` and `ViewTest` (`-core` 56, `-gui` 17).*
+  *Driven live: Ctrl+W on an unsaved tab opened the framework's "Unsaved changes" dialog from the editor's `Ask`.
+  **Its buttons could not be pressed by automation**, and that is vexelray-gui's, not this change's: `Modals`'
+  windows are not among ottermate's `windows`, and a key sent while one is up goes to the main window, past
+  `app.modalWindow`, so Enter typed a line into the document instead of pressing Save.*
+  *Left as is: a one-button `Ask` is answered only by its button, because a `Modal` has no button that is both
+  default and cancel, so Escape puts it away unanswered.*
 * **Window:** state confined to the main thread; open, close and focus are published as messages. No locks.
   `onOpened`, `onClosed` and `onClose(CloseGate)` go.
 * **One bus, many windows** (phase 3, steps 6 and 8): the shell builds each `Gui` with its window's name, so

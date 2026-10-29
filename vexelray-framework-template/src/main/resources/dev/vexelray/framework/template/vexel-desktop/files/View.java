@@ -3,10 +3,7 @@ package ${packageName};
 import ${packageName}.Intent.Command;
 import ${packageName}.core.Messages;
 import ${packageName}.core.Messages.AddTab;
-import ${packageName}.core.Messages.Answer;
-import ${packageName}.core.Messages.Ask;
 import ${packageName}.core.Messages.Caption;
-import ${packageName}.core.Messages.Choice;
 import ${packageName}.core.Messages.Close;
 import ${packageName}.core.Messages.CloseTab;
 import ${packageName}.core.Messages.Edited;
@@ -25,10 +22,8 @@ import ${packageName}.core.Messages.SaveFailed;
 import ${packageName}.core.Messages.ShowFolder;
 import ${packageName}.core.Messages.Status;
 import dev.vexelray.framework.api.Subscribe;
-import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.input.Shortcut;
-import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Tabs;
 import dev.vexelray.gui.widget.TextField;
 import dev.vexelray.gui.widget.TreeView;
@@ -47,8 +42,9 @@ import java.util.List;
  * <h2>It decides nothing</h2>
  *
  * <p>Every decision is the {@code Editor}'s, in {@code -core}: whether a file is already open, what a typed path names,
- * whether closing needs a question. This turns the editor's messages into widgets ({@code AddTab} is a tab,
- * {@code Ask} is a dialog) and the person's gestures into messages ({@code Open}, {@code Close}, {@code Save}).
+ * whether closing needs a question. This turns the editor's messages into widgets ({@code AddTab} is a tab) and the
+ * person's gestures into messages ({@code Open}, {@code Close}, {@code Save}). A question is not the view's: the editor
+ * sends the framework an {@code Ask}, and the framework shows it.
  *
  * <h2>Everything it hears is a message, in the frame</h2>
  *
@@ -86,7 +82,6 @@ final class View {
     private final Ui ui;
     private final Workspace ws;
     private final Navigator nav;
-    private final Dialogs dialogs;
 
     private final Sender<Open> open;
     private final Sender<Go> go;
@@ -94,7 +89,6 @@ final class View {
     private final Sender<Edited> edited;
     private final Sender<Close> close;
     private final Sender<Save> save;
-    private final Sender<Answer> answer;
     private final Sender<Listing> listing;
     private final Sender<Mark> mark;
     private final Sender<TreeView.Children> children;
@@ -103,21 +97,19 @@ final class View {
     /** The tab in front, as the editor was last told. */
     private long front = Messages.NO_TAB;
 
-    View(Gui gui, Ui ui, Dialogs dialogs, Sender<Open> open, Sender<Go> go, Sender<Fronted> fronted,
-         Sender<Edited> edited, Sender<Close> close, Sender<Save> save, Sender<Answer> answer,
+    View(Gui gui, Ui ui, Sender<Open> open, Sender<Go> go, Sender<Fronted> fronted,
+         Sender<Edited> edited, Sender<Close> close, Sender<Save> save,
          Sender<Listing> listing, Sender<Mark> mark, Sender<TreeView.Children> children, Sender<Intent> intents) {
         this.gui = gui;
         this.ui = ui;
         this.ws = ui.workspace();
         this.nav = ui.navigator();
-        this.dialogs = dialogs;
         this.open = open;
         this.go = go;
         this.fronted = fronted;
         this.edited = edited;
         this.close = close;
         this.save = save;
-        this.answer = answer;
         this.listing = listing;
         this.mark = mark;
         this.children = children;
@@ -197,15 +189,6 @@ final class View {
     @Subscribe
     public void status(Status m) {
         ui.status(m.message(), m.alert());
-    }
-
-    /** A question, as the framework's dialog: each button sends its answer back to the editor. */
-    @Subscribe
-    public void ask(Ask m) {
-        dialogs.ask(Modal.of(m.title(), m.message())
-                .defaultButton(m.confirm(), answer, new Answer(m.question(), Choice.CONFIRM))
-                .button(m.other(), answer, new Answer(m.question(), Choice.OTHER))
-                .cancelButton("Cancel", answer, new Answer(m.question(), Choice.CANCEL)));
     }
 
     @Subscribe(capacity = SET)

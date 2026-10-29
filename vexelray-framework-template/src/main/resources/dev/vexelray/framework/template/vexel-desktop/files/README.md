@@ -96,7 +96,7 @@ keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and 
 front of a tab's name means unsaved changes; closing anything unsaved asks first, and so does quitting.
 
 There is no file dialog, by choice: the path bar is the whole of "open", and it works the same in a test as in use. The
-framework brings native pickers (`Dialogs.openFile`, `openFolder`, `saveFile`) for a project that wants them.
+framework brings native pickers (a `PickFile` message, answered by `Picked`) for a project that wants them.
 
 ## How it is put together
 
@@ -121,7 +121,7 @@ and a reply out), and **recipes** (a part built once and handed to whoever takes
 | File | What belongs in it |
 | --- | --- |
 | `Recipes.java` | **what this module builds.** One `@Provides` method per part; `${className}AppWiring`, which builds them and the components and jobs in order, is generated while it compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. |
-| `View.java` | **the view**, a `@View`: run on the GUI thread in each frame, hearing the editor, its jobs and the widgets as messages; the editor's messages shown (`AddTab` is a tab, `Ask` is a dialog) and the person's gestures told (`Open`, `Close`, `Save`). It decides nothing. |
+| `View.java` | **the view**, a `@View`: run on the GUI thread in each frame, hearing the editor, its jobs and the widgets as messages; the editor's messages shown (`AddTab` is a tab) and the person's gestures told (`Open`, `Close`, `Save`). It decides nothing. |
 | `Intent.java` | what a key chord asks of the view: the message the gesture was declared to send. |
 | `Ui.java` | the window. Holds no state; it shows what the view hands it. |
 | `Workspace.java`, `Buffer.java` | the tab bar and one `Buffer` per tab: a `TextField`, its spans, its save bookkeeping. |

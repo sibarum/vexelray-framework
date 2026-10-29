@@ -6,16 +6,13 @@ import dev.vexelray.gui.core.edit.History;
 import dev.vexelray.gui.core.edit.Outcome;
 import dev.vexelray.gui.core.edit.UndoEvent;
 import dev.vexelray.gui.krono.KronoGui;
-import dev.vexelray.gui.nfd.FileDialog;
 import dev.vexelray.gui.widget.Modal;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import sibarum.atchung.Atchung;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -48,16 +45,8 @@ class UndoFeedbackTest {
         }
 
         @Override
-        public void openFile(Path start, List<FileDialog.Filter> filters, Consumer<Path> picked, Runnable cancelled) {
-        }
-
-        @Override
-        public void openFolder(Path start, Consumer<Path> picked, Runnable cancelled) {
-        }
-
-        @Override
-        public void saveFile(Path start, String name, List<FileDialog.Filter> filters, Consumer<Path> picked,
-                             Runnable cancelled) {
+        public void pick(dev.vexelray.framework.core.PickFile request,
+                         sibarum.atchung.Sender<dev.vexelray.framework.core.Picked> answer) {
         }
     }
 

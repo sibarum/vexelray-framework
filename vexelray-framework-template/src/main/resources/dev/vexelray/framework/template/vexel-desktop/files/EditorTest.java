@@ -1,11 +1,8 @@
 package ${packageName}.core;
 
 import ${packageName}.core.Messages.AddTab;
-import ${packageName}.core.Messages.Answer;
-import ${packageName}.core.Messages.Ask;
 import ${packageName}.core.Messages.Begin;
 import ${packageName}.core.Messages.Caption;
-import ${packageName}.core.Messages.Choice;
 import ${packageName}.core.Messages.Close;
 import ${packageName}.core.Messages.CloseTab;
 import ${packageName}.core.Messages.Create;
@@ -31,6 +28,8 @@ import ${packageName}.core.Messages.Status;
 import ${packageName}.core.Messages.Why;
 import ${packageName}.core.Messages.Write;
 import ${packageName}.core.Messages.Written;
+import dev.vexelray.framework.core.Answer;
+import dev.vexelray.framework.core.Ask;
 import dev.vexelray.framework.core.CloseAnswer;
 import dev.vexelray.framework.core.CloseRequested;
 import org.junit.jupiter.api.AfterEach;
@@ -83,7 +82,7 @@ class EditorTest {
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(Messages.SHOW_FOLDER_TOPIC, Messages.ADD_TAB_TOPIC, Messages.FRONT_TAB_TOPIC,
                 Messages.CLOSE_TAB_TOPIC, Messages.RETITLE_TOPIC, Messages.CAPTION_TOPIC, Messages.STATUS_TOPIC,
-                Messages.ASK_TOPIC, Messages.FLUSH_TOPIC, Messages.SAVE_FAILED_TOPIC, CloseAnswer.TOPIC,
+                Ask.TOPIC, Messages.FLUSH_TOPIC, Messages.SAVE_FAILED_TOPIC, CloseAnswer.TOPIC,
                 Messages.READ_TOPIC, Messages.WRITE_TOPIC, Messages.FIND_TOPIC, Messages.CREATE_TOPIC,
                 Messages.RECALL_TOPIC, Messages.REMEMBER_TOPIC)) {
             listen(heard, t);
@@ -220,6 +219,7 @@ class EditorTest {
         Ask ask = took(Ask.class).getFirst();
         assertEquals("Unsaved changes", ask.title());
         assertEquals("Save the changes to a.txt before closing it?", ask.message());
+        assertEquals(List.of("Save", "Don't save", "Cancel"), ask.buttons(), "default first, cancel last");
         assertEquals(1, editor.state().closings().size());
         assertTrue(editor.state().doc().entry(a) != null, "the tab is still open");
     }
@@ -228,7 +228,7 @@ class EditorTest {
     void dontSaveClosesWithoutWriting() {
         long a = unsaved("a.txt");
         tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
-        tell(Messages.ANSWER_TOPIC, new Answer(took(Ask.class).getFirst().question(), Choice.OTHER));
+        tell(Answer.TOPIC, new Answer(took(Ask.class).getFirst().id(), 1));
         assertTrue(sent.contains(new CloseTab(a)));
         assertTrue(took(Write.class).isEmpty(), "Don't save does not save");
         assertTrue(editor.state().closings().isEmpty());
@@ -238,7 +238,7 @@ class EditorTest {
     void saveWritesThenClosesOnceTheWriteHasLanded() {
         long a = unsaved("a.txt");
         tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
-        tell(Messages.ANSWER_TOPIC, new Answer(took(Ask.class).getFirst().question(), Choice.CONFIRM));
+        tell(Answer.TOPIC, new Answer(took(Ask.class).getFirst().id(), 0));
         assertEquals(List.of(new Flush(a)), took(Flush.class));
         tell(Messages.SAVE_TOPIC, new Save(a, "typed", true));
         Write w = took(Write.class).getFirst();
@@ -253,11 +253,11 @@ class EditorTest {
     void cancelClosesNothingAndForgetsTheQuestion() {
         long a = unsaved("a.txt");
         tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
-        long question = took(Ask.class).getFirst().question();
-        tell(Messages.ANSWER_TOPIC, new Answer(question, Choice.CANCEL));
+        long question = took(Ask.class).getFirst().id();
+        tell(Answer.TOPIC, new Answer(question, 2));
         assertTrue(took(CloseTab.class).isEmpty());
         assertTrue(editor.state().closings().isEmpty());
-        tell(Messages.ANSWER_TOPIC, new Answer(question, Choice.OTHER));
+        tell(Answer.TOPIC, new Answer(question, 1));
         assertTrue(took(CloseTab.class).isEmpty(), "an answer to a question no longer asked does nothing");
     }
 
@@ -270,7 +270,7 @@ class EditorTest {
         List<Ask> asked = took(Ask.class);
         assertEquals(1, asked.size());
         assertEquals("2 files have unsaved changes: b.txt, c.txt.", asked.getFirst().message());
-        tell(Messages.ANSWER_TOPIC, new Answer(asked.getFirst().question(), Choice.OTHER));
+        tell(Answer.TOPIC, new Answer(asked.getFirst().id(), 1));
         assertEquals(List.of(new CloseTab(a), new CloseTab(b), new CloseTab(c)), took(CloseTab.class));
     }
 
@@ -278,9 +278,9 @@ class EditorTest {
     void aSecondAnswerWhileTheSavesAreUnderWayChangesNothing() {
         long a = unsaved("a.txt");
         tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
-        long question = took(Ask.class).getFirst().question();
-        tell(Messages.ANSWER_TOPIC, new Answer(question, Choice.CONFIRM));
-        tell(Messages.ANSWER_TOPIC, new Answer(question, Choice.OTHER));
+        long question = took(Ask.class).getFirst().id();
+        tell(Answer.TOPIC, new Answer(question, 0));
+        tell(Answer.TOPIC, new Answer(question, 1));
         assertTrue(took(CloseTab.class).isEmpty(), "the run waits on the write, not on another answer");
     }
 
@@ -301,7 +301,7 @@ class EditorTest {
         tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 9));
         Ask ask = took(Ask.class).getFirst();
         assertEquals("Quit with unsaved changes?", ask.title());
-        tell(Messages.ANSWER_TOPIC, new Answer(ask.question(), Choice.CONFIRM));
+        tell(Answer.TOPIC, new Answer(ask.id(), 0));
         assertEquals(List.of(new Flush(a), new Flush(c)), took(Flush.class));
 
         tell(Messages.SAVE_TOPIC, new Save(a, "1a", true));
@@ -319,7 +319,7 @@ class EditorTest {
     void aWriteThatFailsCancelsTheQuitAndSaysWhy() {
         long a = unsaved("a.txt");
         tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 3));
-        tell(Messages.ANSWER_TOPIC, new Answer(took(Ask.class).getFirst().question(), Choice.CONFIRM));
+        tell(Answer.TOPIC, new Answer(took(Ask.class).getFirst().id(), 0));
         tell(Messages.SAVE_TOPIC, new Save(a, "x", true));
         Write w = took(Write.class).getFirst();
         tell(Messages.WRITTEN_TOPIC, new Written(a, w.path(), "disk full"));
@@ -333,7 +333,7 @@ class EditorTest {
     void cancellingAQuitKeepsTheWindow() {
         unsaved("a.txt");
         tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 4));
-        tell(Messages.ANSWER_TOPIC, new Answer(took(Ask.class).getFirst().question(), Choice.CANCEL));
+        tell(Answer.TOPIC, new Answer(took(Ask.class).getFirst().id(), 2));
         assertEquals(List.of(new CloseAnswer(4, false)), took(CloseAnswer.class));
     }
 

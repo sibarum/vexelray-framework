@@ -1,14 +1,18 @@
 package dev.vexelray.framework.shell;
 
-import dev.vexelray.gui.widget.spi.WidgetSeams;
+import dev.vexelray.framework.core.Answer;
+import dev.vexelray.framework.core.Ask;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
-import dev.vexelray.gui.nfd.FileDialog;
+import dev.vexelray.framework.core.PickFile;
+import dev.vexelray.framework.core.Picked;
 import dev.vexelray.gui.widget.Modal;
+import dev.vexelray.gui.widget.spi.WidgetSeams;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import sibarum.atchung.Sender;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,7 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The dialogs as a value a part is handed: held until something answers, and answerable by a test.
+ * The dialogs: questions as messages, heard in the main window's frame and handed to whichever dialogs answer, held
+ * until something does, and answerable by a test.
  *
  * <p><b>No GPU.</b> The point of the seam is that none of this needs a window: a headless tree that asks a question
  * used to throw, because the dialogs were a static installed with the window.
@@ -45,73 +50,35 @@ final class DialogsTest {
         }
     }
 
-    /** Dialogs that write down every question and answer a picker with {@code answer}, or cancel when it is null. */
-    private static final class Recording implements Dialogs {
+    /**
+     * Dialogs that write down every question, press the button labelled {@link #press} by sending what it declares,
+     * and answer a picker with {@link #answer}, or cancel when it is null. As a test's or a kiosk's would.
+     */
+    private static class Recording implements Dialogs {
 
         final List<String> asked = new ArrayList<>();
+        String press = "Yes";
         Path answer;
 
         @Override
         public void ask(Modal modal) {
             asked.add("ask " + modal.title());
-            WidgetSeams.get().press(modal.defaultButton());
-        }
-
-        @Override
-        public void openFile(Path start, List<FileDialog.Filter> filters, Consumer<Path> picked, Runnable cancelled) {
-            asked.add("open");
-            reply(picked, cancelled);
-        }
-
-        @Override
-        public void openFolder(Path start, Consumer<Path> picked, Runnable cancelled) {
-            asked.add("folder");
-            reply(picked, cancelled);
-        }
-
-        @Override
-        public void saveFile(Path start, String name, List<FileDialog.Filter> filters, Consumer<Path> picked,
-                             Runnable cancelled) {
-            asked.add("save " + name);
-            reply(picked, cancelled);
-        }
-
-        private void reply(Consumer<Path> picked, Runnable cancelled) {
-            if (answer == null) {
-                cancelled.run();
-            } else {
-                picked.accept(answer);
+            for (Modal.Button b : modal.buttons()) {
+                if (b.label().equals(press)) {
+                    WidgetSeams.get().press(b);
+                }
             }
         }
+
+        @Override
+        public void pick(PickFile request, Sender<Picked> picked) {
+            asked.add(request.kind() + " " + request.name());
+            picked.send(answer == null ? Picked.cancelled(request.id()) : new Picked(request.id(), answer.toString()));
+        }
     }
 
-    private static Modal question(String title, List<String> answered) {
-        return WidgetSeams.get().defaultButton(Modal.of(title, "?"), "Yes", () -> answered.add(title));
-    }
-
-    @Test
-    void aQuestionAskedBeforeAnythingAnswersIsHeldAndAskedInOrder() {
-        HeldDialogs held = new HeldDialogs();
-        List<String> answered = new ArrayList<>();
-        held.ask(question("first", answered));
-        held.openFolder(null, p -> answered.add("folder " + p), () -> answered.add("folder cancelled"));
-        held.ask(question("second", answered));
-        assertTrue(answered.isEmpty(), "a question was answered with nothing to answer it");
-
-        Recording recording = new Recording();
-        held.target(recording);
-        held.ask(question("third", answered));
-
-        assertEquals(List.of("ask first", "folder", "ask second", "ask third"), recording.asked);
-        assertEquals(List.of("first", "folder cancelled", "second", "third"), answered);
-    }
-
-    @Test
-    void aHeadlessTreeAsksTheApplicationsOwnDialogs() {
-        Recording recording = new Recording();
-        recording.answer = Path.of("picked.txt");
-        List<String> answered = new ArrayList<>();
-        shell = VexelApplication.tree(new Wiring() {
+    private static Wiring wiring(Recording recording, Consumer<Shell> tree) {
+        return new Wiring() {
             @Override
             public AppInfo info() {
                 return DEMO;
@@ -124,15 +91,96 @@ final class DialogsTest {
 
             @Override
             public void tree(Shell shell) {
-                // What a part built in TREE does with the Dialogs it was handed: before this seam, a throw.
-                shell.dialogs().ask(question("Delete?", answered));
-                shell.dialogs().saveFile(null, "notes.txt", List.of(), p -> answered.add("saved " + p),
-                        () -> answered.add("save cancelled"));
+                tree.accept(shell);
+            }
+        };
+    }
+
+    @Test
+    void anAskIsADialogWhoseButtonsSendItsAnswer() {
+        Recording recording = new Recording();
+        recording.press = "Discard";
+        shell = VexelApplication.tree(wiring(recording, s -> { }), new String[0]);
+        List<Answer> answers = new ArrayList<>();
+        shell.bus().subscribe(Answer.TOPIC, answers::add);
+
+        shell.bus().publish(Ask.TOPIC, new Ask(7, "Quit?", "Unsaved.", List.of("Save", "Discard", "Cancel")));
+        assertTrue(recording.asked.isEmpty(), "a question was asked outside the frame");
+        VexelApplication.frame(shell);
+        assertEquals(List.of("ask Quit?"), recording.asked);
+        assertEquals(List.of(new Answer(7, 1)), answers);
+    }
+
+    @Test
+    void theButtonsAreDefaultFirstAndCancelLast() {
+        Recording recording = new Recording();
+        List<Modal> shown = new ArrayList<>();
+        shell = VexelApplication.tree(wiring(new Recording() {
+            @Override
+            public void ask(Modal modal) {
+                shown.add(modal);
+            }
+        }, s -> { }), new String[0]);
+        shell.bus().publish(Ask.TOPIC, new Ask(1, "Q", "?", List.of("Save", "Discard", "Cancel")));
+        VexelApplication.frame(shell);
+        Modal m = shown.getFirst();
+        assertEquals("Save", m.defaultButton().label());
+        assertEquals("Cancel", m.cancelButton().label());
+        assertEquals(List.of("Save", "Discard", "Cancel"), m.buttons().stream().map(Modal.Button::label).toList());
+        assertTrue(recording.asked.isEmpty());
+    }
+
+    @Test
+    void aPickFileIsAnsweredWithPicked() {
+        Recording recording = new Recording();
+        recording.answer = Path.of("notes.txt");
+        shell = VexelApplication.tree(wiring(recording, s -> { }), new String[0]);
+        List<Picked> picked = new ArrayList<>();
+        shell.bus().subscribe(Picked.TOPIC, picked::add);
+
+        shell.bus().publish(PickFile.TOPIC, PickFile.save(3, "", "notes.txt", List.of()));
+        VexelApplication.frame(shell);
+        recording.answer = null;
+        shell.bus().publish(PickFile.TOPIC, PickFile.folder(4, ""));
+        VexelApplication.frame(shell);
+
+        assertEquals(List.of("SAVE notes.txt", "FOLDER "), recording.asked);
+        assertEquals(List.of(new Picked(3, "notes.txt"), Picked.cancelled(4)), picked);
+        assertTrue(picked.get(1).isCancelled());
+    }
+
+    @Test
+    void aQuestionAskedBeforeAnythingAnswersIsHeldAndAskedInOrder() {
+        List<Answer> answers = new ArrayList<>();
+        Recording recording = new Recording();
+        shell =VexelApplication.tree(new Wiring() {
+            @Override
+            public AppInfo info() {
+                return DEMO;
+            }
+
+            @Override
+            public void model(Shell shell) {
+                // Before the GUI phase: no frame yet, so held in a list until there is one.
+                shell.dialogs().ask(Modal.of("first", "?"));
+            }
+
+            @Override
+            public void tree(Shell shell) {
+                shell.bus().publish(Ask.TOPIC, Ask.info(2, "second", "!"));
+                shell.dialogs().ask(Modal.of("third", "?"));
             }
         }, new String[0]);
+        shell.bus().subscribe(Answer.TOPIC, answers::add);
 
-        assertEquals(List.of("ask Delete?", "save notes.txt"), recording.asked);
-        assertEquals(List.of("Delete?", "saved picked.txt"), answered);
+        // Nothing answers: a headless tree before ATTACH, with no dialogs of the application's.
+        VexelApplication.frame(shell);
+        assertTrue(recording.asked.isEmpty());
+
+        recording.press = "OK";
+        shell.dialogs(recording);
+        assertEquals(List.of("ask first", "ask second", "ask third"), recording.asked);
+        assertEquals(List.of(new Answer(2, 0)), answers);
     }
 
     @Test

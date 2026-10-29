@@ -1,81 +1,50 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
-import dev.vexelray.gui.widget.spi.WidgetSeams;
-import dev.vexelray.gui.nfd.FileDialog;
+import dev.vexelray.framework.core.PickFile;
+import dev.vexelray.framework.core.Picked;
 import dev.vexelray.gui.widget.Modal;
-
-import java.nio.file.Path;
-import java.util.List;
-import java.util.function.Consumer;
+import sibarum.atchung.Sender;
 
 /**
- * <b>Every question this application asks the person using it</b> — a {@link Modal} with buttons, and the OS's own
- * pickers for a file to open, a folder, and a place to save — from any thread, from any part, at any phase.
+ * <b>Whatever answers this application's questions</b>: shows a {@link Modal}, and runs the OS's picker for a file to
+ * open, a folder, or a place to save. The framework's own does both over the main window; an application, or a test,
+ * may put its own in place.
  *
- * {@snippet :
- * @Provides
- * Actions actions(Gui gui, Model model, Dialogs dialogs) {
- *     return new Actions(gui, model, dialogs);     // and later, from a handler:
- * }                                                 // dialogs.ask(Modal.of("Delete file", "...")...);
- * }
+ * <p><b>Most parts never take this.</b> A question that is only words is an {@link dev.vexelray.framework.core.Ask}
+ * message, answered by an {@link dev.vexelray.framework.core.Answer}; a picker is a {@link PickFile}, answered by a
+ * {@link Picked}. Any part sends those, a component on the logic lane as well as a view, and the framework hands each
+ * to the dialogs here. A view that wants a dialog of its own shape, a {@code Modal} whose buttons send its own
+ * messages, takes this and calls {@link #ask}. A {@code Modal} is data: its buttons name the messages they send, so
+ * nothing of the application's runs at the press.
  *
- * <p><b>A value a part is handed, not a static it reaches for.</b> The dialogs used to be {@code Modals}, a
- * process-wide static the framework installs once the window exists. So a tree built headless
- * ({@link VexelApplication#tree}) could not run any path that asks a question — it threw — and a test could not answer
- * one, which is why the text editor and the template each grew an {@code ask} field of their own (Vex FN-6). The file
- * pickers were worse: each needs the window's handle and a way onto the main thread, so each application that opened
- * a file took the {@code GuiApp} for it and was main-thread for a handle it only passed along.
+ * <p><b>Replaceable, which is how a test answers.</b> A {@code @Provides} method returning this type, or
+ * {@code Shell.dialogs(Dialogs)} by {@code WINDOW}, is the application's dialogs in place of the framework's: a test's
+ * that answers each question as it is asked, a kiosk's that refuses to browse. Every question asked, by message or by
+ * {@link #ask}, then goes to that one, in a headless run as well as a windowed one.
  *
- * <p><b>Not the main thread's, and there from the start.</b> {@link Shell#dialogs()} exists in every phase and every
- * method here is safe from any thread. What it hands out holds a question asked before there is a window to ask it in,
- * and asks it when there is, in the order it was asked.
+ * <p><b>Called on the main thread, in the frame.</b> The framework hands these every question in the main window's
+ * frame, after whatever was asked before there was anything to answer it, in the order it was asked. What
+ * {@link Shell#dialogs()} hands a part is safe from any thread, and holds a question until then.
  *
- * <p><b>Replaceable, which is how a test answers.</b> A {@code @Provides} method returning this type is the
- * application's dialogs in place of the framework's — a test's that answers each question as it is asked, a kiosk's
- * that refuses to browse — and every part that takes {@code Dialogs} is then asking that one, in a headless run as
- * well as a windowed one. The framework's own is a {@code Modals} dialog for a {@link Modal}, and NFD's native pickers,
- * both parented to the main window, with the answer delivered on the dialogs' own thread, {@code vexel-dialog}, until
- * phase 5 makes the question and its answer messages.
- *
- * <p><b>Every question has two ends, and both are answered.</b> A picker calls {@code picked} or {@code cancelled},
- * exactly once, and a failure to show it at all is a cancel: an application that only handles the pick leaves its
- * caller waiting forever on the day the dialog cannot open. A {@link Modal} answers through its buttons, and its
- * cancel button is what Escape and the close box take.
+ * <p>Phase 5 of the 0.2 roadmap: the pickers took a {@code Consumer<Path>} and a {@code Runnable}, and {@code confirm}
+ * two {@code Runnable}s, run on a thread of the dialogs' own. A callback cannot cross a lane; a message can.
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public interface Dialogs {
 
-    /** Ask {@code modal}: shown, or queued behind the one that is up. Its buttons' actions are the answer. */
+    /** Show {@code modal}, or queue it behind the one that is up. Its buttons send the answer. */
     void ask(Modal modal);
 
     /**
-     * Ask for a file to open, starting in {@code start} (null for wherever the OS likes) and offering {@code filters}
-     * (empty for any file).
+     * Run the picker {@code request} asks for, and send exactly one {@link Picked} with its {@code id} on
+     * {@code answer}, from any thread: the path, or {@link Picked#cancelled} when the person cancelled or the picker
+     * could not be shown, so the asker is never left waiting.
      */
-    void openFile(Path start, List<FileDialog.Filter> filters, Consumer<Path> picked, Runnable cancelled);
-
-    /** Ask for a folder, starting in {@code start}. */
-    void openFolder(Path start, Consumer<Path> picked, Runnable cancelled);
-
-    /** Ask where to save, starting in {@code start} with {@code name} filled in, offering {@code filters}. */
-    void saveFile(Path start, String name, List<FileDialog.Filter> filters, Consumer<Path> picked,
-                  Runnable cancelled);
+    void pick(PickFile request, Sender<Picked> answer);
 
     /** A message with one OK button: the "your export finished" dialog. */
     default void info(String title, String message) {
         ask(Modal.of(title, message).defaultButton("OK"));
-    }
-
-    /**
-     * A yes-or-no question. {@code onCancel} runs for Cancel, Escape and the close box alike, so "the user did not
-     * answer" is answered too.
-     */
-    default void confirm(String title, String message, String confirmLabel, Runnable onConfirm, Runnable onCancel) {
-        // The host's door, since this runs code: the framework's own callbacks are its API walk's to convert.
-        WidgetSeams host = WidgetSeams.get();
-        Modal modal = Modal.of(title, message);
-        host.defaultButton(modal, confirmLabel, onConfirm);
-        ask(host.cancelButton(modal, "Cancel", onCancel));
     }
 }

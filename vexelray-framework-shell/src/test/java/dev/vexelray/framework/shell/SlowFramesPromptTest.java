@@ -44,19 +44,8 @@ class SlowFramesPromptTest {
             }
 
             @Override
-            public void openFile(java.nio.file.Path start, List<dev.vexelray.gui.nfd.FileDialog.Filter> filters,
-                                 java.util.function.Consumer<java.nio.file.Path> picked, Runnable cancelled) {
-            }
-
-            @Override
-            public void openFolder(java.nio.file.Path start, java.util.function.Consumer<java.nio.file.Path> picked,
-                                   Runnable cancelled) {
-            }
-
-            @Override
-            public void saveFile(java.nio.file.Path start, String name,
-                                 List<dev.vexelray.gui.nfd.FileDialog.Filter> filters,
-                                 java.util.function.Consumer<java.nio.file.Path> picked, Runnable cancelled) {
+            public void pick(dev.vexelray.framework.core.PickFile request,
+                             sibarum.atchung.Sender<dev.vexelray.framework.core.Picked> answer) {
             }
         };
         new SlowFramesPrompt(dialogs).ask(null, 300_000_000L, a -> { });
