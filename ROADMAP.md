@@ -943,6 +943,16 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
   are the host's seams (`GuiApp`, the automation driver, undo feedback), not a node's, and move with the shell.
 * **About intro, slow-frames prompt, undo feedback:** components and widgets like any application's. The About
   intro is also where vexelray-mini's installer benchmark is planned (phase 8), so it waits on this.
+  ***The About intro done 2026-10-29.*** *§3's row for it is answered: gone are eight volatiles, a `synchronized load`, an
+  `AtomicInteger` run counter, a `ConcurrentHashMap` of uploads and a virtual thread outside the lanes. The intro is
+  told everything, on the main thread: when the window opens (`WindowOpened`, in the main window's frame), where its
+  time is (a `Tween` on the window's clock, in About's own mailbox, in place of Kronometer's `ramp` and its lambda),
+  and its art once read (a framework job on the job lane, `About.art`, answered in About's frame). A reopening restarts
+  the tween with vexelray-gui's new `Tween.at`, a jump that stops the ramp under way, so no step of an earlier run is
+  heard and the run counter has nothing to do (`TweenTest.atJumpsThereAndStopsTheRampUnderWay`). Driven live: About
+  opened, was put away with Escape, and opened again to the settled page, the marks condensed and the orb on the V.*
+  *Not shown live: the first opening's frames, because its art is read on the job lane and `settle` waits for the
+  clock but not for a job; the same was true before. This is the item below, capture's wait for what is owed.*
 * **Capture waits for what is owed** (phase 3, step 5): a capture plays animation to rest but does not wait for
   answers not yet had, so a tree whose listing runs on another thread can be captured before it lands. The shell's
   quiescence includes answers outstanding.

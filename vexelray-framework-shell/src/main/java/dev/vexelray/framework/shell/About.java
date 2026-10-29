@@ -129,7 +129,7 @@ final class About {
         // Esc puts it away, as it does a dialog: there is nothing on it to lose.
         Seams.of(g).claim(g.root(), Shortcut.of(Key.ESCAPE), ClaimScope.VISIBLE, window::close);
 
-        AboutIntro intro = new AboutIntro(g, shell.krono(), page, anchor, icon);
+        AboutIntro intro = new AboutIntro(g, shell, page, anchor, icon);
         // Played each time the window opens, heard in the main window's frame like every other window's news.
         shell.gui().mailbox(WindowOpened.TOPIC, opened -> {
             if (opened.window().equals(KEY)) {

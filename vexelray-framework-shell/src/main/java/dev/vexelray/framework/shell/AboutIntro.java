@@ -8,12 +8,13 @@ import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.ImageField;
 import dev.vexelray.gui.core.ImageRegion;
 import dev.vexelray.gui.core.Node;
+import dev.vexelray.gui.core.Timing;
+import dev.vexelray.gui.core.Tween;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.layout.NodeLayout;
 import dev.vexelray.gui.core.layout.Rect;
 import dev.vexelray.gui.icons.ArtPair;
-import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.shadelets.CondenseStyle;
 import dev.vexelray.shadelets.CondenseStyleLayout;
 import dev.vexelray.shadelets.MtsdfStyle;
@@ -21,14 +22,13 @@ import dev.vexelray.shadelets.MtsdfStyleLayout;
 import dev.vexelray.shadelets.OrbStyle;
 import dev.vexelray.shadelets.OrbStyleLayout;
 import dev.vexelray.vulkan.present.SampledImage;
-import sibarum.kronometer.Dur;
-import sibarum.kronometer.anim.Ease;
+import sibarum.atchung.Atchung;
+import sibarum.atchung.Topic;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The About window opening: the orb flies in from in front of the glass and lands on the VexelRay mark, and from where
@@ -39,16 +39,19 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>The marks are art pairs ({@link ArtPair}) drawn by {@code Condense.CONDENSE} over {@code Condense.MTSDF}; the orb
  * is {@code Condense.ORB} on a circle's field. All three are in {@link FrameworkShader}. Every value they read is
- * written here, per frame, from Kronometer's ramp: a frame is a function of the time and the layout, so a capture of
- * one is reproducible and a ramp that is not running costs nothing. With motion off the ramp delivers its end, which
- * is the settled page.
+ * written here, per frame, from a {@link Tween} the window's clock drives: a frame is a function of the time and the
+ * layout, so a capture of one is reproducible and a tween that is not moving costs nothing. With motion off the tween
+ * lands at once, which is the settled page.
  *
  * <p>The design is in pixels of a 440 by 560 window round a 104 pixel mark ({@code unit} scales it), and is the
  * mockup's: 0 to 0.95 s the orb's flight, an arc with a perspective shrink; from 0.95 s the front, eased out over
  * 1.25 s; the glint from 1.0 to 2.7 s; the settle from 2.1 to 2.6 s.
  *
- * <p><b>Nothing is read before the window first opens</b>: then the pairs are read and inflated off the main thread
- * and uploaded on it, every size at once (as the logo was), and the intro waits for them.
+ * <p><b>Everything here is the main thread's, and it is told, not called</b> (ROADMAP phase 5). It hears where the
+ * tween is, and the art once it has been read, in the About window's frame, and {@link #play} when the window opens,
+ * in the main window's. So nothing here is volatile, atomic or locked. <b>Nothing is read before the window first
+ * opens</b>: then the pairs are read and inflated by a job on the framework's job lane (a disk read and a decode, which
+ * the frame must not wait for), and uploaded here as they are drawn; the intro waits for them.
  */
 final class AboutIntro {
 
@@ -68,32 +71,52 @@ final class AboutIntro {
     /** The framework's mark, beside this class. */
     static final String SIGNATURE = "vexelray-logo";
 
+    /** Read the marks: what the intro asks its job the first time the window opens. */
+    private record ArtWanted() {
+        static final Topic<ArtWanted> TOPIC = Topic.edge(ArtWanted.class);
+    }
+
+    /**
+     * The marks, read and inflated, and the orb's disc: the job's answer. The framework's own channel, carrying what
+     * only this class reads, so no application declares or hears it.
+     */
+    private record ArtRead(Art mark, Art signature, byte[] circle) {
+        static final Topic<ArtRead> TOPIC = Topic.edge(ArtRead.class);
+    }
+
     private final Gui g;
-    private final KronoGui krono;
+    private final Atchung bus;
     private final About.Page page;
     private final Node orb;
-    private final Class<?> anchor;
-    private final String icon;
+    private final Tween clock;
 
-    private volatile GuiApp app;
-    private volatile dev.vexelray.os.Icon appIcon;
-    private volatile Art mark;
-    private volatile Art signature;
-    private volatile SampledImage orbField;
-    private volatile Map<dev.vexelray.os.Icon.Image, SampledImage> iconSizes;
-    private volatile boolean loading;
-    private volatile boolean loaded;
-    private final AtomicInteger run = new AtomicInteger();
+    // The main thread's, from here down.
+    private GuiApp app;
+    private dev.vexelray.os.Icon appIcon;
+    private Art mark;
+    private Art signature;
+    private SampledImage orbField;
+    private Map<dev.vexelray.os.Icon.Image, SampledImage> iconSizes;
+    private boolean loading;
+    private boolean loaded;
+    /** Whether an opening is waiting for the art, to start when it comes. */
+    private boolean wanted;
 
-    AboutIntro(Gui g, KronoGui krono, About.Page page, Class<?> anchor, String icon) {
+    AboutIntro(Gui g, Shell shell, About.Page page, Class<?> anchor, String icon) {
         this.g = g;
-        this.krono = krono;
+        this.bus = shell.bus();
         this.page = page;
-        this.anchor = anchor;
-        this.icon = icon;
         this.orb = g.box().role("about-orb").hitInert(true).scroll(false, false).visible(false);
         // Over the whole window, as an overlay is: it flies across the page and lands on the foot.
         g.root().append(orb.floatAt(Length.ZERO, Length.ZERO));
+        // The intro's time, from the start (0) to the end (1), on the window's clock: heard in this window's frame.
+        this.clock = Tween.of(g, "about-intro", Timing.millis(Math.round(END * 1000), Timing.Curve.LINEAR));
+        g.mailbox(Tween.VALUE, clock.address(), t -> frame(t.value() * END));
+        // The marks are read on the job lane, and their answer heard here, in the frame.
+        Jobs.reply(shell, "About.art", ArtWanted.TOPIC, request -> new ArtRead(
+                read(anchor, icon == null ? null : base(icon), "the application's mark"),
+                read(AboutIntro.class, SIGNATURE, "the VexelRay mark"), circle()), ArtRead.TOPIC);
+        g.mailbox(ArtRead.TOPIC, this::arrived, 1);
         hide();
     }
 
@@ -103,15 +126,14 @@ final class AboutIntro {
         this.appIcon = appIcon;
     }
 
-    /** Play it from the start: on every opening. Any thread. */
+    /** Play it from the start: on every opening. Main thread. */
     void play() {
-        int id = run.incrementAndGet();
         page.reset().run();
         hide();
         if (loaded) {
-            start(id);
+            start();
         } else {
-            load(id);
+            load();
         }
     }
 
@@ -125,54 +147,50 @@ final class AboutIntro {
         orb.visible(false);
     }
 
-    private void start(int id) {
-        krono.ramp(Dur.ms(Math.round(END * 1000)), Ease.LINEAR, p -> frame(id, (float) p * END),
-                () -> frame(id, END));
+    /** From the start: a jump back, so a reopening does not ease back to it first. */
+    private void start() {
+        clock.at(0f);
+        clock.toward(1f);
     }
 
-    /** Read the pairs off the main thread, upload them on it, then start. Once; a reopening meanwhile restarts it. */
-    private synchronized void load(int id) {
-        GuiApp a = app;
-        if (a == null) {
+    /** Ask for the marks, once, and wait for them; with no device to draw them with, settle on the words. */
+    private void load() {
+        if (app == null) {
             settleWithoutArt();
             return;
         }
-        if (loading) {
-            return;
+        wanted = true;
+        if (!loading) {
+            loading = true;
+            bus.publish(ArtWanted.TOPIC, new ArtWanted());
         }
-        loading = true;
-        Thread.ofVirtual().name("about-art").start(() -> {
-            Art appPair = read(anchor, icon == null ? null : base(icon), "the application's mark");
-            Art framework = read(AboutIntro.class, SIGNATURE, "the VexelRay mark");
-            byte[] circle = circle();
-            a.post(() -> {
-                // Only the size each mark is drawn at now: uploading every size held the GUI thread a quarter second.
-                mark = appPair;
-                signature = framework;
-                if (mark != null) {
-                    mark.ensure(a, width(page.mark(), 104f));
-                }
-                if (signature != null) {
-                    signature.ensure(a, width(page.signature(), 52f));
-                }
-                int side = ORB_INNER + 2 * ORB_SPREAD;
-                orbField = a.texture(circle, side, side);
-                dev.vexelray.os.Icon i = appIcon;
-                if (mark == null && i != null) {
-                    Map<dev.vexelray.os.Icon.Image, SampledImage> sizes = new HashMap<>();
-                    for (dev.vexelray.os.Icon.Image image : i.images()) {
-                        sizes.put(image, a.texture(rgba(image), image.width(), image.height()));
-                    }
-                    iconSizes = sizes;
-                }
-                loaded = true;
-                if (run.get() == id) {
-                    start(id);
-                } else {
-                    play();
-                }
-            });
-        });
+    }
+
+    /** The marks are read: upload what is drawn now, and start if an opening is waiting. In the frame. */
+    private void arrived(ArtRead read) {
+        // Only the size each mark is drawn at now: uploading every size held the GUI thread a quarter second.
+        mark = read.mark();
+        signature = read.signature();
+        if (mark != null) {
+            mark.ensure(app, width(page.mark(), 104f));
+        }
+        if (signature != null) {
+            signature.ensure(app, width(page.signature(), 52f));
+        }
+        int side = ORB_INNER + 2 * ORB_SPREAD;
+        orbField = app.texture(read.circle(), side, side);
+        if (mark == null && appIcon != null) {
+            Map<dev.vexelray.os.Icon.Image, SampledImage> sizes = new HashMap<>();
+            for (dev.vexelray.os.Icon.Image image : appIcon.images()) {
+                sizes.put(image, app.texture(rgba(image), image.width(), image.height()));
+            }
+            iconSizes = sizes;
+        }
+        loaded = true;
+        if (wanted) {
+            wanted = false;
+            start();
+        }
     }
 
     /** With no device to draw the marks with, the words at least. */
@@ -184,11 +202,8 @@ final class AboutIntro {
 
     // ------------------------------------------------------------------ the frame
 
-    /** Everything at {@code t} seconds, if {@code id} is still the run that is playing. */
-    private void frame(int id, float t) {
-        if (run.get() != id) {
-            return;
-        }
+    /** Everything at {@code t} seconds. A reopening restarts the tween, so a step of an earlier run never arrives. */
+    private void frame(float t) {
         NodeLayout bodyAt = g.root().layout();
         NodeLayout markAt = page.mark().layout();
         NodeLayout sigAt = page.signature().layout();
@@ -332,7 +347,7 @@ final class AboutIntro {
     private record Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases, Map<Integer, SampledImage> uploaded) {
 
         Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases) {
-            this(pair, atlases, new java.util.concurrent.ConcurrentHashMap<>());
+            this(pair, Map.copyOf(atlases), new HashMap<>());
         }
 
         /** The size for {@code px} on the device. Main thread. */
