@@ -3,7 +3,7 @@ package ${packageName}.core;
 import ${packageName}.core.Messages.AddTab;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Close;
-import ${packageName}.core.Messages.CloseTab;
+import ${packageName}.core.Messages.CloseTabs;
 import ${packageName}.core.Messages.Create;
 import ${packageName}.core.Messages.Created;
 import ${packageName}.core.Messages.Edited;
@@ -103,12 +103,16 @@ import java.util.Set;
 @Hears({WindowOpened.class, Recalled.class, Go.class, Open.class, FileRead.class, Found.class,
         Created.class, Fronted.class, Edited.class, Save.class, Written.class, Answer.class,
         Close.class, CloseRequested.class})
-@Publishes({ShowFolder.class, AddTab.class, FrontTab.class, CloseTab.class, Retitle.class,
+@Publishes({ShowFolder.class, AddTab.class, FrontTab.class, CloseTabs.class, Retitle.class,
         Caption.class, Status.class, Ask.class, Flush.class, SaveFailed.class, CloseAnswer.class,
         Read.class, Write.class, Find.class, Create.class, Recall.class, Remember.class})
 public final class Editor {
 
-    /** How many of each message the editor's inbox holds before a sender is refused: far more than a person sends. */
+    /**
+     * How many of each message the editor's inbox holds before a sender is refused. A person sends one at a time; the
+     * most that arrive at once are a closing's saves, a {@code Save} and then a {@code Written} for each unsaved tab,
+     * because each file is its own write.
+     */
     static final int CAPACITY = 256;
 
     /** No close gate: the closing is of tabs, not of the window. */
@@ -706,12 +710,10 @@ public final class Editor {
         return s.withClosing(a.id(), c.released());
     }
 
-    /** Ask the view for each unsaved tab's text, and hold the run until every write has landed. */
+    /** Ask the view for every unsaved tab's text, in one message, and hold the run until every write has landed. */
     private static State saveThem(State s, Confirmed yes, Out out) {
         Closing c = s.closings().get(out.run());
-        for (long id : c.unsaved()) {
-            out.send(Messages.FLUSH_TOPIC, new Flush(id));
-        }
+        out.send(Messages.FLUSH_TOPIC, new Flush(c.unsaved()));
         return s.withClosing(out.run(), c.holding(out.hold(), Set.copyOf(c.unsaved())));
     }
 
@@ -741,11 +743,15 @@ public final class Editor {
             return s;
         }
         State next = s;
+        List<Long> closed = new ArrayList<>();
         for (long id : c.tabs()) {
             if (next.doc().entry(id) != null) {
                 next = next.withDoc(next.doc().without(id));
-                out.send(Messages.CLOSE_TAB_TOPIC, new CloseTab(id));
+                closed.add(id);
             }
+        }
+        if (!closed.isEmpty()) {
+            out.send(Messages.CLOSE_TABS_TOPIC, new CloseTabs(closed));
         }
         caption(next, out);
         return remember(next, out);

@@ -1031,6 +1031,33 @@ to no subscriber and dropped, and the tree then waits for that answer before any
 top level itself the first time a folder is shown (`Navigator.show`). The fix belongs in the widget: ask on its first
 frame, when every view's mailbox exists.*
 
+***Done 2026-10-29,*** *the rest of it:*
+* ***The `SET` capacities are gone.*** *Each was a burst of one message per tab, and each is now what fork 1 or fork 6
+  says it is. `Retitle` is a state topic keyed by tab (`Topic.state(Retitle.class, Retitle::id)`), so the view is
+  handed a tab's last title in a tick and never a backlog; `CloseTab` became `CloseTabs(List<Long>)` and `Flush`
+  carries a list, so a closing is one of each however many tabs it closes. The view's mailboxes are all the default
+  64. Held by `ViewTest.closingMoreUnsavedTabsThanAMailboxHoldsSavesAndClosesThemAll` (100 unsaved tabs, Save all,
+  every file written and every tab closed) and `EditorTest`. **Left:** the `Editor`'s inbox stays 256 deep, because
+  a closing still answers with a `Save` and then a `Written` per unsaved tab, each file being its own write; making
+  those lists too would put a whole closing's writes in one job, which is a worse failure unit than the depth.*
+* ***`QuitGate` was already gone*** *(phase 5's close gate). **`Intent` stays**, and is not what the roadmap expected
+  to shrink: that `Intent` carried `QUIT` and an id across to the editor. What is left is the view's own channel for
+  its chords (`gui.shortcut` names a sender and a message), every command a method on the view, with nothing crossing
+  a lane. A chord needs some message to send, and this is the smallest one that names what the chord means.*
+* ***A generated project builds against the framework that generated it.*** *The manifest tied the framework's,
+  vexelray-gui's and vexelray-codec's versions to `vexelrayVersion`, the engine's (0.1.3), so a project generated on
+  `v0.2` needed its pom edited by hand. `frameworkVersion` is now its own fill, and gui and codec follow it; the engine
+  and the build plugin keep `vexelrayVersion`. `VexelDesktopTest.theStackIsTheFrameworksOwnVersion` holds it to this
+  module's own version, so a version bump that forgets the manifest fails the build.*
+* ***A widget that asks at construction asks in its first frame instead*** *(vexelray-gui). `TreeView` sends itself
+  a `Refresh` when it is built, and the first one it hears asks for its roots, by which time the view that answers
+  is subscribed. The template's workaround (`Navigator.show` answering the question the tree was still waiting on,
+  and its `rootsAnswered` flag) is gone: showing a folder is `tree.refresh()`. vexelray-gui's `TreeChildrenTest`
+  says when the roots are asked for, and its `Listing` harness runs the extra frame (widget 618 green).*
+* *Suites: a project generated with no hand edit, `-core` 56 and `-gui` 18; template 62. Driven live: the navigator
+  listed the start folder on its own, a file typed into showed unsaved in its tab and the title, saved and closed with
+  Ctrl+S and Ctrl+W emptied the workspace, and Ctrl+W on an unsaved tab opened "Unsaved changes".*
+
 ### Phase 7. Witnesses and measurements
 
 > ***Ruled 2026-10-29: the acceptance witnesses are made to be broken.*** *A change to the architecture is never held

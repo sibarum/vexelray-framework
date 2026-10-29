@@ -58,8 +58,6 @@ final class Navigator {
     private final Set<Path> folders = new HashSet<>();
     /** The folder shown, or null for none yet. */
     private Path folder;
-    /** Whether the tree has had its top level answered: see {@link #show}. */
-    private boolean rootsAnswered;
     /** The file a reveal is walking to, to ring when the walk lands. */
     private Path revealing;
 
@@ -107,22 +105,13 @@ final class Navigator {
     }
 
     /**
-     * Show {@code shown}: say in the path bar which folder it is, and have the tree ask for it again. Returns the
-     * listing to ask for when the tree has never had its top level answered, and null otherwise.
-     *
-     * <p>That case is the first folder. The tree asks for its top level once, when it is built, and the view that
-     * would answer is built after it, so that first question reaches nobody; and a tree whose top level was never
-     * answered waits for it before it refreshes. So the first time, the view answers the question the tree is still
-     * waiting on, and every refresh after that asks as a refresh does.
+     * Show {@code shown}: say in the path bar which folder it is, and have the tree ask for its levels again, which
+     * the view answers as it answers every question the tree asks.
      */
-    Listing show(Path shown) {
+    void show(Path shown) {
         folder = shown;
         path.text(String.valueOf(shown));
-        if (!rootsAnswered) {
-            return wanted(null);
-        }
         tree.refresh();
-        return null;
     }
 
     /**
@@ -147,15 +136,11 @@ final class Navigator {
                 entries.add(TreeView.Entry.leaf(item.path(), item.name()).hides(SHOW));
             }
         }
-        if (listed.roots()) {
-            rootsAnswered = true;
-        }
         return new TreeView.Children(treeAddress(), listed.roots() ? null : listed.dir(), entries);
     }
 
     /** An empty top level, for a tree that asks before a folder is shown. */
     TreeView.Children nothing() {
-        rootsAnswered = true;
         return new TreeView.Children(treeAddress(), null, List.of());
     }
 

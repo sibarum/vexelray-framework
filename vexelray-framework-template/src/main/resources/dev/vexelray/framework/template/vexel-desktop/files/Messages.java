@@ -107,14 +107,23 @@ public final class Messages {
     public record FrontTab(long id, boolean focus) {
     }
 
-    /** Close a tab; the editor has asked whatever had to be asked. */
-    public static final Topic<CloseTab> CLOSE_TAB_TOPIC = Topic.edge(CloseTab.class);
+    /**
+     * Close these tabs; the editor has asked whatever had to be asked. One message for a whole closing, so closing a
+     * hundred tabs is one delivery, not a hundred waiting in the view's mailbox.
+     */
+    public static final Topic<CloseTabs> CLOSE_TABS_TOPIC = Topic.edge(CloseTabs.class);
 
-    public record CloseTab(long id) {
+    public record CloseTabs(List<Long> tabs) {
+        public CloseTabs {
+            tabs = List.copyOf(tabs);
+        }
     }
 
-    /** What a tab's header says: its file's name, with a bullet while it is unsaved. */
-    public static final Topic<Retitle> RETITLE_TOPIC = Topic.edge(Retitle.class);
+    /**
+     * What a tab's header says: its file's name, with a bullet while it is unsaved. State, one per tab: only what a
+     * tab says now matters, so the view is handed the last title per tab in a tick and never a backlog of them.
+     */
+    public static final Topic<Retitle> RETITLE_TOPIC = Topic.state(Retitle.class, Retitle::id);
 
     public record Retitle(long id, String title) {
     }
@@ -131,10 +140,16 @@ public final class Messages {
     public record Status(String message, boolean alert) {
     }
 
-    /** Send the text of a tab back as a {@link Save}: the editor is saving it before closing or quitting. */
+    /**
+     * Send the text of each of these tabs back as a {@link Save}: the editor is saving them before closing or
+     * quitting. One message however many are unsaved.
+     */
     public static final Topic<Flush> FLUSH_TOPIC = Topic.edge(Flush.class);
 
-    public record Flush(long id) {
+    public record Flush(List<Long> tabs) {
+        public Flush {
+            tabs = List.copyOf(tabs);
+        }
     }
 
     /** The write a {@link Save} asked for did not land, so the tab is unsaved whatever its history says. */

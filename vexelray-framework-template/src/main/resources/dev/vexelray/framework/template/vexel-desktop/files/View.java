@@ -5,7 +5,7 @@ import ${packageName}.core.Messages;
 import ${packageName}.core.Messages.AddTab;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Close;
-import ${packageName}.core.Messages.CloseTab;
+import ${packageName}.core.Messages.CloseTabs;
 import ${packageName}.core.Messages.Edited;
 import ${packageName}.core.Messages.Flush;
 import ${packageName}.core.Messages.FrontTab;
@@ -74,9 +74,6 @@ import java.util.List;
  */
 @dev.vexelray.framework.api.View
 final class View {
-
-    /** Closing every tab is a {@code CloseTab} each, so a whole set waits for one frame. */
-    static final int SET = 4096;
 
     private final Gui gui;
     private final Ui ui;
@@ -152,10 +149,7 @@ final class View {
 
     @Subscribe
     public void showFolder(ShowFolder m) {
-        Listing first = nav.show(m.path());
-        if (first != null) {
-            listing.send(first);
-        }
+        nav.show(m.path());
     }
 
     @Subscribe
@@ -171,12 +165,15 @@ final class View {
         }
     }
 
-    @Subscribe(capacity = SET)
-    public void closeTab(CloseTab m) {
-        ws.close(m.id());
+    @Subscribe
+    public void closeTabs(CloseTabs m) {
+        for (long id : m.tabs()) {
+            ws.close(id);
+        }
     }
 
-    @Subscribe(capacity = SET)
+    /** The last title per tab in the frame: a state topic, so a burst of them is never a backlog. */
+    @Subscribe
     public void retitle(Retitle m) {
         ws.retitle(m.id(), m.title());
     }
@@ -191,13 +188,15 @@ final class View {
         ui.status(m.message(), m.alert());
     }
 
-    @Subscribe(capacity = SET)
+    @Subscribe
     public void flush(Flush m) {
-        Buffer b = ws.byId(m.id());
-        if (b == null) {
-            save.send(new Save(m.id(), "", false));
-        } else {
-            save(b);
+        for (long id : m.tabs()) {
+            Buffer b = ws.byId(id);
+            if (b == null) {
+                save.send(new Save(id, "", false));
+            } else {
+                save(b);
+            }
         }
     }
 

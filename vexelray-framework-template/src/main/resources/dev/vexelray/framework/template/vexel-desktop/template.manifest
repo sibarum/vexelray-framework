@@ -115,7 +115,7 @@ slot vexelrayVersion
     kind      text
     required  yes
     preset    0.1.3-SNAPSHOT
-    help      the version of vexelray and vexelray-gui installed in your local Maven repository
+    help      the version of vexelray, the engine, installed in your local Maven repository
 
 slot tactrollerVersion
     label     tactroller version
@@ -140,10 +140,12 @@ fill blank  className      type     ${artifactId}
 fill blank  title          title    ${artifactId}
 fill blank  summary        text     A VexelRay desktop application.
 fill always appName        slug     ${artifactId}
-fill always guiVersion       text     ${vexelrayVersion}
-fill always frameworkVersion text     ${vexelrayVersion}
+# The framework's own version, which vexelray-gui and vexelray-codec move with; the engine and the build
+# plugin keep theirs. VexelDesktopTest.theStackIsTheFrameworksOwnVersion holds it to this module's.
+fill always frameworkVersion text     0.2.0-SNAPSHOT
+fill always guiVersion       text     ${frameworkVersion}
 fill always buildVersion     text     ${vexelrayVersion}
-fill always codecVersion     text     ${vexelrayVersion}
+fill always codecVersion     text     ${frameworkVersion}
 fill always junitVersion   text     5.11.4
 
 # ---- the tree ------------------------------------------------------------------------

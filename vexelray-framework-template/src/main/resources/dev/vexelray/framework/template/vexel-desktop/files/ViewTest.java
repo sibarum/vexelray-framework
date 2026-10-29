@@ -223,6 +223,31 @@ class ViewTest {
         assertTrue(nav.isFolder(dir.resolve("sub").toAbsolutePath().normalize()), "the listing said which is a folder");
     }
 
+    /**
+     * More tabs than a mailbox holds, all unsaved, closed at once with Save all: one {@code Flush} and one
+     * {@code CloseTabs} for the lot, and a retitle per tab that is the tab's last word rather than a backlog. Before
+     * those were lists and state, this needed the view's mailboxes 4,096 deep.
+     */
+    @Test
+    void closingMoreUnsavedTabsThanAMailboxHoldsSavesAndClosesThemAll() throws Exception {
+        List<Buffer> tabs = new java.util.ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            tabs.add(opened(Files.writeString(dir.resolve("f" + i + ".txt"), "")));
+        }
+        for (Buffer b : tabs) {
+            b.field.insert("x");
+        }
+        eventually("every tab unsaved", () -> tabs.stream().allMatch(Buffer::dirty));
+        List<String> asked = new CopyOnWriteArrayList<>();
+        answer = pressing("Save all", asked);
+        shell.bus().publish(Messages.CLOSE_TOPIC, new Messages.Close(tabs.stream().map(b -> b.id).toList()));
+        eventually("every tab closed", () -> ws.all().isEmpty());
+        assertEquals(List.of("Unsaved changes"), asked);
+        for (int i = 0; i < 100; i++) {
+            assertEquals("x", Files.readString(dir.resolve("f" + i + ".txt")));
+        }
+    }
+
     @Test
     void aBinaryFileIsRefusedOnTheStatusLine() throws Exception {
         Path binary = dir.resolve("blob.bin");

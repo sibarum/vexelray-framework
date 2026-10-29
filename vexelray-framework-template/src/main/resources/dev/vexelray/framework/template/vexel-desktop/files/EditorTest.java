@@ -3,7 +3,7 @@ package ${packageName}.core;
 import ${packageName}.core.Messages.AddTab;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Close;
-import ${packageName}.core.Messages.CloseTab;
+import ${packageName}.core.Messages.CloseTabs;
 import ${packageName}.core.Messages.Create;
 import ${packageName}.core.Messages.Created;
 import ${packageName}.core.Messages.Edited;
@@ -81,7 +81,7 @@ class EditorTest {
         editor = new Editor(tick.inbox("editor"));
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(Messages.SHOW_FOLDER_TOPIC, Messages.ADD_TAB_TOPIC, Messages.FRONT_TAB_TOPIC,
-                Messages.CLOSE_TAB_TOPIC, Messages.RETITLE_TOPIC, Messages.CAPTION_TOPIC, Messages.STATUS_TOPIC,
+                Messages.CLOSE_TABS_TOPIC, Messages.RETITLE_TOPIC, Messages.CAPTION_TOPIC, Messages.STATUS_TOPIC,
                 Ask.TOPIC, Messages.FLUSH_TOPIC, Messages.SAVE_FAILED_TOPIC, CloseAnswer.TOPIC,
                 Messages.READ_TOPIC, Messages.WRITE_TOPIC, Messages.FIND_TOPIC, Messages.CREATE_TOPIC,
                 Messages.RECALL_TOPIC, Messages.REMEMBER_TOPIC)) {
@@ -207,7 +207,7 @@ class EditorTest {
     void closingASavedTabClosesItWithoutAsking() {
         long a = opened("a.txt", "a");
         tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
-        assertEquals(List.of(new CloseTab(a)), sent.stream().filter(CloseTab.class::isInstance).toList());
+        assertEquals(List.of(new CloseTabs(List.of(a))), sent.stream().filter(CloseTabs.class::isInstance).toList());
         assertTrue(took(Ask.class).isEmpty());
         assertTrue(editor.state().closings().isEmpty(), "nothing is left waiting");
     }
@@ -229,7 +229,7 @@ class EditorTest {
         long a = unsaved("a.txt");
         tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
         tell(Answer.TOPIC, new Answer(took(Ask.class).getFirst().id(), 1));
-        assertTrue(sent.contains(new CloseTab(a)));
+        assertTrue(sent.contains(new CloseTabs(List.of(a))));
         assertTrue(took(Write.class).isEmpty(), "Don't save does not save");
         assertTrue(editor.state().closings().isEmpty());
     }
@@ -239,13 +239,13 @@ class EditorTest {
         long a = unsaved("a.txt");
         tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
         tell(Answer.TOPIC, new Answer(took(Ask.class).getFirst().id(), 0));
-        assertEquals(List.of(new Flush(a)), took(Flush.class));
+        assertEquals(List.of(new Flush(List.of(a))), took(Flush.class));
         tell(Messages.SAVE_TOPIC, new Save(a, "typed", true));
         Write w = took(Write.class).getFirst();
         assertEquals("typed", w.text());
         assertTrue(editor.state().doc().entry(a) != null, "nothing closes before the write lands");
         tell(Messages.WRITTEN_TOPIC, new Written(a, w.path(), ""));
-        assertTrue(sent.contains(new CloseTab(a)));
+        assertTrue(sent.contains(new CloseTabs(List.of(a))));
         assertTrue(editor.state().closings().isEmpty());
     }
 
@@ -255,10 +255,10 @@ class EditorTest {
         tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
         long question = took(Ask.class).getFirst().id();
         tell(Answer.TOPIC, new Answer(question, 2));
-        assertTrue(took(CloseTab.class).isEmpty());
+        assertTrue(took(CloseTabs.class).isEmpty());
         assertTrue(editor.state().closings().isEmpty());
         tell(Answer.TOPIC, new Answer(question, 1));
-        assertTrue(took(CloseTab.class).isEmpty(), "an answer to a question no longer asked does nothing");
+        assertTrue(took(CloseTabs.class).isEmpty(), "an answer to a question no longer asked does nothing");
     }
 
     @Test
@@ -271,7 +271,7 @@ class EditorTest {
         assertEquals(1, asked.size());
         assertEquals("2 files have unsaved changes: b.txt, c.txt.", asked.getFirst().message());
         tell(Answer.TOPIC, new Answer(asked.getFirst().id(), 1));
-        assertEquals(List.of(new CloseTab(a), new CloseTab(b), new CloseTab(c)), took(CloseTab.class));
+        assertEquals(List.of(new CloseTabs(List.of(a, b, c))), took(CloseTabs.class));
     }
 
     @Test
@@ -281,7 +281,7 @@ class EditorTest {
         long question = took(Ask.class).getFirst().id();
         tell(Answer.TOPIC, new Answer(question, 0));
         tell(Answer.TOPIC, new Answer(question, 1));
-        assertTrue(took(CloseTab.class).isEmpty(), "the run waits on the write, not on another answer");
+        assertTrue(took(CloseTabs.class).isEmpty(), "the run waits on the write, not on another answer");
     }
 
     // ------------------------------------------------------------------ quitting: the same chain, another way in
@@ -302,7 +302,7 @@ class EditorTest {
         Ask ask = took(Ask.class).getFirst();
         assertEquals("Quit with unsaved changes?", ask.title());
         tell(Answer.TOPIC, new Answer(ask.id(), 0));
-        assertEquals(List.of(new Flush(a), new Flush(c)), took(Flush.class));
+        assertEquals(List.of(new Flush(List.of(a, c))), took(Flush.class));
 
         tell(Messages.SAVE_TOPIC, new Save(a, "1a", true));
         tell(Messages.SAVE_TOPIC, new Save(c, "2c", true));
