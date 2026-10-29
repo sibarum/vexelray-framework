@@ -383,13 +383,16 @@ mode, and choosing the mode is choosing it. *(held for 0.1's lanes, by `Watchdog
 
 ## 7. The main thread and the API surface
 
-**T7.1 — No application code runs on the main thread** (ruling 4). Two exceptions are named, and only two: drawing (below) and presentation (T7.4). The main thread pumps input, applies widget
+**T7.1 — No application code runs on the main thread** (ruling 4). One exception is named, and only one: a
+part's declared halves (T7.6), what it does when it is told something and what it answers when it is asked what to
+draw. *Restated 2026-10-29: this named two exceptions, drawing and presentation (T7.4); both are that one, and so
+is pacing a video, which would otherwise have been a third.* The main thread pumps input, applies widget
 writes, lays out, draws and presents, and runs the framework's own frame hooks. Every door through which an
 application reached it in 0.1 is closed: `@BeforeFrame`, `FrameStage.APP`, `@MainThread` on an application's
 provider or type, `Window.onOpened` and `onClosed` listeners, a close gate run there, and `post(Runnable)`.
-**Drawing is not logic**: a custom widget's `draw` runs on the main thread, reads only the widget's own state, and
-that state is written only through the widget's mailbox (T3.8). The fluid simulator's field and the About art are
-a widget fed frames by a component. In single-thread mode the framework runs ticks on this thread, and that is the
+**Drawing is not logic**: a part's asked half runs on the main thread, reads only the part's own state, and that
+state is written only through the part's told half, its mailbox (T3.8, T7.6). The fluid simulator's field and the
+About art are a part fed frames by a component, through a feed (T7.3). In single-thread mode the framework runs ticks on this thread, and that is the
 framework's choice, not a door an application opens (T1.7). *(owed, phases 4 and 5: the processor refuses each
 annotation in application code, and the shell withdraws each method)*
 
@@ -454,12 +457,17 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
 lane, the watchdog, the timer, the automation driver, and the operating-system seams (native dialogs, input backends) where
 a foreign thread hands something in. Each of those publishes; none hands a foreign thread's call to application
-code. Anywhere else, they are a defect. *(owed, phase 5. Held, when built, by a test that reads the shell's and
+code. Anywhere else, they are a defect. *Added 2026-10-29 with T7.6:* **the feed**, a fixed ring of stamped slots
+(vexelray-vulkan's `StreamTexture` with a presentation stamp per slot) that one producer off the GUI thread writes
+and a part's asked half reads, is on the list. It is a foreign thread handing something in, with one writer, one
+reader, no lock in the read and nothing called across it, and it is how pixels made off the GUI thread reach a part
+without crossing the bus. *(owed, phase 5. Held, when built, by a test that reads the shell's and
 core's sources against the list. In 0.1 `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` hold
 locks and volatiles for state the main thread and the handler pool both touched)*
 
 **T7.4 — A view component is presentation, and it runs on the GUI thread.** *Ruled 2026-10-27, the second exception
-to T7.1 beside drawing.* Something has to turn "the editor opened a file" into "add a tab holding a text field", and
+to T7.1 beside drawing; since 2026-10-29 both are T7.6, of which a view's `@Subscribe` methods are the told half.*
+Something has to turn "the editor opened a file" into "add a tab holding a text field", and
 that touches widgets. A **view component** is an application's own GUI element: a component whose inbox is in the
 GUI's widget tick, drained on the GUI thread at the start of each frame, after input is dispatched and before the
 tree's mutations are applied, so it hears a widget's event in the frame the input arrived. It may hold widgets,
@@ -507,6 +515,32 @@ declarations on `Gui`, and moving the function-valued seams (`onContextMenu`'s s
 shortcut's `Runnable`) where only the widget library reaches them, so T7.2's API walk holds for what a view is
 handed)*
 
+**T7.6 — A part on the GUI thread is told, and asked, and nothing else.** *Ruled 2026-10-29; the reasons are in
+architecture.md's message model, the design in vexelray-gui's `docs/plans/frame-contract.md`.* Everything that runs
+on the GUI thread is a **part**: a `@View`, a widget, or the framework's own motion (`PaintMotion`, `LayoutMotion`).
+A part has one state and two declared halves, and the GUI thread runs those and nothing else of it:
+
+- **Told:** when a message arrives, in the widget tick, a declared step on the part's state. It changes the state,
+  builds what is costly to build (a `Picture`, a node, a request for a feed) and sends. A view's `@Subscribe`
+  methods are this half (T7.4).
+- **Asked:** when a frame is emitted, a declared static function of the part's state and the frame, sampled for the
+  time the frame is predicted to appear. It chooses and parameterises what the part's own nodes show now (which
+  picture, which slot of a feed, an offset, an alpha, a paint) and returns when it next needs asking, or never. It
+  allocates nothing, blocks on nothing, logs nothing and sends nothing: what it would report, the told half derives
+  from a time message. It cannot add, remove or restructure nodes.
+
+**Told builds, asked chooses.** A part with nothing moving has no asked half. A part whose asked half returns a time
+keeps the window drawing until then and no longer, so a still window draws nothing (frame-loop.md rule 2). An
+asked half over its budget for a run of frames is frozen on what it last drew and reported, so a slow part shows a
+stuck picture, loudly, and never stops the window.
+**Why:** drawing, presentation and pacing a video are one thing, the author's ruling, and a list of exceptions grows
+by one door per kind of moving thing. A declared step is already not a callback (T7.2), and the asked half is the
+same kind of declaration with a frame's conditions added. *(owed. Phase 4, with `@View`'s checks: the processor
+finds both halves from declarations and refuses, after the step check's principle, only what is certainly unsafe in
+an asked half (`new`, locks, I/O, `Thread`, logging, the bus). vexelray-gui: `Frame`, the asked half's sink and due
+times in the host, with `PaintMotion` and `LayoutMotion` as its first users. Phase 8, with the codec: the feed and
+the video player as a witness)*
+
 ---
 
 ## The matrix
@@ -521,10 +555,10 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **4 Channels** | T4.3, T4.6 | T4.1, T4.2, T4.5, T4.7, T4.8 | | | | | T4.4 |
 | **5 Completion** | | T5.1, T5.3, T5.5, T5.6, T5.7, T5.8 | | | | T5.4 | T5.2 |
 | **6 Lifecycle** | T6.4 | T6.1, T6.2, T6.5 | | | T6.3 | | |
-| **7 Main thread** | | T7.1, T7.2, T7.3, T7.4, T7.5 | | | | | |
+| **7 Main thread** | | T7.1, T7.2, T7.3, T7.4, T7.5, T7.6 | | | | | |
 
 Where a rule is held for its 0.1 form and owed for its 0.2 form, it is counted as owed: what the column answers is
-whether 0.2 is true yet, and it is not. **Ten of the forty-nine rules are held and twenty-nine are owed.**
+whether 0.2 is true yet, and it is not. **Ten of the fifty rules are held and thirty are owed.**
 Phase 2 built the bus half of T4.1, T4.2, T4.8, T5.5, T5.6 and T5.7 in atchung; each says so, and each stays owed
 until the framework runs its components on the tick. That is the honest state of a
 redesign at its first commit, and the column is how its progress is read: each phase in the roadmap moves a known

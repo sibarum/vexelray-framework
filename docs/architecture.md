@@ -312,6 +312,29 @@ batch id and a count, because a payload could not hold a list and two mailboxes 
 6. **Immutable collections may cross**, tentatively: refusing all of them made applications design protocols
    around the checker.
 
+**Ruled 2026-10-29: what runs on the GUI thread is one contract, not a list of exceptions.** Ruling 4 had gathered
+two exceptions by then, drawing (T7.1) and presentation (T7.4), and porting the codec's video player was about to
+add a third, for code that picks which decoded frame is due each frame. The author's objection: drawing,
+presentation and pacing are one thing and should follow one API. What they share is that a part on the GUI thread
+is either **told** something (a message arrives, and it changes its state and builds what it shows) or **asked**
+something (a frame is being drawn, and it says what to show at the time that frame will appear). The framework
+already had both halves, privately: `PaintMotion` and `LayoutMotion` in vexelray-gui are each told what changed and
+asked what to draw. So the rule becomes one exception, a part's declared halves (T7.6), and three reasons decide it
+against a list:
+
+- **A list of exceptions grows by one per use.** Each new kind of moving thing (video, a simulation's field, a
+  kinetic scroll) would argue its own door, with its own checks or none. One contract has one check.
+- **The told half is already ruled safe.** A declared step on a part's own state is not a callback (T7.2, the
+  step exception). The asked half is the same kind of thing: a static function declared on the part's state,
+  capturing nothing, checked at compile time, with the extra conditions a frame needs (no allocation, a budget).
+- **It puts the checks where drawing had none.** Drawing and presentation were held by convention and T7.2's API
+  walk. Under one contract the processor checks both halves of every part, and the framework times every asked half.
+
+What it costs is a design obligation rather than a runtime one: anything that allocates is built in the told half,
+on a message, and the asked half only chooses among what was built ("told builds, asked chooses"). A video's
+frames come in through a feed, a ring of stamped slots a producer writes off the GUI thread (T7.3 names it). The
+design and its order of work are vexelray-gui's `docs/plans/frame-contract.md`.
+
 **What it costs, and where that is priced.** One tick of latency between an input and a logic-driven response
 (T5.4), measured in phase 7 before it is accepted; widget-local responses stay inside the widget and cost nothing
 (T3.9). One wedged component now stops every component on the logic lane, though not the window (T6.5). And in
