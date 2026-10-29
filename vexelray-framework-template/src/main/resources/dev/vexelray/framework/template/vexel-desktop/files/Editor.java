@@ -33,6 +33,7 @@ import ${packageName}.core.Messages.Status;
 import ${packageName}.core.Messages.Why;
 import ${packageName}.core.Messages.Write;
 import ${packageName}.core.Messages.Written;
+import dev.vexelray.framework.api.Component;
 import sibarum.atchung.Chain;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Ledger;
@@ -89,10 +90,13 @@ import java.util.Set;
  *
  * <h2>Where it is built</h2>
  *
- * <p>The editor is given the inbox it owns, which is where its messages arrive and where its steps run. Until the
- * framework gives a component its inbox (phase 4 of the 0.2 roadmap), nothing in {@code -gui}'s wiring builds this,
- * and {@code EditorTest} builds it on a tick of its own.
+ * <p>A {@code @Component} that takes an {@link Inbox} is given its own, on the framework's logic lane: that is where
+ * its messages arrive and where its steps run, on one thread with every other such component and never two at once.
+ * So it declares no {@code @Subscribe}: what it hears is the list above. {@link Core} lists it, so {@code -gui}'s
+ * generated wiring builds it; {@code EditorTest} builds it on a tick of its own, which is the same thing without a
+ * window.
  */
+@Component
 public final class Editor {
 
     /** How many of each message the editor's inbox holds before a sender is refused: far more than a person sends. */

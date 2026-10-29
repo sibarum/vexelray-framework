@@ -96,9 +96,9 @@ entered from `FrameStage.CLOCK`. Whether it is physically the main thread or a c
 Kronometer's business; what is normative is T3.2.
 
 **T1.2 — Each lane has exactly one name, used everywhere.** The logic lane is `vexel-logic`, a declared lane
-`vexel-component-<name>`, the job lane `vexel-job`. *(held for the 0.1 names by `LanesTest` in both repos; owed
-for the new names, phase 4. The name is load-bearing in the thread dump somebody reaches for when one lane is the
-problem)*
+`vexel-component-<name>`, the job lane `vexel-job`. *(held for the 0.1 names by `LanesTest` in both repos, and for
+the logic lane's by `LogicTest.componentsOnTheLogicLaneShareOneThreadThatIsNotThePublishers`; owed for the job
+lane's, phase 4. The name is load-bearing in the thread dump somebody reaches for when one lane is the problem)*
 
 **T1.3 — Placement is decided in the wiring and never at runtime.** No work stealing, no placement
 decision, nothing to tune while running. This is the restriction the rest of the model is bought with:
@@ -122,7 +122,10 @@ backpressure. A full lane makes work wait behind the work already on it. *(held,
 No two of them ever run at once, so no component needs to think about memory visibility, and a run can be replayed
 from its message log. A component declares a lane of its own (`@Component(lane = "physics")`) only when its work is
 heavy enough to want a core: a simulator's step, say. A declared lane is not a way to block. Blocking work is a
-`@Job` (T5.8). *(owed, phase 4: 0.1 gives every component lane a thread that drains continuously, `Placement`)*
+`@Job` (T5.8). *(built 2026-10-28 for a component that takes its `Inbox`: the generated wiring hands it one on the
+logic lane, `Logic`, one tick on one thread, held by `LogicTest` and `VexelProcessorTest`'s inbox cases. Still
+owed, phase 4: a component that declares no lane and no inbox is still placed on a thread of its own, `Placement`,
+so the default is not yet the logic lane)*
 
 **T1.7 — Where the ticks run is a deployment mode, and nothing in an application can tell** (ruling 4). By
 default the logic lane is a thread of its own. In **single-thread mode**, chosen by a launch setting, the
@@ -304,8 +307,9 @@ the stage survives for the framework's own use is decided in phase 4.
 **T5.3 — Nothing has to remember to wake the loop.** A publish that queues a message is work the frame loop cannot
 predict, so the bus wakes the loop itself, and the next tick runs. An idle application runs no ticks: a tick with
 nothing queued is skipped, never polled. *(held for 0.1's component lanes, by
-`PlacementTest.aDeliveryWakesTheLoopWithoutTheComponentAskingItTo` and `anIdleComponentDoesNotWakeTheLoop`; owed
-for the tick, phase 4)*
+`PlacementTest.aDeliveryWakesTheLoopWithoutTheComponentAskingItTo` and `anIdleComponentDoesNotWakeTheLoop`; for the
+tick, built 2026-10-28: the logic lane parks until atchung stages an arrival, and wakes the loop after a tick that
+delivered anything, held by `LogicTest.aTickThatDeliveredWakesTheLoopAndAnIdleLaneDoesNot`)*
 
 > **This rule was held twice in 0.1, and the first time was not good enough.** The first version gave the
 > component a `published()` to call after publishing a result. **A rule enforced by an API you must remember to

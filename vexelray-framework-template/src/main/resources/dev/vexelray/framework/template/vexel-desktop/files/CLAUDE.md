@@ -28,9 +28,9 @@ changing anything, and `Messages.java` before adding a part.
   A new decision is a new step; a new thing the editor is in the middle of is a field of `State`, not a field of
   `Editor`. Something that waits on the person or the disk is a chain (closing is the example): its step holds the
   run and a later step resumes it.
-- **`-core`'s `Core.java` lists its jobs.** The processor compiling `-gui` cannot see `-core`'s sources, so a job
-  missing from that list is never built, with no error. Add every new one there. The editor is not listed yet: until
-  the framework gives a component its inbox, nothing in `-gui` builds it, and `EditorTest` builds it on a tick.
+- **`-core`'s `Core.java` lists its components and jobs.** The processor compiling `-gui` cannot see `-core`'s
+  sources, so a component or job missing from that list is never built, with no error. Add every new one there. A
+  component that takes an `Inbox` runs on the framework's logic lane and hears through it, never through `@Subscribe`.
 - **`Doc.java`** is the session's shape, part of the editor's state, replaced and never mutated. `Ui.java` holds no
   state.
 - **`-core` builds against no widget**, so its tests need no window. Code with no `Gui` in it goes there.

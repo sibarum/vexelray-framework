@@ -26,6 +26,10 @@ final class Framework {
     static final String ABSENCES = "dev.vexelray.framework.shell.Absences";
     /** What the generated wiring calls to subscribe a {@code @Job} to its topic on the offload lane. */
     static final String JOBS = "dev.vexelray.framework.shell.Jobs";
+    /** A component's inbox on the logic lane: a component takes one in its constructor, and nothing else may. */
+    static final String INBOX = "sibarum.atchung.Inbox";
+    /** What the generated wiring calls to hand a component its inbox; see {@code Inboxes}. */
+    static final String INBOXES = "dev.vexelray.framework.shell.Inboxes";
     static final String APPEARANCE ="dev.vexelray.framework.shell.Appearance";
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";

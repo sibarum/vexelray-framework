@@ -20,6 +20,7 @@ import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
 import dev.vexelray.text.FontSet;
 import sibarum.atchung.Atchung;
+import sibarum.atchung.Inbox;
 import sibarum.probe.Log;
 
 import java.io.IOException;
@@ -79,6 +80,8 @@ public final class Shell {
     private final Watchdog watchdog;
     /** Components placed but not yet started. See {@link #place} for why those are two different moments. */
     private final List<Placement> placements = new ArrayList<>();
+    /** The logic lane, made when the first component asks for an inbox; null when none does. */
+    private Logic logic;
 
     private Appearance appearance = Appearance.DEFAULT;
     /** The application's own fonts, or null for the standard set. See {@link #fonts(FontSet)}. */
@@ -286,6 +289,20 @@ public final class Shell {
         placements.add(placement);
         disposer.register(placement);
         return placement;
+    }
+
+    /**
+     * A component's inbox on the logic lane ({@link Logic}), made the first time its name is asked for. <b>Not
+     * public</b>, as {@link #place} is not: the generated wiring reaches it through {@link Inboxes}, for a component
+     * that takes an {@code Inbox} in its constructor. The lane is made with the first inbox and started with the
+     * placements, and closed at shutdown with them.
+     */
+    Inbox inbox(String name) {
+        if (logic == null) {
+            logic = new Logic(bus, lanes);
+            disposer.register(logic);
+        }
+        return logic.inbox(name);
     }
 
     /**
@@ -781,6 +798,12 @@ public final class Shell {
                 placement.onWake(app::postWake);
             }
             placement.start();
+        }
+        if (logic != null) {
+            if (app != null) {
+                logic.onWake(app::postWake);
+            }
+            logic.start();
         }
         startWatchdog();
     }

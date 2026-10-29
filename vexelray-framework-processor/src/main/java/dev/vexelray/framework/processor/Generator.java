@@ -197,6 +197,24 @@ final class Generator {
         }
     }
 
+    /**
+     * A component's own inbox on the logic lane, named after the component. Built in {@link Phase#CONFIG}, like the
+     * bus it is made from, so a component that takes nothing else is built first.
+     */
+    private record InboxArg(String name) implements Arg {
+        public String expression() {
+            return Framework.INBOXES + ".of(shell, " + literal(name) + ")";
+        }
+
+        public Phase phase() {
+            return Phase.CONFIG;
+        }
+
+        public Set<RunMode> modes() {
+            return EVERY_MODE;
+        }
+    }
+
     private record SettingArg(String key, String call) implements Arg {
         public String expression() {
             return call;
@@ -357,6 +375,10 @@ final class Generator {
             Framework.Root root = Framework.root(element.getQualifiedName().toString());
             if (root != null) {
                 return new RootArg(root);
+            }
+            // Graph has refused an inbox anywhere but a component's constructor.
+            if (element.getQualifiedName().contentEquals(Framework.INBOX) && b.component != null && b.job == null) {
+                return new InboxArg(b.component.getQualifiedName().toString());
             }
         }
         for (Slot s : slots) {

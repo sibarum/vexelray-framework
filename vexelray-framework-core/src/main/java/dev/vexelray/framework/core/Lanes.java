@@ -139,6 +139,19 @@ public final class Lanes implements AutoCloseable {
      * @param name what the thread is called in a dump and in a report — the component's name, not a number
      */
     public Thread thread(String name, Runnable body) {
+        return mint(name, "vexel-component-" + name, body);
+    }
+
+    /**
+     * Mint the logic lane's thread, {@code vexel-logic} (T1.2), on the same terms as a component's: started now, a
+     * platform thread, stopped by {@link #closed}, and interrupted as the lane called {@code logic}. It runs the tick
+     * that drains every component without a lane of its own.
+     */
+    public Thread logic(Runnable body) {
+        return mint("logic", "vexel-logic", body);
+    }
+
+    private Thread mint(String name, String threadName, Runnable body) {
         if (closed) {
             throw new IllegalStateException("lanes are closed; " + name + " cannot be placed on one");
         }
@@ -146,7 +159,7 @@ public final class Lanes implements AutoCloseable {
         // reaches all of them. See interruptLane.
         ThreadGroup group = new ThreadGroup(componentGroups, "vexel-lane-" + name);
         groups.put(name, group);
-        Thread t = new Thread(group, body, "vexel-component-" + name);
+        Thread t = new Thread(group, body, threadName);
         t.setDaemon(true);
         components.add(t);
         t.start();

@@ -8,6 +8,7 @@ import dev.vexelray.framework.api.OnMode;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.RunMode;
 import dev.vexelray.framework.api.Setting;
+import dev.vexelray.framework.api.Subscribe;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
@@ -266,6 +267,18 @@ final class Graph {
                     + " and the generated wiring places it");
             return;
         }
+        if (isInbox(parameter)) {
+            for (Element member : component.getEnclosedElements()) {
+                if (mirrors.has(member, Subscribe.class)) {
+                    error(member, name + " takes its Inbox and also declares a @Subscribe mailbox. A component that"
+                            + " takes its inbox runs on the logic lane and hears everything there; a mailbox would"
+                            + " run on a lane of its own, so two threads would reach one component's state. Hear the"
+                            + " topic in the inbox instead (a ledger's Builder.on, or Inbox.subscribe)");
+                    break;
+                }
+            }
+            return;
+        }
         String main = whyOnMain(parameter.asType(), providers);
         if (main != null) {
             error(parameter, "T2.2: " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
@@ -323,7 +336,18 @@ final class Graph {
                     + " container's. Nothing is handed one: declare mailboxes with @Subscribe and the lane with"
                     + " @Component(lane = ...)");
         }
+        if (isInbox(parameter)) {
+            error(parameter, where + " takes an Inbox, which is a component's own: what arrives there runs on the"
+                    + " component's turn on the logic lane, and a provided value can be injected anywhere. Take it in"
+                    + " the @Component's constructor");
+        }
         heldJob(where, parameter);
+    }
+
+    /** Whether {@code parameter} is an atchung {@code Inbox}: the logic lane's, and only a component's to take. */
+    private static boolean isInbox(VariableElement parameter) {
+        TypeElement type = Mirrors.element(parameter.asType());
+        return type != null && type.getQualifiedName().contentEquals(Framework.INBOX);
     }
 
     /**
@@ -351,6 +375,10 @@ final class Graph {
         if (isComputeQueue(parameter)) {
             error(parameter, "T3.1: @Job " + name + " takes the ComputeQueue, which is lent to one @Component and to"
                     + " nothing else");
+        }
+        if (isInbox(parameter)) {
+            error(parameter, "@Job " + name + " takes an Inbox, which is a component's own. A job hears its request"
+                    + " and answers with its reply; it has no inbox to hear in");
         }
         heldJob("@Job " + name, parameter);
     }

@@ -114,7 +114,7 @@ it). The parts talk by messages, and every message is in one file. Read these in
 | `Doc.java` | the shape of the session (which files, which in front, which unsaved, which folder) as one immutable value, part of the editor's state. |
 | `ReadFile.java`, `WriteFile.java`, `FindPath.java`, `CreateFile.java`, `ReadSession.java`, `WriteSession.java` | the jobs: every touch of the disk, on the offload lane. What can go wrong is part of the reply. |
 | `TextFile.java`, `Markdown.java` | the policy between bytes and text, and Markdown as spans: pure functions. |
-| `Core.java` | the list of this module's jobs. The processor compiling `-gui` sees only `-gui`'s sources, so this list, named among `${className}App`'s starters, is how the wiring hears of them. A new job goes on it. The editor joins it when the framework gives a component its inbox (0.2 roadmap, phase 4). |
+| `Core.java` | the list of this module's component and jobs. The processor compiling `-gui` sees only `-gui`'s sources, so this list, named among `${className}App`'s starters, is how the wiring hears of them. A new component or job goes on it. |
 
 **`${artifactId}-gui`, the view and the framework integration.**
 

@@ -287,10 +287,13 @@ Each step lands on its own and leaves the suites green.
      state and its message;
    - held by the generated project's `EditorTest`, on a tick of its own: 19 tests, the close ones the witness.
 
-   **Not yet, and why:** the view's half and undo. The view is not a ledger until the framework gives a component its
-   inbox (phase 4), so nothing in `-gui` builds the editor yet, and the chain's first link is the editor's step rather
-   than the view's click. Undo of a close would need the view's tabs and texts restored with the editor's state, so
-   it waits for the view's ledger too.
+   The editor is a `@Component` that takes its `Inbox`, so the generated wiring builds it on the logic lane (phase 4,
+   begun the same day).
+
+   **Not yet, and why:** the view's half and undo. The view is a component on a lane of its own and not a ledger,
+   so the chain's first link is the editor's step rather than the view's click; the view becomes one when phase 6
+   rewrites it onto `v0.2`'s gui. Undo of a close would need the view's tabs and texts restored with the editor's
+   state, so it waits for the view's ledger too.
 
 ## Decided
 

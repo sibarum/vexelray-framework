@@ -97,10 +97,18 @@ class VexelProcessorTest {
                     public Measured run(Asked a) { return new Measured(a.what(), a.what().length()); }
                 }
                 """),
+            Map.entry("lib.Ledgered", """
+                package lib;
+                import dev.vexelray.framework.api.*;
+                @Component
+                public final class Ledgered {
+                    public Ledgered(sibarum.atchung.Inbox inbox) {}
+                }
+                """),
             Map.entry("lib.Parts", """
                 package lib;
                 import dev.vexelray.framework.api.*;
-                @Configuration(components = Remote.class, jobs = Measure.class)
+                @Configuration(components = {Remote.class, Ledgered.class}, jobs = Measure.class)
                 public final class Parts {}
                 """),
             Map.entry("dev.vexelray.framework.shell.Jobs", """
@@ -138,6 +146,7 @@ class VexelProcessorTest {
                     public Shell clipboard(ClipboardBackend c) { LOG.add("clipboard handed back"); return this; }
                     public Shell liveness(LivenessPolicy p) { LOG.add("liveness handed back"); return this; }
                     Placement place(String name) { LOG.add("placed " + name); return new Placement(name); }
+                    sibarum.atchung.Inbox inbox(String name) { LOG.add("inbox " + name); return sibarum.atchung.Atchung.create().tick(null).inbox(name); }
                     public dev.vexelray.gui.core.Gui gui() { return new dev.vexelray.gui.core.Gui(); }
                     public dev.vexelray.gui.core.app.GuiApp app() { return new dev.vexelray.gui.core.app.GuiApp(); }
                     public dev.vexelray.gui.core.app.ComputeQueue computeQueue() { LOG.add("compute queue lent"); return new dev.vexelray.gui.core.app.ComputeQueue(); }
@@ -222,6 +231,12 @@ class VexelProcessorTest {
                 package sibarum.atchung;
                 public record Topic<T>(String name, Class<T> payloadType) {
                     public static <T> Topic<T> of(String name, Class<T> payloadType) { return new Topic<>(name, payloadType); }
+                }
+                """),
+            Map.entry("dev.vexelray.framework.shell.Inboxes", """
+                package dev.vexelray.framework.shell;
+                public final class Inboxes {
+                    public static sibarum.atchung.Inbox of(Shell shell, String name) { return shell.inbox(name); }
                 }
                 """),
             Map.entry("sibarum.atchung.Backpressure", """
@@ -740,6 +755,54 @@ class VexelProcessorTest {
      * nothing. Two of them are not a conflict, since neither provides anything (VexelRay IDE's {@code Restored}, Pix's window
      * binding and the template's close gate each returned a marker to get past the error this used to be).
      */
+    // --- a component's inbox on the logic lane ---------------------------------------------------------------
+
+    /**
+     * A component that takes an {@code Inbox} is handed its own, named after it, in the first phase: the logic lane's,
+     * where everything it hears runs. Nothing is placed for it, since it has no lane of its own.
+     */
+    @Test
+    void aComponentIsHandedItsOwnInboxInTheFirstPhase() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Component
+                public final class Editor {
+                    public Editor(sibarum.atchung.Inbox inbox) {
+                        dev.vexelray.framework.shell.Shell.LOG.add("built with " + inbox.name());
+                    }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("dev.vexelray.framework.shell.Inboxes.of(shell, \"app.Editor\")"), wiring);
+
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
+        assertEquals(List.of("inbox app.Editor", "built with app.Editor"), run.phase("config"));
+    }
+
+    @Test
+    void aComponentThatTakesItsInboxDeclaresNoMailbox() {
+        onlyError(app("""
+                @Component
+                public final class Editor {
+                    public Editor(sibarum.atchung.Inbox inbox) {}
+                    @Subscribe(topic = "t") public void on(String s) {}
+                }
+                """), "Editor takes its Inbox and also declares a @Subscribe mailbox");
+    }
+
+    @Test
+    void anInboxIsAComponentsAndNoProvidersOrJobs() {
+        onlyError(app("""
+                @Configuration
+                final class Recipes {
+                    @Provides Clock clock(sibarum.atchung.Inbox inbox) { return null; }
+                }
+                """), "takes an Inbox, which is a component's own");
+    }
+
     @Test
     void aVoidRecipeRunsForItsEffectInItsPhase() throws Exception {
         Compiled compiled = build("""
@@ -969,6 +1032,7 @@ class VexelProcessorTest {
         assertEquals(List.of(), compiled.errors());
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
         assertEquals(List.of("placed remote", "subscribed lib.Remote#measured lib.measured Measured 64 FAIL",
+                "inbox lib.Ledgered",
                 "job lib.Measure lib.ask Asked -> lib.measured Measured"), run.phase("config"));
         String graph = run.busGraph();
         assertTrue(graph.contains("publishes lib.Remote topic=lib.ask"), "a send read off a class file:\n" + graph);
