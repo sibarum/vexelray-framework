@@ -26,8 +26,9 @@ carries its reason*. Rulings 1 and 2 are complete.
 > - Every part with behaviour is a component, including what 0.1 left as plain provided objects (`Ui`, `Actions`,
 >   `Model`), so ruling 9's answer covers them too. A component never holds another, on any lane (T2.3).
 > - Sends are constructor parameters, and `@Publishes` goes (T4.5). Each topic is state or edge (T4.1).
-> - The table under *What a component is owed* is 0.1's. It is rewritten in phase 4, when the tick replaces
->   `Placement`.
+> - The table under *What a component is owed* was rewritten in phase 4, when the tick replaced `Placement`.
+> - `@Subscribe` has no loss policy: the topic's kind is the policy (T4.2), and `Overflow` is gone. Ruling 5 below
+>   is 0.1's.
 
 ## What a component is
 
@@ -38,23 +39,28 @@ component is never `@MainThread`.
 
 ## What a component is owed
 
+*Rewritten for 0.2 in phase 4, 2026-10-29, when the tick replaced `Placement`.*
+
 | The framework owes it | Held by | Rule |
 | --- | --- | --- |
-| A platform thread of its lane, named `vexel-component-<lane>`, never virtual | `LanesTest` | T1.2, T1.4 |
-| One shared default thread when it names no lane, so a plain service costs no thread | `Component.DEFAULT_LANE` | ruled 2026-09-29 |
-| A mailbox per `@Subscribe`, with a declared loss policy and bound | processor, `Placement` | T4.1, T4.3 |
-| Construction before the loop; start only after everything is built | `PlacementTest` | T6.1 |
-| A wake of the frame loop after any delivery, with nothing to call | `PlacementTest` | T5.3 |
-| Drain-then-stop at shutdown, inside a total bound after which the process halts | `PlacementTest`, `Disposer.beforeClose` | T6.2, liveness |
-| Its own `ThreadGroup`, so the watchdog can interrupt everything the lane started | `Lanes.interruptLane` | liveness |
-| A stall report naming its lane, and a policy the application can override | `Watchdog`, `LivenessPolicy` | T6.5 |
-| That no other lane holds a reference to it, and no provider does | processor | T2.3, T3.7 |
-| That a value crossing into it shares nothing with the sender's heap | processor, for `@Subscribe` payloads (deeply immutable, `Shareable`); a captured lambda is **not checked** | T2.4, T2.5 |
-| That no blocking cycle runs through it | processor, for declared sends | T4.4 |
+| A place on the logic lane's tick, delivered one message at a time and never beside another component | `Logic`, `LogicTest` | T1.6 |
+| A thread of its own, `vexel-component-<lane>`, never virtual, when it declares a lane, meeting the rest at every round's end | `Crew`, `LanesTest`, `LogicTest` | T1.2, T1.4, T5.6 |
+| The same deliveries in the same order whether the ticks run on their own thread or the main thread | `LogicTest`'s witness | T1.7, T5.6 |
+| A mailbox per `@Subscribe`, on the topic its payload declares, with its kind and an edge bound | processor, `Inboxes` | T4.1, T4.2, T4.3 |
+| A key filter on a state topic, done by the wiring | processor, `Inboxes` | T4.8 |
+| A sender per payload it sends, on that payload's declared topic, ordered by the tick | processor, `Inboxes.sender` | T4.5 |
+| Construction before the loop; the first tick only after everything is built | `LogicTest` | T6.1 |
+| A wake of the frame loop after a tick that delivered, with nothing to call | `LogicTest` | T5.3 |
+| The last tick at shutdown, inside a total bound after which the process halts | `LogicTest`, `Disposer.beforeClose` | T6.2, liveness |
+| Its lane's own `ThreadGroup` and gauge, so a wedged lane is reported and interrupted by name | `Lanes`, `Watchdog`, `LivenessTest` | T6.5, liveness |
+| That no component and no provider holds it | processor | T2.3, T3.7 |
+| That a value crossing into it shares nothing with the sender's heap, and a value provided to it is shareable | processor (`Shareable`) | T2.4, T2.6 |
+| That nothing in it asks for synchronisation | processor | T2.7 |
 
-And what it owes the application: it never blocks the main thread, never touches the timeline (T3.2), and
-returns work through one of the two doors (T5.1). A wedged component loses its own lane and nothing else; a
-component that throws ends the application, because nothing declared that failure (section 10).
+And what it owes the application: it never blocks (a `@Job` does), never touches the timeline (T3.2), and returns
+work as a message (T5.1). A wedged component holds the logic lane, or its own declared lane, and the window keeps
+painting in the default mode (T6.5); a component that throws ends the application, because nothing declared that
+failure (section 10).
 
 ## What exists, what is decided, what is not
 

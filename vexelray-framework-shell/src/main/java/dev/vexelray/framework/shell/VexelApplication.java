@@ -196,6 +196,8 @@ public final class VexelApplication {
      */
     public static void frame(Shell shell) {
         AppInfo info = shell.info();
+        // In single-thread mode the frame runs the logic's tick, as the loop's APP hook does.
+        shell.runLogicOnMain();
         dev.vexelray.gui.core.spi.Seams.of(shell.gui())
                 .frame(info.width(), info.height(), dev.vexelray.gui.core.text.TextFaces.standard());
     }
@@ -356,7 +358,7 @@ public final class VexelApplication {
         // And the Dialogs every part was handed, unless the application handed back its own: from here on a
         // question goes to these, after whatever was asked while there was no window to ask it in.
         if (!shell.dialogsDecided()) {
-            shell.frameworkDialogs(disposer.register(new NativeDialogs(app, modals, shell.lanes().handlers())));
+            shell.frameworkDialogs(disposer.register(new NativeDialogs(app, modals)));
         }
         // A machine that cannot draw this application fifteen times a second is offered simplified graphics, through
         // whichever Dialogs the application asks with. Always on, for the same reason as the stall report below: a
@@ -399,6 +401,12 @@ public final class VexelApplication {
                 .add(FrameStage.INPUT, input::pump)
                 .add(FrameStage.CLOCK, krono::tick)
                 .add(FrameStage.SETTLE, memory::poll);
+        // Single-thread mode (T1.7): the logic's tick runs here, after input is published and the clock has ticked,
+        // before the frame drains the widgets' mailboxes, so what it writes is drawn in this frame. APP is the
+        // framework's stage for exactly this, draining what arrived, and no application reaches it.
+        if (shell.logicOnMain()) {
+            shell.hooks().add(FrameStage.APP, shell::runLogicOnMain);
+        }
 
         // The two deadlines the framework itself holds. An application's own are added by its wiring, which is
         // the point of the seam: the clock knows about animations, and it does not know that the window
@@ -424,10 +432,10 @@ public final class VexelApplication {
         shell.hooks().onFailure(HookFailures::failed);
         shell.hooks().seal();
         shell.pacing().seal();
-        // Every component's thread starts here and not in its constructor: a mailbox must not pump before its
-        // publishers exist, and the wiring has only just finished making them. Each gets its wake connected on
-        // the way, so a component that publishes a result nudges the loop without the wiring saying so. See
-        // Shell.place, which the generated wiring reaches through Placements.
+        // The logic lane starts here and not in a constructor: a mailbox must not be delivered to before its
+        // publishers exist, and the wiring has only just finished making them. Its wake is connected on the way, so
+        // a tick that delivered nudges the loop without the wiring saying so. See Logic, which the generated wiring
+        // reaches through Inboxes.
         shell.startComponents();
 
         if (launch.mode() == RunMode.WINDOWED) {

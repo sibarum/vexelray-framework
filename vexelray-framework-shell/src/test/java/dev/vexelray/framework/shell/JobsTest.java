@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A {@code @Job} as the generated wiring subscribes it, asserted without a GPU: the request runs on the offload lane
+ * A {@code @Job} as the generated wiring subscribes it, asserted without a GPU: the request runs on the job lane
  * and not on the publisher's thread, two requests do not wait for each other, the answer is published on the reply
  * topic, and what nothing declared halts.
  */
@@ -32,7 +32,7 @@ final class JobsTest {
     }
 
     @Test
-    void aRequestRunsOnTheOffloadLaneAndItsAnswerIsPublished() throws Exception {
+    void aRequestRunsOnTheJobLaneAndItsAnswerIsPublished() throws Exception {
         Shell shell = shell();
         try {
             AtomicReference<String> ranOn = new AtomicReference<>();
@@ -46,7 +46,7 @@ final class JobsTest {
             shell.bus().publish(ASK, "four");
 
             assertEquals(4, answers.poll(5, TimeUnit.SECONDS));
-            assertTrue(ranOn.get().startsWith("vexel-offload"), "ran on " + ranOn.get());
+            assertTrue(ranOn.get().startsWith("vexel-job-"), "ran on " + ranOn.get());
         } finally {
             shell.disposer().close();
         }

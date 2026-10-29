@@ -1,8 +1,7 @@
 package ${packageName};
 
 import ${packageName}.core.Messages;
-import dev.vexelray.framework.api.Publishes;
-import sibarum.atchung.Atchung;
+import sibarum.atchung.Sender;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,28 +15,28 @@ import java.util.concurrent.atomic.AtomicLong;
  * the ticket instead: to the {@link View}, which tells the editor which tabs are open and unsaved, and the editor's
  * {@link Messages.QuitAnswer} comes back with the ticket and is answered here. Exactly one of the two runs, once.
  *
- * <p>Shared between the handler lane, which asks, and the view's lane, which answers, so its one map is concurrent.
- * It holds nothing else.
+ * <p>Asked from the frame, where the window's close request is handled, and answered from the view's frame; its one map
+ * is concurrent in case the two are ever not one thread. It holds nothing else, and goes with phase 5's close gate,
+ * which makes the question and its answer messages.
  */
-@Publishes(Intent.TOPIC)
 final class QuitGate {
 
     private record Pending(Runnable proceed, Runnable cancel) {
     }
 
-    private final Atchung bus;
+    private final Sender<Intent> intents;
     private final AtomicLong tickets = new AtomicLong();
     private final Map<Long, Pending> waiting = new ConcurrentHashMap<>();
 
-    QuitGate(Atchung bus) {
-        this.bus = bus;
+    QuitGate(Sender<Intent> intents) {
+        this.intents = intents;
     }
 
     /** The framework's {@code CloseGate}: the window has been asked to close. */
     void guard(Runnable proceed, Runnable cancel) {
         long ticket = tickets.incrementAndGet();
         waiting.put(ticket, new Pending(proceed, cancel));
-        bus.publish(Intent.INTENTS, new Intent(Intent.Command.QUIT, ticket));
+        intents.send(new Intent(Intent.Command.QUIT, ticket));
     }
 
     /** What the editor decided for {@code ticket}. A ticket already answered, or never issued, is ignored. */

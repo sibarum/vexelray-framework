@@ -26,10 +26,8 @@ import ${packageName}.core.Messages.Save;
 import ${packageName}.core.Messages.SaveFailed;
 import ${packageName}.core.Messages.ShowFolder;
 import ${packageName}.core.Messages.Status;
-import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.shell.Dialogs;
-import dev.vexelray.framework.shell.Senders;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.input.Shortcut;
 import dev.vexelray.gui.widget.Chosen;
@@ -67,8 +65,14 @@ import java.util.List;
  * <h2>Gestures are declared, not handled</h2>
  *
  * <p>A chord, a menu item and a dialog's button each name the message they send ({@link Intent}, a
- * {@code Messages} record) through a {@link Senders sender}; the dispatcher sends it, and nothing of the application's
- * runs at the moment of the click (T7.5). What needs the view comes back to it as one of these handlers.
+ * {@code Messages} record) through a {@link Sender}; the dispatcher sends it, and nothing of the application's runs at
+ * the moment of the click (T7.5). What needs the view comes back to it as one of these handlers.
+ *
+ * <h2>What it sends is in its constructor</h2>
+ *
+ * <p>One {@link Sender} for each message it sends, and nothing else to send with: the wiring finds each one's topic by
+ * its payload, beside the record in {@code Messages}, so the processor sees every message the view can send without
+ * reading a line of its body (ROADMAP fork 5).
  *
  * <h2>Slow work is a job</h2>
  *
@@ -76,8 +80,6 @@ import java.util.List;
  * {@code MarkText}): the view asks and acts on the answer, because its time is the frame's.
  */
 @dev.vexelray.framework.api.View
-@Publishes({Messages.OPEN, Messages.GO, Messages.FRONTED, Messages.EDITED, Messages.CLOSE, Messages.QUIT, Messages.SAVE,
-        Messages.ANSWER, Messages.LISTING, Messages.MARK, View.TREE_CHILDREN, Intent.TOPIC})
 final class View {
 
     // The widgets' topics, by name, since @Subscribe takes a constant. The wiring subscribes with the widget's own
@@ -88,7 +90,6 @@ final class View {
     static final String FIELD_CARET = "vexelray.gui.textfield.caret";
     static final String FIELD_SUBMITTED = "vexelray.gui.textfield.submitted";
     static final String TREE_WANTED = "vexelray.gui.tree.children-wanted";
-    static final String TREE_CHILDREN = "vexelray.gui.tree.children";
     static final String TREE_SELECTED = "vexelray.gui.tree.selected";
     static final String TREE_ACTIVATED = "vexelray.gui.tree.activated";
     static final String TREE_CHOSEN = "vexelray.gui.tree.chosen";
@@ -120,25 +121,27 @@ final class View {
     /** The tab in front, as the editor was last told. */
     private long front = Messages.NO_TAB;
 
-    View(Gui gui, Ui ui, Senders senders, Dialogs dialogs, QuitGate gate) {
+    View(Gui gui, Ui ui, Dialogs dialogs, QuitGate gate, Sender<Open> open, Sender<Go> go, Sender<Fronted> fronted,
+         Sender<Edited> edited, Sender<Close> close, Sender<Quit> quit, Sender<Save> save, Sender<Answer> answer,
+         Sender<Listing> listing, Sender<Mark> mark, Sender<TreeView.Children> children, Sender<Intent> intents) {
         this.gui = gui;
         this.ui = ui;
         this.ws = ui.workspace();
         this.nav = ui.navigator();
         this.dialogs = dialogs;
         this.gate = gate;
-        this.open = senders.to(Messages.OPEN_TOPIC);
-        this.go = senders.to(Messages.GO_TOPIC);
-        this.fronted = senders.to(Messages.FRONTED_TOPIC);
-        this.edited = senders.to(Messages.EDITED_TOPIC);
-        this.close = senders.to(Messages.CLOSE_TOPIC);
-        this.quit = senders.to(Messages.QUIT_TOPIC);
-        this.save = senders.to(Messages.SAVE_TOPIC);
-        this.answer = senders.to(Messages.ANSWER_TOPIC);
-        this.listing = senders.to(Messages.LISTING_TOPIC);
-        this.mark = senders.to(Messages.MARK_TOPIC);
-        this.children = senders.to(TreeView.CHILDREN);
-        this.intents = senders.to(Intent.INTENTS);
+        this.open = open;
+        this.go = go;
+        this.fronted = fronted;
+        this.edited = edited;
+        this.close = close;
+        this.quit = quit;
+        this.save = save;
+        this.answer = answer;
+        this.listing = listing;
+        this.mark = mark;
+        this.children = children;
+        this.intents = intents;
         shortcuts();
     }
 

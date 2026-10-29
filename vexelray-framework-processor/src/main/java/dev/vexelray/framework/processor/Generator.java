@@ -54,15 +54,19 @@ import java.util.Set;
  *   <li><b>A part whose dependency is absent in a mode is absent in that mode</b> ({@code OnMode}) — worked out
  *       here and said at the build, as a note, rather than left as a null a phase later.</li>
  *   <li><b>Nothing is discovered</b>: a parameter names a type, and that type is a framework value, a
- *       {@code @Setting}, the placement of the component's own lane, or exactly one part's. Anything else is a
+ *       {@code @Setting}, a component's own inbox or a sender on a declared topic, or exactly one part's. Anything else is a
  *       compile error naming the parameter — the first place this can be said, since only an application has a
  *       complete answer.</li>
  *   <li><b>What the shell takes back</b>: a provided {@code Appearance}, {@code InputBackend} or
  *       {@code ClipboardBackend} replaces the framework's own, and so has to exist by the phase the framework
  *       reaches for it in ({@link Framework#HAND_BACKS}); anything else {@code AutoCloseable} is closed in reverse
- *       at shutdown; a {@code @BeforeFrame} method on a built value's type is put in the frame array.</li>
+ *       at shutdown.</li>
+ *   <li><b>Every component is on the logic lane</b> ({@code Inboxes}): its {@code @Subscribe} methods are
+ *       subscriptions on an inbox named after it, on the lane it declares, and a {@code Sender<T>} it takes is its
+ *       inbox's sender on {@code T}'s declared topic. A view's mailboxes are the frame's ({@code Views}), and a
+ *       sender anything else takes is an ordinary publish ({@code Senders}).</li>
  *   <li><b>A job is built like a component and subscribed, not placed</b> ({@code Job}): its {@code run} is handed to
- *       {@code Jobs}, which runs each request on the offload lane and publishes what it returns.</li>
+ *       {@code Jobs}, which runs each request on the job lane and publishes what it returns.</li>
  *   <li><b>A provider answering null is reported once</b> ({@code Provides}): the null is still passed on, and the
  *       wiring calls {@code Absences} where the provider is called, naming it and every part that takes its type —
  *       through {@code -shell}, which logs, since the generated code and {@code -core} do not.</li>
@@ -106,7 +110,6 @@ final class Generator {
         final TypeMirror type;
         final Set<RunMode> declared;
         final List<Arg> args = new ArrayList<>();
-        final List<Hook> hooks = new ArrayList<>();
         final List<Channels.Mailbox> mailboxes = new ArrayList<>();
         /** For a {@code @Job}, its channels; {@code component} is then the job's class. */
         Channels.JobChannel job;
@@ -160,10 +163,6 @@ final class Generator {
         }
     }
 
-    /** A {@code @BeforeFrame} method, and the stage it runs in. */
-    private record Hook(ExecutableElement method, String stage) {
-    }
-
     /**
      * One parameter, resolved. Open, and asked rather than switched on: each kind knows its own expression,
      * phase, and the modes it exists in.
@@ -204,15 +203,31 @@ final class Generator {
      * A component's own inbox on the logic lane, named after the component. Built in {@link Phase#CONFIG}, like the
      * bus it is made from, so a component that takes nothing else is built first.
      */
-    private record InboxArg(String name, List<String> hears) implements Arg {
+    private record InboxArg(String name, String lane, List<String> hears) implements Arg {
         public String expression() {
-            StringBuilder call = new StringBuilder(Framework.INBOXES).append(".of(shell, ").append(literal(name));
+            StringBuilder call = new StringBuilder(Framework.INBOXES).append(".of(shell, ").append(literal(name))
+                    .append(", ").append(literal(lane));
             for (String topic : hears) {
                 call.append(", ").append(literal(topic));
             }
             return call.append(')').toString();
         }
 
+        public Phase phase() {
+            return Phase.CONFIG;
+        }
+
+        public Set<RunMode> modes() {
+            return EVERY_MODE;
+        }
+    }
+
+    /**
+     * A sender on a declared topic (ROADMAP fork 5). A component's is its own inbox's, so what it sends is queued in
+     * its outbox and ordered by the tick; anything else's, a view's or a recipe's, is an ordinary publish through
+     * {@code Senders}. Built in {@link Phase#CONFIG}, like the inbox and the bus.
+     */
+    private record SenderArg(String expression) implements Arg {
         public Phase phase() {
             return Phase.CONFIG;
         }
@@ -268,17 +283,17 @@ final class Generator {
 
     private final List<Binding> bindings = new ArrayList<>();
     private final List<Slot> slots = new ArrayList<>();
-    private final Map<String, String> lanes = new LinkedHashMap<>();
     private final Map<TypeElement, String> configurations = new LinkedHashMap<>();
     private final Set<String> fieldNames = new HashSet<>();
+    /** The application being written for: what a generated name must be visible from. */
+    private TypeElement app;
 
     /**
      * Plan and write the wiring for {@code app}, or report why not.
      *
-     * @param hooks every {@code @BeforeFrame} method the compilation holds, so one that nothing will call is an
-     *              error rather than a method that silently never runs
      */
-    void generate(TypeElement app, Set<ExecutableElement> hooks) {
+    void generate(TypeElement app) {
+        this.app = app;
         // Taken by the generated code itself: a field named like a phase method's parameter or its local would
         // be shadowed by it, and the call would read the wrong thing without a word from javac.
         // "info" is the one zero-argument method Wiring declares, and each part now has an accessor named for
@@ -302,7 +317,7 @@ final class Generator {
             }
         }
         // A job is constructed as a component is, by its one constructor in the phase its parameters put it in, and
-        // then subscribed to its topic on the offload lane instead of being placed on one of its own.
+        // then subscribed to its topic on the job lane instead of being placed on one of its own.
         for (TypeElement j : graph.jobsSeen()) {
             Channels.JobChannel channel = channels.job(j);
             if (constructor(j) != null && channel != null) {
@@ -341,7 +356,6 @@ final class Generator {
             handedBackInTime(b);
             accessible(app, b);
         }
-        claimHooks(app, hooks);
         claimMailboxes(app);
         if (report.failed()) {
             return;
@@ -386,8 +400,17 @@ final class Generator {
             // Graph has refused an inbox anywhere but a component's constructor.
             if (element.getQualifiedName().contentEquals(Framework.INBOX) && b.component != null && b.job == null) {
                 AnnotationMirror hears = mirrors.find(b.component, Hears.class);
-                return new InboxArg(b.component.getQualifiedName().toString(),
+                return new InboxArg(b.component.getQualifiedName().toString(), declarations.lane(b.component),
                         hears == null ? List.of() : mirrors.strings(hears, "value"));
+            }
+            // Channels has refused a sender with no declared topic, and Graph a job's.
+            if (Channels.isSender(parameter) && Channels.sent(parameter) != null) {
+                String topic = topic(app, parameter, Channels.sent(parameter), null);
+                boolean component = b.component != null && b.job == null && !mirrors.has(b.component, View.class);
+                return new SenderArg(component
+                        ? Framework.INBOXES + ".sender(shell, " + literal(b.component.getQualifiedName().toString())
+                          + ", " + literal(declarations.lane(b.component)) + ", " + topic + ")"
+                        : "shell.senders().to(" + topic + ")");
             }
         }
         for (Slot s : slots) {
@@ -539,79 +562,30 @@ final class Generator {
         return element == null ? null : Framework.handBack(element.getQualifiedName().toString());
     }
 
-    // --- frame hooks -----------------------------------------------------------------------------------------
-
     /**
-     * Each {@code @BeforeFrame} method is claimed by the binding whose type declares or inherits it; one that no
-     * binding claims would never run, which is an error rather than a method that silently does nothing.
+     * The declared constant a channel of {@code payload} is, as the wiring writes it: what a mailbox subscribes to and a
+     * sender sends on, so the channel's kind is its declaration's and every subscriber hears it alike. {@link Channels}
+     * has refused a payload of the application's own with none or with several. A library's payload with none, or one
+     * several of its topics carry, is heard as the edge {@code named} names, which is what {@code @Subscribe} says.
      */
-    private void claimHooks(TypeElement app, Set<ExecutableElement> all) {
-        Set<ExecutableElement> claimed = new HashSet<>();
-        for (Binding b : bindings) {
-            TypeElement element = Mirrors.element(b.type);
-            if (element == null) {
-                continue;
-            }
-            for (Element member : elements.getAllMembers(element)) {
-                AnnotationMirror hook = mirrors.find(member, BeforeFrame.class);
-                if (member.getKind() == ElementKind.METHOD && hook != null) {
-                    ExecutableElement method = (ExecutableElement) member;
-                    b.hooks.add(new Hook(method, ((VariableElement) mirrors.value(hook, "value"))
-                            .getSimpleName().toString()));
-                    claimed.add(method);
-                    if (!visibleFrom(app, method)) {
-                        error(method, "@BeforeFrame " + Mirrors.where(method) + " is not visible from "
-                                + Mirrors.simple(app) + "'s package, where the generated wiring calls it. Make it"
-                                + " public");
-                    }
-                }
-            }
+    private String topic(TypeElement app, Element at, TypeMirror payload, String named) {
+        VariableElement constant = channels.topicOf(payload);
+        if (constant == null) {
+            return "sibarum.atchung.Topic.edge(" + literal(named) + ", "
+                    + Mirrors.element(payload).getQualifiedName() + ".class)";
         }
-        for (ExecutableElement hook : all) {
-            if (!claimed.contains(hook) && !mirrors.has(hook.getEnclosingElement(), Component.class)) {
-                error(hook, "@BeforeFrame " + Mirrors.where(hook) + " would never run: nothing the wiring builds is"
-                        + " of that type. Put the hook on the type a @Provides method returns, or provide the"
-                        + " type it is on");
-            }
+        if (!visibleFrom(app, constant) || !visibleFrom(app, constant.getEnclosingElement())) {
+            error(at, "the topic " + Topics.expression(constant) + " is not visible from " + Mirrors.simple(app)
+                    + "'s package, where the generated wiring names it. Make it public");
         }
-    }
-
-    /**
-     * The topic a view's mailbox is subscribed with. A widget's topics are state or edge, and a subscription takes its
-     * kind from the {@code Topic} it is given, so {@code Topic.of(name, type)}, which is always an edge, would hear a
-     * widget's state topic as edges and be refused beside the widget's own. So where the payload's enclosing type
-     * declares exactly one {@code public static final Topic} of the payload, as a widget does ({@code TextField.CHANGED}
-     * for {@code TextField.Changed}) and as {@code Messages} does, that constant is used, and {@code Views.mailbox}
-     * checks at startup that its name is the one {@code @Subscribe} gave. Otherwise an edge of the name.
-     */
-    private String viewTopic(Channels.Mailbox m) {
-        TypeElement payload = Mirrors.element(m.payload());
-        String fallback = "sibarum.atchung.Topic.of(" + literal(m.topic()) + ", " + payload.getQualifiedName()
-                + ".class)";
-        if (!(payload.getEnclosingElement() instanceof TypeElement owner)) {
-            return fallback;
-        }
-        String found = null;
-        for (Element e : owner.getEnclosedElements()) {
-            if (e.getKind() == ElementKind.FIELD && e.getModifiers().contains(Modifier.PUBLIC)
-                    && e.getModifiers().contains(Modifier.STATIC) && e.asType() instanceof DeclaredType t
-                    && Mirrors.element(t).getQualifiedName().contentEquals("sibarum.atchung.Topic")
-                    && t.getTypeArguments().size() == 1 && types.isSameType(t.getTypeArguments().get(0), m.payload())) {
-                if (found != null) {
-                    return fallback;
-                }
-                found = owner.getQualifiedName() + "." + e.getSimpleName();
-            }
-        }
-        return found != null ? found : fallback;
+        return Topics.expression(constant);
     }
 
     // --- mailboxes -------------------------------------------------------------------------------------------
 
     /**
-     * Each component's {@code @Subscribe} methods become mailboxes on its lane's placement, registered where the
-     * component is constructed. The lane's placement is made here too: a mailbox is the declaration that a component needs
-     * a thread, and nothing else asks for one.
+     * Each component's {@code @Subscribe} methods become mailboxes on its inbox, or a view's in its frame, subscribed
+     * where the component is constructed.
      */
     private void claimMailboxes(TypeElement app) {
         for (Binding b : bindings) {
@@ -620,8 +594,6 @@ final class Generator {
             }
             for (Channels.Mailbox m : channels.mailboxes(b.component)) {
                 b.mailboxes.add(m);
-                lanes.computeIfAbsent(declarations.lane(b.component),
-                        l -> field("lane" + capitalize(identifier(l))));
                 if (!visibleFrom(app, m.method())) {
                     error(m.method(), "@Subscribe " + m.where() + " is not visible from " + Mirrors.simple(app)
                             + "'s package, where the generated wiring hands it to the mailbox. Make it public");
@@ -645,7 +617,7 @@ final class Generator {
                     + Mirrors.simple(app) + "'s package, where the generated wiring constructs it");
         } else if (b.job != null && !visibleFrom(app, b.job.run())) {
             error(b.job.run(), Mirrors.where(b.job.run()) + " is not visible from " + Mirrors.simple(app)
-                    + "'s package, where the generated wiring hands it to the offload lane. Make it public");
+                    + "'s package, where the generated wiring hands it to the job lane. Make it public");
         }
     }
 
@@ -719,9 +691,6 @@ final class Generator {
         for (Slot s : slots) {
             src.append("    private ").append(s.type).append(' ').append(s.field).append(";\n");
         }
-        for (String lane : lanes.values()) {
-            src.append("    private ").append(Framework.PLACEMENT).append(' ').append(lane).append(";\n");
-        }
         src.append("\n    @Override\n    public ").append(Framework.APP_INFO).append(" info() {\n")
                 .append("        return INFO;\n    }\n");
         // What the application was built from: vexelray-build-maven-plugin wrote its bill into the class output before
@@ -771,7 +740,7 @@ final class Generator {
         // graph, which is an answer; a hand-written wiring has none.
         src.append("\n    /** The message graph this application declares (vexelray-inspector docs/bus-circuit.md, version 1). */\n")
                 .append("    static final String BUS_GRAPH =");
-        String[] lines = channels.text(graph.componentsSeen(), graph.jobsSeen()).split("\n");
+        String[] lines = channels.text(graph.componentsSeen(), graph.jobsSeen(), graph).split("\n");
         for (int i = 0; i < lines.length; i++) {
             src.append(i == 0 ? "\n            " : "\n            + ").append(literal(lines[i] + "\n"));
         }
@@ -924,36 +893,29 @@ final class Generator {
                 && closeable != null && types.isAssignable(b.type, closeable.asType())) {
             after.add("shell.disposer().register(" + field + ");");
         }
-        for (Hook h : b.hooks) {
-            after.add("shell.hooks().add(dev.vexelray.framework.api.FrameStage." + h.stage() + ", " + field + "::"
-                    + Mirrors.simple(h.method()) + ");");
-        }
         boolean view = b.component != null && mirrors.has(b.component, View.class);
         for (Channels.Mailbox m : b.mailboxes) {
-            if (view) {
-                after.add(Framework.VIEWS + ".mailbox(shell.gui(), " + literal(m.topic()) + ", " + viewTopic(m)
-                        + ", " + field + "::" + Mirrors.simple(m.method()) + ", " + m.capacity() + ");");
-                continue;
+            StringBuilder keys = new StringBuilder();
+            for (String k : m.keys()) {
+                keys.append(", ").append(literal(k));
             }
-            String lane = lanes.get(declarations.lane(b.component));
-            after.add("if (" + lane + " == null) {");
-            after.add("    " + lane + " = " + Framework.PLACEMENTS + ".of(shell, "
-                    + literal(declarations.lane(b.component)) + ");");
-            after.add("}");
-            after.add(Framework.PLACEMENTS + ".mailbox(" + lane + ", " + literal(m.name()) + ", sibarum.atchung.Topic.of("
-                    + literal(m.topic()) + ", "
-                    + Mirrors.element(m.payload()).getQualifiedName() + ".class), " + field + "::"
-                    + Mirrors.simple(m.method()) + ", " + m.capacity() + ", sibarum.atchung.Backpressure."
-                    + m.overflow().name() + ");");
+            String topic = topic(app, m.method(), m.payload(), m.topic());
+            String subscriber = field + "::" + Mirrors.simple(m.method());
+            after.add(view
+                    ? Framework.VIEWS + ".mailbox(shell.gui(), " + literal(m.topic()) + ", " + topic + ", " + subscriber
+                      + ", " + m.capacity() + keys + ");"
+                    : Framework.INBOXES + ".mailbox(shell, " + literal(b.component.getQualifiedName().toString())
+                      + ", " + literal(declarations.lane(b.component)) + ", " + literal(m.topic()) + ", " + topic + ", "
+                      + subscriber + ", " + m.capacity() + keys + ");");
         }
         if (b.job != null) {
             Channels.JobChannel j = b.job;
-            String request = "sibarum.atchung.Topic.of(" + literal(j.topic()) + ", "
+            String request = "sibarum.atchung.Topic.edge(" + literal(j.topic()) + ", "
                     + Mirrors.element(j.request()).getQualifiedName() + ".class)";
             after.add(j.replyType() == null
                     ? Framework.JOBS + ".effect(shell, " + literal(j.name()) + ", " + request + ", " + field + "::run);"
                     : Framework.JOBS + ".reply(shell, " + literal(j.name()) + ", " + request + ", " + field
-                      + "::run, sibarum.atchung.Topic.of(" + literal(j.reply()) + ", "
+                      + "::run, sibarum.atchung.Topic.edge(" + literal(j.reply()) + ", "
                       + Mirrors.element(j.replyType()).getQualifiedName() + ".class));");
         }
         // A provider may answer null, which means absent (Provides): reported here, once, since a provider is called

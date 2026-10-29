@@ -34,7 +34,8 @@ public interface CloseGate {
 
     /**
      * The window has been asked to close. Run {@code proceed} to let it, or {@code cancel} to keep it open; exactly one,
-     * once, from any thread. Called on the handler lane.
+     * once, from any thread. Called in the frame, on the main thread, so it must not block; phase 5 makes it a
+     * message, {@code CloseRequested}, answered by {@code CloseAnswer}.
      */
     void ask(Runnable proceed, Runnable cancel);
 }

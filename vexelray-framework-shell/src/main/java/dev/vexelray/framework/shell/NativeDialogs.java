@@ -11,7 +11,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /**
@@ -20,7 +21,9 @@ import java.util.function.Consumer;
  *
  * <p>Where a picker runs is {@code FileDialog}'s decision, not this class's: on Windows it is NFD's own dialog thread,
  * so the window keeps drawing behind it, and on macOS AppKit insists on the main thread, so the request is posted to
- * the frame loop. Either way the answer comes back on the handler lane, where an application's handlers run.
+ * the frame loop. Either way the answer comes back on a thread of this class's own, {@code vexel-dialog}: one of the
+ * operating system's dialog threads T1.1 names as not a lane. It still runs the callback an application handed in,
+ * which phase 5 replaces with a message ({@code Ask}/{@code Answer}, {@code PickFile}/{@code Picked}).
  *
  * <p>This is the text editor's {@code NativeDialogs}, moved here: it was written once and then needed by Vexplore's
  * folder chooser and Pix's opener, each of which took the {@code GuiApp} to reach it.
@@ -31,12 +34,15 @@ final class NativeDialogs implements Dialogs, AutoCloseable {
 
     private final GuiApp app;
     private final Modals modals;
-    private final Executor answers;
+    private final ExecutorService answers = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "vexel-dialog");
+        t.setDaemon(true);
+        return t;
+    });
 
-    NativeDialogs(GuiApp app, Modals modals, Executor answers) {
+    NativeDialogs(GuiApp app, Modals modals) {
         this.app = app;
         this.modals = modals;
-        this.answers = answers;
     }
 
     @Override
@@ -81,5 +87,6 @@ final class NativeDialogs implements Dialogs, AutoCloseable {
     @Override
     public void close() {
         Nfd.quit();
+        answers.shutdown();
     }
 }

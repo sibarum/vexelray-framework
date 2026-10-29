@@ -1,10 +1,7 @@
 package dev.vexelray.framework.processor;
 
-import dev.vexelray.framework.api.BeforeFrame;
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.Hears;
-import dev.vexelray.framework.api.MainThread;
-import dev.vexelray.framework.api.Overflow;
 import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.api.View;
@@ -15,12 +12,15 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -29,34 +29,39 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * The message graph, as far as declarations reach: every {@code @Subscribe} mailbox, every {@code @Publishes}
- * sender, and the rules that need both ends of a channel in view.
+ * The message graph, as far as declarations reach: every {@code @Subscribe} mailbox, every {@code Sender} a part takes
+ * and every {@code @Publishes}, and the rules that need both ends of a channel in view.
  *
  * <p><b>Why this could not exist before {@code @Subscribe}.</b> A mailbox used to be a {@code Placement.subscribe}
- * call in a body and a send a {@code bus.publish}, so the processor saw neither end of any channel. Declaring the
- * receiver's policy and the sender's topics is what makes a channel a fact the compiler holds — {@code
- * docs/threading.md} T4.5, <i>an emergent graph cannot be checked; a declared one can</i>.
+ * call in a body and a send a {@code bus.publish}, so the processor saw neither end of any channel. Declaring both ends
+ * is what makes a channel a fact the compiler holds ({@code docs/threading.md} T4.5, <i>an emergent graph cannot be
+ * checked; a declared one can</i>).
+ *
+ * <p><b>A send is declared by construction</b> (ROADMAP fork 5): a part that sends takes a {@code Sender<T>} in its
+ * constructor, one per topic, and the wiring builds it. A ledger's steps send through their {@code Out}, which no
+ * constructor shows, so a component with a ledger still lists those topics in {@code @Publishes}.
  *
  * <p><b>What is checked, and how far to trust it.</b>
  * <ul>
- *   <li><b>T4.1</b> — a topic subscribed both as an edge ({@code FAIL}, {@code BLOCK}) and as a sample (anything
- *       that loses) has no correct policy, and a topic name carrying two payload types is two channels one
- *       spelling apart.</li>
- *   <li><b>T2.4</b> — a mailbox payload that is not deeply immutable (the check half; the copier is not built).</li>
- *   <li><b>T4.4</b> — a cycle of declared sends between components that contains a blocking edge.</li>
- *   <li><b>T4.7</b> — main-thread code that declares a send on a topic any mailbox {@code BLOCK}s.</li>
+ *   <li><b>T4.1</b>: every topic a part hears or sends is a declared constant ({@link Topics}), one per payload, and
+ *       declares its kind; a topic name carries one payload type; a key filter is on a state topic.</li>
+ *   <li><b>T2.4</b>: a mailbox payload that is not deeply immutable.</li>
+ *   <li>In an application, a job's reply that nobody hears.</li>
  * </ul>
- * Both cover the compilation and what it declares. A subscriber in another module is not seen, and a send nobody
- * declared is not checked: this is a declared graph, not a proof about bodies.
+ * 0.1 also checked a blocking edge in a cycle (T4.4) and a blocking send from the main thread (T4.7). Under the tick no
+ * send blocks, so both hold by construction and their checks are gone with {@code Overflow}.
  *
- * <p>Mailboxes are read only off live components — the ones the graph keeps after {@code @ConditionalOnType} —
- * so a component that does not exist in this build cannot make a channel inconsistent.
+ * <p>Mailboxes are read only off live components, the ones the graph keeps after {@code @ConditionalOnType}, so a
+ * component that does not exist in this build cannot make a channel inconsistent.
  */
 final class Channels {
 
-    /** One declared mailbox. */
-    record Mailbox(TypeElement component, ExecutableElement method, String topic, TypeMirror payload,
-                   Overflow overflow, int capacity) {
+    /** atchung's {@code Sender}: a part that takes one declares a send on its payload's topic. */
+    static final String SENDER = "sibarum.atchung.Sender";
+
+    /** One declared mailbox. {@code keys} is its key filter, empty for every key (T4.8). */
+    record Mailbox(TypeElement component, ExecutableElement method, String topic, TypeMirror payload, int capacity,
+                   List<String> keys) {
 
         String where() {
             return Mirrors.where(method);
@@ -64,7 +69,7 @@ final class Channels {
 
         /**
          * {@code class#method}: the component that owns the mailbox, which for an inherited method is the subclass
-         * the wiring constructs, not the type that declares it. The pump's name for it and the graph's.
+         * the wiring constructs, not the type that declares it. The graph's name for it.
          */
         String name() {
             return component.getQualifiedName() + "#" + Mirrors.simple(method);
@@ -74,17 +79,21 @@ final class Channels {
     private final Mirrors mirrors;
     private final Elements elements;
     private final Messager messager;
+    private final Topics topics;
 
     private final Set<Element> publishers = new LinkedHashSet<>();
     /** The topics components declare they hear through their inboxes ({@code @Hears}), read in {@link #check}. */
-    private final Set<String> heard = new java.util.HashSet<>();
+    private final Set<String> heard = new HashSet<>();
+    /** The constants already judged, so one used in ten places is reported once. */
+    private final Set<VariableElement> judged = new HashSet<>();
     /** The widget library's package: what a widget publishes, and a view hears on the same thread. */
     private static final String GUI_PACKAGE = "dev.vexelray.gui.";
 
-    Channels(Mirrors mirrors, Elements elements, Messager messager) {
+    Channels(Mirrors mirrors, Elements elements, Messager messager, Topics topics) {
         this.mirrors = mirrors;
         this.elements = elements;
         this.messager = messager;
+        this.topics = topics;
     }
 
     void publishes(Element element) {
@@ -103,12 +112,32 @@ final class Channels {
             if (method.getParameters().size() != 1) {
                 continue; // Declarations has already said so.
             }
-            String overflow = ((Element) mirrors.value(subscribe, "overflow")).getSimpleName().toString();
             out.add(new Mailbox(component, method, mirrors.string(subscribe, "topic"),
-                    method.getParameters().get(0).asType(), Overflow.valueOf(overflow),
-                    (Integer) mirrors.value(subscribe, "capacity")));
+                    method.getParameters().get(0).asType(), (Integer) mirrors.value(subscribe, "capacity"),
+                    mirrors.strings(subscribe, "key")));
         }
         return out;
+    }
+
+    /** Whether {@code parameter} is a {@code Sender}: a declared send. */
+    static boolean isSender(VariableElement parameter) {
+        TypeElement type = Mirrors.element(parameter.asType());
+        return type != null && type.getQualifiedName().contentEquals(SENDER);
+    }
+
+    /** What a {@code Sender<T>} parameter sends: its {@code T}, or {@code null} for a raw one. */
+    static TypeMirror sent(VariableElement sender) {
+        return sender.asType() instanceof DeclaredType d && d.getTypeArguments().size() == 1
+                && d.getTypeArguments().get(0) instanceof DeclaredType t ? t : null;
+    }
+
+    /**
+     * The one declared constant a channel of {@code payload} is, or {@code null} when there is not exactly one: what
+     * the generated wiring names. {@link #check} has reported why when it is null.
+     */
+    VariableElement topicOf(TypeMirror payload) {
+        List<VariableElement> found = topics.declared(payload);
+        return found.size() == 1 ? found.get(0) : null;
     }
 
     /**
@@ -146,17 +175,28 @@ final class Channels {
             all.addAll(mailboxes(component));
         }
         for (Mailbox m : all) {
-            crossing(m);
+            // A payload that is not a plain class or interface is already an error where @Subscribe is declared, and one
+            // that cannot cross is the mailbox's first problem: its topic is asked about once it can carry anything.
+            if (m.payload() instanceof DeclaredType d && d.getTypeArguments().isEmpty() && crossing(m)) {
+                declared(m.method(), m.payload(), "@Subscribe " + m.where() + " hears "
+                        + Mirrors.simple(Mirrors.element(m.payload())), m.keys().isEmpty() ? null : m);
+            }
+        }
+        for (VariableElement s : senders(graph)) {
+            TypeMirror payload = sent(s);
+            if (payload == null) {
+                error(s, Mirrors.simple(s) + " is a Sender with no type argument. A sender is declared by what it"
+                        + " sends: take a Sender<T> of the payload, and the wiring finds T's topic");
+                continue;
+            }
+            declared(s, payload, describe(s) + " sends " + Mirrors.simple(Mirrors.element(payload)), null);
         }
         Map<String, List<Mailbox>> byTopic = new LinkedHashMap<>();
         for (Mailbox m : all) {
             byTopic.computeIfAbsent(m.topic(), t -> new ArrayList<>()).add(m);
         }
         for (Map.Entry<String, List<Mailbox>> e : byTopic.entrySet()) {
-            lossClasses(e.getKey(), e.getValue());
-        }
-        for (Element publisher : publishers) {
-            mainThreadSends(publisher, byTopic);
+            oneType(e.getKey(), e.getValue());
         }
         heard.clear();
         for (TypeElement component : graph.componentsSeen()) {
@@ -164,8 +204,86 @@ final class Channels {
                 heard.addAll(mirrors.strings(mirrors.find(component, Hears.class), "value"));
             }
         }
-        blockingCycles(new LinkedHashSet<>(graph.componentsSeen()), byTopic);
         jobs(graph.jobsSeen(), byTopic, application);
+    }
+
+    /**
+     * Every {@code Sender} parameter of a part the wiring builds: a component's or a view's constructor, and a
+     * provider's method. A job's is refused by {@link Graph}, since a job answers with its reply.
+     */
+    List<VariableElement> senders(Graph graph) {
+        List<VariableElement> out = new ArrayList<>();
+        for (TypeElement component : graph.componentsSeen()) {
+            ExecutableElement constructor = Graph.constructor(component);
+            if (constructor != null) {
+                for (VariableElement p : constructor.getParameters()) {
+                    if (isSender(p)) {
+                        out.add(p);
+                    }
+                }
+            }
+        }
+        for (Graph.Provider p : graph.providersSeen()) {
+            for (VariableElement v : p.method().getParameters()) {
+                if (isSender(v)) {
+                    out.add(v);
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * T4.1, the declaration: a channel of {@code payload} is one declared constant, which says its kind; and a key
+     * filter, when {@code filtered} has one, is on a state topic.
+     */
+    private void declared(Element at, TypeMirror payload, String what, Mailbox filtered) {
+        List<VariableElement> found = topics.declared(payload);
+        TypeElement type = Mirrors.element(payload);
+        if (found.size() != 1 && filtered == null && at instanceof ExecutableElement && !topics.inSource(type)) {
+            // A library's payload carried by several of its topics (a widget library's Chosen, on every widget that has
+            // a menu), or by none declared beside it: the @Subscribe names the channel, and the library's build was
+            // the one to judge its kind. The wiring hears it as the edge it names.
+            return;
+        }
+        if (found.isEmpty()) {
+            error(at, "T4.1: " + what + ", and no topic of it is declared. Declare one beside the payload, as a"
+                    + " static final Topic<" + Mirrors.simple(type) + "> in " + Mirrors.simple(type) + " or in the type"
+                    + " that encloses it, made with Topic.edge or Topic.state: the constant is the channel, and it"
+                    + " says whether every message counts or only the last one per key");
+            return;
+        }
+        if (found.size() > 1) {
+            List<String> names = new ArrayList<>();
+            found.forEach(v -> names.add(Mirrors.simple(v)));
+            error(at, "T4.1: " + what + ", and " + names.size() + " topics of it are declared (" + String.join(", ",
+                    names) + "). A channel is found by its payload, so each topic carries a type of its own: give"
+                    + " each a record of its own");
+            return;
+        }
+        VariableElement constant = found.get(0);
+        kind(constant);
+        if (filtered != null && topics.readAsEdge(constant)) {
+            error(filtered.method(), "T4.8: @Subscribe " + filtered.where() + " filters by key " + filtered.keys()
+                    + ", and " + Mirrors.simple(constant) + " is an edge. Only a state topic has keys: hear every"
+                    + " message, or declare the topic with Topic.state and the key it is written by");
+        }
+    }
+
+    /**
+     * T4.1: a topic declared in this compilation's source says its kind. Every {@code static final Topic} the rounds
+     * offer is judged, whether or not anything here hears it, and each once.
+     */
+    void kind(VariableElement constant) {
+        if (!judged.add(constant)) {
+            return;
+        }
+        String why = topics.undeclaredKind(constant);
+        if (why != null) {
+            error(constant, "T4.1: the topic " + Mirrors.simple(constant) + " does not declare its kind: " + why
+                    + ". Make it with Topic.edge (every message, in order) or Topic.state (the last write per key in a"
+                    + " tick), so every subscriber agrees on what the channel carries");
+        }
     }
 
     /**
@@ -221,21 +339,14 @@ final class Channels {
         }
     }
 
-    /** T4.1. */
-    private void lossClasses(String topic, List<Mailbox> mailboxes) {
+    /** T4.1: one topic name, one payload type, across every mailbox on it. */
+    private void oneType(String topic, List<Mailbox> mailboxes) {
         Mailbox first = mailboxes.get(0);
         for (Mailbox m : mailboxes.subList(1, mailboxes.size())) {
             if (!m.payload().toString().equals(first.payload().toString())) {
                 error(m.method(), "T4.1: the topic \"" + topic + "\" carries " + first.payload() + " to "
                         + first.where() + " and " + m.payload() + " to " + m.where() + ". A topic is a name and a"
                         + " type, so these are two channels that happen to share a spelling: rename one");
-            } else if (m.overflow().edge() != first.overflow().edge()) {
-                Mailbox edge = first.overflow().edge() ? first : m;
-                Mailbox sample = first.overflow().edge() ? m : first;
-                error(m.method(), "T4.1: the topic \"" + topic + "\" is an edge to " + edge.where() + " ("
-                        + edge.overflow() + ") and a sample to " + sample.where() + " (" + sample.overflow()
-                        + "). A channel carrying both classes cannot be given a correct policy, because every"
-                        + " choice is wrong for half the traffic: split the channel");
             }
         }
     }
@@ -246,18 +357,15 @@ final class Channels {
      * <p>Every mailbox is a crossing in principle: a publisher on another lane, or on the main thread, hands it a
      * value, and which publishers there are is not something declarations can bound. So the payload has to be
      * deeply immutable ({@link Shareable}). The copier that would let a mutable payload cross as a copy is not
-     * built, so for now it is refused here, at the receiving method, naming the first thing that stops it.
+     * built, so for now it is refused here, at the receiving method, naming the first thing that stops it. Whether it
+     * can cross.
      */
-    private void crossing(Mailbox m) {
-        // A payload that is not a plain class or interface is already an error where @Subscribe is declared.
-        if (!(m.payload() instanceof javax.lang.model.type.DeclaredType d) || !d.getTypeArguments().isEmpty()) {
-            return;
-        }
+    private boolean crossing(Mailbox m) {
         // A view's mailbox is drained on the GUI thread, where the widgets publish, so a widget library message heard
         // there has crossed nothing (T7.4). What else a view hears, a controller's message, is checked as any payload.
         if (mirrors.has(m.component(), View.class) && Mirrors.element(m.payload()).getQualifiedName().toString()
                 .startsWith(GUI_PACKAGE)) {
-            return;
+            return true;
         }
         String why = Shareable.crossing(m.payload());
         if (why != null) {
@@ -268,114 +376,7 @@ final class Channels {
                     + " of those, and lists, sets and maps of those. Send a record of the values instead of the"
                     + " object that holds them");
         }
-    }
-
-    /** One declared send from a component to another's mailbox: the sender, the topic, and the mailbox it reaches. */
-    private record Edge(TypeElement from, String topic, Mailbox to) {
-        boolean blocks() {
-            return to.overflow().blocks();
-        }
-    }
-
-    /**
-     * T4.4: no cycle in the message graph may contain a blocking edge.
-     *
-     * <p>Nodes are components; an edge is a component's declared send ({@code @Publishes} on the type or on one of
-     * its methods) to a component's mailbox on that topic. A cycle is not the hazard, since request and response is
-     * one and is ordinary with asynchronous mailboxes. A cycle with a {@link Overflow#BLOCK} edge is: the sender
-     * waits for room in a mailbox whose owner cannot drain because it is waiting too. A self-send is the smallest
-     * case, a component blocking on its own full mailbox, which no one else can ever drain.
-     *
-     * <p>This is the rule as threading.md states it, which is wider than the strict deadlock condition (every edge
-     * on the cycle blocking). A cycle with a non-blocking hop does not deadlock; it fails when the mailbox on that
-     * hop fills, which ends the process. It is rejected anyway, because the blocking hop is what turns a full
-     * mailbox into a stall instead of an immediate, named failure. Sends nobody declared are not in the graph.
-     */
-    private void blockingCycles(Set<TypeElement> components, Map<String, List<Mailbox>> byTopic) {
-        Map<TypeElement, List<Edge>> out = new LinkedHashMap<>();
-        for (Element publisher : publishers) {
-            TypeElement from = owner(publisher, components);
-            if (from == null) {
-                continue;
-            }
-            for (String topic : mirrors.strings(mirrors.find(publisher, Publishes.class), "value")) {
-                for (Mailbox m : byTopic.getOrDefault(topic, List.of())) {
-                    out.computeIfAbsent(from, c -> new ArrayList<>()).add(new Edge(from, topic, m));
-                }
-            }
-        }
-        Set<String> reported = new LinkedHashSet<>();
-        for (List<Edge> edges : out.values()) {
-            for (Edge blocking : edges) {
-                if (!blocking.blocks()) {
-                    continue;
-                }
-                List<Edge> back = path(out, blocking.to().component(), blocking.from());
-                if (back == null) {
-                    continue;
-                }
-                List<Edge> cycle = new ArrayList<>();
-                cycle.add(blocking);
-                cycle.addAll(back);
-                Set<String> members = new java.util.TreeSet<>();
-                cycle.forEach(e -> members.add(Mirrors.simple(e.from())));
-                if (reported.add(String.join(",", members))) {
-                    error(blocking.to().method(), "T4.4: " + describe(cycle) + ". " + blocking.to().where() + " has a "
-                            + blocking.to().overflow() + " mailbox, so a sender on this cycle waits for room in a"
-                            + " mailbox whose owner may be waiting on the next one: nothing drains and nothing fails."
-                            + " Make that mailbox FAIL, so a full one is an immediate, named failure, or break the"
-                            + " cycle");
-                }
-            }
-        }
-    }
-
-    /** The shortest declared path from one component to another, or null; an empty path when they are the same. */
-    private static List<Edge> path(Map<TypeElement, List<Edge>> out, TypeElement start, TypeElement goal) {
-        if (start.equals(goal)) {
-            return new ArrayList<>();
-        }
-        Map<TypeElement, Edge> reached = new LinkedHashMap<>();
-        java.util.ArrayDeque<TypeElement> queue = new java.util.ArrayDeque<>();
-        queue.add(start);
-        reached.put(start, null);
-        while (!queue.isEmpty()) {
-            TypeElement at = queue.poll();
-            for (Edge e : out.getOrDefault(at, List.of())) {
-                TypeElement next = e.to().component();
-                if (reached.containsKey(next)) {
-                    continue;
-                }
-                reached.put(next, e);
-                if (next.equals(goal)) {
-                    java.util.LinkedList<Edge> found = new java.util.LinkedList<>();
-                    for (Edge step = e; step != null; step = reached.get(step.from())) {
-                        found.addFirst(step);
-                    }
-                    return found;
-                }
-                queue.add(next);
-            }
-        }
-        return null;
-    }
-
-    private static String describe(List<Edge> cycle) {
-        StringBuilder sb = new StringBuilder("a blocking cycle in the message graph: ");
-        for (Edge e : cycle) {
-            sb.append(Mirrors.simple(e.from())).append(" -[").append(e.topic()).append(e.blocks() ? ", BLOCK" : "")
-                    .append("]-> ");
-        }
-        return sb.append(Mirrors.simple(cycle.get(0).from())).toString();
-    }
-
-    /** The component a send is declared on: the type itself, or the type a declaring method belongs to. */
-    private static TypeElement owner(Element publisher, Set<TypeElement> components) {
-        Element e = publisher;
-        while (e != null && !(e instanceof TypeElement)) {
-            e = e.getEnclosingElement();
-        }
-        return e instanceof TypeElement type && components.contains(type) ? type : null;
+        return why == null;
     }
 
     // --- the graph, as text ----------------------------------------------------------------------------------
@@ -384,22 +385,23 @@ final class Channels {
      * T4.5's "exposing the graph": what this class holds, written as version 1 of the bus-graph text
      * (vexelray-inspector {@code docs/bus-circuit.md} §1), for the generated wiring's {@code BUS_GRAPH}.
      *
-     * <p>Wider than what the checks walk in one place: {@link #blockingCycles} drops a send whose owner is not a
-     * component, because only components are nodes of that rule, but a {@code Ui} that publishes is a sender the
-     * Inspector draws, so here it is a {@code publisher}. A {@code @Publishes} on a component this build does not
-     * construct ({@code @ConditionalOnType}) is left out, as its mailboxes are. Each section is sorted, so two builds
-     * of the same declarations give the same text.
+     * <p>A part that sends but hears nothing, a {@code Ui} or a recipe, is a {@code publisher}. A send on a component
+     * this build does not construct ({@code @ConditionalOnType}) is left out, as its mailboxes are. Every mailbox's
+     * {@code overflow} is {@code FAIL}, which is what the tick does with an edge one more than its capacity, and a state
+     * topic never reaches. Each section is sorted, so two builds of the same declarations give the same text.
      */
-    String text(Collection<TypeElement> components, Collection<TypeElement> jobs) {
+    String text(Collection<TypeElement> components, Collection<TypeElement> jobs, Graph graph) {
         Set<TypeElement> live = new LinkedHashSet<>(components);
         List<String> chips = new ArrayList<>();
         List<String> pins = new ArrayList<>();
+        Map<String, String> nameOf = new LinkedHashMap<>();
         for (TypeElement c : live) {
             chips.add("component " + c.getQualifiedName() + " lane=" + (mirrors.has(c, View.class) ? View.LANE
                     : mirrors.string(mirrors.find(c, Component.class), "lane")));
             for (Mailbox m : mailboxes(c)) {
-                pins.add("mailbox " + m.name() + " topic=" + m.topic() + " type="
-                        + Mirrors.element(m.payload()).getQualifiedName() + " overflow=" + m.overflow().name()
+                String type = Mirrors.element(m.payload()).getQualifiedName().toString();
+                nameOf.putIfAbsent(type, m.topic());
+                pins.add("mailbox " + m.name() + " topic=" + m.topic() + " type=" + type + " overflow=FAIL"
                         + " capacity=" + m.capacity());
             }
         }
@@ -407,8 +409,7 @@ final class Channels {
         Set<String> sends = new TreeSet<>();
         for (Element publisher : publishers) {
             TypeElement type = enclosingType(publisher);
-            if (type == null
-                    || (!live.contains(type) && mirrors.has(type, Component.class))) {
+            if (type == null || (!live.contains(type) && mirrors.has(type, Component.class))) {
                 continue;
             }
             if (!live.contains(type)) {
@@ -417,6 +418,25 @@ final class Channels {
             for (String topic : mirrors.strings(mirrors.find(publisher, Publishes.class), "value")) {
                 sends.add("publishes " + type.getQualifiedName() + " topic=" + topic);
             }
+        }
+        for (VariableElement s : senders(graph)) {
+            TypeElement type = enclosingType(s);
+            TypeMirror payload = sent(s);
+            VariableElement constant = payload == null ? null : topicOf(payload);
+            if (type == null || constant == null) {
+                continue;
+            }
+            String name = topics.name(constant);
+            if (name == null) {
+                name = nameOf.get(Mirrors.element(payload).getQualifiedName().toString());
+            }
+            if (name == null) {
+                continue;   // a name built at run time, which nothing here hears: no line to draw it on
+            }
+            if (!live.contains(type)) {
+                others.add("publisher " + type.getQualifiedName() + " lane=-");
+            }
+            sends.add("publishes " + type.getQualifiedName() + " topic=" + name);
         }
         // A job answers on its reply topic, so it is a sender the Inspector draws. Where its requests arrive has no
         // line in version 1 of the text: a mailbox there is a component's, drained on a lane, and a job has neither.
@@ -446,38 +466,9 @@ final class Channels {
         return (TypeElement) e;
     }
 
-    /** T4.7. */
-    private void mainThreadSends(Element publisher, Map<String, List<Mailbox>> byTopic) {
-        if (!onMainThread(publisher)) {
-            return;
-        }
-        AnnotationMirror publishes = mirrors.find(publisher, Publishes.class);
-        for (String topic : mirrors.strings(publishes, "value")) {
-            for (Mailbox m : byTopic.getOrDefault(topic, List.of())) {
-                if (m.overflow().blocks()) {
-                    error(publisher, "T4.7: " + describe(publisher) + " runs on the main thread and declares a send"
-                            + " on \"" + topic + "\", where " + m.where() + " has a " + m.overflow() + " mailbox."
-                            + " A blocking send from the main thread to a lane that has stopped draining freezes"
-                            + " the window. Make that mailbox FAIL, or coalesce it if it is a sample");
-                    break;
-                }
-            }
-        }
-    }
-
-    /**
-     * Main-thread by declaration: a {@code @MainThread} type or method, a frame hook, or a method of a
-     * {@code @MainThread} type.
-     */
-    private boolean onMainThread(Element element) {
-        if (mirrors.has(element, MainThread.class) || mirrors.has(element, BeforeFrame.class)) {
-            return true;
-        }
-        return element.getKind() == ElementKind.METHOD && mirrors.has(element.getEnclosingElement(), MainThread.class);
-    }
-
-    private static String describe(Element element) {
-        return element instanceof ExecutableElement method ? Mirrors.where(method) : Mirrors.simple(element);
+    private static String describe(VariableElement parameter) {
+        Element owner = parameter.getEnclosingElement();
+        return owner instanceof ExecutableElement method ? Mirrors.where(method) : Mirrors.simple(owner);
     }
 
     private void error(Element element, String message) {

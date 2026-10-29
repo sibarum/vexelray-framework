@@ -268,11 +268,7 @@ final class Graph {
             return;
         }
         String name = Mirrors.simple(component);
-        TypeElement placement = Mirrors.element(parameter.asType());
-        if (placement != null && placement.getQualifiedName().contentEquals(Framework.PLACEMENT)) {
-            error(parameter, name + " takes a Placement, which is the container's. A component does not make or"
-                    + " hold its own: declare its mailboxes with @Subscribe and its lane with @Component(lane = ...),"
-                    + " and the generated wiring places it");
+        if (refused(name, parameter)) {
             return;
         }
         boolean view = mirrors.has(component, View.class);
@@ -289,10 +285,10 @@ final class Graph {
         if (isInbox(parameter)) {
             for (Element member : component.getEnclosedElements()) {
                 if (mirrors.has(member, Subscribe.class)) {
-                    error(member, name + " takes its Inbox and also declares a @Subscribe mailbox. A component that"
-                            + " takes its inbox runs on the logic lane and hears everything there; a mailbox would"
-                            + " run on a lane of its own, so two threads would reach one component's state. Hear the"
-                            + " topic in the inbox instead (a ledger's Builder.on, or Inbox.subscribe)");
+                    error(member, name + " takes its Inbox and also declares a @Subscribe mailbox. A component hears"
+                            + " one way: a component that takes its inbox subscribes there itself and lists what it"
+                            + " hears in @Hears, which a mailbox the wiring adds would contradict. Hear the topic in"
+                            + " the inbox instead (a ledger's Builder.on, or Inbox.subscribe)");
                     break;
                 }
             }
@@ -302,22 +298,76 @@ final class Graph {
         String main = view ? null : whyOnMain(parameter.asType(), providers);
         if (main != null) {
             error(parameter, "T2.2: " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
-                    + main + "), and " + name + " is a @Component, which runs on a lane of its own. A"
-                    + " main-thread value may be injected only into something that is itself main-thread."
+                    + main + "), and " + name + " is a @Component, which runs in the logic's ticks. A"
+                    + " main-thread value is the framework's, and no application part but a view takes one."
                     + " Publish to it instead of holding it");
         }
         TypeElement other = Mirrors.element(parameter.asType());
         if (other != null && mirrors.has(other, Component.class)) {
-            String here = declarations.lane(component);
-            String there = declarations.lane(other);
-            if (!here.equals(there)) {
-                error(parameter, "T2.3: " + name + " (lane \"" + here + "\") holds " + Mirrors.simple(other)
-                        + " (lane \"" + there + "\"). A direct reference between two components is permitted"
-                        + " only where they share a thread; across lanes, behaviour is reached by publishing,"
-                        + " never by holding");
-            }
+            error(parameter, "T2.3: " + name + " holds " + Mirrors.simple(other) + ". A component never holds another,"
+                    + " on one lane or two: two components talk by messages whether or not they share a thread, so"
+                    + " moving one to a lane of its own costs capacity and never behaviour. Send it a message");
+        }
+        if (!view && isComputeQueue(parameter) && declarations.lane(component).equals(Component.DEFAULT_LANE)) {
+            error(parameter, "T3.1: " + name + " takes the ComputeQueue and runs on the logic lane, so every other"
+                    + " component's tick would wait on its submissions. Declare a lane of its own,"
+                    + " @Component(lane = ...), whose thread alone submits to the queue");
+        }
+        if (!view && main == null && other != null && !mirrors.has(other, Component.class)) {
+            provided(name, parameter, providers);
         }
         heldJob(name, parameter);
+    }
+
+    /**
+     * T2.6: a value provided to a component is shareable, or a framework service. A provided value can be injected into
+     * any number of parts, so one that is not deeply immutable is state two owners hold. The framework's own values are
+     * its table's ({@link Framework#ROOTS}), and a component's own sender and inbox are the wiring's, made for it alone.
+     */
+    private void provided(String component, VariableElement parameter, List<Provider> providers) {
+        TypeMirror type = parameter.asType();
+        TypeElement element = Mirrors.element(type);
+        if (isInbox(parameter) || Channels.isSender(parameter) || element == null
+                || Framework.root(element.getQualifiedName().toString()) != null) {
+            return;
+        }
+        for (Provider p : providers) {
+            if (types.isSameType(p.type(), type)) {
+                String why = Shareable.why(type);
+                if (why != null) {
+                    error(parameter, "T2.6: " + component + " takes " + Mirrors.simple(parameter) + ", which "
+                            + Mirrors.where(p.method()) + " provides, and it is not shareable: " + why + ". A provided"
+                            + " value can reach any number of parts, so one that can change is state they all hold."
+                            + " Provide a record of immutable values, or make the state a component's and reach it"
+                            + " by messages");
+                }
+                return;
+            }
+        }
+    }
+
+    /**
+     * T2.5 and T4.5: what no application part takes ({@link Framework#REFUSED}), and an executor of any kind. Whether
+     * {@code parameter} was one, so the caller says nothing more about it.
+     */
+    private boolean refused(String who, VariableElement parameter) {
+        TypeElement type = Mirrors.element(parameter.asType());
+        if (type == null) {
+            return false;
+        }
+        String why = Framework.REFUSED.get(type.getQualifiedName().toString());
+        if (why == null) {
+            TypeElement executor = elements.getTypeElement("java.util.concurrent.Executor");
+            if (executor != null && types.isAssignable(types.erasure(parameter.asType()), executor.asType())) {
+                why = "T2.5: an executor runs whatever it is handed on a thread nothing declares. Work that blocks is"
+                        + " a @Job, and a component that needs a core declares @Component(lane = ...)";
+            }
+        }
+        if (why != null) {
+            error(parameter, who + " takes " + Mirrors.simple(parameter) + ", a " + Mirrors.simple(type) + ". " + why);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -330,15 +380,14 @@ final class Graph {
             return;
         }
         String where = Mirrors.where(provider.method());
+        if (refused(where, parameter)) {
+            return;
+        }
         String main = whyOnMain(parameter.asType(), providers);
-        if (main != null && !provider.onMain()) {
+        if (main != null) {
             error(parameter, "T2.2: " + where + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
-                    + main + (provider.effect()
-                        ? "), and it is not @MainThread. A recipe run for its effect that takes a main-thread value"
-                          + " runs on the main thread: mark " + where + " @MainThread to say so"
-                        : "), and what it provides is not @MainThread. A main-thread value may be injected"
-                          + " only into something that is itself main-thread: mark " + where + " @MainThread if its"
-                          + " value lives there too"));
+                    + main + "). A main-thread value is the framework's, and no application code runs on the main"
+                    + " thread (T7.1): reach it by a message, or show what the application decided through a @View");
         }
         if (isComputeQueue(parameter)) {
             error(parameter, "T3.1: " + where + " takes the ComputeQueue, which is lent to one @Component and to"
@@ -350,11 +399,6 @@ final class Graph {
             error(parameter, "T3.7: " + where + " takes the component " + Mirrors.simple(other) + ". The"
                     + " container hands out a channel or a shareable value, never the object, and a provided"
                     + " value holding a component would carry it to whoever asks for that value");
-        }
-        if (other != null && other.getQualifiedName().contentEquals(Framework.PLACEMENT)) {
-            error(parameter, where + " takes a Placement, which is a component's thread and mailboxes, and the"
-                    + " container's. Nothing is handed one: declare mailboxes with @Subscribe and the lane with"
-                    + " @Component(lane = ...)");
         }
         if (isInbox(parameter)) {
             error(parameter, where + " takes an Inbox, which is a component's own: what arrives there runs on the"
@@ -371,7 +415,7 @@ final class Graph {
     }
 
     /**
-     * A job's constructor parameter. A job runs on the offload lane, a pool, so it is a crossing on every request:
+     * A job's constructor parameter. A job runs on the job lane, a pool, so it is a crossing on every request:
      * never a main-thread value (T2.2), never a component (T2.3, which a pool has no lane to share), never the compute
      * queue (T3.1). And never another job, which is reached by publishing like any.
      */
@@ -380,16 +424,25 @@ final class Graph {
             return;
         }
         String name = Mirrors.simple(job);
+        if (refused("@Job " + name, parameter)) {
+            return;
+        }
+        if (Channels.isSender(parameter)) {
+            error(parameter, "@Job " + name + " takes " + Mirrors.simple(parameter) + ", a Sender. A job answers with"
+                    + " its reply, which the wiring publishes, and sends nothing else: a request that leads to more is"
+                    + " a component's to follow");
+            return;
+        }
         String main = whyOnMain(parameter.asType(), providers);
         if (main != null) {
             error(parameter, "T2.2: @Job " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
-                    + main + "), and a job runs on the offload lane. Answer with what the main thread needs, and let"
+                    + main + "), and a job runs on the job lane. Answer with what the main thread needs, and let"
                     + " a subscriber that is the main thread's act on it");
         }
         TypeElement other = Mirrors.element(parameter.asType());
         if (other != null && (mirrors.has(other, Component.class) || mirrors.has(other, View.class))) {
             error(parameter, "T2.3: @Job " + name + " takes the component " + Mirrors.simple(other) + ". A job runs"
-                    + " on the offload lane, which shares a thread with no component: carry what it needs in the"
+                    + " on the job lane, which shares a thread with no component: carry what it needs in the"
                     + " request, and answer in the reply");
         }
         if (isComputeQueue(parameter)) {
@@ -508,7 +561,7 @@ final class Graph {
     }
 
     /** The one non-private constructor, or {@code null} when there is not exactly one — already reported. */
-    private static ExecutableElement constructor(TypeElement type) {
+    static ExecutableElement constructor(TypeElement type) {
         ExecutableElement found = null;
         for (Element e : type.getEnclosedElements()) {
             if (e.getKind() == ElementKind.CONSTRUCTOR && !e.getModifiers().contains(Modifier.PRIVATE)) {

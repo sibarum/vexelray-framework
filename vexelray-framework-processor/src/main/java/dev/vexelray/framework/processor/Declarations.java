@@ -2,7 +2,6 @@ package dev.vexelray.framework.processor;
 
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.Configuration;
-import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Setting;
 import dev.vexelray.framework.api.Subscribe;
@@ -84,11 +83,6 @@ final class Declarations {
                     + " have exactly one. The container does not pick between them, and there is no @Inject"
                     + " to break a tie that is better not created");
         }
-        if (mirrors.has(type, MainThread.class)) {
-            error(type, "T2.1: " + name + " is both a @Component and @MainThread. A component owns a thread"
-                    + " of its own, and a value has exactly one colour; the main thread is not a lane a"
-                    + " component can be placed on");
-        }
         if (mirrors.has(type, View.class)) {
             if (mirrors.has(type, Component.class)) {
                 error(type, name + " is both a @Component and a @View. A component's mailboxes run on a lane, a"
@@ -99,14 +93,55 @@ final class Declarations {
         }
         String lane = lane(type);
         if (lane.isBlank()) {
-            error(type, "@Component " + name + " has a blank lane. The lane is the component's thread, named"
-                    + " vexel-component-<lane> in a thread dump, and components sharing a lane are the only"
-                    + " ones that may hold each other");
+            error(type, "@Component " + name + " has a blank lane. A declared lane is a thread of its own, named"
+                    + " vexel-component-<lane> in a thread dump; leave the lane out to run on the logic lane with"
+                    + " every other component");
         } else if (!lane.equals(Component.DEFAULT_LANE) && !LANE_NAME.matcher(lane).matches()) {
             error(type, "@Component " + name + " has the lane \"" + lane + "\", which is not a name. A lane is a"
                     + " letter followed by letters, digits, '.', '_' or '-'; that is what keeps the default lane's"
                     + " reserved name from being something an application could write by accident");
         }
+        for (Element e : type.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)) {
+                synchronised(name, (VariableElement) e);
+            }
+        }
+    }
+
+    /**
+     * T2.7: a component's state is touched by its own deliveries and nothing else, one at a time, so a field asking for
+     * synchronisation is evidence that something else touches it. Decidable from the declaration: a {@code volatile}
+     * field, an {@code Atomic*}, anything of {@code java.util.concurrent} (its locks included), or a functional
+     * interface, which is code somebody else will run.
+     */
+    private void synchronised(String component, VariableElement field) {
+        String why = null;
+        if (field.getModifiers().contains(Modifier.VOLATILE)) {
+            why = "is volatile";
+        } else if (field.asType() instanceof DeclaredType d && d.asElement() instanceof TypeElement t) {
+            String qualified = t.getQualifiedName().toString();
+            if (qualified.startsWith("java.util.concurrent.")) {
+                why = "is a " + Mirrors.simple(t) + ", from java.util.concurrent";
+            } else if (functional(t)) {
+                why = "is a " + Mirrors.simple(t) + ", a functional interface: code that some other caller runs";
+            }
+        }
+        if (why != null) {
+            error(field, "T2.7: " + component + "'s field " + Mirrors.simple(field) + " " + why + ". A component's"
+                    + " state is changed by its own deliveries, one at a time, and by nothing else, so it needs no"
+                    + " synchronisation and holds no callback: keep a plain field, and reach anything else by a"
+                    + " message");
+        }
+    }
+
+    /** A functional interface by declaration, or one of the JDK's: what a field holding code looks like. */
+    private boolean functional(TypeElement type) {
+        if (type.getKind() != ElementKind.INTERFACE) {
+            return false;
+        }
+        String qualified = type.getQualifiedName().toString();
+        return qualified.equals("java.lang.Runnable") || qualified.startsWith("java.util.function.")
+                || mirrors.find(type, FunctionalInterface.class) != null;
     }
 
     private static final java.util.regex.Pattern LANE_NAME = java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9._-]*");
@@ -385,26 +420,27 @@ final class Declarations {
     // --- @BeforeFrame ----------------------------------------------------------------------------------------
 
     /**
-     * A frame hook is a no-argument call on the main thread, in the frame budget, that must not throw.
+     * Refused (T7.1, ROADMAP fork 4): a frame hook is application code on the main thread, in the frame budget, and
+     * none runs there. The framework keeps its own hooks ({@code FrameHooks}), which no application part is handed.
      */
     void beforeFrame(ExecutableElement method) {
-        String where = Mirrors.where(method);
-        if (!method.getParameters().isEmpty()) {
-            error(method, "@BeforeFrame " + where + " takes parameters, and a frame hook is called with none");
-        }
-        if (!method.getThrownTypes().isEmpty()) {
-            error(method, "@BeforeFrame " + where + " declares " + method.getThrownTypes() + ". A hook that"
-                    + " throws is stopped for the rest of the run and never called again: drop this frame's"
-                    + " work rather than throw");
-        }
-        if (method.getModifiers().contains(Modifier.PRIVATE)) {
-            error(method, "@BeforeFrame " + where + " is private, so the generated frame array cannot call it");
-        }
-        if (mirrors.has(method.getEnclosingElement(), Component.class)) {
-            error(method, "@BeforeFrame " + where + " is on a @Component. The frame is the main thread's, and"
-                    + " no component enters it: a hook here would run on the main thread against state that"
-                    + " belongs to the component's own. Publish to the component instead");
-        }
+        error(method, "@BeforeFrame " + Mirrors.where(method) + ": no application code runs on the main thread"
+                + " (T7.1), and a frame hook is exactly that. Work done over time belongs to a @Component that hears a"
+                + " Timer's beat; what changes on screen every frame is a view's, told by messages, or a widget's"
+                + " motion (vexelray-gui's Tween); and a picture paced by the display is the frame contract's"
+                + " (vexelray-gui docs/plans/frame-contract.md)");
+    }
+
+    /**
+     * Refused (T7.1, ROADMAP fork 4): a {@code @MainThread} part is application code on the main thread. The main
+     * thread's values are the framework's, marked in its own table ({@code Framework.ROOTS}), and no part of an
+     * application is one.
+     */
+    void mainThread(Element element) {
+        error(element, "@MainThread on " + (element instanceof ExecutableElement method ? Mirrors.where(method)
+                : Mirrors.simple(element)) + ": no application code runs on the main thread (T7.1). The window, Vulkan"
+                + " and present are the framework's; an application reaches them by messages, and shows what it"
+                + " decided through a @View");
     }
 
     // --- @Subscribe ------------------------------------------------------------------------------------------
@@ -453,6 +489,11 @@ final class Declarations {
         if ((Integer) mirrors.value(subscribe, "capacity") < 1) {
             error(method, "@Subscribe " + where + " has a capacity below one. A mailbox holds at least a message");
         }
+        List<String> keys = mirrors.strings(subscribe, "key");
+        if (keys.stream().anyMatch(String::isBlank) || keys.size() != new java.util.HashSet<>(keys).size()) {
+            error(method, "@Subscribe " + where + " filters by the keys " + keys + ", which has a blank or a repeated"
+                    + " one. Name each key it is handed once, or leave the filter out to be handed every key");
+        }
     }
 
     // --- @Job ------------------------------------------------------------------------------------------------
@@ -478,10 +519,9 @@ final class Declarations {
             error(type, "@Job " + name + " is an inner class, so constructing it needs an instance of the class"
                     + " around it, and it would hold that instance. Make it static, or top-level");
         }
-        if (mirrors.has(type, Component.class) || mirrors.has(type, MainThread.class)) {
-            error(type, "@Job " + name + " is also a " + (mirrors.has(type, Component.class) ? "@Component" : "@MainThread")
-                    + ". A job runs on the offload lane, a pool with no order and no state; a component has a lane"
-                    + " of its own and the main thread is not a lane at all");
+        if (mirrors.has(type, Component.class)) {
+            error(type, "@Job " + name + " is also a @Component. A job runs on the job lane, a pool with no order and"
+                    + " no state; a component runs in the logic's ticks, one delivery at a time");
         }
         int constructors = 0;
         for (Element e : type.getEnclosedElements()) {
@@ -491,7 +531,7 @@ final class Declarations {
             if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)
                     && !e.getModifiers().contains(Modifier.FINAL)) {
                 error(e, "@Job " + name + " has the field " + Mirrors.simple(e) + ", which is not final. Two requests"
-                        + " may run at once on the offload lane, so a job holds no state that changes: keep it in the"
+                        + " may run at once on the job lane, so a job holds no state that changes: keep it in the"
                         + " component that sent the request, and carry what the job needs in the request");
             }
         }
@@ -556,7 +596,7 @@ final class Declarations {
         if (why != null) {
             error(run, "T2.4: " + where + "'s " + what + " on \"" + topic + "\" is " + type + ", and it cannot cross"
                     + " a lane as itself: " + why + ". Requests and replies cross between the sender's lane and the"
-                    + " offload lane, so they are deeply immutable: primitives, strings, enums, records and final"
+                    + " job lane, so they are deeply immutable: primitives, strings, enums, records and final"
                     + " classes of those, and lists, sets and maps of those");
         }
     }

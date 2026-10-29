@@ -35,7 +35,8 @@ import java.util.function.Consumer;
  * application's dialogs in place of the framework's — a test's that answers each question as it is asked, a kiosk's
  * that refuses to browse — and every part that takes {@code Dialogs} is then asking that one, in a headless run as
  * well as a windowed one. The framework's own is a {@code Modals} dialog for a {@link Modal}, and NFD's native pickers,
- * both parented to the main window, with the answer delivered on the handler lane.
+ * both parented to the main window, with the answer delivered on the dialogs' own thread, {@code vexel-dialog}, until
+ * phase 5 makes the question and its answer messages.
  *
  * <p><b>Every question has two ends, and both are answered.</b> A picker calls {@code picked} or {@code cancelled},
  * exactly once, and a failure to show it at all is a cancel: an application that only handles the pick leaves its

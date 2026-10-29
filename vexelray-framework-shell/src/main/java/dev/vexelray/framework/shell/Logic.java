@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.core.Lanes;
 import dev.vexelray.framework.core.WakeSource;
@@ -9,7 +10,9 @@ import sibarum.atchung.Step;
 import sibarum.atchung.Tick;
 import sibarum.atchung.Topic;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -17,25 +20,38 @@ import java.util.TreeSet;
 import java.util.concurrent.locks.LockSupport;
 
 /**
- * The logic lane: the application's components' inboxes, drained together by one {@link Tick} on one thread of their
- * own (ROADMAP fork 2, *one logic lane by default*; {@code docs/threading.md} §0 and §5).
+ * The logic lane: the application's components' inboxes, drained together by one {@link Tick} (ROADMAP fork 2, *one
+ * logic lane by default*; {@code docs/threading.md} §0, T1.6 and §5).
  *
- * <p>A component that takes an {@link Inbox} in its constructor is given its own here, named after it, and owns it:
- * every message it hears arrives there, and whatever it runs on them (a ledger's steps) runs on this thread, one
- * delivery at a time, in rounds whose order is fixed by the order the inboxes were made and by nothing that depends
- * on timing. Many components, one thread, no locks: what keeps them apart is that none holds another (T2.3), not
- * which thread each is on.
+ * <p><b>Every component is here.</b> One that takes an {@link Inbox} in its constructor is given its own, named after
+ * it, and owns it; one that declares {@code @Subscribe} methods has each of them subscribed on an inbox the wiring makes
+ * for it. Every message a component hears arrives there, and whatever it runs on them runs one delivery at a time, in
+ * rounds whose order is fixed by the order the inboxes were made and by nothing that depends on timing. Many
+ * components, one thread, no locks: what keeps them apart is that none holds another (T2.3), not which thread each is
+ * on.
  *
- * <p><b>What this owns is the thread and its wake</b>, as {@link Placement} does for a component on a lane of its own;
- * the tick owns the order. A message published from outside the tick is staged by atchung and ends this thread's park;
- * the thread runs one tick to quiescence or to its deadline, and if that tick delivered anything it wakes the frame
- * loop, because a component that ran has produced work the loop could not predict ({@link WakeSource}). A tick that
- * stopped at its deadline with work left runs again at once, without parking.
+ * <p><b>A declared lane is a lane of the same tick.</b> A component that declares one
+ * ({@code @Component(lane = "physics")}) has its inbox on a lane of its own, which a {@link Crew} thread,
+ * {@code vexel-component-<lane>}, delivers in parallel with the rest of each round: a core for heavy work, in the same
+ * rounds and the same order as everything else (T5.6).
  *
- * <p><b>Made when the first component asks for an inbox, started with the placements</b>, after the wiring's
+ * <p><b>What this owns is the thread and its wake</b>; the tick owns the order. A message published from outside the
+ * tick is staged by atchung and ends this thread's park; the thread runs one tick to quiescence or to its deadline, and
+ * if that tick delivered anything it wakes the frame loop, because a component that ran has produced work the loop
+ * could not predict ({@link WakeSource}). A tick that stopped at its deadline with work left runs again at once,
+ * without parking.
+ *
+ * <p><b>Where the tick runs is a deployment mode</b> (T1.7, ROADMAP fork 4). By default this owns a thread,
+ * {@code vexel-logic}. With {@code --logic=main} it owns none: an arrival wakes the frame loop instead, and the frame runs
+ * the tick on the main thread ({@link #runOnMain}: the framework's own {@code APP} hook, or
+ * {@code VexelApplication.frame} when headless), with every declared lane delivered there too, in lane order. The
+ * deliveries are the same in both, because the order is the tick's and not the thread's, so nothing an application
+ * holds can tell which mode it is in.
+ *
+ * <p><b>Made when the first component asks for an inbox, started with the components</b>, after the wiring's
  * {@code ATTACH} has returned, so every publisher exists before anything is delivered, and every inbox exists before
  * the tick first runs, which is when the tick fixes their order. An application has none of this to call: the
- * generated wiring hands a component its inbox through {@link Inboxes}.
+ * generated wiring hands a component its inbox, its mailboxes and its senders through {@link Inboxes}.
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class Logic implements WakeSource, AutoCloseable {
@@ -58,7 +74,12 @@ public final class Logic implements WakeSource, AutoCloseable {
 
     private final Tick tick;
     private final Lanes lanes;
+    private final boolean onMain;
     private final Map<String, Inbox> inboxes = new HashMap<>();
+    /** The lane each inbox was made on, so one component asking for two is caught. */
+    private final Map<String, String> laneOf = new HashMap<>();
+    /** The declared lanes, in the order first asked for: lane {@code i + 1} of the tick is the {@code i}th. */
+    private final Map<String, Integer> declaredLanes = new LinkedHashMap<>();
     /** What each inbox's component declared it hears, for the inboxes whose component declared. */
     private final Map<String, Set<String>> declared = new HashMap<>();
 
@@ -67,28 +88,72 @@ public final class Logic implements WakeSource, AutoCloseable {
     private volatile boolean running;
     private volatile boolean stopped;
     private volatile Thread thread;
+    /** The declared lanes' threads, or null when there are none or the ticks run on the main thread. */
+    private Crew crew;
+    private Tick.Lanes runner = Tick.ONE_THREAD;
+    /** Whether the last tick on the main thread stopped at its deadline. The main thread's alone. */
+    private boolean carriedOnMain;
 
+    /** The logic lane on a thread of its own: the default mode. */
     Logic(Atchung bus, Lanes lanes) {
+        this(bus, lanes, false);
+    }
+
+    /** The logic lane, with its ticks run on the main thread when {@code onMain} (single-thread mode, T1.7). */
+    Logic(Atchung bus, Lanes lanes, boolean onMain) {
         this.tick = bus.tick(this::arrived);
         this.lanes = lanes;
+        this.onMain = onMain;
+    }
+
+    /** The inbox named {@code name} on the logic lane's own share of the tick. */
+    Inbox inbox(String name) {
+        return inbox(name, Component.DEFAULT_LANE);
     }
 
     /**
-     * The inbox named {@code name}, made the first time it is asked for. Before {@link #start} only: the tick fixes
-     * the order of its inboxes when it first runs.
+     * The inbox named {@code name} on {@code lane} ({@link Component#DEFAULT_LANE} for the logic lane's own share),
+     * made the first time it is asked for. Before {@link #start} only: the tick fixes the order of its inboxes when it
+     * first runs.
      */
-    Inbox inbox(String name) {
+    Inbox inbox(String name, String lane) {
         Inbox in = inboxes.get(name);
-        if (in == null) {
-            in = tick.inbox(name);
-            inboxes.put(name, in);
+        if (in != null) {
+            if (!laneOf.get(name).equals(lane)) {
+                throw new IllegalStateException(name + " asked for its inbox on lane " + lane + " and on lane "
+                        + laneOf.get(name) + ": a component is on one lane");
+            }
+            return in;
         }
+        if (running || stopped) {
+            throw new IllegalStateException("inbox " + name + " asked for after the logic lane started: the wiring"
+                    + " makes every inbox before the first tick fixes their order");
+        }
+        int index = Component.DEFAULT_LANE.equals(lane) ? 0
+                : declaredLanes.computeIfAbsent(lane, l -> declaredLanes.size() + 1);
+        in = tick.inbox(name, index);
+        inboxes.put(name, in);
+        laneOf.put(name, lane);
         return in;
     }
 
-    /** A message was staged for the next tick: end the park. On the publisher's thread, holding no lock. */
+    /** Whether the ticks run on the main thread ({@code --logic=main}). */
+    boolean onMain() {
+        return onMain;
+    }
+
+    /**
+     * A message was staged for the next tick: end the park, or, when the ticks run on the main thread, ask the loop for
+     * the frame that runs one. On the publisher's thread, holding no lock.
+     */
     private void arrived() {
         arrived = true;
+        if (onMain) {
+            if (running) {
+                wake.run();
+            }
+            return;
+        }
         Thread t = thread;
         if (t != null) {
             LockSupport.unpark(t);
@@ -100,13 +165,27 @@ public final class Logic implements WakeSource, AutoCloseable {
         this.wake = onWake == null ? () -> { } : onWake;
     }
 
-    /** Start the thread. Called by the container with the placements; idempotent. */
+    /** Start the lane. Called by the container with the components; idempotent. */
     void start() {
         if (running || stopped) {
             return;
         }
         checkDeclarations();
+        List<String> names = new ArrayList<>(declaredLanes.keySet());
+        if (!onMain && !names.isEmpty()) {
+            crew = new Crew(lanes, lanes.busy(LANE), names);
+            runner = crew;
+        } else {
+            runner = inTurn(names);
+        }
         running = true;
+        if (onMain) {
+            // Whatever arrived before the start is waiting for a tick: ask for the frame that runs it.
+            if (arrived) {
+                wake.run();
+            }
+            return;
+        }
         thread = lanes.logic(this::runUntilStopped);
     }
 
@@ -142,8 +221,28 @@ public final class Logic implements WakeSource, AutoCloseable {
         }
     }
 
+    /**
+     * Run a tick on the calling thread, the main thread, if anything arrived or was carried over: the frame's share of
+     * single-thread mode. Does nothing in the default mode, where the lane's own thread runs every tick, or before the
+     * lane has started.
+     *
+     * @return whether a tick ran and delivered anything
+     */
+    boolean runOnMain() {
+        if (!onMain || !running || (!arrived && !carriedOnMain)) {
+            return false;
+        }
+        arrived = false;
+        int delivered = runTick();
+        carriedOnMain = tick.carried();
+        if (carriedOnMain) {
+            // The rest waits for the next frame, which nothing else would ask for.
+            wake.run();
+        }
+        return delivered > 0;
+    }
+
     private void runUntilStopped() {
-        Lanes.Busy busy = lanes.busy(LANE);
         boolean carried = false;
         while (running) {
             if (!carried && !arrived) {
@@ -151,38 +250,75 @@ public final class Logic implements WakeSource, AutoCloseable {
                 continue;
             }
             arrived = false;
-            busy.enter();
-            try {
-                if (tick.run(System.nanoTime() + DEADLINE_NANOS) > 0) {
-                    wake.run();
-                }
-                carried = tick.carried();
-            } catch (RuntimeException | Error e) {
-                // As a placement's: a step or a subscriber threw and nothing declared it, so what it was handling is
-                // lost and its state is whatever the throw left. Ruled 2026-10-18: that ends the application, through
-                // the process-wide fault policy, except while stopping, when the framework asked for the interrupt.
-                if (!running) {
-                    dev.vexelray.diag.Diagnostics.dropped("the logic lane", "a delivery while stopping", e.toString());
-                    return;
-                }
-                Atchung.fatal().fault(new IllegalStateException(
-                        "the logic lane threw from a delivery, and nothing declared the failure: " + e, e));
-                throw e;
-            } finally {
-                busy.exit();
+            if (runTick() > 0) {
+                wake.run();
             }
+            carried = tick.carried();
         }
-        // The last tick after the flag went down, so a stop does not leave a staged edge undelivered.
-        tick.run(System.nanoTime() + DEADLINE_NANOS);
+        lastTick();
     }
 
-    /** Stop: say so, end the park, and wait for the last tick. Idempotent. */
+    /**
+     * Every lane of a round on the calling thread, in lane order, each watched by its own gauge, so a wedged declared
+     * lane is reported by its name even when one thread runs them all: single-thread mode, or no declared lane.
+     */
+    private Tick.Lanes inTurn(List<String> declared) {
+        Lanes.Busy[] gauges = new Lanes.Busy[declared.size() + 1];
+        gauges[0] = lanes.busy(LANE);
+        for (int i = 0; i < declared.size(); i++) {
+            gauges[i + 1] = lanes.busy(declared.get(i));
+        }
+        return (count, work) -> {
+            for (int i = 0; i < count; i++) {
+                Lanes.Busy busy = gauges[Math.min(i, gauges.length - 1)];
+                busy.enter();
+                try {
+                    work.lane(i);
+                } finally {
+                    busy.exit();
+                }
+            }
+        };
+    }
+
+    /** One tick, with a throw nothing declared sent to the fault policy. */
+    private int runTick() {
+        try {
+            return tick.run(System.nanoTime() + DEADLINE_NANOS, runner);
+        } catch (RuntimeException | Error e) {
+            // A step or a subscriber threw and nothing declared it, so what it was handling is lost and its state is
+            // whatever the throw left. Ruled 2026-10-18: that ends the application, through the process-wide fault
+            // policy, except while stopping, when the framework asked for the interrupt.
+            if (!running) {
+                dev.vexelray.diag.Diagnostics.dropped("the logic lane", "a delivery while stopping", e.toString());
+                return 0;
+            }
+            Atchung.fatal().fault(new IllegalStateException(
+                    "the logic lane threw from a delivery, and nothing declared the failure: " + e, e));
+            throw e;
+        }
+    }
+
+    /** The last tick after the flag went down, so a stop does not leave a staged edge undelivered. */
+    private void lastTick() {
+        try {
+            tick.run(System.nanoTime() + DEADLINE_NANOS, runner);
+        } catch (RuntimeException | Error e) {
+            dev.vexelray.diag.Diagnostics.dropped("the logic lane", "a delivery while stopping", e.toString());
+        }
+    }
+
+    /**
+     * Stop: say so, end the park, and wait for the last tick; then let the declared lanes go. In single-thread mode the
+     * last tick runs here, on the thread closing the application. Idempotent.
+     */
     @Override
     public void close() {
         if (stopped) {
             return;
         }
         stopped = true;
+        boolean wasRunning = running;
         running = false;
         Thread t = thread;
         if (t != null) {
@@ -192,6 +328,11 @@ public final class Logic implements WakeSource, AutoCloseable {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        } else if (onMain && wasRunning) {
+            lastTick();
+        }
+        if (crew != null) {
+            crew.close();
         }
     }
 }

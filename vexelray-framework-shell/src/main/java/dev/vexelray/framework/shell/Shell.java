@@ -79,8 +79,8 @@ public final class Shell {
     private final HeldDialogs dialogs = new HeldDialogs();
     private final Lanes lanes;
     private final Watchdog watchdog;
-    /** Components placed but not yet started. See {@link #place} for why those are two different moments. */
-    private final List<Placement> placements = new ArrayList<>();
+    /** Where the ticks run, read from the launch when the shell is made, so a bad value fails before anything is built. */
+    private final boolean logicOnMain;
     /** The logic lane, made when the first component asks for an inbox; null when none does. */
     private Logic logic;
 
@@ -109,6 +109,7 @@ public final class Shell {
         this.info = info;
         this.lanes = lanes;
         this.watchdog = new Watchdog(lanes);
+        this.logicOnMain = logicOnMain(launch);
         // First registration, so it is the last thing closed: the halt it arms is the backstop for the rest of the
         // teardown, and a backstop that closed early would be disarmed by the very shutdown it exists to bound.
         disposer.register(watchdog);
@@ -238,27 +239,6 @@ public final class Shell {
     }
 
     /**
-     * <b>The application's threads</b> — the handler lane, the offload lane, and the component threads.
-     *
-     * <p>The second of the two things the concurrency model needed, and the one that was not true until the
-     * pool upstream stopped being a field initializer. {@code Gui} used to build a {@code newCachedThreadPool}
-     * whatever it was handed, so passing an executor redirected input handlers and left the pool standing: an
-     * application's thread count was a property of how many trees it happened to hold rather than of anything
-     * it decided, and placement could not be decided in the wiring because there was nothing to decide it
-     * <em>with</em>.
-     *
-     * <p><b>Available in every phase</b>, for the same reason the bus is: a lane is what the phases are built
-     * on rather than something one of them builds. A component placed in {@link Phase#MODEL}, before there is
-     * a {@code Gui} at all, is exactly the case this is heading for.
-     *
-     * <p><b>Owned rather than accepted</b>, again like the bus. An application that already has an executor it
-     * means to share is a real case and would want the other arrangement; the seam to add when somebody has
-     * one is an overload of {@code run}, not a change here.
-     *
-     * <p>Closed last, after every tree presented on it — registered with the {@link #disposer()} before
-     * anything else exists, which is what makes that ordering structural rather than remembered.
-     */
-    /**
      * A sender for any topic, for what a gesture declares it sends: a view's shortcut, menu item or dialog button.
      * Every phase, like the bus. See {@link Senders}.
      */
@@ -266,62 +246,95 @@ public final class Shell {
         return senders;
     }
 
-    public Lanes lanes() {
+    /**
+     * <b>The application's threads</b>: the logic lane's, the declared lanes', and the job lane.
+     *
+     * <p><b>Not public</b>, since 0.2: what runs where is the framework's to decide, from the declarations, and a lane
+     * handed to an application is a thread it could run anything on (T2.5, T7.2). Closed last, after every tree
+     * presented on it: registered with the {@link #disposer()} before anything else exists, which is what makes that
+     * ordering structural rather than remembered.
+     */
+    Lanes lanes() {
         return lanes;
     }
 
+    /** The launch setting choosing where the ticks run ({@code docs/threading.md} T1.7). */
+    static final String LOGIC = "logic";
+
     /**
-     * A component's thread, mailboxes and wake, registered for start and shutdown. <b>Not public</b>: the
-     * generated wiring reaches it through {@link Placements}, and an application does not call it, because
-     * placement is decided on the declaration ({@code @Component(lane = ...)}) where the processor can check it
-     * and never at a later moment in a method body (T1.3, and {@code docs/components.md}, ruling 2).
+     * Whether {@code --logic} asks for the ticks on the main thread: {@code main}, or {@code thread}, the default.
      *
-     * <p>Returns a {@link Placement} with nothing running on it: it is given its mailboxes, and the framework
-     * starts it once every component is constructed. Start order is distinct from construction order because a
-     * mailbox must not pump before its publishers exist, and that is a rule the container keeps rather than one
-     * a wiring is trusted to remember.
-     *
-     * <p><b>Available in every phase</b>, like the bus and the lanes it is built from, so a component in
-     * {@link Phase#MODEL}, two phases before there is a {@code Gui}, can be placed.
-     *
-     * <p><b>The wake comes with it, and there is nothing to call.</b> Every placement is registered as a
-     * {@code WakeSource} when it starts, and wakes the loop itself after any drain that delivered something.
-     * A wake an application has to remember is a window which is responsive except for the interactions that
-     * happened to arrive that way, a bug this stack has already paid for twice.
-     *
-     * <p>Closed in reverse placement order at shutdown, drain then stop, before the lanes themselves go.
-     *
-     * @param name what the component is called — on its thread and in whatever reports on it later
+     * @throws IllegalArgumentException for any other value, which is a launch the application cannot honour
      */
-    Placement place(String name) {
-        Placement placement = new Placement(name, bus, lanes);
-        placements.add(placement);
-        disposer.register(placement);
-        return placement;
+    static boolean logicOnMain(Launch launch) {
+        String where = launch.override(LOGIC);
+        if (where == null || where.equals("thread")) {
+            return false;
+        }
+        if (where.equals("main")) {
+            return true;
+        }
+        throw new IllegalArgumentException("--" + LOGIC + "=" + where + ": the logic runs on a thread of its own"
+                + " (thread) or on the main thread (main)");
+    }
+
+    /** Whether the logic's ticks run on the main thread ({@code --logic=main}, T1.7). */
+    boolean logicOnMain() {
+        return logicOnMain;
     }
 
     /**
-     * A component's inbox on the logic lane ({@link Logic}), made the first time its name is asked for. <b>Not
-     * public</b>, as {@link #place} is not: the generated wiring reaches it through {@link Inboxes}, for a component
-     * that takes an {@code Inbox} in its constructor. The lane is made with the first inbox and started with the
-     * placements, and closed at shutdown with them.
+     * The logic lane ({@link Logic}), made the first time a component asks for anything on it, in the mode the launch
+     * chose: a thread of its own by default, the main thread with {@code --logic=main} (T1.7).
      */
-    Inbox inbox(String name) {
+    private Logic logic() {
         if (logic == null) {
-            logic = new Logic(bus, lanes);
+            logic = new Logic(bus, lanes, logicOnMain);
             disposer.register(logic);
         }
-        return logic.inbox(name);
+        return logic;
     }
 
     /**
-     * As {@link #inbox(String)}, for a component that declared what it hears ({@code @Hears}): when the lane starts,
-     * the inbox must be subscribed to exactly those topics and its ledgers' own, or the application does not start.
+     * A component's inbox on the logic lane ({@link Logic}), on {@code lane}, made the first time its name is asked
+     * for. <b>Not public</b>: the generated wiring reaches it through {@link Inboxes}, for every component, whether it
+     * takes its {@code Inbox} or declares {@code @Subscribe} methods. Placement is decided on the declaration
+     * ({@code @Component(lane = ...)}), where the processor can check it, and never in a method body (T1.3). The lane
+     * is made with the first inbox, started with the components, and closed at shutdown before the lanes go.
      */
-    Inbox inbox(String name, java.util.List<String> hears) {
-        Inbox in = inbox(name);
+    Inbox inbox(String name, String lane) {
+        return logic().inbox(name, lane);
+    }
+
+    /** As {@link #inbox(String, String)}, on the logic lane's own share. */
+    Inbox inbox(String name) {
+        return inbox(name, dev.vexelray.framework.api.Component.DEFAULT_LANE);
+    }
+
+    /**
+     * As {@link #inbox(String, String)}, for a component that declared what it hears ({@code @Hears}): when the lane
+     * starts, the inbox must be subscribed to exactly those topics and its ledgers' own, or the application does not
+     * start.
+     */
+    Inbox inbox(String name, String lane, List<String> hears) {
+        Inbox in = inbox(name, lane);
         logic.declare(name, hears);
         return in;
+    }
+
+    /** As {@link #inbox(String, String, List)}, on the logic lane's own share. */
+    Inbox inbox(String name, List<String> hears) {
+        return inbox(name, dev.vexelray.framework.api.Component.DEFAULT_LANE, hears);
+    }
+
+    /**
+     * In single-thread mode, run the logic's tick on this thread, the main thread, if anything is waiting for one: what
+     * a frame calls. Nothing in the default mode, where the logic lane's own thread runs every tick.
+     */
+    void runLogicOnMain() {
+        if (logic != null) {
+            logic.runOnMain();
+        }
     }
 
     /**
@@ -800,24 +813,18 @@ public final class Shell {
     }
 
     /**
-     * Start every placed component, each with its wake already connected.
+     * Start the components: the logic lane, with its wake already connected.
      *
      * <p>Called once, after the wiring's {@code ATTACH} has returned and before the loop begins — so every
-     * publisher a component might hear from exists, and every component's own thread starts at the same known
-     * moment rather than wherever its constructor happened to sit.
+     * publisher a component might hear from exists, and the first tick runs at a known moment rather than wherever
+     * a constructor happened to sit.
      *
-     * <p>The wake is connected <em>before</em> the thread starts, because a component whose first drain
-     * publishes something would otherwise announce it into a wake that is still a no-op. There is no wake in a
-     * headless {@code tree} run, where there is no loop to nudge; a placement with none simply does not nudge
-     * one, which is the same shape as the accessor that refuses before its phase.
+     * <p>The wake is connected <em>before</em> the lane starts, because a component whose first delivery publishes
+     * something would otherwise announce it into a wake that is still a no-op. There is no wake in a headless
+     * {@code tree} run, where there is no loop to nudge; the lane then simply does not nudge one, which is the same
+     * shape as the accessor that refuses before its phase.
      */
     void startComponents() {
-        for (Placement placement : placements) {
-            if (app != null) {
-                placement.onWake(app::postWake);
-            }
-            placement.start();
-        }
         if (logic != null) {
             if (app != null) {
                 logic.onWake(app::postWake);

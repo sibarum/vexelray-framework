@@ -24,6 +24,7 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
@@ -45,19 +46,23 @@ import java.util.Set;
  * vocabulary promises, and all of the colour rule that does not depend on a copier:
  *
  * <ul>
- *   <li><b>T2.2</b> — a main-thread value, by its type's {@code @MainThread} or by a {@code @MainThread}
- *       provider's, injected into a component or into a provider whose value is not main-thread.</li>
- *   <li><b>T2.3</b> — one component holding another on a different lane.</li>
+ *   <li><b>T7.1</b> — no application code on the main thread: {@code @BeforeFrame} and {@code @MainThread} are
+ *       refused, and so is a part taking a main-thread value (T2.2), save a view.</li>
+ *   <li><b>T2.3</b> — one component holding another, on any lane.</li>
  *   <li><b>T3.7</b> — a provider holding a component, which would carry it to anyone who asks.</li>
- *   <li><b>T2.1</b> — a component that is also {@code @MainThread}.</li>
+ *   <li><b>T2.5, T4.5</b> — the raw bus, a lane or an executor handed to an application part: a part sends by
+ *       taking a {@code Sender<T>}, and runs where the framework puts it.</li>
+ *   <li><b>T4.1</b> — every topic declared in source says its kind ({@code Topic.edge} or {@code Topic.state}), and
+ *       every topic a part hears or sends is such a constant, found by its payload ({@link Channels}).</li>
+ *   <li><b>T2.6, T2.7</b> — a provided value a component takes is shareable or a framework service, and a
+ *       component's fields ask for no synchronisation.</li>
  *   <li>Two providers for one type in one mode, with {@code @Default}'s back-off and {@code @OnMode}'s and
  *       {@code @ConditionalOnType}'s guards taken into account.</li>
  *   <li>A {@code @Job}'s shape and its two messages, and the components and jobs a configuration lists, which is
  *       how one compiled in another module reaches the wiring at all.</li>
  *   <li>The shapes: one non-private constructor, a {@code @Provides} inside a configuration returning an
  *       interface when the type is this build's own, a {@code @Setting} whose type has an accessor and whose
- *       default parses, a {@code @BeforeFrame} that takes nothing, throws nothing, and is not a component's,
- *       starters that are configurations, and one {@code @VexelApp}.</li>
+ *       default parses, starters that are configurations, and one {@code @VexelApp}.</li>
  *   <li><b>A ledger's steps</b> ({@link StepCheck}): what is certainly wrong in a step's body, a capture, a static
  *       written, a lock, a known effect or wait. Read from bodies rather than declarations, in every class of the
  *       compilation once javac has analyzed it, so the processor asks for {@code *} to be started at all.</li>
@@ -88,7 +93,6 @@ public final class VexelProcessor extends AbstractProcessor {
     private TypeElement app;
     private Report report;
     private boolean checked;
-    private final Set<ExecutableElement> hooks = new LinkedHashSet<>();
     /** Every component and job read so far, so one a round offers and a configuration also lists is checked once. */
     private final Set<TypeElement> parts = new LinkedHashSet<>();
 
@@ -99,7 +103,7 @@ public final class VexelProcessor extends AbstractProcessor {
         mirrors = new Mirrors(env.getElementUtils());
         declarations = new Declarations(mirrors, report);
         graph = new Graph(mirrors, declarations, env.getElementUtils(), env.getTypeUtils(), report);
-        channels = new Channels(mirrors, env.getElementUtils(), report);
+        channels = new Channels(mirrors, env.getElementUtils(), report, new Topics(env));
         generator = new Generator(mirrors, declarations, graph, channels, env.getElementUtils(), env.getTypeUtils(),
                 report,
                 env.getFiler());
@@ -162,13 +166,20 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(BeforeFrame.class)) {
             declarations.beforeFrame((ExecutableElement) e);
-            hooks.add((ExecutableElement) e);
+        }
+        for (Element e : round.getElementsAnnotatedWith(MainThread.class)) {
+            declarations.mainThread(e);
         }
         for (Element e : round.getElementsAnnotatedWith(Subscribe.class)) {
             declarations.subscribe((ExecutableElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Publishes.class)) {
             channels.publishes(e);
+        }
+        for (Element e : round.getRootElements()) {
+            if (e instanceof TypeElement type) {
+                topics(type);
+            }
         }
         // Generated in the round the application is seen, not the last one: javac compiles nothing created in
         // the final round, and the application's main names the wiring. Every source of a clean build is in the
@@ -178,7 +189,7 @@ public final class VexelProcessor extends AbstractProcessor {
             graph.check();
             channels.check(graph, true);
             if (!report.failed()) {
-                generator.generate(app, hooks);
+                generator.generate(app);
             }
         } else if (round.processingOver() && !checked) {
             // A library -- a starter compiled on its own. Checked, and there is nothing to generate for.
@@ -246,6 +257,20 @@ public final class VexelProcessor extends AbstractProcessor {
         if (parts.add(type)) {
             declarations.job(type);
             graph.job(type);
+        }
+    }
+
+    /** Every {@code static final Topic} declared in {@code type} and the types it encloses, judged for its kind (T4.1). */
+    private void topics(TypeElement type) {
+        for (Element member : type.getEnclosedElements()) {
+            if (member instanceof TypeElement nested) {
+                topics(nested);
+            } else if (member.getKind() == ElementKind.FIELD && member.getModifiers().contains(Modifier.STATIC)
+                    && member.getModifiers().contains(Modifier.FINAL)
+                    && member.asType() instanceof javax.lang.model.type.DeclaredType d
+                    && Mirrors.element(d).getQualifiedName().contentEquals("sibarum.atchung.Topic")) {
+                channels.kind((VariableElement) member);
+            }
         }
     }
 

@@ -8,6 +8,12 @@ import java.lang.annotation.Target;
 /**
  * Calls this no-argument method once per frame, in the given {@link FrameStage}, before the tree is reconciled.
  *
+ * <p><b>Refused in an application since 0.2</b> (T7.1, ROADMAP fork 4): no application code runs on the main thread,
+ * and {@code vexelray-framework-processor} reports this annotation wherever it finds it, naming what replaces it: a
+ * component hearing a {@code Timer}, a view told by messages, a widget's motion, or the frame contract. It is kept so
+ * that refusal can name the replacement, rather than an application meeting a symbol that is simply gone. What follows
+ * is what it did in 0.1.
+ *
  * <p>Generated as a direct call from an array walked in stage order — no listener list, no iterator, no
  * megamorphic dispatch, and nothing allocated per frame. This is the difference that matters between a frame
  * hook and a Spring application event: an event published sixty times a second through a reflective multicaster

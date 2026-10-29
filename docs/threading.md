@@ -88,17 +88,19 @@ dialog threads. They are listed in one place (`Lanes`' javadoc), never run appli
 only by publishing.
 
 *0.1 had a **handler lane** here, an unbounded cached pool that ran every click, key and selection handler. It is
-withdrawn: a widget's event is a message (T3.8), so there is no handler to run.* *(owed, phases 3 and 4: the
-handler pool is built in `Lanes.java:81` and passed to every `Gui`)*
+withdrawn: a widget's event is a message (T3.8), so there is no handler to run.* *(held: phase 3 took the handler from
+every `Gui`, and phase 4 the pool from `Lanes`, which mints the logic lane's, the declared lanes' and the job lane's
+threads and no others, `LanesTest.theLanesAreNamedApart`)*
 
 The timeline is a lane in the sense that matters here: a confinement domain, single-threaded by construction,
 entered from `FrameStage.CLOCK`. Whether it is physically the main thread or a carrier of Kronometer's own is
 Kronometer's business; what is normative is T3.2.
 
 **T1.2 — Each lane has exactly one name, used everywhere.** The logic lane is `vexel-logic`, a declared lane
-`vexel-component-<name>`, the job lane `vexel-job`. *(held for the 0.1 names by `LanesTest` in both repos, and for
-the logic lane's by `LogicTest.componentsOnTheLogicLaneShareOneThreadThatIsNotThePublishers`; owed for the job
-lane's, phase 4. The name is load-bearing in the thread dump somebody reaches for when one lane is the problem)*
+`vexel-component-<name>`, the job lane `vexel-job`. *(held by `LanesTest.theLanesAreNamedApart` for all three, the job
+lane's threads being `vexel-job-<n>`; by `LogicTest.componentsOnTheLogicLaneShareOneThreadThatIsNotThePublishers`
+for the logic lane's in use, and by `aLedgersStepRunsOnTheLaneAndWhatItSendsReachesADeclaredLane` for a declared
+lane's. The name is load-bearing in the thread dump somebody reaches for when one lane is the problem)*
 
 **T1.3 — Placement is decided in the wiring and never at runtime.** No work stealing, no placement
 decision, nothing to tune while running. This is the restriction the rest of the model is bought with:
@@ -122,18 +124,24 @@ backpressure. A full lane makes work wait behind the work already on it. *(held,
 No two of them ever run at once, so no component needs to think about memory visibility, and a run can be replayed
 from its message log. A component declares a lane of its own (`@Component(lane = "physics")`) only when its work is
 heavy enough to want a core: a simulator's step, say. A declared lane is not a way to block. Blocking work is a
-`@Job` (T5.8). *(built 2026-10-28 for a component that takes its `Inbox`: the generated wiring hands it one on the
-logic lane, `Logic`, one tick on one thread, held by `LogicTest` and `VexelProcessorTest`'s inbox cases. Still
-owed, phase 4: a component that declares no lane and no inbox is still placed on a thread of its own, `Placement`,
-so the default is not yet the logic lane)*
+`@Job` (T5.8). *(held, phase 4, 2026-10-29: every component is on the logic
+lane's tick, `Logic`. One that takes its `Inbox` is handed it there; one that declares `@Subscribe` methods has each
+subscribed on an inbox the wiring makes for it (`Inboxes.mailbox`). A declared lane is a lane of the same tick, whose
+share of each round a thread of its own delivers (`Crew`), meeting the others at the round's end. `Placement` and
+its thread per component are gone. Held by `LogicTest` and `VexelProcessorTest`'s mailbox and inbox cases)*
 
 **T1.7 — Where the ticks run is a deployment mode, and nothing in an application can tell** (ruling 4). By
 default the logic lane is a thread of its own. In **single-thread mode**, chosen by a launch setting, the
 framework runs the same ticks on the main thread between frames, or with no frames at all when headless. An
 application's source is identical in both. So nothing may let a component observe its thread: no API that hands
 out the current lane, no thread-local state, no difference in delivery order between modes. Declared lanes run on
-the main thread too in single-thread mode, in their place in the round. *(owed, phase 4. Held, when built, by
-running one witness in both modes and requiring identical message logs)*
+the main thread too in single-thread mode, in their place in the round. *(held, phase 4: `--logic=main` (`thread` is
+the default, anything else is refused at launch) runs the tick in the framework's own `FrameStage.APP` hook, or in
+`VexelApplication.frame` when headless, and an arrival wakes the loop for the frame that runs it.
+`LogicTest.theSameInputsGiveTheSameDeliveriesWithTheTicksOnTheirThreadOrOnTheMainThread` runs one witness, two
+components on two lanes over three hops, in both modes and requires identical logs. The template's application was
+driven in both modes with ottermate, 2026-10-29. Not yet judged on a low-end machine, which is vexelray-mini's,
+phase 7)*
 
 ## 2. Colour
 
@@ -151,7 +159,8 @@ and the widgets', so in 0.2 this is what keeps a `Gui`, a window and a Vulkan ha
 one lane. Withdrawn, because it made placement change meaning:* moving a component to its own lane turned a call
 into a compile error, and the reason a lane is semantically neutral (architecture.md, *the mapping is static*) is
 that it should cost capacity, never behaviour. Two components talk by messages whether or not they share a thread.
-*(owed, phase 4: held today only across lanes, by `VexelProcessorTest.componentsOnDifferentLanesMayNotHoldEachOther`)*
+*(held, phase 4, on any lane: `VexelProcessorTest.componentsOnOneLaneMayNotHoldEachOther` and
+`componentsOnDifferentLanesMayNotHoldEachOther`)*
 
 **T2.4 — A value crossing between owners arrives as if it had crossed a wire**: no shared reference to the
 sender's heap, anywhere in the reachable graph. Sharing a deeply immutable value is indistinguishable from copying
@@ -170,18 +179,23 @@ is still refused. The copier 0.1 planned is not needed and not built)*
 T2.4 lets cross", and could not enforce it without reading method bodies.* In 0.2 it holds by construction instead:
 no framework or gui API that an application can reach takes a `Runnable`, `Consumer`, `Supplier`, `Function`,
 `Executor` or other functional interface (T7.2), and slow work is a `@Job`, whose request and reply are payloads
-checked as T2.4. *(owed, phases 3 to 5. `@Job` is built; the executors and callbacks are still reachable)*
+checked as T2.4. *(phases 3 to 5. `@Job` is built. Phase 4: the processor hands no application part the bus, `Senders`, the
+lanes, the frame hooks, the disposer or any `Executor` (`Framework.REFUSED`,
+`VexelProcessorTest.theFrameworksMachineryIsNotHandedToAPart`), and `ApiWalkTest` lists what the `Shell` still
+reaches, owed to phase 5)*
 
 **T2.6 — A provided value that more than one component can reach is shareable, or a framework service.** A
 `@Provides` value injected into two components is shared state unless it is deeply immutable (T2.4). The framework
 services that are safe from any thread (`Settings`, `Launch`, gui-core value types such as `Span` and `Color`) are
-listed in the processor's table, beside the main-thread ones, and are the only exception. *(owed, phase 4. In 0.1
-nothing stopped it, and the component witness's `Bench` says so: "exactly the shape the colour rule permits")*
+listed in the processor's table, beside the main-thread ones, and are the only exception. *(held, phase 4, for every
+provided value a component takes: `VexelProcessorTest.aProvidedValueAComponentTakesIsShareable`. In 0.1 nothing
+stopped it, and the component witness's `Bench` says so: "exactly the shape the colour rule permits")*
 
 **T2.7 — A component's state needs no synchronisation, so its fields may not ask for any.** A field of a
 component may not be `volatile`, an `Atomic*`, a `java.util.concurrent` type, a lock, or a functional interface.
 Each is evidence that something other than the component's own deliveries touches it. Decidable from declarations.
-*(owed, phase 4)*
+*(held, phase 4: `VexelProcessorTest.aComponentsFieldAsksForNoSynchronisation`. A view's fields are not judged:
+it is the GUI thread's, T7.4)*
 
 ## 3. Ownership
 
@@ -194,7 +208,7 @@ compute-only queue beside the one that draws lends that queue, as a `ComputeQueu
 takes it, and that component's lane alone submits to it. Under T1.6 that component should declare a lane of its
 own: a compute submission on the shared logic lane would make every other component's tick wait on it. *(held for
 the exception by `VexelProcessorTest.theComputeQueueIsLentToOneComponent` and `aProviderIsNotLentTheComputeQueue`;
-the lane requirement is owed, phase 4)*
+for the lane, phase 4, by `theComputeQueueIsLentOnlyToAComponentOnALaneOfItsOwn`)*
 
 **T3.2 — The timeline graph is the baton's.** A component never holds the baton and never reads or writes a
 `Signal`, `Cell` or `Effect`. A component's output enters the timeline as a topic that `KronBridge` folds into a
@@ -247,8 +261,15 @@ agrees on it. *0.1 chose a loss policy per subscription, and held only that one 
 subscriber and a sample to another.* *(owed, phase 4. **The bus half is built** (atchung 1.4, 2026-10-26): `Topic.state(name,
 type, key)` and `Topic.edge`, a `Tick` folding state by key and delivering every edge, and the bus refusing two
 declarations of one channel that disagree about its kind, held by `TickTest.theLastWritePerKeyWinsAndEveryEdgeIsDelivered`
-and `twoDeclarationsOfOneChannelMustAgreeAboutItsKind`. What is missing is the framework running components on
-the tick and the processor requiring every topic to declare its kind)*
+and `twoDeclarationsOfOneChannelMustAgreeAboutItsKind`. **The framework half is built, phase 4:** every
+component runs on the tick, and a channel is a declared constant found by its payload, `static final Topic<P>` in the
+payload's type or the one enclosing it, which both ends name: a mailbox subscribes with it and a sender sends on it,
+so its kind is its declaration's. A constant in source made with `Topic.of` is refused for not saying its kind
+(`VexelProcessorTest.aTopicMadeWithOfDoesNotDeclareItsKind`), and an application's payload heard or sent with no
+constant, or with two, is refused (`aSubscribedPayloadWithNoDeclaredTopicIsAnError`,
+`aPayloadWithTwoDeclaredTopicsIsAnError`). **One exception:** a library's payload that several of its topics carry,
+as the widget library's `Chosen` is, is heard as the edge its `@Subscribe` names, since the library's own build judged
+its kind and a payload cannot pick one of its topics)*
 
 **T4.2 — An edge is never lost quietly.** An edge mailbox is bounded, and overflowing it ends the application,
 naming the topic, the bound and the subscriber, as `Backpressure.FAIL` does now. A state mailbox cannot overflow:
@@ -261,15 +282,21 @@ overflowing it runs `Fatal`, `TickTest.anEdgeMailboxThatOverflowsIsAFaultNamingT
 **T4.4 — A blocking edge in a cycle.** *Withdrawn.* Under the tick, publishing never blocks: a message is queued
 for the next round and the publisher carries on, so there is no blocking edge to put in a cycle and
 `Backpressure.BLOCK` has no use. A cycle that keeps producing messages is caught by the hop limit (T5.7) instead.
-*(owed, phase 4: a tick's inbox offers no `BLOCK`, and the framework stops offering it on `@Subscribe`. atchung keeps
-`BLOCK` for `Pump`, whose other users still choose it)*
+*(held, phase 4: a tick's inbox offers no `BLOCK`, and `@Subscribe` has no `overflow` to ask for one; `Overflow` and
+the processor's blocking-cycle check are gone. atchung keeps `BLOCK` for `Pump`, whose other users still choose it)*
 
 **T4.5 — Every send is declared, by construction** (ruling 5). A component is handed a typed sender for each topic
 it publishes on (`Outbox<T>`, working name) as a constructor parameter, and the generated wiring builds it. The raw
 `Atchung` bus is not injectable into an application part, and `@Publishes` goes away because the constructor
 already says it. So the message graph the processor checks is the whole graph: there is no send it cannot see.
-*(owed, phase 4. In 0.1 `@Publishes` was optional and an undeclared send was invisible to every check. The graph
-is exposed to the Inspector as `BUS_GRAPH` already, held by T4.5's 0.1 form)*
+*(built, phase 4: the working name is atchung's own
+`Sender<T>`, so a part is handed what it sends through and no new type. A component's sender is its own inbox's, so
+its sends are ordered by the tick; a view's or a recipe's is an ordinary publish. The bus, `Senders` and any executor
+are refused (`VexelProcessorTest.aSenderIsBuiltOnThePayloadsDeclaredTopic`, `theFrameworksMachineryIsNotHandedToAPart`),
+and the graph the Inspector reads as `BUS_GRAPH` draws each sender as a `publishes` line. **Still owed:** a ledger's
+steps send through their `Out`, which no constructor shows, so a component with a ledger lists those topics in
+`@Publishes`, and nothing yet checks the list against the steps' `out.send` calls; `StepCheck` reads those bodies and
+is where the check belongs)*
 
 **T4.6 — Any number of `Gui` trees may share a bus, each under its own name.** A tree is named when it is built
 (`new Gui(bus, "main")`), and every topic it uses for itself is named by it: its mutations, its device input
@@ -291,9 +318,11 @@ tick itself, which is not waiting on it. *(owed, phases 2 and 5)*
 **T4.8 — A subscription may filter by key.** The author's "subscribe to any desired event streams with a
 filter": a subscriber to a state topic may name the keys it wants (`@Subscribe(topic = ..., key = ...)`), and the
 wiring does the filtering, so a component is never handed a message it would discard. A filter is a declaration,
-never a predicate lambda, so the processor can see it. *(owed, phase 4; the bus half is built, `Inbox.subscribe(topic,
-subscriber, capacity, keys)`, held by `TickTest.aKeyFilterDeliversOnlyTheKeysItNames`, which also holds that an edge
-topic refuses a filter. Filters on anything but the key are open until an application needs one)*
+never a predicate lambda, so the processor can see it. *(held, phase 4: `@Subscribe(topic = ..., key = {...})`,
+keys compared as strings, which is what a widget's address is, and handed to the inbox (`Inboxes.mailbox`) or the
+view's frame (`Gui.mailbox` with keys). A filter on an edge constant is a compile error, and on an edge the processor
+cannot read, a startup one (`VexelProcessorTest.aKeyFilterIsHandedToTheMailbox`, `aKeyFilterOnAnEdgeIsAnError`; the
+bus half by `TickTest.aKeyFilterDeliversOnlyTheKeysItNames`). Filters on anything but the key are open until an application needs one)*
 
 ## 5. Completion and the tick
 
@@ -301,13 +330,13 @@ topic refuses a filter. Filters on anything but the key are open until an applic
 nowhere else. Into the timeline, it comes through `KronBridge`, which folds a topic into a cell. *0.1 had a second
 door, a queue drained on the main thread in `FrameStage.APP`. It is withdrawn with T7.1.* *(owed, phases 4 and 5)*
 
-**T5.2 — `FrameStage.APP` is for draining.** *Withdrawn.* `APP` is no longer open to applications (T7.1). Whether
-the stage survives for the framework's own use is decided in phase 4.
+**T5.2 — `FrameStage.APP` is for draining.** *Withdrawn.* `APP` is no longer open to applications (T7.1). It
+survives for the framework's own use: single-thread mode runs the logic's tick there (T1.7), which is draining what
+arrived, its original purpose.
 
 **T5.3 — Nothing has to remember to wake the loop.** A publish that queues a message is work the frame loop cannot
 predict, so the bus wakes the loop itself, and the next tick runs. An idle application runs no ticks: a tick with
-nothing queued is skipped, never polled. *(held for 0.1's component lanes, by
-`PlacementTest.aDeliveryWakesTheLoopWithoutTheComponentAskingItTo` and `anIdleComponentDoesNotWakeTheLoop`; for the
+nothing queued is skipped, never polled. *(held for the
 tick, built 2026-10-28: the logic lane parks until atchung stages an arrival, and wakes the loop after a tick that
 delivered anything, held by `LogicTest.aTickThatDeliveredWakesTheLoopAndAnIdleLaneDoesNot`)*
 
@@ -334,7 +363,8 @@ over still folds with any newer write to its key. "The last write within the fra
 order they were published. Messages that arrive between ticks are ordered by arrival. Messages published in the
 same round by components on different lanes are ordered by a fixed tie-break: the publishing component's position
 in the wiring, then its own publish order. The same inputs in the same order produce the same deliveries, in both
-modes (T1.7). *(owed, phase 4; built in the bus, held by `TickTest.sendsOfOneRoundArriveInInboxOrderHoweverTheLanesRan`, which
+modes (T1.7). *(held, phase 4, by the framework running every component on one tick, and in both modes by T1.7's
+witness; built in the bus, held by `TickTest.sendsOfOneRoundArriveInInboxOrderHoweverTheLanesRan`, which
 runs one round on one thread, on lanes backwards, and on a pool, and gets one order from all three. The tie-break
 costs nothing: each component sends into an outbox of its own, and the outboxes are emptied in wiring order at the
 round's end, so nothing is sorted)*
@@ -343,7 +373,8 @@ round's end, so nothing is sorted)*
 when it arrives from outside, one more than the message whose delivery sent it. A message past the limit (64 by
 default) ends the application, naming its topic and the inbox it was for, which is somewhere on the loop. Hops are
 counted per message rather than rounds per tick because the deadline would otherwise hide a loop: a tick cut short
-every time never reaches a round limit, and the loop runs forever across ticks. *(owed, phase 4; built in the bus,
+every time never reaches a round limit, and the loop runs forever across ticks. *(held, phase 4, since every
+component is on the tick; built in the bus,
 `TickLoop`, held by `TickTest.twoComponentsAnsweringEachOtherForeverAreALoop` and
 `aLoopIsCaughtEvenWhenEveryTickIsCutShortByItsDeadline`)*
 
@@ -358,13 +389,13 @@ a reply. *(held for the `@Job` mechanism, by `JobsTest` and `VexelProcessorTest`
 
 **T6.1 — Start order is distinct from construction order.** No tick runs before the wiring's `ATTACH` has
 returned, so nothing is delivered to a component whose publishers are still half-built. Messages published during
-construction wait in their mailboxes for the first tick. *(held for 0.1's placements, by
-`PlacementTest.nothingRunsUntilTheFrameworkStartsIt`; owed for the tick, phase 4)*
+construction wait in their mailboxes for the first tick. *(held, phase 4, by
+`LogicTest.nothingRunsUntilTheFrameworkStartsItAndWhatWaitedIsDelivered`)*
 
 **T6.2 — Shutdown is drain-then-stop, with a timeout.** The last tick runs with no deadline but the shutdown
 bound, so what was queued is delivered; then the mailboxes close. Bounded, because a process that refuses to quit
-is worse than one that quits having abandoned a message. *(held for 0.1's placements, by
-`PlacementTest.stoppingDrainsWhatWasQueuedBeforeItCloses`; owed for the tick, phase 4)*
+is worse than one that quits having abandoned a message. *(held, phase 4, by
+`LogicTest.stoppingDeliversWhatWasQueuedAndEndsTheDeclaredLanes`)*
 
 **T6.3 — Shutdown runs depth-first.** *(open, with T3.4)*
 
@@ -379,7 +410,9 @@ painting and the user can still close it: [v1.md's liveness guarantee](v1.md#the
 default mode. **In single-thread mode it does not**: the tick is on the main thread, so a delivery that never
 returns freezes the window, and the only layer left is the watchdog ending the process. That is the price of the
 mode, and choosing the mode is choosing it. *(held for 0.1's lanes, by `Watchdog` and `LivenessPolicy`,
-`WatchdogTest.aLaneInsideOneDeliveryTooLongIsReportedOnceByName`; owed for the logic lane and the mode, phase 4)*
+`WatchdogTest.aLaneInsideOneDeliveryTooLongIsReportedOnceByName`; for the tick, phase 4, by `LivenessTest`, each lane's
+share of a round watched by its own gauge, so a wedged declared lane is reported by its name and the lanes waiting
+for it at the round's end are not)*
 
 ## 7. The main thread and the API surface
 
@@ -393,15 +426,19 @@ provider or type, `Window.onOpened` and `onClosed` listeners, a close gate run t
 **Drawing is not logic**: a part's asked half runs on the main thread, reads only the part's own state, and that
 state is written only through the part's told half, its mailbox (T3.8, T7.6). The fluid simulator's field and the
 About art are a part fed frames by a component, through a feed (T7.3). In single-thread mode the framework runs ticks on this thread, and that is the
-framework's choice, not a door an application opens (T1.7). *(owed, phases 4 and 5: the processor refuses each
-annotation in application code, and the shell withdraws each method)*
+framework's choice, not a door an application opens (T1.7). *(phase 4's half held: the processor refuses
+`@BeforeFrame` and `@MainThread` in application code, `VexelProcessorTest.aFrameHookIsRefused` and
+`mainThreadIsRefusedOnAnApplicationsType`, and hands no part the frame hooks, which is the only way to `APP`. Owed,
+phase 5: the shell withdraws `Window.onOpened`, `onClosed` and the close gate's callbacks)*
 
 **T7.2 — No API an application can reach takes or returns a callback.** No public type in `-api`, `-core`,
 `-shell` or `vexelray-gui` that an application part can be handed has a parameter or a return of a functional
 interface, `Executor`, `CompletableFuture` or `Future`. A question is a request topic and its answer a reply
 topic: a close gate is `CloseRequested` and `CloseAnswer`, a file picker is `PickFile` and `Picked`, a confirm is
-`Ask` and `Answer`. *(owed, phases 3 to 5. Held, when built, by a test in the framework's own build that walks
-the public API, so a callback added later fails the build rather than a review)*
+`Ask` and `Answer`. *(phases 3 to 5. The walk is built, phase 4: `ApiWalkTest` walks every public framework
+type an application part can be handed, and requires that what takes or returns a function is exactly its list of
+what phase 5 owes, so a callback added later fails the build and one removed must come off the list. The widget
+library's half is vexelray-gui's walk)*
 *Ruled 2026-10-27, what the rule is about:* **which thread runs the code.** A subscription is not a callback: its
 code runs on the subscriber's own thread, handed an immutable message, and answers by sending. What the rule forbids
 is code handed to the GUI that the GUI keeps and runs on its own thread, in the frame. So:

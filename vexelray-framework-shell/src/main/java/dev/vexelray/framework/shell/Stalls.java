@@ -46,9 +46,7 @@ final class Stalls {
      *
      * <p><b>Turn it down to take a census.</b> {@code -Dvexelray.stall.ms=16} reports anything that misses a
      * single frame, which is the setting for finding out what blocks rather than for being told that something
-     * did. That is a real question this framework has open — the handler lane cannot be bounded until somebody
-     * knows what still blocks on it — and it is better answered by running the applications than by reading
-     * them.
+     * did. It is better answered by running the applications than by reading them.
      */
     private static final long DEFAULT_MS = 250;
 
@@ -72,7 +70,7 @@ final class Stalls {
                 "every frame owed while FrameStage." + stage + " ran",
                 TimeUnit.NANOSECONDS.toMillis(nanos) + " ms on the main thread, so the window did not draw"
                         + " and took no input for that long — " + stage.whenSlow() + ". Blocking work belongs"
-                        + " on the offload lane (GuiApp.offload, which hands the result back here) or in a"
-                        + " component of its own (a @Component)");
+                        + " in a @Job, whose reply comes back as a message, and logic in a @Component, which"
+                        + " runs on the logic lane");
     }
 }

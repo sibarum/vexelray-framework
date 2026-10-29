@@ -14,7 +14,7 @@ import sibarum.atchung.Topic;
 record Intent(Command command, long id) {
 
     static final String TOPIC = "view.intent";
-    static final Topic<Intent> INTENTS = Topic.of(TOPIC, Intent.class);
+    static final Topic<Intent> INTENTS = Topic.edge(TOPIC, Intent.class);
 
     /** Each command is a method on the view, so there is no switch to keep in step with this list. */
     enum Command {

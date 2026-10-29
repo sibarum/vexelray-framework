@@ -15,13 +15,13 @@ import java.lang.annotation.Target;
  * {@code docs/threading.md} T4.5 makes for the whole message graph: <i>an emergent graph cannot be checked; a
  * declared one can.</i>
  *
- * <p><b>What it buys today (T4.7).</b> Code on the main thread — a {@link MainThread} type, a
- * {@link MainThread} provider, a {@link BeforeFrame} hook — may not declare a send on a topic that any
- * {@link Subscribe} gives a {@link Overflow#BLOCK} mailbox, because a blocking send from the main thread to a
- * wedged lane's full mailbox is how a window freezes. That is a compile error naming both sides.
+ * <p><b>Since 0.2, for a ledger's steps only.</b> A part sends by taking a {@code Sender<T>} in its constructor
+ * (ROADMAP fork 5), which the processor reads without this. What a constructor cannot show is what a ledger's steps
+ * send through their {@code Out}, so a component built on a ledger lists those topics here, and the graph the
+ * Inspector draws ({@code BUS_GRAPH}) carries them. Nothing yet checks the list against the steps' bodies.
  *
- * <p>Matched by topic name across every {@code @Subscribe} in the compilation. A subscriber in another module
- * is not seen, so this cannot vouch for it.
+ * <p>0.1 used it for T4.7, a blocking send from the main thread. Under the tick no send blocks, and no application
+ * code runs on the main thread, so that check is gone.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.CLASS)

@@ -242,7 +242,7 @@ public final class Window {
 
     /**
      * A close has arrived: ask the gate, or let it through when there is none. What the window's own close route calls,
-     * on the handler lane; package-private so a test can stand in for the route.
+     * in the frame, on the main thread; package-private so a test can stand in for the route.
      */
     void requested(Runnable proceed, Runnable cancel) {
         Runnable[] told = outcome;

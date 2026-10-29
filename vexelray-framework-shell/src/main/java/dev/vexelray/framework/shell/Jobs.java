@@ -9,10 +9,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * What the generated wiring calls to put a {@code @Job} on its topic: each request runs on the offload lane, and what
+ * What the generated wiring calls to put a {@code @Job} on its topic: each request runs on the job lane, and what
  * it returns is published on the reply topic.
  *
- * <p><b>Not for application code</b>, on the terms {@link Placements} states: the generated wiring lives in the
+ * <p><b>Not for application code</b>, on the terms {@link Inboxes} states: the generated wiring lives in the
  * application's package, so the door it needs is public, and this is that door. A job an application subscribes by
  * hand is one the processor never saw, so its messages are unchecked and its reply is not in the graph.
  *
@@ -20,9 +20,9 @@ import java.util.function.Function;
  *
  * <p>A mailbox is drained by a lane, in order, one delivery at a time, and that is exactly what a job must not have:
  * it holds no state to confine and no order to keep, and a read stuck on a network drive must not hold up the next
- * request or be taken by the watchdog for a stalled component. So the request goes straight to the offload lane, a
- * pool bounded in threads ({@code Lanes.offload}): a full pool makes requests wait behind the work on it, which is
- * backpressure, and never drops one. The reply is published from the offload thread, and every subscriber receives it
+ * request or be taken by the watchdog for a stalled component. So the request goes straight to the job lane, a
+ * pool bounded in threads ({@code Lanes.jobs}): a full pool makes requests wait behind the work on it, which is
+ * backpressure, and never drops one. The reply is published from the job lane's thread, and every subscriber receives it
  * on its own lane.
  *
  * <h2>Failure</h2>
@@ -30,7 +30,7 @@ import java.util.function.Function;
  * <p>Ruled 2026-10-18: a failure is declared and handled, or it ends the application. A job declares no
  * {@code throws}, so what it expects is in its reply; what escapes {@code run}, and a reply of {@code null} where one
  * is owed, goes to the process-wide fault policy, which halts, as a {@code @Subscribe} that throws does
- * ({@code Placement}). Except once the job is closed for shutdown, when the throw is the framework's interrupt.
+ * ({@code Logic}). Except once the job is closed for shutdown, when the throw is the framework's interrupt.
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class Jobs {
@@ -39,7 +39,7 @@ public final class Jobs {
     }
 
     /**
-     * Subscribe {@code run} to {@code topic} on the offload lane, publishing each answer on {@code reply}.
+     * Subscribe {@code run} to {@code topic} on the job lane, publishing each answer on {@code reply}.
      *
      * @param job the job's class, by name: what a fault says failed
      */
@@ -55,7 +55,7 @@ public final class Jobs {
         });
     }
 
-    /** Subscribe {@code run} to {@code topic} on the offload lane, for a job run only for its effect. */
+    /** Subscribe {@code run} to {@code topic} on the job lane, for a job run only for its effect. */
     public static <Q> void effect(Shell shell, String job, Topic<Q> topic, Consumer<Q> run) {
         subscribe(shell, job, topic, run);
     }
@@ -74,7 +74,7 @@ public final class Jobs {
                         + ", and nothing declared the failure: " + e, e));
                 throw e;
             }
-        }, shell.lanes().offload());
+        }, shell.lanes().jobs());
         closing.subscription = subscription;
         shell.disposer().register(closing);
     }

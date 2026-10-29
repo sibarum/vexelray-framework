@@ -2,7 +2,6 @@ package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.core.Launch;
 import org.junit.jupiter.api.Test;
-import sibarum.atchung.Backpressure;
 import sibarum.atchung.Topic;
 
 import java.time.Duration;
@@ -26,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 final class LivenessTest {
 
     private static final AppInfo DEMO = new AppInfo("demo", "Demo", 800, 600);
-    private static final Topic<String> WORK = Topic.of("test.liveness.work", String.class);
+    private static final Topic<String> WORK = Topic.edge("test.liveness.work", String.class);
 
     private static Shell shell() {
         return new Shell(Launch.parse(new String[0], "demo", Set.of()), DEMO);
@@ -52,10 +51,10 @@ final class LivenessTest {
                     reported.countDown();
                 }
             });
-            shell.place("compose").subscribe(WORK, msg -> {
+            shell.inbox("app.Compose", "compose").subscribe(WORK, msg -> {
                 wedged.countDown();
                 await(release);
-            }, 1, Backpressure.COALESCE_LATEST);
+            }, 1);
 
             shell.startComponents();
             shell.bus().publish(WORK, "hangs");
@@ -85,13 +84,13 @@ final class LivenessTest {
                     context.interrupt(stall.lane());
                 }
             });
-            shell.place("compose").subscribe(WORK, msg -> {
+            shell.inbox("app.Compose", "compose").subscribe(WORK, msg -> {
                 try {
                     Thread.sleep(60_000);
                 } catch (InterruptedException e) {
                     interrupted.countDown();
                 }
-            }, 1, Backpressure.COALESCE_LATEST);
+            }, 1);
 
             shell.startComponents();
             shell.bus().publish(WORK, "hangs");
@@ -119,7 +118,7 @@ final class LivenessTest {
                     reports.incrementAndGet();
                 }
             });
-            shell.place("busy").subscribe(WORK, msg -> delivered.incrementAndGet(), 64, Backpressure.BLOCK);
+            shell.inbox("app.Busy", "busy").subscribe(WORK, msg -> delivered.incrementAndGet(), 64);
 
             shell.startComponents();
             for (int i = 0; i < 20; i++) {

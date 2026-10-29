@@ -47,7 +47,7 @@ final class StallsTest {
         assertTrue(message.contains("FrameStage.APP"), message);
         assertTrue(message.contains("412 ms"), message);
         assertTrue(message.contains("draining a queue"), message);
-        assertTrue(message.contains("offload"), message);
+        assertTrue(message.contains("@Job"), message);
     }
 
     @Test

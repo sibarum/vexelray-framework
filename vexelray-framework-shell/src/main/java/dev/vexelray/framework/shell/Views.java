@@ -23,11 +23,13 @@ public final class Views {
      * {@code declared} is the name {@code @Subscribe} gave; the topic is the payload owner's own constant where it has
      * one, so its kind is the publisher's, and the two names must agree or the application does not start.
      */
-    public static <T> void mailbox(Gui gui, String declared, Topic<T> topic, Subscriber<T> subscriber, int capacity) {
-        if (!topic.name().equals(declared)) {
-            throw new IllegalStateException("a view subscribes to \"" + declared + "\", and " + topic.payloadType()
-                    .getName() + "'s topic is \"" + topic.name() + "\": write that name in its @Subscribe");
+    public static <T> void mailbox(Gui gui, String declared, Topic<T> topic, Subscriber<T> subscriber, int capacity,
+                                   String... keys) {
+        Inboxes.named(declared, topic);
+        if (keys.length == 0) {
+            gui.mailbox(topic, subscriber, capacity);
+        } else {
+            gui.mailbox(topic, subscriber, capacity, java.util.Set.of(keys));
         }
-        gui.mailbox(topic, subscriber, capacity);
     }
 }

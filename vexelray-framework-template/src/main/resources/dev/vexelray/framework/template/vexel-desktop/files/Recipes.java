@@ -1,16 +1,14 @@
 package ${packageName};
 
-import ${packageName}.core.Messages;
 import ${packageName}.core.Messages.Begin;
 import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Provides;
-import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.shell.Appearance;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.widget.TitleBar;
-import sibarum.atchung.Atchung;
+import sibarum.atchung.Sender;
 
 /**
  * What this module builds — one recipe per part — and nothing about when.
@@ -66,8 +64,8 @@ final class Recipes {
 
     /** The main window's close gate, as messages: built here so the view can answer it and {@link #start} can arm it. */
     @Provides
-    QuitGate gate(Atchung bus) {
-        return new QuitGate(bus);
+    QuitGate gate(Sender<Intent> intents) {
+        return new QuitGate(intents);
     }
 
     /**
@@ -79,13 +77,13 @@ final class Recipes {
      * one that knew about the unsaved files.
      *
      * <p>Run for what it does, so it returns nothing: the wiring calls it once, in the phase its parameters put it in.
-     * The message waits in the editor's mailbox until the framework starts the components.
+     * The message waits in the editor's mailbox until the framework starts the components. What it sends is a
+     * parameter, as everything a part sends is, so the wiring builds its sender on {@code Begin}'s topic.
      */
     @Provides
-    @Publishes(Messages.BEGIN)
-    void start(Shell shell, QuitGate gate, Atchung bus) {
+    void start(Shell shell, QuitGate gate, Sender<Begin> begin) {
         shell.windows().main().onClose(gate::guard);
-        bus.publish(Messages.BEGIN_TOPIC, new Begin());
+        begin.send(new Begin());
     }
 
 }
