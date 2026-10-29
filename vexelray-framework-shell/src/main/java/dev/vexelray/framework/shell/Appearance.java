@@ -6,6 +6,7 @@ import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Theme;
 import dev.vexelray.gui.nfd.SaveScreenshot;
+import dev.vexelray.gui.widget.ZoomKeys;
 import dev.vexelray.os.Decorations;
 
 import java.util.List;
@@ -53,29 +54,36 @@ import java.util.List;
  *                    that files it in the working directory without asking. Reducible to fewer or none — the doc's rule is that the framework supplies a default
  *                    set and a window may take less, so the utility is free to <em>enable</em> rather than
  *                    present unconditionally
- * @param zoom        how far the UI zoom goes and what one press moves it by. {@link ZoomRange#DEFAULT} when
- *                    the application says nothing, which is the range five places on this stack had already
- *                    agreed on. Never null
+ * @param zoom        how far the UI zoom goes, what one press moves it by, and whether the framework binds the
+ *                    chords that press. {@link ZoomRange#DEFAULT} when the application says nothing, which is the
+ *                    range five places on this stack had already agreed on, with the chords bound. Never null
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorations decorations,
                          List<WindowInstrument> instruments, ZoomRange zoom) {
 
-    /** Dark, no size floor, application-drawn frame, the standard instruments, the agreed zoom range. */
+    /** Dark, no size floor, application-drawn frame, the standard instruments, the agreed zoom range and chords. */
     public static final Appearance DEFAULT = new Appearance(Theme.DARK, null, null, null, null, null);
 
     /**
-     * How far the UI zoom goes, and what one press of a zoom chord moves it by.
+     * How far the UI zoom goes, what one press of a zoom chord moves it by, and whether the framework binds
+     * those chords.
      *
-     * <p><b>The range is the framework's; the chord is the application's.</b> That split is the whole of this
-     * type, and it is easy to read as the wrong shape of duplication.
-     * {@code gui.zoomRange(0.5f, 3f, 1.25f)} appears in five places on this stack — {@code CalculatorWiring},
+     * <p><b>The range is the framework's, and by default so are the chords.</b>
+     * {@code gui.zoomRange(0.5f, 3f, 1.25f)} appeared in five places on this stack — {@code CalculatorWiring},
      * {@code TextEditorApp}, {@code Console}, {@code Desktop} and {@code mainframe-template}'s scaffold — with
      * identical numbers and no reason given at any of them, which is what a default looks like before anybody
-     * has taken it. What chord zooms, or whether zooming exists at all, stays where {@code CalculatorWiring}
-     * put it: <i>"which chord zooms, or whether zooming exists at all, is not something a framework should be
-     * choosing."</i> How far the zoom goes is a different question, and one every application answered the
-     * same way.
+     * has taken it. The chords were at first left with the applications, on {@code CalculatorWiring}'s ruling
+     * that <i>"which chord zooms, or whether zooming exists at all, is not something a framework should be
+     * choosing."</i> In practice every application chose Ctrl+= / Ctrl+- / Ctrl+0 and bound them on its main
+     * window only, so every window it opened after that had a zoom range and no way to move within it; the
+     * text editor's Run… window is the one that made it plain. So the chords are a default too: whichever
+     * window this range is applied to also gets {@link ZoomKeys#bind}.
+     *
+     * <p>The ruling keeps its exit. An application that zooms on other chords, or not at all, turns them off
+     * ({@link Appearance#zoomKeys(boolean)}) and binds its own. One that only wants different <em>commands</em>
+     * on the same chords, such as the Scheduler's gliding zoom, needs nothing: a chord bound again replaces the
+     * earlier binding, and an application's recipes run after the framework has applied this.
      *
      * <p>The framework already owned the other half — the zoom is <em>remembered</em>, because the main window
      * is watched with its tree, so Ctrl+= survives a quit the way dragging the window bigger does. Owning both
@@ -90,11 +98,12 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
      * a percent, which looks the same. Refusing the value in {@code CONFIG} names it instead, and a startup
      * error beats a runtime one.
      *
-     * @param min  the smallest factor a zoom chord can reach
-     * @param max  the largest
-     * @param step the factor one press multiplies or divides by; must be greater than 1
+     * @param min    the smallest factor a zoom chord can reach
+     * @param max    the largest
+     * @param step   the factor one press multiplies or divides by; must be greater than 1
+     * @param chords whether {@link #applyTo} binds the zoom chords ({@link ZoomKeys}) as well as the range
      */
-    public record ZoomRange(float min, float max, float step) {
+    public record ZoomRange(float min, float max, float step, boolean chords) {
 
         /**
          * 0.5 to 3, a step of 1.25 — the numbers all five hand-written call sites chose.
@@ -106,6 +115,11 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
          * wider bounds says so, the same way one that wants the OS frame says so.
          */
         public static final ZoomRange DEFAULT = new ZoomRange(0.5f, 3f, 1.25f);
+
+        /** This range, with the framework's zoom chords bound. */
+        public ZoomRange(float min, float max, float step) {
+            this(min, max, step, true);
+        }
 
         public ZoomRange {
             if (!(min > 0f)) {
@@ -120,8 +134,13 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
             }
         }
 
+        /** The same range, with the chords bound or not. */
+        public ZoomRange chords(boolean chords) {
+            return new ZoomRange(min, max, step, chords);
+        }
+
         /**
-         * Apply this range to {@code gui}, and nothing else.
+         * Apply this range to {@code gui}, with the zoom chords unless {@link #chords} says not; nothing else.
          *
          * <p><b>The narrow half of {@link Appearance#applyTo}, and it exists because the wide one is wrong for
          * some windows.</b> A second window may legitimately have a look of its own — the text editor's file
@@ -135,9 +154,16 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
          * what a library window reaches for: a class built to run under a host that is not this framework has
          * no {@code Shell} to ask, and {@link #DEFAULT} is still the one place the three numbers are written
          * down.
+         *
+         * <p>The chords come with the range because a window with a range and no chords cannot zoom, which is
+         * what every window after the first used to be. Binding them on a {@code Gui} that already has them is
+         * harmless: a chord bound again replaces the earlier binding rather than adding a second.
          */
         public void applyTo(Gui gui) {
             gui.zoomRange(min, max, step);
+            if (chords) {
+                ZoomKeys.bind(gui);
+            }
         }
     }
 
@@ -191,12 +217,20 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
 
     /** The same, with the UI zoom held between these bounds. See {@link ZoomRange} for what is whose. */
     public Appearance zoom(float min, float max, float step) {
-        return zoom(new ZoomRange(min, max, step));
+        return zoom(new ZoomRange(min, max, step, zoom.chords()));
     }
 
     /** The same, with this zoom range. {@code null} for the framework's. */
     public Appearance zoom(ZoomRange zoom) {
         return new Appearance(theme, minWidth, minHeight, decorations, instruments, zoom);
+    }
+
+    /**
+     * The same, with the framework's zoom chords bound or not. {@code false} for an application that zooms on
+     * chords of its own, or not at all; see {@link ZoomRange}.
+     */
+    public Appearance zoomKeys(boolean on) {
+        return zoom(zoom.chords(on));
     }
 
     /**
@@ -220,7 +254,7 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
      * application whose theme is dark, and glaring in one whose theme is not. That one is fixed, and this is
      * the method it was fixed with: {@code Modals.install(app, appearance::applyTo)}.
      *
-     * <p><b>The theme and the zoom range; not the minimum size.</b> That line is where it is because
+     * <p><b>The theme, the zoom range and its chords; not the minimum size.</b> That line is where it is because
      * {@code Gui.minSize} is <i>"not an OS window minimum"</i> — it is the smallest canvas <em>this tree</em>
      * can be laid out on, so it is a fact about one layout and the main window's floor is the wrong answer for
      * a tool window beside it.

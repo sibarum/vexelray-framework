@@ -127,7 +127,8 @@ words that do not change as the user works.
 ## Zoom
 
 `Gui.zoomIn` and `zoomOut` multiply the zoom by the step at once, which lays the whole window out again between two
-frames. The template's `Recipes.zoomShortcuts` binds them as they are. To glide, drive `Gui.zoom(float)` instead,
+frames. The framework's default chords (`Appearance.ZoomRange`, through `ZoomKeys`) bind them as they are. To
+glide, bind the same chords again to drive `Gui.zoom(float)` instead (a chord bound again replaces the default),
 as the Scheduler's `Recipes.shortcuts` does. It uses a `Motion.Glide` from `gui.zoom().value()`. Each key resets the
 glide to the framework's value while it is at rest (the framework restores last run's zoom and clamps every value
 to `Appearance.ZoomRange`), then glides to its target times or divided by 1.25. A key pressed mid-glide steps from

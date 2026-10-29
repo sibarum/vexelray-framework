@@ -112,6 +112,14 @@ class WindowsWitnessTest {
 
             // Each window has its own zoom and size, and the notes window's are what the next launch must find.
             d.ok("window notes");
+            // The zoom chords are the framework's on every window, so a declared window the witness binds nothing on
+            // zooms from the keyboard too. Back to 1 afterwards, so the zoom below is the one remembered.
+            d.ok("key ctrl+equal");
+            d.ok("settle");
+            String keyed = d.ok("size");
+            assertTrue(keyed.contains(" zoom=1.25 "), "Ctrl+= did not zoom a declared window: " + keyed);
+            d.ok("key ctrl+digit_0");
+            d.ok("settle");
             String zoomed = d.ok("zoom " + NOTES_ZOOM);
             assertTrue(zoomed.contains(NOTES_ZOOM), "the notes window would not zoom to " + NOTES_ZOOM + ": " + zoomed);
             d.ok("resize " + NOTES_SIZE);

@@ -1003,7 +1003,15 @@ processor, not a description of today.
 
 Three things looked like framework candidates and are not, recorded here so they are not re-proposed:
 
-- **The zoom chords** — but *not* the zoom range, and the split is the point. `CalculatorWiring` has
+- **The zoom chords**, since taken after all (2026-10-28). Every application bound the same six, on its
+  main window only, so every window it opened later had a range and no chords to move within it. The
+  text editor's Run… window is what made that plain. `Appearance.ZoomRange.applyTo` now binds
+  `ZoomKeys` wherever it applies the range, on by default, and `Appearance.zoomKeys(false)` is the
+  ruling's exit for an application that zooms on chords of its own. A chord bound again replaces the
+  earlier binding, so an application that still binds them by hand is unaffected. What follows is the
+  reasoning as it stood before that.
+
+  The zoom chords, but *not* the zoom range, and the split is the point. `CalculatorWiring` has
   ruled on the chords: *"which chord zooms, or whether zooming exists at all, is not something a
   framework should be choosing."* The drift there is real and visible (the calculator binds the numpad
   chords, the editor does not) but it is drift between two applications' decisions rather than between

@@ -246,7 +246,8 @@ public final class VexelApplication {
         // The theme and the zoom range, through the same call an application uses on the windows the framework
         // did not build -- so there is one definition of what an appearance means on a Gui rather than two that
         // have to be kept in agreement. Before the first widget, because a role resolves when a widget writes a
-        // prop. The chords that move within the zoom range stay the application's: see Appearance.ZoomRange.
+        // prop. The zoom chords come with the range unless the application turned them off: see
+        // Appearance.ZoomRange.
         appearance.applyTo(gui);
         // Not part of that call, because Gui.minSize is a floor for one tree's layout and not for the
         // application: the main window's answer is the wrong one for a tool window beside it.

@@ -11,8 +11,6 @@ import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
-import sibarum.tactroller.api.Key;
-import sibarum.tactroller.api.Modifier;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -50,6 +48,9 @@ final class Recipes {
      * The look, and the smallest window this UI is still coherent in. Built from nothing the framework makes, so it
      * exists in the first phase and the framework applies it the moment it creates the {@code Gui}: "the theme is
      * applied before the first widget" is structural rather than a comment somebody has to keep obeying.
+     *
+     * <p>The zoom comes with it: the range, and Ctrl+= / Ctrl+- / Ctrl+0 to move within it, on this window and every
+     * other one the framework opens. {@code .zoomKeys(false)} is for an application that zooms on chords of its own.
      */
     @Provides
     Appearance look() {
@@ -83,7 +84,6 @@ final class Recipes {
             ui.show(doc);
             session.remember();
         });
-        zoomShortcuts(gui);
         return ui;
     }
 
@@ -113,22 +113,5 @@ final class Recipes {
         shell.windows().main().onClose(actions::guardClose);
         List<Path> paths = launch.rest().stream().map(Path::of).toList();
         session.restore(actions, paths, gui.offload());
-    }
-
-    /**
-     * Ctrl+= / Ctrl+- / Ctrl+0, and the numpad's three.
-     *
-     * <p>An application decision, which is why it is here: which chord zooms, or whether zooming exists at all, is not
-     * something a framework should choose. <b>How far the zoom goes is</b>, and it is not stated here — that is
-     * {@code Appearance.ZoomRange}, applied by the framework before the first widget, so every window on the desk
-     * agrees about it.
-     */
-    private static void zoomShortcuts(Gui gui) {
-        gui.shortcut(Key.EQUAL, gui::zoomIn, Modifier.CONTROL);
-        gui.shortcut(Key.MINUS, gui::zoomOut, Modifier.CONTROL);
-        gui.shortcut(Key.DIGIT_0, gui::resetZoom, Modifier.CONTROL);
-        gui.shortcut(Key.NUMPAD_ADD, gui::zoomIn, Modifier.CONTROL);
-        gui.shortcut(Key.NUMPAD_SUBTRACT, gui::zoomOut, Modifier.CONTROL);
-        gui.shortcut(Key.NUMPAD_0, gui::resetZoom, Modifier.CONTROL);
     }
 }

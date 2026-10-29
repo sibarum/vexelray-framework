@@ -119,7 +119,8 @@ public final class Windows {
         if (window.theme() == null) {
             appearance.applyTo(gui);
         } else {
-            // A look of its own still shares how far the zoom goes: see Appearance.applyTo.
+            // A look of its own still shares how far the zoom goes, and the chords that move it: see
+            // Appearance.applyTo.
             gui.theme(window.theme());
             appearance.zoom().applyTo(gui);
         }
