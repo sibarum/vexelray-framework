@@ -52,7 +52,7 @@ final class HeldDialogs implements Dialogs {
         this.picked = senders.to(Picked.TOPIC);
     }
 
-    /** Hear the questions in {@code gui}'s frame, the main window's, from now on. At {@code GUI}, on the main thread. */
+    /** Hear the questions in {@code gui}'s frame, the main window's, from now on. At {@code GUI}, main thread. */
     void install(Gui gui) {
         gui.mailbox(MODALS, this::show, CAPACITY);
         gui.mailbox(Ask.TOPIC, this::asked, CAPACITY);

@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.core.WindowOpened;
 import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
@@ -129,7 +130,12 @@ final class About {
         Seams.of(g).claim(g.root(), Shortcut.of(Key.ESCAPE), ClaimScope.VISIBLE, window::close);
 
         AboutIntro intro = new AboutIntro(g, shell.krono(), page, anchor, icon);
-        window.onOpened(intro::play);
+        // Played each time the window opens, heard in the main window's frame like every other window's news.
+        shell.gui().mailbox(WindowOpened.TOPIC, opened -> {
+            if (opened.window().equals(KEY)) {
+                intro.play();
+            }
+        }, 16);
         return new About(window, intro);
     }
 

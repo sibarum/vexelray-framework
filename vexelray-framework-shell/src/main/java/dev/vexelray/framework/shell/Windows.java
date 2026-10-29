@@ -2,6 +2,7 @@ package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.core.Phase;
+import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.WindowControls;
 import dev.vexelray.gui.core.app.GuiApp;
@@ -10,20 +11,20 @@ import dev.vexelray.gui.core.app.WindowView;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
 import sibarum.atchung.Atchung;
+import sibarum.probe.Log;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * <b>This application's windows</b>: the main one, and the others, declared by name with the trees and opened on
- * request. A recipe takes it like any other framework value:
+ * <b>This application's windows</b>: the main one, and the others, declared by name with the trees and opened by a
+ * {@link WindowCommand}. A recipe takes it like any other framework value:
  *
  * {@snippet :
  * @Provides
- * SettingsWindow settings(Windows windows, Model model, Ui ui) {
+ * SettingsWindow settings(Windows windows, Model model) {
  *     Window window = windows.named(NamedWindow.of("settings", "Settings", 500, 640).satellite());
- *     ui.onSettings(window::show);
- *     return new SettingsWindow(window, model);
+ *     return new SettingsWindow(window, model);     // and a view's chord sends WindowCommand.show("settings")
  * }
  * }
  *
@@ -39,15 +40,18 @@ import java.util.List;
  * {@code ATTACH}, and a recipe that took the {@code GuiApp} and then declared a window would be declaring one the
  * claim had already passed.
  *
- * <p><b>The main window too</b>, as {@link #main()}: a <i>Quit</i> button closes it, and something that wants the
- * application in front shows it, without taking the {@code GuiApp} for either. What is left behind the
- * {@code GuiApp} is the device, which is the main thread's by rule, and not the windows.
+ * <p><b>The main window too</b>, as {@link #main()}, under the key {@code "main"}: a <i>Quit</i> button sends it a
+ * close, and something that wants the application in front sends it a show, without taking the {@code GuiApp} for
+ * either. What is left behind the {@code GuiApp} is the device, which is the main thread's by rule, and not the
+ * windows.
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class Windows {
 
     /** The main window's name, which no other window may take. */
     static final String MAIN = dev.vexelray.framework.core.CloseRequested.MAIN;
+
+    private static final Log LOG = Log.of("framework.shell");
 
     private final Shell shell;
     private final Window main;
@@ -59,6 +63,37 @@ public final class Windows {
     Windows(Shell shell, Window main) {
         this.shell = shell;
         this.main = main;
+        // Every window's commands are carried out in the main window's frame, on the main thread, where everything a
+        // Window knows is kept.
+        if (main != null) {
+            main.gui().mailbox(WindowCommand.TOPIC, this::command, CAPACITY);
+        }
+    }
+
+    /** How many commands may wait for one frame: far more than anyone sends. */
+    private static final int CAPACITY = 64;
+
+    /** Carry out {@code c} on the window it names. Main thread, in the frame. */
+    private void command(WindowCommand c) {
+        Window w = byKey(c.window());
+        if (w == null) {
+            LOG.warn("window command " + c.command() + " for '" + c.window() + "', and no window has that key: "
+                    + "ignored");
+        } else {
+            w.command(c);
+        }
+    }
+
+    private Window byKey(String key) {
+        if (main != null && main.key().equals(key)) {
+            return main;
+        }
+        for (Window w : declared) {
+            if (w.key().equals(key)) {
+                return w;
+            }
+        }
+        return null;
     }
 
     /**
@@ -95,7 +130,7 @@ public final class Windows {
      * <p>Once per name. A second declaration under one name is refused rather than answered with the first, because
      * it would be two recipes each building a tree into one window and each believing the window was theirs.
      */
-    public synchronized Window named(NamedWindow window) {
+    public Window named(NamedWindow window) {
         if (shell.phase().compareTo(Phase.TREE) > 0) {
             throw new IllegalStateException("window '" + window.key() + "' must be declared by TREE, because the "
                     + "framework claims every window at the start of ATTACH; this is " + shell.phase());
@@ -129,7 +164,7 @@ public final class Windows {
     }
 
     /** Every window declared so far, in declaration order. */
-    synchronized List<Window> declared() {
+    List<Window> declared() {
         return List.copyOf(declared);
     }
 

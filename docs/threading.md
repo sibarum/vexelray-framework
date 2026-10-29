@@ -431,8 +431,9 @@ state is written only through the part's told half, its mailbox (T3.8, T7.6). Th
 About art are a part fed frames by a component, through a feed (T7.3). In single-thread mode the framework runs ticks on this thread, and that is the
 framework's choice, not a door an application opens (T1.7). *(phase 4's half held: the processor refuses
 `@BeforeFrame` and `@MainThread` in application code, `VexelProcessorTest.aFrameHookIsRefused` and
-`mainThreadIsRefusedOnAnApplicationsType`, and hands no part the frame hooks, which is the only way to `APP`. Owed,
-phase 5: the shell withdraws `Window.onOpened`, `onClosed` and the close gate's callbacks)*
+`mainThreadIsRefusedOnAnApplicationsType`, and hands no part the frame hooks, which is the only way to `APP`.
+Phase 5's held too: `Window.onOpened` and `onClosed` became the `WindowOpened` and `WindowClosed` messages, and the
+close gate `CloseRequested` and `CloseAnswer`, so `ApiWalkTest` finds none of them)*
 
 **T7.2 — No API an application can reach takes or returns a callback.** No public type in `-api`, `-core`,
 `-shell` or `vexelray-gui` that an application part can be handed has a parameter or a return of a functional

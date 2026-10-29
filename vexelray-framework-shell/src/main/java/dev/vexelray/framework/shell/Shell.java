@@ -67,8 +67,8 @@ public final class Shell {
     private String busGraph;
     /** What main was handed, as the OS holds it; set by {@link VexelApplication} before any phase runs. */
     private List<String> arguments = List.of();
-    /** The restart a closed main window starts, once the loop has ended; null for none. See {@link #restart}. */
-    private volatile Relaunch restarting;
+    /** The restart a closed main window starts, once the loop has ended; null for none. Main thread. */
+    private Relaunch restarting;
     private final FrameHooks hooks = new FrameHooks();
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
@@ -180,8 +180,11 @@ public final class Shell {
         how.unavailable().ifPresent(why -> {
             throw new IllegalStateException("cannot restart: " + why);
         });
+        // On the main thread, where a window is commanded: this is called from anywhere, the automation socket
+        // among them.
         Window main = windows().main();
-        main.close(() -> restarting = how, () -> LOG.info("restart cancelled: the window stayed open"));
+        app().post(() -> main.close(() -> restarting = how,
+                () -> LOG.info("restart cancelled: the window stayed open")));
     }
 
     /** Start the restart a closed main window asked for, if any. After the loop has ended. */
@@ -374,8 +377,8 @@ public final class Shell {
      * See {@link Dialogs}.
      *
      * <p><b>Available in every phase</b>, like the bus, and safe from any thread: a question asked before there is a
-     * window is held and asked once there is, in the main window's frame. The same value throughout, whoever ends up answering — the
-     * application's own, if it handed some back through {@link #dialogs(Dialogs)}, or the framework's from
+     * window is held and asked once there is, in the main window's frame. The same value throughout, whoever ends up
+     * answering — the application's own, if it handed some back through {@link #dialogs(Dialogs)}, or the framework's from
      * {@link Phase#ATTACH}.
      */
     public Dialogs dialogs() {

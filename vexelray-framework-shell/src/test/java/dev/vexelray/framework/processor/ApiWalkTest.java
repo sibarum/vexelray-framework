@@ -37,12 +37,9 @@ class ApiWalkTest {
 
     /** Every door still open, by the phase that closes it. */
     private static final Set<String> OWED = Set.of(
-            // Phase 5, the shell: the windows become topics, and the Shell itself leaves an application's reach (a
-            // recipe takes it today only to be last). The close gate and the dialogs are messages already.
-            "dev.vexelray.framework.shell.Window#onClosed takes java.lang.Runnable",
-            "dev.vexelray.framework.shell.Window#onOpened takes java.lang.Runnable",
-            // Phase 5 too: reached only through the Shell, which the generated wiring needs and a recipe still takes.
-            // The processor hands none of them to a part (Framework.REFUSED), so this is the Shell's reach.
+            // Phase 5, the shell: the close gate, the dialogs and the windows are messages already. Left is the Shell
+            // itself, which the generated wiring needs and a recipe still takes (today only to be last). The
+            // processor hands none of these to a part (Framework.REFUSED), so this is the Shell's reach.
             "dev.vexelray.framework.core.Disposer#beforeClose takes java.lang.Runnable",
             "dev.vexelray.framework.core.FrameHooks#add takes java.lang.Runnable",
             "dev.vexelray.framework.core.FrameHooks#onFailure takes dev.vexelray.framework.core.FrameHooks$HookFailure",

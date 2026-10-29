@@ -4,6 +4,8 @@ import dev.vexelray.framework.core.CloseAnswer;
 import dev.vexelray.framework.core.CloseRequested;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
+import dev.vexelray.framework.core.WindowCommand;
+import dev.vexelray.framework.core.WindowOpened;
 import dev.vexelray.gui.core.style.Theme;
 import dev.vexelray.os.Decorations;
 import org.junit.jupiter.api.AfterEach;
@@ -110,12 +112,23 @@ final class WindowsTest {
     }
 
     @Test
-    void commandsBeforeTheWindowCanExistAreHeldNotLost() {
+    void aCommandIsAMessageCarriedOutInTheFrameAndHeldUntilTheWindowExists() {
         Window w = declare(Appearance.DEFAULT, NamedWindow.of("early", "Early", 300, 200));
+        List<Object> said = new ArrayList<>();
+        shell.bus().subscribe(WindowOpened.TOPIC, said::add);
+        assertFalse(w.shown(), "a named window opens when asked, not with the application");
 
-        // From any thread, and before ATTACH there is nothing to post to; none of these may throw.
-        w.show().hide().toggle();
-        assertFalse(w.isOpen(), "a window reported open before there was a device to open it on");
+        // Sent from anywhere; carried out on the main thread, in the main window's frame. Before ATTACH there is no
+        // window to open, so the command is remembered for the claim, and nothing is said to have opened.
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.show("early"));
+        assertFalse(w.shown(), "a command was carried out outside the frame");
+        VexelApplication.frame(shell);
+        assertTrue(w.shown());
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.toggle("early"));
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.show("nobody"));
+        VexelApplication.frame(shell);
+        assertFalse(w.shown(), "a toggle before the claim flips what the claim will do");
+        assertTrue(said.isEmpty(), "a window was said to open before there was a device to open it on");
     }
 
     @Test
@@ -126,10 +139,12 @@ final class WindowsTest {
         assertEquals("main", main.key());
         assertSame(shell.gui(), main.gui(), "the main window's handle is not over the framework's tree");
         assertSame(shell.titleBar(), main.titleBar(), "the main window's handle has a bar of its own");
-        // Before there is a device: held, not thrown, and nothing reported open. A close here would quit at once
-        // once claimed, which is right for an application that decided to quit while it was being built.
-        main.hide().show();
-        assertFalse(main.isOpen(), "the main window reported open before there was a device");
+        // The main window opens with the application, under the key a command names it by.
+        assertTrue(main.shown());
+        assertEquals(dev.vexelray.framework.core.CloseRequested.MAIN, main.key());
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.hide("main"));
+        VexelApplication.frame(shell);
+        assertFalse(main.shown(), "a hide before the claim is what the claim does");
         assertTrue(shell.windows().views().isEmpty(), "views before ATTACH should be empty");
     }
 

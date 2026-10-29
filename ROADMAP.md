@@ -884,6 +884,18 @@ Every item in §3's shell rows, moved to topics, and every item the earlier phas
   default and cancel, so Escape puts it away unanswered.*
 * **Window:** state confined to the main thread; open, close and focus are published as messages. No locks.
   `onOpened`, `onClosed` and `onClose(CloseGate)` go.
+  ***Done 2026-10-29.*** *A part opens, hides, toggles or closes a window by sending `WindowCommand(window,
+  command)` with its key, and hears `WindowOpened` and `WindowClosed`; all three records are in `-core`. `Window`'s
+  `show`, `hide`, `toggle`, `close` and `isOpen` left the public API, since a handle callable from anywhere was a send
+  the processor could not see (fork 5), and `onOpened`/`onClosed` went, two entries off `OWED`. `Windows` hears the
+  commands in the main window's frame and hands each to its window by key, so everything a `Window` knows is the
+  main thread's: no `synchronized`, no copy-on-write lists, no volatiles (the restart posts its close to the main
+  thread rather than setting a volatile outcome from the socket's). The framework's own uses are internal and on the
+  main thread: the window mark opens About, and About's Escape closes it; About's intro plays on `WindowOpened`.
+  Held by `WindowsTest` (a command held in the frame and until the claim, an unknown key ignored). Driven live: the
+  mark opened About, its intro ran, Escape closed it through the close gate, and the mark opened it again.*
+  *Found: an application that answers `CloseRequested` is now asked about every window, the About window too, so
+  closing About waits a logic-lane round trip; the template's `Editor` answers any window but the main one at once.*
 * **One bus, many windows** (phase 3, steps 6 and 8): the shell builds each `Gui` with its window's name, so
   `GuiApp`'s window key and the tree's name are one name, and puts every window on the application's one bus. Two
   windows really sharing a bus has not yet run in an application; this phase is where it first does.
