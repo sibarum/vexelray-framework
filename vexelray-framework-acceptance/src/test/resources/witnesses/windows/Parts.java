@@ -2,15 +2,14 @@ package ${packageName};
 
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
-import dev.vexelray.gui.core.input.CursorShape;
-import dev.vexelray.gui.core.input.InteractionState;
 import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
 import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
 import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
+import dev.vexelray.gui.widget.Button;
 
-/** The few things every window here is built from, made in whichever tree they are asked of. */
+/** What the three windows' trees are built from: a readout, a button that is only a name, and the card they sit in. */
 final class Parts {
 
     private Parts() {
@@ -22,23 +21,11 @@ final class Parts {
         return node;
     }
 
-    static Node button(Gui gui, String landmark, String label, Runnable action) {
-        Node button = gui.text(label)
-                .font(Type.UI)
-                .textSize(Type.LABEL)
-                .textColor(gui.theme().color(Role.INK))
-                .padding(Type.TIGHT, Type.WIDE)
-                .corner(Type.CORNER)
-                .border(Type.RULE, gui.theme().color(Role.LINE))
-                .role("button");
-        gui.focusable(button, true);
-        gui.cursor(button, CursorShape.POINTER);
-        gui.onClick(button, action);
-        gui.onState(button, state -> button.background(state == InteractionState.HOVER
-                ? gui.theme().color(Role.ACCENT, InteractionState.HOVER)
-                : gui.theme().color(Role.NONE)));
-        gui.landmark(landmark, button);
-        return button;
+    /** A button named {@code landmark}, so it presses with {@code <tree>.<landmark>}; what that means is the view's. */
+    static Node button(Gui gui, String landmark, String label) {
+        Button button = new Button(gui, label).name(landmark);
+        gui.landmark(landmark, button.node());
+        return button.node();
     }
 
     /** {@code bar} above a centred card holding {@code children}: the shape of every window here. */

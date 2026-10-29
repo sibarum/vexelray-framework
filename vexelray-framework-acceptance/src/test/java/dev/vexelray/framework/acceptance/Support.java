@@ -209,7 +209,7 @@ final class Support {
     static final String SHARED_DIR = "/witnesses/shared";
 
     /** The counter every witness is built on: its state, and the type scale its views use. */
-    static final List<String> SHARED = List.of("Doc", "Model", "Type");
+    static final List<String> SHARED = List.of("Doc", "Counter", "Type");
 
     /**
      * The builder's {@code vexel-desktop} tree, written under {@code root}, with its application swapped for the

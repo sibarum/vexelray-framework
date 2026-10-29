@@ -1,173 +1,200 @@
 package ${packageName};
 
 import dev.vexelray.framework.api.Component;
+import dev.vexelray.framework.api.Job;
 import dev.vexelray.framework.api.Subscribe;
+import dev.vexelray.framework.core.Timer;
+import sibarum.atchung.Sender;
+import sibarum.atchung.Topic;
 
-import java.util.Arrays;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
-/** The topic names, as constants so an annotation and a publisher cannot disagree by a typo. */
-final class Topics {
-    static final String PROBE = "witness.probe";
-    static final String STORM = "witness.storm";
-    static final String IDLE = "witness.idle";
+/*
+ * The pacing instrument's logic, in 0.2's shape. In 0.1 a component held the view's tree and wrote nodes from its
+ * own thread, and a frame hook ran a stopwatch on the main thread; neither is possible now, and neither is needed.
+ * A time is a value: a part stamps System.nanoTime() into a message, and the view, hearing it in a frame, reads the
+ * clock again. The difference is the path a real result takes, measured to the frame that shows it.
+ *
+ * What each measures:
+ *   Echo     the view stamps a Ping in the frame that took a click; this answers it on the logic lane; the view times
+ *            the answer in the frame that shows it. Fork 4's cost: a click's result, through the logic, on screen.
+ *   Prober   a timer's beat stamped on the logic lane from a parked loop, timed in the frame it wakes.
+ *   Stormer  a timer beat every millisecond for a while: more arrivals than the loop draws frames.
+ *   Weigh    the process's CPU over a stretch of nothing, on the job lane.
+ */
 
-    private Topics() {
+/** A click's stamp, to be answered. */
+record Ping(long stamp) {
+    static final Topic<Ping> TOPIC = Topic.edge(Ping.class);
+}
+
+/** The answer, carrying the click's stamp back. */
+record Pong(long stamp) {
+    static final Topic<Pong> TOPIC = Topic.edge(Pong.class);
+}
+
+/** Run {@code trials} timed wakes from a parked loop. */
+record Probe(int trials) {
+    static final Topic<Probe> TOPIC = Topic.edge(Probe.class);
+}
+
+/** One of the prober's beats. The same value each time: the timer publishes what it was given. */
+record Beat() {
+    static final Topic<Beat> TOPIC = Topic.edge(Beat.class);
+}
+
+/** A beat, stamped where the logic heard it; {@code last} on the final one. */
+record Stamped(long stamp, boolean last) {
+    static final Topic<Stamped> TOPIC = Topic.edge(Stamped.class);
+}
+
+/** Keep the logic lane busy for {@code millis}. */
+record Storm(int millis) {
+    static final Topic<Storm> TOPIC = Topic.edge(Storm.class);
+}
+
+/** One of the storm's beats, a millisecond apart. */
+record Gust() {
+    static final Topic<Gust> TOPIC = Topic.edge(Gust.class);
+}
+
+/** How many deliveries the storm ran, in how long. */
+record Stormed(long deliveries, long millis) {
+    static final Topic<Stormed> TOPIC = Topic.edge(Stormed.class);
+}
+
+/** Weigh {@code millis} of nothing; {@code n} numbers the answer. */
+record Weigh(int n, int millis) {
+    static final Topic<Weigh> TOPIC = Topic.edge(Weigh.class);
+}
+
+/** The process's CPU over that stretch, and the stretch itself. */
+record Weighed(int n, long cpuMillis, long wallMillis) {
+    static final Topic<Weighed> TOPIC = Topic.edge(Weighed.class);
+}
+
+@Component
+final class Echo {
+
+    private final Sender<Pong> pong;
+
+    Echo(Sender<Pong> pong) {
+        this.pong = pong;
+    }
+
+    @Subscribe
+    public void ping(Ping p) {
+        pong.send(new Pong(p.stamp()));
     }
 }
 
-record Probe(int trials) { }
-
-record Storm(int millis) { }
-
-record Idle(int millis, int trials) { }
-
 /**
- * The two probes that need something other than the window's own thread to run them.
- *
- * <p>Each is one long delivery on a lane of its own, which is legal at these lengths and stays under the stall
- * threshold: the latency run is about four seconds and the storm three. Both make their wake the way any
- * component does, by writing a node, so what is measured is the path a real component's result takes.
+ * Beats at a period the idle refresh (200 ms) does not divide, so each lands at a different phase of a parked loop,
+ * and each is stamped as the logic hears it.
  */
-@Component(lane = "prober")
+@Component
 final class Prober {
 
-    private final Meter meter;
-    private final Ui ui;
-    /** How many idle runs have reported, so a driver awaiting the second does not read the first. */
-    private int idles;
+    private static final Duration PERIOD = Duration.ofMillis(263);
 
-    Prober(Meter meter, Ui ui) {
-        this.meter = meter;
-        this.ui = ui;
+    private final Timer timer;
+    private final Sender<Stamped> stamped;
+    private Timer.Scheduled beating;
+    private int left;
+
+    Prober(Timer timer, Sender<Stamped> stamped) {
+        this.timer = timer;
+        this.stamped = stamped;
     }
 
-    /**
-     * Wake-to-first-frame from a parked loop. Each trial waits long enough for the loop to be asleep — its idle
-     * refresh is 200 ms, so at least one park has begun — at a random phase, then arms the stopwatch, writes a
-     * node, and waits for the frame to stop it.
-     */
-    @Subscribe(topic = Topics.PROBE)
-    public void probe(Probe probe) {
-        long[] micros = new long[probe.trials()];
-        for (int i = 0; i < micros.length; i++) {
-            try {
-                Thread.sleep(220 + ThreadLocalRandom.current().nextInt(60));
-            } catch (InterruptedException stopped) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            meter.arm();
-            ui.tick(i);
-            long waited = System.nanoTime();
-            long elapsed;
-            while ((elapsed = meter.elapsed()) < 0 && System.nanoTime() - waited < TimeUnit.SECONDS.toNanos(1)) {
-                Thread.onSpinWait();
-            }
-            micros[i] = elapsed < 0 ? -1 : elapsed / 1_000;
+    @Subscribe
+    public void probe(Probe p) {
+        if (beating == null) {
+            left = p.trials();
+            beating = timer.every(PERIOD, Beat.TOPIC, new Beat());
         }
-        long[] sorted = micros.clone();
-        Arrays.sort(sorted);
-        ui.latency("latency n=" + micros.length + " median " + sorted[sorted.length / 2] + "us p95 "
-                + sorted[(int) (sorted.length * 0.95)] + "us max " + sorted[sorted.length - 1] + "us min "
-                + sorted[0] + "us");
     }
 
-    /**
-     * The other half of render on demand: what the loop costs when nothing is owed, and what one wake buys.
-     *
-     * <p>First {@code millis} of nothing, counting the frames the loop ran and the CPU the whole process spent. A
-     * focused window is held to the idle floor (five a second); an unfocused one should run none. Then
-     * {@code trials} single writes, each from a parked loop, counting the frames in the 100 ms after each: one wake
-     * should earn exactly one frame, and anything more is something the write started that keeps the loop awake.
-     * Under the lane's ten-second stall threshold at the lengths the driver asks for.
-     */
-    @Subscribe(topic = Topics.IDLE)
-    public void idle(Idle idle) {
-        sleep(500);   // the click that asked for this, and its hover, settle first
-        java.lang.management.ThreadMXBean threads = java.lang.management.ManagementFactory.getThreadMXBean();
-        java.util.Map<Long, Long> threadsBefore = new java.util.HashMap<>();
-        for (long id : threads.getAllThreadIds()) {
-            threadsBefore.put(id, threads.getThreadCpuTime(id));
+    @Subscribe
+    public void beat(Beat b) {
+        if (beating == null) {
+            return;
         }
-        long framesBefore = meter.frames();
-        long cpuBefore = cpuNanos();
+        left--;
+        stamped.send(new Stamped(System.nanoTime(), left == 0));
+        if (left == 0) {
+            beating.cancel();
+            beating = null;
+        }
+    }
+}
+
+/**
+ * A beat every millisecond for a while: messages arriving from outside faster than the loop draws. Not a component
+ * sending itself the next delivery, which the tick refuses past 64 hops as the loop it is: in 0.2 sustained work
+ * arrives from outside the logic, by a timer or a job, and is never generated by a part chasing itself.
+ */
+@Component
+final class Stormer {
+
+    private static final Duration GUST = Duration.ofMillis(1);
+
+    private final Timer timer;
+    private final Sender<Stormed> stormed;
+    private Timer.Scheduled blowing;
+    private long start;
+    private long deadline;
+    private long deliveries;
+
+    Stormer(Timer timer, Sender<Stormed> stormed) {
+        this.timer = timer;
+        this.stormed = stormed;
+    }
+
+    @Subscribe
+    public void storm(Storm s) {
+        if (blowing != null) {
+            return;
+        }
+        start = System.nanoTime();
+        deadline = start + Duration.ofMillis(s.millis()).toNanos();
+        deliveries = 0;
+        blowing = timer.every(GUST, Gust.TOPIC, new Gust());
+    }
+
+    @Subscribe(capacity = 4096)
+    public void gust(Gust g) {
+        if (blowing == null) {
+            return;
+        }
+        deliveries++;
+        long now = System.nanoTime();
+        if (now - deadline >= 0) {
+            blowing.cancel();
+            blowing = null;
+            stormed.send(new Stormed(deliveries, (now - start) / 1_000_000L));
+        }
+    }
+}
+
+/** The process's CPU over a stretch of nothing, on the job lane, which sleeping blocks nobody's. */
+@Job
+final class Scales {
+
+    public Weighed run(Weigh w) {
+        long before = cpuNanos();
         long start = System.nanoTime();
-        sleep(idle.millis());
-        long wall = System.nanoTime() - start;
-        long idleFrames = meter.frames() - framesBefore;
-        long idleCpu = cpuNanos() - cpuBefore;
-        // Where the process's CPU went, by Java thread: the rest (the JVM's own threads and the drivers') is the
-        // difference between the process total and this sum.
-        java.util.List<String> spent = new java.util.ArrayList<>();
-        long javaSum = 0;
-        for (java.lang.management.ThreadInfo info : threads.getThreadInfo(threads.getAllThreadIds())) {
-            if (info == null) {
-                continue;
-            }
-            long now = threads.getThreadCpuTime(info.getThreadId());
-            long delta = now - threadsBefore.getOrDefault(info.getThreadId(), 0L);
-            if (now >= 0 && delta > 0) {
-                javaSum += delta;
-                spent.add(String.format("%07.2f %s", delta / 1e6, info.getThreadName()));
-            }
-        }
-        spent.sort(java.util.Comparator.reverseOrder());
-        sibarum.probe.Log.of("witness.idle").warn("IDLE-CPU process " + idleCpu / 1_000_000L + "ms java threads " + javaSum / 1_000_000L
-                + "ms :: " + String.join(" | ", spent));
-
-        int[] earned = new int[idle.trials()];
-        for (int i = 0; i < earned.length; i++) {
-            sleep(250 + ThreadLocalRandom.current().nextInt(100));
-            long before = meter.frames();
-            ui.tick(i);
-            sleep(100);
-            earned[i] = (int) (meter.frames() - before);
-        }
-        ui.idle(String.format("idle #%d frames %d in %dms (%.1f/s) cpu %.1fms (%.2f%%) wake frames %s",
-                ++idles, idleFrames, wall / 1_000_000L, idleFrames * 1e9 / wall, idleCpu / 1e6,
-                idleCpu < 0 ? -1.0 : 100.0 * idleCpu / wall, Arrays.toString(earned).replace(" ", "")));
-    }
-
-    private static long cpuNanos() {
-        return ProcessHandle.current().info().totalCpuDuration().map(java.time.Duration::toNanos).orElse(-1L);
-    }
-
-    private static void sleep(long millis) {
         try {
-            Thread.sleep(millis);
+            Thread.sleep(w.millis());
         } catch (InterruptedException stopped) {
             Thread.currentThread().interrupt();
         }
+        long wall = System.nanoTime() - start;
+        long cpu = before < 0 ? -1 : cpuNanos() - before;
+        return new Weighed(w.n(), cpu < 0 ? -1 : cpu / 1_000_000L, wall / 1_000_000L);
     }
 
-    /**
-     * Mutations with no pause for {@code millis}, counting the frames the loop ran meanwhile and every failure
-     * a write raised. Each write ends a park with a posted wake, so this is the loop's behaviour under more wakes
-     * than it can answer — and the place a full message queue would show up as an exception on this thread.
-     */
-    @Subscribe(topic = Topics.STORM)
-    public void storm(Storm storm) {
-        long framesBefore = meter.frames();
-        long start = System.nanoTime();
-        long deadline = start + TimeUnit.MILLISECONDS.toNanos(storm.millis());
-        long writes = 0;
-        long failures = 0;
-        String first = "";
-        while (System.nanoTime() < deadline) {
-            try {
-                ui.tick((int) writes);
-            } catch (RuntimeException e) {
-                failures++;
-                if (first.isEmpty()) {
-                    first = e.getClass().getSimpleName() + ": " + e.getMessage();
-                }
-            }
-            writes++;
-        }
-        long millis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-        ui.storm("storm frames " + (meter.frames() - framesBefore) + " in " + millis + "ms writes " + writes
-                + " failures " + failures + (first.isEmpty() ? "" : " first " + first));
+    private static long cpuNanos() {
+        return ProcessHandle.current().info().totalCpuDuration().map(Duration::toNanos).orElse(-1L);
     }
 }

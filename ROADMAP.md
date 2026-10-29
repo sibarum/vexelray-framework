@@ -1073,6 +1073,75 @@ frame, when every view's mailbox exists.*
   single-thread mode is meant for exactly those machines.
 * `mvn clean install -Pacceptance` green.
 
+***Witnesses rewritten 2026-10-29; acceptance green (the whole profile 17 of 17, then the fifteen-a-second pacing
+runs added and green on their own); measurements taken, not yet accepted.***
+
+* ***The shared counter is a component.*** *Every witness drove one `Model`, an atchung `State` that any thread
+  committed to and that called its listeners on whichever thread committed. It is now `Counter`, a component on the
+  logic lane that hears `Bump` and `Reset` and publishes `Counted`, a state topic, and each witness's view shows it.*
+* ***W2 (components)*** *has no `Bench`: each component says what it did as a message (`Worked`, `Echoed`,
+  `Wedging`), a `@View` shows it, and the stall readout is the watchdog's own `Stalled` (phase 5), with the policy only
+  interrupting. Buttons are `Button` widgets that publish; nothing of the witness runs at a press. Driven: work, echo
+  and count answered; the tool window opened and closed twice; a wedge on a declared lane and one on the logic lane,
+  each named by `Stalled` and freed by the interrupt; the default policy exited the application.*
+  * ***Found: a declared lane is not a wall around a wedge.*** *It runs its share in the same rounds as the logic
+    lane (T5.6), so a wedge on any lane holds every lane at the round's end. The witness used to assert the opposite;
+    it now asserts this, that a bump waits out a wedge on the declared lane and is delivered once it is freed. What no
+    wedge stops is the window: the view's own tap count moves throughout. The liveness guarantee as `v1.md` states it
+    holds; what is gone is the 0.1 claim that a lane of its own keeps other lanes going.*
+  * ***Found: a component cannot report progress from inside one delivery.*** *What it sends goes out with the
+    round, so the "wedged" it sent before blocking was held for as long as it blocked, and the view saw only "freed".
+    The view now says what it asked for. Right for determinism; worth stating in `threading.md` for long work, which
+    belongs in a job.*
+  * ***Found: the processor let a component sleep for good.*** *`Thread.sleep(Long.MAX_VALUE)` in a `@Subscribe`
+    compiled without a word. The witness needs it, but an application should be told; the T2.5 check does not reach
+    blocking calls in a component's body.*
+  * ***Found: the bus graph still speaks 0.1.*** *Every mailbox says `overflow=FAIL capacity=64`, state topics
+    included, and the logic lane is `lane=<default>` while the watchdog and the thread call it `logic`. The Inspector
+    reads this format, so it was left; it should say a topic's kind and use the lane's real name.*
+* ***W3 (long run)*** *counts a `Timer` beat on a declared lane (0.1 slept ten milliseconds in a delivery and sent
+  itself the next), the frame hook is gone (frames are counted from the flight recorder), and the process is weighed
+  by a job. Idle 15 frames in 3 s; running 284 in 5 s (56.8 a second, under the 60 Hz ceiling, where 0.1 ran at the
+  wake rate); 15 again after Stop; threads 25 to 26 and the heap 34 to 35 MB over a 15 s run.*
+* ***W1 (windows)*** *opens, closes and quits by `WindowCommand`, counts the notes window's openings from
+  `WindowOpened`, and the palette's close confirmation is a component hearing `CloseRequested`, asking with `Ask` and
+  answering `CloseAnswer`. All four cases as before, the dialog's Escape and Enter included. **Changed:** the
+  question and the notes window that the launch asks for are sent as the main window opens, not in `TREE`; holding a
+  question asked before there is a window is `DialogsTest`'s, and a command before the claim `WindowsTest`'s.*
+  *Found: a recipe may not return a record (the launch's two settings), so they are `@Setting` parameters of the
+  component that uses them.*
+* ***The pacing instrument*** *had a component holding the tree and a frame hook running a stopwatch, both
+  impossible now. A time is a value: stamped into a message and read again by the view in the frame that shows it;
+  frame counts are the recorder's. The pulse is a `Tween`, whose steps arrive once a frame. The storm is a 1 ms timer
+  beat: **a component sending itself its next delivery is refused at 64 hops as a loop**, which stopped the first
+  attempt, and is right; sustained work arrives from outside the logic.*
+
+**The numbers** (this machine, display about 144 Hz; 0.1's from `docs/architecture.md`, *what the pacing measurements
+found*). Both modes measure the same to within noise, as fork 4 intends.
+
+| | 0.1 | 0.2, logic lane | 0.2, `--logic=main` |
+| --- | --- | --- | --- |
+| A 600 ms animation | ~88 frames, **~144 a second** | 35–36 frames, **~57 a second** (gap median 17.5 ms) | the same |
+| A click's result through the logic, frame to frame | 6.5 ms through the handler lane (one 144 Hz gap) | **17.5 ms median**, p95 18.6 (one 60 Hz frame) | 17.5 ms |
+| The same at ~15 frames a second | not measured | **66 ms median** (one frame) | 66 ms |
+| A wake from a parked loop to its frame | 0.6–1.3 ms | **0.7 ms** median, p95 ≤ 1.0 | 0.7–0.8 ms |
+| The same at ~15 frames a second | not measured | 1.2 ms median | 1.1 ms |
+| Idle, focused: frames | 5 a second | 18 in ~3.4 s (5 a second) | the same |
+| Idle: process CPU over 4 s | 0.8–3 % of a core | 0.8–7.4 % across runs | 1.6–7.0 % |
+| Arrivals faster than frames | 134–143 frames a second | 1,400–1,500 beats in 3 s, **~59 frames a second**, nothing lost | the same |
+
+**What they say, for the author to accept or not (§5's sixth point):**
+* **Fork 4 costs exactly one frame**, as predicted: 17.5 ms at 60 Hz, 66 ms at fifteen a second. A result the view
+  makes itself costs none: it is drawn in the frame the click arrived.
+* **The 60 Hz ceiling now holds animation too.** In 0.1 an animation ran at the display's 144 Hz, because the clock's
+  wake ended the ceiling's park; now it runs at ~57. So 0.1's 6.5 ms and 0.2's 17.5 ms are each one frame, and the
+  difference is the ceiling, not the lanes. `architecture.md` called a ceiling that held a 144 Hz display to 60 "the
+  opposite of the goal the design states": whether it should is the author's call.
+* **Idle CPU is noisier than 0.1 recorded**, up to 7 % of a core in some four-second windows. Windows accounts CPU in
+  15.6 ms ticks, so four seconds is a handful of ticks; a minute-long run would settle whether 0.2 idles dearer.
+* **Not measured on `vexelray-mini`**, which is still 0.1 (phase 8). The fifteen-a-second runs stand in for it, with
+  each frame slowed by `-Dvexelray.debug.slowFrames=62`, inside the slow-frames offer's ten-second warm-up.
+
 ### Phase 7½. A new application, before any port
 
 *Asked for by the author 2026-10-28: build a completely new application from the template (the author has the

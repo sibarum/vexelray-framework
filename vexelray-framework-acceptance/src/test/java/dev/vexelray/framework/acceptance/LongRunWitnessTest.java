@@ -22,6 +22,7 @@ import static dev.vexelray.framework.acceptance.Support.fresh;
 import static dev.vexelray.framework.acceptance.Support.generate;
 import static dev.vexelray.framework.acceptance.Support.launch;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -30,35 +31,30 @@ import static org.junit.jupiter.api.Assertions.fail;
  * when there is work, parks when there is none, and stays the same size while it runs.
  *
  * <p><b>Why this shape.</b> The counter and W2 are both event-driven: they do something, then go quiet. The
- * pacing and wake machinery — parking the loop, and the two {@code onWork} calls whose omission is <i>a parked
- * loop rather than an exception</i> — is only exercised for real by something that keeps producing work. A
- * component here ticks a hundred times a second to itself and rewrites a readout each time, so the window has to
- * be woken by a component's thread continuously, and then has to stop being woken when the component stops.
+ * pacing and wake machinery is only exercised for real by something that keeps producing work. A component here
+ * counts a timer's beat a hundred times a second on a lane of its own and the view rewrites a readout each time,
+ * so the window has to be woken by the logic continuously, and then has to stop being woken when it stops.
  *
- * <p>Measured through samples taken by a button rather than through anything drawn each frame: a readout that
- * changed every frame would owe the next frame itself, and a loop that wakes itself cannot be measured for
- * whether it parks. So a sample copies the frame count, the thread count and the heap into one line, on request,
- * and the assertions are about the differences between two. Except for the idle loop, which is counted by the
- * flight recorder from a mark: a sample is a click, and a click moves things in every window.
+ * <p><b>Measured from the outside.</b> No application code runs in the frame in 0.2, so the frames are counted by
+ * the flight recorder from a mark, as the idle loop always was, and the process is weighed by a job on request.
  *
  * <p>The thresholds are wide on purpose. They separate <i>parked</i> (about five frames a second, the idle
  * refresh) from <i>running</i> (up to sixty) by an order of magnitude, and they are here to catch a loop that
- * never parks or never wakes, not to benchmark. Each run prints its numbers, and the findings are written up in
- * {@code docs/architecture.md}.
+ * never parks or never wakes, not to benchmark. Each run prints its numbers.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class LongRunWitnessTest {
 
     private static final String ARTIFACT = "vexel-witness-longrun";
-    private static final List<String> OVERLAY = List.of("Landmarks", "Meter", "Components", "Ui", "Recipes");
-    private static final Pattern SAMPLE = Pattern.compile("#(\\d+) frames (\\d+) threads (\\d+) heap (\\d+)");
+    private static final List<String> OVERLAY = List.of("Landmarks", "Components", "Ui", "Shown", "Recipes");
+    private static final Pattern SAMPLE = Pattern.compile("#(\\d+) threads (\\d+) heap (\\d+)");
 
     private static Path root;
     private static Project project;
     private static Session live;
 
-    /** One reading of the process: what the sample line says. */
-    private record Sample(int number, long frames, int threads, long heapMb) {
+    /** One weighing of the process: what the sample line says. */
+    private record Sample(int number, int threads, long heapMb) {
     }
 
     @BeforeAll
@@ -76,13 +72,14 @@ class LongRunWitnessTest {
 
     @Test
     @Order(1)
-    void theBuilderGeneratesAProjectWithAFrameHookAndAMetronomeOnItsOwnLane() throws Exception {
+    void theBuilderGeneratesAProjectWithAMetronomeOnItsOwnLaneAndNoFrameHook() throws Exception {
         project = generate(root, ARTIFACT, "/witnesses/longrun", OVERLAY);
         build(project, root.resolve("build.log"));
         String generated = Files.readString(project.wiring());
-        assertTrue(generated.contains("Placements.of(shell, \"metronome\")"), "no placement for the metronome\n" + generated);
-        assertTrue(generated.contains("shell.hooks().add(dev.vexelray.framework.api.FrameStage.APP, meter::frame)"),
-                "the frame hook on the meter was not added to the frame array\n" + generated);
+        String p = project.packageName() + ".";
+        assertTrue(generated.contains("\"component " + p + "Metronome lane=metronome"),
+                "the metronome is not on its lane\n" + generated);
+        assertFalse(generated.contains("shell.hooks().add("), "an application's code is in the frame\n" + generated);
     }
 
     @Test
@@ -94,36 +91,25 @@ class LongRunWitnessTest {
             d.firstFrame("button.sample");
             int next = 1;
 
-            // Parked: with nothing running, the loop refreshes on its idle timer and no faster. Counted by the flight
-            // recorder from a mark, after a settle, and not by two samples: a sample is a click, and since every window
-            // moves by default (WindowMotion) a click is followed by a press fading and a readout sliding to its new
-            // width, a few dozen frames that belong to the click and not to the idle loop. Counting from the click
-            // measured the instrument (2026-10-24: 46 frames, all but a handful the click's own tail).
+            // Parked: with nothing running, the loop refreshes on its idle timer and no faster. Counted from a mark
+            // after a settle, because a click is followed by a press fading and a readout sliding, a few dozen
+            // frames that belong to the click and not to the idle loop.
             d.ok("settle");
-            d.ok("mark idle-window");
-            Thread.sleep(3_000);
-            String idle = d.ok("frames since idle-window");
-            long idleFrames = field(idle, "frames") + field(idle, "more");
+            long idleFrames = framesOver(d, "idle-window", 3_000);
             System.out.println("W3 idle: " + idleFrames + " frames in 3 s");
             assertTrue(idleFrames <= 45, "an idle window ran " + idleFrames + " frames in three seconds, so the "
-                    + "loop is not parking\n" + idle);
+                    + "loop is not parking");
 
-            // Running: a component's thread wakes the loop, a hundred times a second, with nothing else asking.
+            // Running: the logic wakes the loop, a hundred times a second, with nothing else asking.
             d.ok("click " + d.ref("button.start"));
             d.ok("await ticks ticks 50");
-            Sample runFrom = sample(d, next++);
-            Thread.sleep(5_000);
-            Sample runTo = sample(d, next++);
-            long runFrames = runTo.frames() - runFrom.frames();
+            long runFrames = framesOver(d, "running-window", 5_000);
             System.out.println("W3 running: " + runFrames + " frames in 5 s");
-            assertTrue(runFrames >= 60, "a component ticking a hundred times a second produced " + runFrames
-                    + " frames in five seconds, so its wakes are not reaching the loop\n" + runFrom + "\n" + runTo);
+            assertTrue(runFrames >= 60, "a component counting a hundred beats a second produced " + runFrames
+                    + " frames in five seconds, so its wakes are not reaching the loop");
 
-            // Recorded, not asserted, because both are findings rather than claims. Settle is documented as blind
-            // to application work still in flight, and a metronome is exactly that: it answers ok in a gap
-            // between ticks, so a script cannot tell "quiet" from "between two ticks". And the frame ceiling
-            // (maxFrameRate, 60 Hz) is a timed park that a posted wake ends early, so wake-driven frames run at
-            // the wake rate. See docs/architecture.md, what the long-running witness found.
+            // Recorded, not asserted: settle cannot tell "quiet" from "between two beats", and a timer's beat is not
+            // an answer owed, so it answers in a gap. The ceiling is the wake rate, not 60 Hz.
             System.out.println("W3 settle while running: " + d.send("settle"));
             System.out.println("W3 ceiling: " + runFrames / 5.0 + " frames a second against a 60 Hz ceiling");
 
@@ -131,38 +117,41 @@ class LongRunWitnessTest {
             d.ok("click " + d.ref("button.count"));
             d.ok("await count 1");
 
-            // A long run, the same size at the end as near the start: no thread per tick, no heap that grows.
+            // A long run, the same size at the end as near the start: no thread per beat, no heap that grows.
+            Sample early = sample(d, next++);
             Thread.sleep(15_000);
             Sample late = sample(d, next++);
-            System.out.println("W3 sizes: " + runTo + " -> " + late);
-            assertTrue(Math.abs(late.threads() - runTo.threads()) <= 2, "the thread count went from "
-                    + runTo.threads() + " to " + late.threads() + " over a run with a steady load");
-            assertTrue(late.heapMb() - runTo.heapMb() <= 64, "the heap in use grew from " + runTo.heapMb()
+            System.out.println("W3 sizes: " + early + " -> " + late);
+            assertTrue(Math.abs(late.threads() - early.threads()) <= 2, "the thread count went from "
+                    + early.threads() + " to " + late.threads() + " over a run with a steady load");
+            assertTrue(late.heapMb() - early.heapMb() <= 64, "the heap in use grew from " + early.heapMb()
                     + " MB to " + late.heapMb() + " MB over a run with a steady load");
 
             // Stopped: the loop goes back to parking, so nothing is still waking it.
             d.ok("click " + d.ref("button.stop"));
             Thread.sleep(1_500);
             String frozen = landmarked(d, "ticks");
-            // From a mark, for the reason the idle count is: a sample's click moves things itself.
-            d.ok("mark stopped-window");
-            Thread.sleep(3_000);
-            String stopped = d.ok("frames since stopped-window");
-            long stoppedFrames = field(stopped, "frames") + field(stopped, "more");
+            long stoppedFrames = framesOver(d, "stopped-window", 3_000);
             System.out.println("W3 stopped: " + stoppedFrames + " frames in 3 s");
             assertTrue(stoppedFrames <= 45, "after the metronome stopped the loop still ran " + stoppedFrames
-                    + " frames in three seconds, so something is still waking it\n" + stopped);
+                    + " frames in three seconds, so something is still waking it");
             assertEquals(frozen, landmarked(d, "ticks"), "the ticks kept counting after the metronome was stopped");
 
-            // Quiet again, so there is something to settle.
             d.ok("settle");
-
             Path shot = root.resolve("longrun.png");
             d.ok("shot " + shot);
             assertTrue(Files.size(shot) > 0, "the photograph is empty");
             session.out().println("quit");
         }
         live = null;
+    }
+
+    /** Frames the flight recorder saw in {@code millis} from a mark called {@code mark}. */
+    private static long framesOver(Driver d, String mark, long millis) throws Exception {
+        d.ok("mark " + mark);
+        Thread.sleep(millis);
+        String reply = d.ok("frames since " + mark);
+        return field(reply, "frames") + field(reply, "more");
     }
 
     /**
@@ -174,7 +163,6 @@ class LongRunWitnessTest {
                 .orElseGet(() -> fail("no node carries the landmark " + landmark));
     }
 
-    /** Presses Sample, waits for that sample, and reads it. */
     /** The number after {@code name=} in a recorder reply such as {@code ok frames=3 order=since … more=0}. */
     private static long field(String reply, String name) {
         Matcher m = Pattern.compile("\\b" + name + "=(\\d+)").matcher(reply);
@@ -184,6 +172,7 @@ class LongRunWitnessTest {
         return Long.parseLong(m.group(1));
     }
 
+    /** Presses Sample, waits for that weighing, and reads it. */
     private static Sample sample(Driver d, int number) throws IOException {
         d.ok("click " + d.ref("button.sample"));
         d.ok("await sample sample #" + number + " ");
@@ -191,7 +180,6 @@ class LongRunWitnessTest {
         if (!m.find()) {
             return fail("the sample line did not parse");
         }
-        return new Sample(Integer.parseInt(m.group(1)), Long.parseLong(m.group(2)), Integer.parseInt(m.group(3)),
-                Long.parseLong(m.group(4)));
+        return new Sample(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Long.parseLong(m.group(3)));
     }
 }

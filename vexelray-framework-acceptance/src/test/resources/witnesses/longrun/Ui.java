@@ -1,55 +1,44 @@
 package ${packageName};
 
-import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
-import dev.vexelray.gui.core.input.CursorShape;
-import dev.vexelray.gui.core.input.InteractionState;
 import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
 import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
 import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
+import dev.vexelray.gui.widget.Button;
 import dev.vexelray.gui.widget.TitleBar;
-import sibarum.atchung.Atchung;
-import sibarum.atchung.Topic;
 
 /**
- * The tree for the long-running witness: the template's counter, a start and a stop for the metronome, its tick
- * count, and a button that takes a sample. Handlers run on the handler lane, which is where a send may wait.
+ * The tree for the long-running witness: the counter, a start and a stop for the metronome, its tick count, and a
+ * button that weighs the process. It holds no state and runs nothing at a press; {@link Shown} decides what a press
+ * means. Each button's name is its landmark.
  */
-@Publishes(Topics.TICK)
 final class Ui {
 
-    private static final Topic<Tick> TICK = Topic.of(Topics.TICK, Tick.class);
-
     private final Gui gui;
-    private final Meter meter;
-    private final Node count;
-    private final Node note;
-    private final Node ticks;
-    private final Node sample;
+    final Node count;
+    final Node note;
+    final Node ticks;
+    final Node sample;
 
-    Ui(Gui gui, Model model, Meter meter, Atchung bus, TitleBar titleBar) {
+    Ui(Gui gui, TitleBar titleBar) {
         this.gui = gui;
-        this.meter = meter;
 
         Node heading = gui.text(${className}.TITLE).font(Type.UI).textSize(Type.HEADING)
                 .textColor(gui.theme().color(Role.INK));
-        count = readout(Landmarks.COUNT, "0", Type.FIGURE);
-        note = readout(Landmarks.NOTE, "", Type.SMALL);
-        ticks = readout(Landmarks.TICKS, meter.ticksText(), Type.SMALL);
+        count = readout(Landmarks.COUNT, String.valueOf(Doc.initial().count()), Type.FIGURE);
+        note = readout(Landmarks.NOTE, Doc.initial().note(), Type.SMALL);
+        ticks = readout(Landmarks.TICKS, "ticks 0", Type.SMALL);
         sample = readout(Landmarks.SAMPLE, "sample none", Type.SMALL);
 
         Node buttons = gui.row().gap(Type.GAP).alignItems(AlignItems.CENTER).children(
-                button(Landmarks.COUNT_BUTTON, "Count", model::bump),
-                button(Landmarks.RESET_BUTTON, "Reset", model::reset),
-                button(Landmarks.START_BUTTON, "Start", () -> {
-                    meter.running(true);
-                    bus.publish(TICK, new Tick(0));
-                }),
-                button(Landmarks.STOP_BUTTON, "Stop", () -> meter.running(false)),
-                button(Landmarks.SAMPLE_BUTTON, "Sample", () -> sample.text(meter.snapshot())));
+                button(Landmarks.COUNT_BUTTON, "Count"),
+                button(Landmarks.RESET_BUTTON, "Reset"),
+                button(Landmarks.START_BUTTON, "Start"),
+                button(Landmarks.STOP_BUTTON, "Stop"),
+                button(Landmarks.SAMPLE_BUTTON, "Sample"));
 
         Node card = gui.column()
                 .width(Length.AUTO).height(Length.AUTO)
@@ -79,32 +68,14 @@ final class Ui {
         return node;
     }
 
-    private Node button(String landmark, String label, Runnable action) {
-        Node button = gui.text(label)
-                .font(Type.UI)
-                .textSize(Type.LABEL)
-                .textColor(gui.theme().color(Role.INK))
-                .padding(Type.TIGHT, Type.WIDE)
-                .corner(Type.CORNER)
-                .border(Type.RULE, gui.theme().color(Role.LINE))
-                .role("button");
-        gui.focusable(button, true);
-        gui.cursor(button, CursorShape.POINTER);
-        gui.onClick(button, action);
-        gui.onState(button, state -> button.background(state == InteractionState.HOVER
-                ? gui.theme().color(Role.ACCENT, InteractionState.HOVER)
-                : gui.theme().color(Role.NONE)));
-        gui.landmark(landmark, button);
-        return button;
+    private Node button(String landmark, String label) {
+        Button button = new Button(gui, label).name(landmark);
+        gui.landmark(landmark, button.node());
+        return button.node();
     }
 
-    void show(Doc doc) {
-        count.text(String.valueOf(doc.count()));
-        note.text(doc.note());
-    }
-
-    /** Called from the metronome's thread, on every tick. */
-    void showTicks() {
-        ticks.text(meter.ticksText());
+    /** The address a button called {@code landmark} in this tree presses with. */
+    String address(String landmark) {
+        return gui.address(landmark);
     }
 }

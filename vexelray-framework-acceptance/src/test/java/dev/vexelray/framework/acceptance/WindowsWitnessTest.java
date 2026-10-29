@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WindowsWitnessTest {
 
     private static final String ARTIFACT = "vexel-witness-windows";
-    private static final List<String> OVERLAY = List.of("Landmarks", "Parts", "Ui", "Notes", "Palette", "Recipes");
+    private static final List<String> OVERLAY = List.of("Landmarks", "Parts", "Ui", "Notes", "Palette", "Gate", "Shown", "Recipes");
 
     /** What the notes window is resized and zoomed to, and so what the second launch must find it at. */
     private static final String NOTES_SIZE = "520x380";
