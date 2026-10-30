@@ -1278,7 +1278,18 @@ FN-6 to FN-8, handlers and pools are gone (FN-11, FN-15), and a run that replays
 for real replay rather than a recording played back. Its own 0.1 code also breaks the rules it would display: the
 show runs on the timeline inside the frame, and FN-1 is three hand-made threads. What it needs from the stack is
 found as it is built, starting with the bus graph, which still speaks 0.1 (phase 7's finding) because the old
-Inspector parses it.
+Inspector parses it. Its design is `vexelray-inspector/docs/design.md`, with the author's rulings in its §9.
+
+**Sources, a new kind of part** (ruled by the author 2026-10-30, the Inspector's design §9.2). A source keeps
+producing messages from outside the application for as long as it runs: a socket, a stream, a child process, a
+device. It only sends, has a thread of its own, is named in the wiring like any other part, starts after the parts
+that hear it and stops before them. **Why:** it is the right shape, and netcode and much else will need it, so it
+belongs in the framework rather than worked around in each application. The Inspector needs three (the link's rows,
+a recording's, a launched child's output); 0.1's Inspector made them as hand-made threads (its FN-1). *Rejected:* a
+loop of short jobs, each waiting a bounded time and asked again at once. **It changes two rules**, so it is argued in
+`threading.md` before code: T1.1's closed list of lanes gains the source's thread, and T5.8 ("blocking work is a
+`@Job`, and nothing else blocks") gains a source's read as the one other place that may block. Built before the
+Inspector's R1 needs it.
 
 ### Phase 8. Land and port
 
