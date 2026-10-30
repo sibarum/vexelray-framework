@@ -501,22 +501,40 @@ final class Declarations {
      * application's ({@link Channels}).
      */
     void job(TypeElement type) {
+        part(type, false);
+    }
+
+    /**
+     * A source is a job that sends while it runs ({@code docs/components.md}, section 11): held to everything a job is,
+     * except that its {@code run} may take a {@code Closer} after the request and must return a reply, since a run's
+     * end is always news. Its senders are {@link Graph}'s, and its stop message {@link Channels}'.
+     */
+    void source(TypeElement type) {
+        part(type, true);
+        if (mirrors.has(type, dev.vexelray.framework.api.Job.class)) {
+            error(type, "@Source " + Mirrors.simple(type) + " is also a @Job. A job answers one request on the job lane;"
+                    + " a source runs on a thread of its own for as long as what it reads from lasts");
+        }
+    }
+
+    private void part(TypeElement type, boolean source) {
+        String kind = source ? "@Source" : "@Job";
         String name = Mirrors.simple(type);
         if (type.getKind() != ElementKind.CLASS) {
-            error(type, "@Job " + name + " is not a class. A job is constructed by the wiring and holds no state, so"
+            error(type, kind + " " + name + " is not a class. A job is constructed by the wiring and holds no state, so"
                     + " it is a final class whose run method is the work");
             return;
         }
         if (!type.getModifiers().contains(Modifier.FINAL)) {
-            error(type, "@Job " + name + " is not final. A job holds no mutable state, and a subclass could add"
+            error(type, kind + " " + name + " is not final. A job holds no mutable state, and a subclass could add"
                     + " some the checks never see");
         }
         if (type.getNestingKind() == NestingKind.MEMBER && !type.getModifiers().contains(Modifier.STATIC)) {
-            error(type, "@Job " + name + " is an inner class, so constructing it needs an instance of the class"
+            error(type, kind + " " + name + " is an inner class, so constructing it needs an instance of the class"
                     + " around it, and it would hold that instance. Make it static, or top-level");
         }
         if (mirrors.has(type, Component.class)) {
-            error(type, "@Job " + name + " is also a @Component. A job runs on the job lane, a pool with no order and"
+            error(type, kind + " " + name + " is also a @Component. A job runs on the job lane, a pool with no order and"
                     + " no state; a component runs in the logic's ticks, one delivery at a time");
         }
         int constructors = 0;
@@ -526,13 +544,13 @@ final class Declarations {
             }
             if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)
                     && !e.getModifiers().contains(Modifier.FINAL)) {
-                error(e, "@Job " + name + " has the field " + Mirrors.simple(e) + ", which is not final. Two requests"
+                error(e, kind + " " + name + " has the field " + Mirrors.simple(e) + ", which is not final. Two requests"
                         + " may run at once on the job lane, so a job holds no state that changes: keep it in the"
                         + " component that sent the request, and carry what the job needs in the request");
             }
         }
         if (constructors != 1) {
-            error(type, "@Job " + name + " has " + constructors + " non-private constructors, and must have exactly"
+            error(type, kind + " " + name + " has " + constructors + " non-private constructors, and must have exactly"
                     + " one. The container does not pick between them");
         }
         ExecutableElement run = null;
@@ -545,16 +563,28 @@ final class Declarations {
             }
         }
         if (runs != 1) {
-            error(type, "@Job " + name + " has " + runs + " run methods, and must have exactly one: an instance method"
-                    + " taking the request and returning the reply, or void for a job run only for its effect");
+            error(type, kind + " " + name + " has " + runs + " run methods, and must have exactly one: an instance"
+                    + " method taking the request and returning the reply" + (source
+                    ? ", which says why the run ended" : ", or void for a job run only for its effect"));
             return;
         }
         String where = Mirrors.where(run);
-        if (run.getParameters().size() != 1) {
-            error(run, where + " takes " + run.getParameters().size() + " parameters, and must take exactly one: the"
-                    + " request, whose type names the channel it arrives on");
+        int parameters = run.getParameters().size();
+        if (source && parameters == 2 && !closer(run.getParameters().get(1))) {
+            error(run, where + " takes " + Mirrors.simple(run.getParameters().get(1)) + " after its request, and the"
+                    + " only thing a source's run takes there is a Closer: what it hands the framework to close when"
+                    + " the run is stopped");
+        }
+        if (parameters < 1 || parameters > (source ? 2 : 1)) {
+            error(run, where + " takes " + parameters + " parameters, and must take " + (source
+                    ? "the request, whose type names the channel it arrives on, and may take a Closer after it"
+                    : "exactly one: the request, whose type names the channel it arrives on"));
         } else {
             message(run, "request", run.getParameters().get(0).asType());
+        }
+        if (source && run.getReturnType().getKind() == TypeKind.VOID) {
+            error(run, where + " returns nothing. A source's run returns why it ended, stopped, went away or failed,"
+                    + " carrying what the caller needs to tell which run it was: a run's end is always news");
         }
         if (!run.getThrownTypes().isEmpty()) {
             error(run, where + " declares " + run.getThrownTypes() + ". A failure a job expects is part of its reply,"
@@ -595,7 +625,17 @@ final class Declarations {
                 found = (ExecutableElement) e;
             }
         }
-        return found != null && found.getParameters().size() == 1 ? found : null;
+        if (found == null) {
+            return null;
+        }
+        int parameters = found.getParameters().size();
+        return parameters == 1 || (parameters == 2 && closer(found.getParameters().get(1))) ? found : null;
+    }
+
+    /** Whether {@code parameter} is the framework's {@code Closer}, which a source's run may take after its request. */
+    static boolean closer(VariableElement parameter) {
+        TypeElement type = Mirrors.element(parameter.asType());
+        return type != null && type.getQualifiedName().contentEquals(dev.vexelray.framework.api.Closer.class.getName());
     }
 
     // --- @Configuration's lists ------------------------------------------------------------------------------
@@ -603,7 +643,7 @@ final class Declarations {
     /** What a configuration lists is what it says it is: every class literal resolves, to a component or a job. */
     void listed(TypeElement configuration, AnnotationMirror mirror) {
         String name = Mirrors.simple(configuration);
-        for (String member : List.of("components", "jobs")) {
+        for (String member : List.of("components", "jobs", "sources")) {
             if (mirrors.unresolved(mirror, member) > 0) {
                 error(configuration, "@Configuration " + name + " lists " + member + " that do not resolve. A listed"
                         + " class comes from the module that declares it, so that module has to be on the class path");
@@ -622,7 +662,17 @@ final class Declarations {
             if (j == null || !mirrors.has(j, dev.vexelray.framework.api.Job.class)) {
                 error(configuration, "@Configuration " + name + " lists " + type + " among its jobs, and it is not a"
                         + " @Job." + (j != null && mirrors.has(j, Component.class)
-                        ? " It is a @Component: list it under components" : ""));
+                        ? " It is a @Component: list it under components" : "")
+                        + (j != null && mirrors.has(j, dev.vexelray.framework.api.Source.class)
+                        ? " It is a @Source: list it under sources" : ""));
+            }
+        }
+        for (TypeMirror type : mirrors.types(mirror, "sources")) {
+            TypeElement s = Mirrors.element(type);
+            if (s == null || !mirrors.has(s, dev.vexelray.framework.api.Source.class)) {
+                error(configuration, "@Configuration " + name + " lists " + type + " among its sources, and it is not"
+                        + " a @Source." + (s != null && mirrors.has(s, dev.vexelray.framework.api.Job.class)
+                        ? " It is a @Job: list it under jobs" : ""));
             }
         }
     }

@@ -72,6 +72,8 @@ final class Graph {
     private final Set<TypeElement> configurations = new LinkedHashSet<>();
     private final Set<TypeElement> components = new LinkedHashSet<>();
     private final Set<TypeElement> jobs = new LinkedHashSet<>();
+    /** The sources among {@link #jobs}. */
+    private final Set<TypeElement> sources = new LinkedHashSet<>();
 
     Graph(Mirrors mirrors, Declarations declarations, Elements elements, Types types, Messager messager) {
         this.mirrors = mirrors;
@@ -91,6 +93,21 @@ final class Graph {
 
     void job(TypeElement type) {
         jobs.add(type);
+    }
+
+    /**
+     * A source, which is a job in everything the graph asks (constructed by its one constructor, final fields, held by
+     * nothing, reached by its request's topic), and is in {@link #jobsSeen} with them. What differs, the senders it may
+     * take and how the wiring starts it, asks {@link #isSource}.
+     */
+    void source(TypeElement type) {
+        jobs.add(type);
+        sources.add(type);
+    }
+
+    /** Whether {@code job}, one of {@link #jobsSeen}, is a {@code @Source}. */
+    boolean isSource(TypeElement job) {
+        return sources.contains(job);
     }
 
     /** Every live job, in the order the rounds and the configurations offered them. */
@@ -428,36 +445,41 @@ final class Graph {
             return;
         }
         String name = Mirrors.simple(job);
-        if (refused("@Job " + name, parameter)) {
+        String kind = isSource(job) ? "@Source" : "@Job";
+        if (refused(kind + " " + name, parameter)) {
             return;
         }
         if (Channels.isSender(parameter)) {
-            error(parameter, "@Job " + name + " takes " + Mirrors.simple(parameter) + ", a Sender. A job answers with"
-                    + " its reply, which the wiring publishes, and sends nothing else: a request that leads to more is"
-                    + " a component's to follow");
+            // A source sends as it goes, which is what makes it one; a job's only word is its reply.
+            if (!isSource(job)) {
+                error(parameter, kind + " " + name + " takes " + Mirrors.simple(parameter) + ", a Sender. A job answers"
+                        + " with its reply, which the wiring publishes, and sends nothing else: a request that leads to"
+                        + " more is a component's to follow, and reading that keeps sending is a @Source");
+            }
             return;
         }
+        String lane = isSource(job) ? "a source runs on a thread of its own" : "a job runs on the job lane";
         String main = whyOnMain(parameter.asType(), providers);
         if (main != null) {
-            error(parameter, "T2.2: @Job " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
-                    + main + "), and a job runs on the job lane. Answer with what the main thread needs, and let"
+            error(parameter, "T2.2: " + kind + " " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread"
+                    + " value (" + main + "), and " + lane + ". Answer with what the main thread needs, and let"
                     + " a subscriber that is the main thread's act on it");
         }
         TypeElement other = Mirrors.element(parameter.asType());
         if (other != null && (mirrors.has(other, Component.class) || mirrors.has(other, View.class))) {
-            error(parameter, "T2.3: @Job " + name + " takes the component " + Mirrors.simple(other) + ". A job runs"
-                    + " on the job lane, which shares a thread with no component: carry what it needs in the"
-                    + " request, and answer in the reply");
+            error(parameter, "T2.3: " + kind + " " + name + " takes the component " + Mirrors.simple(other) + ". "
+                    + Character.toUpperCase(lane.charAt(0)) + lane.substring(1) + ", which shares a thread with no"
+                    + " component: carry what it needs in the request, and answer in the reply");
         }
         if (isComputeQueue(parameter)) {
-            error(parameter, "T3.1: @Job " + name + " takes the ComputeQueue, which is lent to one @Component and to"
-                    + " nothing else");
+            error(parameter, "T3.1: " + kind + " " + name + " takes the ComputeQueue, which is lent to one @Component"
+                    + " and to nothing else");
         }
         if (isInbox(parameter)) {
-            error(parameter, "@Job " + name + " takes an Inbox, which is a component's own. A job hears its request"
+            error(parameter, kind + " " + name + " takes an Inbox, which is a component's own. It hears its request"
                     + " and answers with its reply; it has no inbox to hear in");
         }
-        heldJob("@Job " + name, parameter);
+        heldJob(kind + " " + name, parameter);
     }
 
     /**
@@ -473,12 +495,16 @@ final class Graph {
         if (element != null && Framework.root(element.getQualifiedName().toString()) != null) {
             return;
         }
+        if (isSource(job) && element != null && element.getQualifiedName().contentEquals(Channels.SENDER)) {
+            return;     // what its constructor took, kept: an outside sender holds nothing that changes
+        }
         for (Provider p : providers) {
             if (types.isSameType(p.type(), type)) {
                 return;
             }
         }
-        error(field, "@Job " + Mirrors.simple(job) + " has the field " + Mirrors.simple(field) + ", a " + type
+        error(field, (isSource(job) ? "@Source " : "@Job ") + Mirrors.simple(job) + " has the field "
+                + Mirrors.simple(field) + ", a " + type
                 + ", which is neither shareable nor something the container supplies. Two requests may run at once,"
                 + " so a job keeps no state of its own: take the part from the container, or make the value a record"
                 + " of immutable values");
@@ -490,6 +516,10 @@ final class Graph {
         if (other != null && mirrors.has(other, dev.vexelray.framework.api.Job.class)) {
             error(parameter, who + " takes the job " + Mirrors.simple(other) + ". A job is reached by publishing its"
                     + " topic, never by holding it: publish the request and subscribe to the reply");
+        }
+        if (other != null && mirrors.has(other, dev.vexelray.framework.api.Source.class)) {
+            error(parameter, who + " takes the source " + Mirrors.simple(other) + ". A source is reached by publishing"
+                    + " its request, never by holding it: publish the request and subscribe to what it sends");
         }
     }
 

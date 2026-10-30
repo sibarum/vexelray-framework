@@ -360,7 +360,7 @@ part to rule on before the freeze.
 **Ruled (above):** `@Job` and the reply topic are the v1 offload API. Failure's shape is ruled (above). Still to do
 before the freeze: withdraw the executors from application parts, which is the breaking half.
 
-### 11. Sources: what keeps producing from outside (ruled 2026-10-30; the shape proposed, not built)
+### 11. Sources: what keeps producing from outside (ruled and built 2026-10-30)
 
 **Ruled by the author 2026-10-30: sources are a kind of part in the framework.** A source keeps producing messages
 from outside the application for as long as it runs: a socket, a stream, a child process, a device. **Why:** it is
@@ -405,16 +405,23 @@ final class LinkRows {                                    // final fields only, 
 - **A thread of its own per run**, a platform thread named `vexel-source-<name>` (T1.2, T1.4), started when the run
   starts and gone when it returns. Not the job lane: a run that blocks for an hour would hold one of the job lane's
   bounded threads for good (T1.5), which is exactly what the job lane is bounded to refuse.
-- **One run at a time per source, and the newest request wins.** A request while a run is going stops that run
-  first, then starts the new one; its end reply is still published. That is attaching elsewhere in the Inspector and
-  reconnecting in netcode. A request to stop without starting is a message of the application's own, named on the
-  annotation (`@Source(stop = Detach.class)`), so that it is a channel like any other: a type with a declared topic,
-  which the graph can show. (Proposed first as a `Stop` topic the framework declared per source; a topic is named by
-  its payload's type, and one framework type cannot name a channel per source.)
-- **Stopping interrupts the run's thread.** A source reads through something that answers an interrupt (an
-  `InterruptibleChannel`: a socket or file channel closes and its read throws `ClosedByInterruptException`), and
-  returns its end reply. At shutdown every run is stopped before the last tick, so their end replies are delivered in
-  it and nothing is sent into a component that is closing (T6.2).
+- **One run per key of the request, as many keys as there are.** The request's topic decides: on a keyed topic
+  (`Topic.edge(Attach.class, a -> a.target())`) each key has a run of its own, side by side, one connection per peer;
+  an unkeyed topic is one key, so one run. A request for a key whose run is going stops that run, and the new one
+  starts once it has returned, so a key's runs never overlap and its replies keep their order. That is attaching
+  again and reconnecting. Every request gets one reply. *Ruled 2026-10-30, replacing "one run at a time per source":*
+  the message system is transport-agnostic, so many live connections are the expected case, not a later one.
+- **A stop is a message of the application's own**, named on the annotation (`@Source(stop = Detach.class)`) and
+  keyed as the request is, so that it is a channel like any other: a type with a declared topic, which the graph can
+  show. It stops the run for its key without starting another. (Proposed first as a `Stop` topic the framework
+  declared per source; a topic is named by its payload's type, and one framework type cannot name a channel per
+  source.)
+- **Stopping interrupts the run's thread**, then closes what the run handed its `Closer`. A read on an
+  `InterruptibleChannel` (a socket or file channel) answers the interrupt with `ClosedByInterruptException`; one that
+  ignores it, a process's output, is ended by the close. `run` takes the `Closer` as an optional second parameter,
+  since the resource belongs to the run and a source's fields are final. At shutdown every run is stopped and waited
+  for, a bounded time, before the logic's last tick, so their end replies are delivered in it and nothing is sent into
+  a component that is closing (T6.2).
 - **What it sends arrives from outside**: hops zero, ordered by arrival, as input is (T5.6, T5.7). One run's messages
   keep their order, since one thread sends them. A source is therefore one of the things a replay must record (ROADMAP
   §5, item 5), with input.
@@ -426,7 +433,12 @@ final class LinkRows {                                    // final fields only, 
 **What the processor checks**, all from declarations, as for a job: the request, the reply and every payload a sender
 carries are `Shareable`; the class has final fields only, each `Shareable`, a sender or a provided part; no
 `@Subscribe`, no `Inbox` (a source hears nothing but its request, which the framework delivers); `run` declares no
-`throws`; one source per request topic.
+`throws`, takes nothing after its request but a `Closer`, and returns a reply; the stop message has a declared topic;
+one part, job or source, per request topic; and nothing holds a source.
+
+**Where it is built:** `@Source` and `Closer` in `-api`; `Sources` in `-shell` (the runs, by key); the processor's
+`Declarations.source`, `Graph.source` and `Channels.stopType`; atchung's `Sender.outside` and `Topic.keyFor`. Held by
+`SourcesTest` and `VexelProcessorTest`'s source cases.
 
 **The open questions, as ruled by the author 2026-10-30:**
 
@@ -434,13 +446,12 @@ carries are `Shareable`; the class has final fields only, each `Shareable`, a se
    can outrun the logic buffers and batches what it sends (the Inspector's link reader sends rows by the batch), and
    one that overflows a mailbox all the same fails as any publisher does (T4.2), since nothing better can be done. A
    publish that waited for room was built in atchung and taken out again the same day.
-2. **A read that ignores interrupts: a close, accepted.** A child process's output is an `InputStream`, which an
-   interrupt does not unblock. Stopping closes the outside resource from the stopping thread, after the interrupt.
-   *Owed before it is built:* the proposed `close()` on the source has nothing to close, because a source's fields are
-   final and the resource belongs to one run, local to `run`. So the run has to hand the framework what to close.
-3. **Several runs of one source: not a rule, and nothing built.** The example was a server holding a connection
-   per client: the one shape where one run at a time stops fitting. It has nothing to do with the automation port.
-   Left until netcode is designed.
+2. **A read that ignores interrupts: a `Closer`, built.** A child process's output is an `InputStream`, which an
+   interrupt does not unblock. The proposed `close()` on the source had nothing to close, since a source's fields are
+   final and the resource belongs to one run; so the run hands it over, `run(Launch request, Closer closer)`, and
+   stopping closes it from the stopping thread after the interrupt. *Ruled:* the second parameter.
+3. **Several runs of one source: built, by key.** *Ruled:* the message system is transport-agnostic, so a source
+   holds as many live connections as there are keys; see the run-per-key rule above.
 4. **A cause of its own: built.** Each message a run sends begins a cause naming the source (atchung's
    `Sender.outside`), so a trace finds where it came from and the Inspector draws it as a source, not `uncaused`.
 5. **The framework's own sources.** `Timer`, the automation sockets and tactroller's message pump are sources in

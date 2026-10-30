@@ -412,6 +412,11 @@ final class Generator {
             if (Channels.isSender(parameter) && Channels.sent(parameter) != null) {
                 String topic = topic(app, parameter, Channels.sent(parameter));
                 boolean component = b.component != null && b.job == null && !mirrors.has(b.component, View.class);
+                if (b.job != null && graph.isSource(b.component)) {
+                    // Outside every tick, and every message in a cause of the source's own.
+                    return new SenderArg(Framework.SOURCES + ".sender(shell, "
+                            + literal(b.component.getQualifiedName().toString()) + ", " + topic + ")");
+                }
                 return new SenderArg(component
                         ? Framework.INBOXES + ".sender(shell, " + literal(b.component.getQualifiedName().toString())
                           + ", " + literal(declarations.lane(b.component)) + ", " + topic + ")"
@@ -613,7 +618,8 @@ final class Generator {
                         + " providers are public");
             }
         } else if (!visibleFrom(app, b.component) || !visibleFrom(app, constructor(b.component))) {
-            error(b.component, (b.job != null ? "@Job " : "@Component ") + b.where() + " is not visible from "
+            error(b.component, (b.job == null ? "@Component " : graph.isSource(b.component) ? "@Source " : "@Job ")
+                    + b.where() + " is not visible from "
                     + Mirrors.simple(app) + "'s package, where the generated wiring constructs it");
         } else if (b.job != null && !visibleFrom(app, b.job.run())) {
             error(b.job.run(), Mirrors.where(b.job.run()) + " is not visible from " + Mirrors.simple(app)
@@ -913,7 +919,18 @@ final class Generator {
                       + ", " + literal(declarations.lane(b.component)) + ", " + topic + ", "
                       + subscriber + ", " + m.capacity() + keys + ");");
         }
-        if (b.job != null) {
+        if (b.job != null && graph.isSource(b.component)) {
+            // A run per key of the request, each on a thread of its own: Sources. A run that takes no Closer is handed
+            // one all the same, and ignores it.
+            Channels.JobChannel j = b.job;
+            TypeMirror stop = channels.stopType(b.component);
+            String run = j.run().getParameters().size() == 2 ? field + "::run"
+                    : "(request, closer) -> " + field + ".run(request)";
+            after.add(Framework.SOURCES + ".run(shell, " + literal(j.name()) + ", "
+                    + literal(threadName(Mirrors.simple(b.component))) + ", " + topic(app, j.run(), j.request()) + ", "
+                    + run + ", " + topic(app, j.run(), j.replyType()) + ", "
+                    + (stop == null ? "null" : topic(app, b.component, stop)) + ");");
+        } else if (b.job != null) {
             Channels.JobChannel j = b.job;
             String request = topic(app, j.run(), j.request());
             after.add(j.replyType() == null
@@ -1020,6 +1037,19 @@ final class Generator {
             return f > 0 ? "Float.POSITIVE_INFINITY" : "Float.NEGATIVE_INFINITY";
         }
         return Float.toString(f) + "f";
+    }
+
+    /** A source's thread name after {@code vexel-source-}: its simple name in lower case, words joined by hyphens. */
+    static String threadName(String simple) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < simple.length(); i++) {
+            char c = simple.charAt(i);
+            if (Character.isUpperCase(c) && i > 0 && !Character.isUpperCase(simple.charAt(i - 1))) {
+                out.append('-');
+            }
+            out.append(Character.toLowerCase(c));
+        }
+        return out.toString();
     }
 
     /** A Java string literal, escaped so any text survives the trip into source. */

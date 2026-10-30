@@ -85,7 +85,7 @@ lanes**, the **job lane**, the **timeline**, and **a source's run**. A further l
 architecture.md, not a convenience added at a call site. *Restated 2026-10-30, when sources were ruled
 (architecture.md, the message model; components.md section 11):* a running source has a platform thread of its own,
 `vexel-source-<name>`, started when a run starts and gone when it returns. It runs only that source's `run`, which
-reads from outside and sends, and hears nothing. *(owed for sources: not built)* The framework also runs threads that are not lanes, because they must
+reads from outside and sends, and hears nothing. One run per key of its request, side by side. *(held by `SourcesTest.eachKeyRunsOnAThreadOfItsOwnAndSendsAsItGoes`, built 2026-10-30)* The framework also runs threads that are not lanes, because they must
 stand outside what they watch or serve: the watchdog, the automation sockets, and the operating system's own
 dialog threads. They are listed in one place (`Lanes`' javadoc), never run application code, and reach the logic
 only by publishing.
@@ -100,7 +100,7 @@ entered from `FrameStage.CLOCK`. Whether it is physically the main thread or a c
 Kronometer's business; what is normative is T3.2.
 
 **T1.2 — Each lane has exactly one name, used everywhere.** The logic lane is `vexel-logic`, a declared lane
-`vexel-component-<name>`, the job lane `vexel-job`, a source's run `vexel-source-<name>`. *(held by `LanesTest.theLanesAreNamedApart` for all three, the job
+`vexel-component-<name>`, the job lane `vexel-job`, a source's run `vexel-source-<name>`. *(held by `SourcesTest.eachKeyRunsOnAThreadOfItsOwnAndSendsAsItGoes` for a source's, and by `LanesTest.theLanesAreNamedApart` for the other three, the job
 lane's threads being `vexel-job-<n>`; by `LogicTest.componentsOnTheLogicLaneShareOneThreadThatIsNotThePublishers`
 for the logic lane's in use, and by `aLedgersStepRunsOnTheLaneAndWhatItSendsReachesADeclaredLane` for a declared
 lane's. The name is load-bearing in the thread dump somebody reaches for when one lane is the problem)*
@@ -390,8 +390,7 @@ any other, delivered at the first tick after it finishes. What does not finish, 
 long as it is connected (a socket, a stream, a child process, a device), is a **source**: a run started by a request,
 on a thread of its own (T1.1), that may block in its read and sends as it goes, and whose end is a reply like a job's
 (components.md section 11). A component's delivery never blocks, never sleeps and never waits for a reply. *Restated
-2026-10-30 to add sources; owed for them, not built.* *(held for the `@Job` mechanism, by `JobsTest` and `VexelProcessorTest`'s job cases (components.md section
-10); owed for "nothing else blocks", phases 3 and 4, which withdraw `Gui.offload()`, `Gui.async()` and
+2026-10-30 to add sources, and built the same day.* *(held for the `@Job` and `@Source` mechanisms, by `JobsTest`, `SourcesTest` and `VexelProcessorTest`'s job and source cases (components.md sections 10 and 11); owed for "nothing else blocks", phases 3 and 4, which withdraw `Gui.offload()`, `Gui.async()` and
 `Lanes.offload()` from application parts)*
 
 ## 6. Lifecycle

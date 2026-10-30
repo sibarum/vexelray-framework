@@ -131,6 +131,23 @@ class VexelProcessorTest {
                     }
                 }
                 """),
+            Map.entry("dev.vexelray.framework.shell.Sources", """
+                package dev.vexelray.framework.shell;
+                public final class Sources {
+                    public static <T> sibarum.atchung.Sender<T> sender(Shell shell, String source,
+                                                                      sibarum.atchung.Topic<T> topic) {
+                        Shell.LOG.add("source sender " + source + " " + topic.name());
+                        return null;
+                    }
+                    public static <Q, R> void run(Shell shell, String source, String thread,
+                                                  sibarum.atchung.Topic<Q> request,
+                                                  java.util.function.BiFunction<Q, dev.vexelray.framework.api.Closer, R> run,
+                                                  sibarum.atchung.Topic<R> reply, sibarum.atchung.Topic<?> stop) {
+                        Shell.LOG.add("source " + source + " vexel-source-" + thread + " " + request.name() + " -> "
+                                + reply.name() + (stop == null ? "" : " stop " + stop.name()));
+                    }
+                }
+                """),
             Map.entry("dev.vexelray.framework.shell.Shell", """
                 package dev.vexelray.framework.shell;
                 import dev.vexelray.framework.core.*;
@@ -1543,6 +1560,125 @@ class VexelProcessorTest {
                 @Job
                 public final class Answer { public void run(Loose a) {} }
                 """), "T4.1: @Job Answer takes Loose, and no topic of it is declared");
+    }
+
+    // --- @Source -----------------------------------------------------------------------------------------------
+
+    private static final String MESSAGES_STOP = """
+            public record Hush(String q) {
+                public static final sibarum.atchung.Topic<Hush> TOPIC = sibarum.atchung.Topic.edge(Hush.class);
+            }
+            """;
+
+    private static final String MESSAGES_LINE = """
+            public record Line(String text) {
+                public static final sibarum.atchung.Topic<Line> TOPIC = sibarum.atchung.Topic.edge(Line.class);
+            }
+            """;
+
+    @Test
+    void aSourceIsBuiltWithOutsideSendersAndStartedPerRequest() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, MESSAGES_ASK, MESSAGES_TOLD, MESSAGES_STOP, MESSAGES_LINE, """
+                @Source(stop = Hush.class)
+                public final class LinkRows {
+                    private final sibarum.atchung.Sender<Line> lines;
+                    public LinkRows(sibarum.atchung.Sender<Line> lines) { this.lines = lines; }
+                    public Told run(Ask a, Closer closer) { return new Told(a.q()); }
+                }
+                """, """
+                @Source
+                public final class Plain {
+                    public Told run(Hush h) { return new Told(h.q()); }
+                }
+                """, """
+                @Component(lane = "editor")
+                public final class Editor {
+                    @Subscribe public void told(Told t) {}
+                    @Subscribe public void line(Line l) {}
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        List<String> config = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config");
+        assertTrue(config.contains("source sender app.LinkRows app.Line"), config.toString());
+        assertTrue(config.contains("source app.LinkRows vexel-source-link-rows app.Ask -> app.Told stop app.Hush"),
+                config.toString());
+        assertTrue(config.contains("source app.Plain vexel-source-plain app.Hush -> app.Told"), config.toString());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("linkRows::run"), wiring);
+        assertTrue(wiring.contains("(request, closer) -> plain.run(request)"), wiring);
+    }
+
+    private static String source(String body) {
+        return """
+                @Source
+                public final class Reader {
+                %s
+                }
+                """.formatted(body);
+    }
+
+    @Test
+    void aSourcesRunReturnsWhyItEnded() {
+        onlyError(app(MESSAGES_ASK, source("""
+                    public void run(Ask a) {}
+                """)), "Reader.run returns nothing. A source's run returns why it ended");
+    }
+
+    @Test
+    void aSourcesRunTakesOnlyACloserAfterItsRequest() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, source("""
+                    public Told run(Ask a, String more) { return new Told(""); }
+                """)), "the only thing a source's run takes there is a Closer");
+    }
+
+    @Test
+    void aSourcesStopMessageIsADeclaredChannel() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, "public record Loose(String q) {}", """
+                @Source(stop = Loose.class)
+                public final class Reader { public Told run(Ask a) { return new Told(""); } }
+                """), "T4.1: @Source Reader is stopped by Loose, and no topic of it is declared");
+    }
+
+    @Test
+    void aSourceKeepsNoStateThatChanges() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, source("""
+                    private int lines;
+                    public Told run(Ask a) { return new Told(""); }
+                """)), "@Source Reader has the field lines, which is not final");
+    }
+
+    @Test
+    void aSourceAndAJobDoNotShareARequest() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, source("""
+                    public Told run(Ask a) { return new Told(""); }
+                """), """
+                @Job
+                public final class Answer { public void run(Ask a) {} }
+                """), "both take Ask. A request is answered once");
+    }
+
+    @Test
+    void aJobThatSendsIsPointedAtASource() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_LINE, """
+                @Job
+                public final class Answer {
+                    public Answer(sibarum.atchung.Sender<Line> lines) {}
+                    public void run(Ask a) {}
+                }
+                """), "reading that keeps sending is a @Source");
+    }
+
+    @Test
+    void aSourceIsReachedByPublishingNeverHeld() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, source("""
+                    public Told run(Ask a) { return new Told(""); }
+                """), """
+                @Component(lane = "asker")
+                public final class Asker { public Asker(Reader reader) {} }
+                """), "Asker takes the source Reader. A source is reached by publishing its request");
     }
 
     // --- T2.4: a payload must be able to cross a lane as itself --------------------------------------------------

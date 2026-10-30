@@ -11,6 +11,7 @@ import dev.vexelray.framework.api.OnMode;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.api.Setting;
+import dev.vexelray.framework.api.Source;
 import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.api.VexelApp;
 import dev.vexelray.framework.api.View;
@@ -83,7 +84,7 @@ public final class VexelProcessor extends AbstractProcessor {
     private static final List<Class<? extends Annotation>> VOCABULARY = List.of(
             VexelApp.class, Component.class, Configuration.class, Provides.class, Default.class,
             MainThread.class, Setting.class, BeforeFrame.class, OnMode.class, ConditionalOnType.class,
-            Subscribe.class, Publishes.class, Job.class, View.class, Hears.class);
+            Subscribe.class, Publishes.class, Job.class, Source.class, View.class, Hears.class);
 
     private Mirrors mirrors;
     private Declarations declarations;
@@ -149,6 +150,9 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(Job.class)) {
             job((TypeElement) e);
+        }
+        for (Element e : round.getElementsAnnotatedWith(Source.class)) {
+            source((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Configuration.class)) {
             declarations.configuration((TypeElement) e);
@@ -241,6 +245,12 @@ public final class VexelProcessor extends AbstractProcessor {
                 job(j);
             }
         }
+        for (TypeMirror type : mirrors.types(mirror, "sources")) {
+            TypeElement s = Mirrors.element(type);
+            if (s != null && mirrors.has(s, Source.class)) {
+                source(s);
+            }
+        }
     }
 
     /** Read a component once; whether this was the first time. */
@@ -257,6 +267,14 @@ public final class VexelProcessor extends AbstractProcessor {
         if (parts.add(type)) {
             declarations.job(type);
             graph.job(type);
+        }
+    }
+
+    /** A source is read as a job is, and marked as one: see {@code Graph.source}. */
+    private void source(TypeElement type) {
+        if (parts.add(type)) {
+            declarations.source(type);
+            graph.source(type);
         }
     }
 

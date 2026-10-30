@@ -261,11 +261,18 @@ final class Channels {
 
     /**
      * Every {@code Sender} parameter of a part the wiring builds: a component's or a view's constructor, and a
-     * provider's method. A job's is refused by {@link Graph}, since a job answers with its reply.
+     * provider's method, and a source's constructor. A job's is refused by {@link Graph}, since a job answers with its
+     * reply.
      */
     List<VariableElement> senders(Graph graph) {
         List<VariableElement> out = new ArrayList<>();
-        for (TypeElement component : graph.componentsSeen()) {
+        List<TypeElement> parts = new ArrayList<>(graph.componentsSeen());
+        for (TypeElement j : graph.jobsSeen()) {
+            if (graph.isSource(j)) {
+                parts.add(j);
+            }
+        }
+        for (TypeElement component : parts) {
             ExecutableElement constructor = Graph.constructor(component);
             if (constructor != null) {
                 for (VariableElement p : constructor.getParameters()) {
@@ -345,26 +352,65 @@ final class Channels {
             if (job == null || !plain(job.request())) {
                 continue;
             }
-            declared(job.run(), job.request(), "@Job " + Mirrors.simple(j) + " takes "
+            String kind = kind(j);
+            if (kind.equals("@Source")) {
+                stop(j);
+            }
+            declared(job.run(), job.request(), kind + " " + Mirrors.simple(j) + " takes "
                     + Mirrors.simple(Mirrors.element(job.request())), null);
             JobChannel first = byRequest.putIfAbsent(Topics.name(job.request()), job);
             if (first != null) {
-                error(j, "@Job " + Mirrors.simple(j) + " and @Job " + Mirrors.simple(first.job()) + " both take "
-                        + Mirrors.simple(Mirrors.element(job.request())) + ". A request is answered once: give each job a"
-                        + " request of its own");
+                error(j, kind + " " + Mirrors.simple(j) + " and " + kind(first.job()) + " "
+                        + Mirrors.simple(first.job()) + " both take " + Mirrors.simple(Mirrors.element(job.request()))
+                        + ". A request is answered once: give each a request of its own");
             }
             if (job.replyType() == null || !plain(job.replyType())) {
                 continue;
             }
-            declared(job.run(), job.replyType(), "@Job " + Mirrors.simple(j) + " answers "
+            declared(job.run(), job.replyType(), kind + " " + Mirrors.simple(j) + " answers "
                     + Mirrors.simple(Mirrors.element(job.replyType())), null);
             if (application && !heard.contains(Topics.name(job.replyType()))) {
-                error(job.run(), "@Job " + Mirrors.simple(j) + " answers with "
+                error(job.run(), kind + " " + Mirrors.simple(j) + " answers with "
                         + Mirrors.simple(Mirrors.element(job.replyType())) + ", and no component hears it. A reply"
                         + " nobody hears is a lost result, which this framework refuses as it refuses a full mailbox:"
-                        + " subscribe to it, or make the job void if it is run for its effect");
+                        + " subscribe to it" + (kind.equals("@Job")
+                        ? ", or make the job void if it is run for its effect" : ""));
             }
         }
+    }
+
+    private String kind(TypeElement part) {
+        return mirrors.has(part, dev.vexelray.framework.api.Source.class) ? "@Source" : "@Job";
+    }
+
+    /**
+     * A source's stop message, the type {@code @Source(stop = ...)} names, or {@code null} for none ({@code void.class},
+     * the default).
+     */
+    TypeMirror stopType(TypeElement source) {
+        AnnotationMirror annotation = mirrors.find(source, dev.vexelray.framework.api.Source.class);
+        Object stop = annotation == null ? null : mirrors.value(annotation, "stop");
+        return stop instanceof TypeMirror type && type.getKind() != javax.lang.model.type.TypeKind.VOID ? type : null;
+    }
+
+    /** A source's stop message is a channel like any (T4.1), and crosses from its sender's lane to whoever stops. */
+    private void stop(TypeElement source) {
+        TypeMirror stop = stopType(source);
+        if (stop == null) {
+            return;
+        }
+        String what = "@Source " + Mirrors.simple(source) + " is stopped by "
+                + (Mirrors.element(stop) != null ? Mirrors.simple(Mirrors.element(stop)) : stop.toString());
+        if (!plain(stop)) {
+            error(source, what + ", which cannot name a channel. A message is a class or interface with no type"
+                    + " arguments: wrap it in a record");
+            return;
+        }
+        String why = Shareable.crossing(stop);
+        if (why != null) {
+            error(source, "T2.4: " + what + ", and it cannot cross a lane as itself: " + why);
+        }
+        declared(source, stop, what, null);
     }
 
     /**

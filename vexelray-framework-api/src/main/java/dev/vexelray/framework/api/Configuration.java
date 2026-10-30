@@ -49,4 +49,7 @@ public @interface Configuration {
 
     /** The {@link Job} classes this configuration brings, on the same terms as {@link #components()}. */
     Class<?>[] jobs() default {};
+
+    /** The {@link Source} classes this configuration brings, on the same terms as {@link #components()}. */
+    Class<?>[] sources() default {};
 }
