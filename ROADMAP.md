@@ -247,16 +247,69 @@ it 62 ms, as a slow GPU would), and an answer arriving during it waits for the d
 answer is produced inside the pass that took the click, before it draws. That is not single-thread mode being the
 better one; it is the remaining conflation. The lane answers in well under a millisecond, but by then the main thread
 has started a draw, and the draw is not on a clock of its own: while it runs, the main thread takes no input and no
-messages. Input, logic and drawing are on independent clocks only while a draw is short. **Open**: a draw must not
-hold the thread that takes input and messages (drawing off the main thread, or a draw that yields), which runs into
-"Vulkan, the window and present stay on the main thread" and has to be settled against it. A wake from a parked loop is unchanged at 0.6 ms. Animation and idle are unchanged: draws at ~57 a second, five idle
+messages. Input, logic and drawing are on independent clocks only while a draw is short. *(Settled by fork 8, below:
+the draw no longer waits for the GPU.)* A wake from a parked loop is unchanged at 0.6 ms. Animation and idle are unchanged: draws at ~57 a second, five idle
 refreshes a second, 0.8–2.7 % CPU. Held by `LoopCountersTest.aWakeInsideTheCeilingsGapIsTakenAtOnceAndOnlyItsDrawWaitsForTheSlot`
 (a wake 50 ms into a 400 ms gap runs its pass at once; its draw waits for the slot).
 
 **Found while measuring it, and not caused by it:** presenting to a background (cloaked) window sometimes blocks for
 100 to 360 ms, inside the presenter, after the tree update. The old loop shows the same on the same probe (worst wakes of
 245 and 143 ms against the new loop's 153). It is what the p95 outliers in the table are, and it is vexelray-gui's
-presenter's to explain: a background run only, so far.
+presenter's to explain: a background run only, so far. *(Fork 8 explains most of it: the DXGI presenter waited up to
+100 ms on the swapchain's frame-latency waitable inside every draw.)*
+
+### Fork 8. The draw does not wait for the GPU
+
+> **Ruled 2026-10-29**, by the author, after fork 7's numbers (*"that doesn't make any sense"*) and a talk-through of
+> where a slow draw's time goes. Built the same day: dxgi-bridge and vexelray on `develop`, vexelray-gui on `v0.2`.
+
+**What was wrong:** after fork 7 the main thread still slept inside every draw until the GPU was ready. On Windows the
+presenter is `DxgiPresenter`, and its `render` waited on the swapchain's frame-latency waitable (up to 100 ms), on the
+previous submit's fence, and on the back buffer's last copy, all with the thread that takes input and messages inside
+it. On a slow GPU most of a slow draw is that sleep, so an answer from the logic lane that arrived during it waited for
+the draw to end: fork 7's 64 ms at fifteen frames a second. The CPU half of a draw, recording the commands, is small.
+
+**The ruling, keeping "Vulkan, the window and present stay on the main thread":** a draw never waits.
+`WindowPresenter.ready()` says, without blocking, whether `render` could start now; `whenReady(wake)` runs `wake` on
+any thread when it can. `DxgiPresenter` checks the waitable with a zero timeout (a frame it hands out is kept for the
+next draw, since waiting on it consumes it), the shared fence's completed value, and `vkGetFenceStatus`, and waits for
+the GPU on a thread of its own (`vexel-dxgi-ready`) that only waits and then posts a wake. `GuiWindow` asks before
+drawing: a draw the GPU is not ready for stays owed (`draw held for the GPU`), and the pass ends, so the thread goes
+back to input and messages. `render` keeps every wait it had, so a caller that does not ask (a screenshot) is still
+correct. The Vulkan swapchain path (Linux) keeps the defaults, always ready, for now (vexelray's TODO).
+
+**With it, two fixes to the loop.** Only a pass that **drew** spends the ceiling's slot: under fork 7 a pass that took
+a pointer move and drew nothing started a new gap, so the logic's answer a moment later was held up to 16.7 ms. And
+passes nothing posted (pacing that wants a frame, the loop asking itself for one, a draw held for the GPU) are kept to
+the ceiling's rate from the last pass, which is what stops a loop that draws nothing from spinning now that the slot is
+spent only by draws. A draw held for the ceiling still runs exactly at its slot.
+
+**The instrument moved with it.** `-Dvexelray.debug.slowFrames` used to park the main thread after each draw, which
+was the problem itself; it now keeps a stand-in GPU busy that long after each draw, with the thread free. `SlowFrames`
+is told what a frame cost from its start to the GPU being done with it, measured when the loop had to wait, instead of
+how long the pass took.
+
+**Measured** (phase 7's instrument, the same machine, acceptance 18 of 18):
+
+| | Fork 7 | Fork 8 |
+| --- | --- | --- |
+| A click's result through the logic, 60 Hz | 1.9 ms median, p95 8.3 | **0.8 ms** lane, **1.1 ms** `--logic=main`; p95 2.6 and 3.5 |
+| The same at fifteen frames a second | 64 ms lane, 1.1 ms `--logic=main` | **1.0 ms** lane, **1.0 ms** `--logic=main` |
+| A component's timed message reaching the view | not tabled | 0.7 ms both modes, also at fifteen a second |
+| Animation | ~57 draws a second | 55 to 62 frames in each 0.6 s pulse, no late frames, worst early gap 18.8 ms |
+| W3 | ~210 passes a second | ~214 |
+
+So the two modes no longer differ for a click on a slow machine, which was the point. **Not settled:** idle CPU read
+4.7 to 7.4 % in this run's four-second windows against fork 7's 0.8 to 2.7 %, with the same eighteen frames each. Phase
+7 recorded that this reading is noisy (Windows accounts CPU in 15.6 ms ticks), and nothing new runs while idle (the
+waiter waits only while a draw is held), so it is noted rather than called; a minute-long run would settle it. Held by
+`LoopCountersTest.aPassThatDrewNothingDoesNotSpendTheSlot` (a write right after a pass that drew nothing is drawn at
+once, not 400 ms later) beside fork 7's test. The GPU-held path is exercised by the acceptance runs, which present
+through DXGI; the harness presents offscreen and does not reach it.
+
+**What is still on the thread:** recording. A draw that is slow on the CPU (an enormous tree, a weak CPU) still holds
+input for as long as recording takes. Measure recording on its own before reopening a render thread, which would break
+the main-thread rule.
 
 ---
 
