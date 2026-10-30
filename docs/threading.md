@@ -583,8 +583,9 @@ stuck picture, loudly, and never stops the window.
 by one door per kind of moving thing. A declared step is already not a callback (T7.2), and the asked half is the
 same kind of declaration with a frame's conditions added. *(owed. Phase 4, with `@View`'s checks: the processor
 finds both halves from declarations and refuses, after the step check's principle, only what is certainly unsafe in
-an asked half (`new`, locks, I/O, `Thread`, logging, the bus). vexelray-gui: `Frame`, the asked half's sink and due
-times in the host, with `PaintMotion` and `LayoutMotion` as its first users. Phase 8, with the codec: the feed and
+an asked half (`new`, locks, I/O, `Thread`, logging, the bus). The host half is built in vexelray-gui (frame-contract.md
+step 2, 2026-10-30): `Frame`, `Drawn`, `spi.Asked` and due times, with `PaintMotion` and `LayoutMotion` as its
+first users, held by their tests and `AskedTest`. Phase 8, with the codec: the feed and
 the video player as a witness)*
 
 ---
