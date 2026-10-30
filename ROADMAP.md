@@ -244,8 +244,12 @@ wakes from a busy lane runs a pass each (W3's metronome: about 200 passes a seco
 median (p95 8.3), in both modes. At fifteen frames a second it is **1.1 ms in `--logic=main`** (was 66) and still
 **64 ms on a lane**: a draw that slow holds the main thread for as long as it takes (the instrument's slowed draw parks
 it 62 ms, as a slow GPU would), and an answer arriving during it waits for the draw to finish; in `--logic=main` the
-answer is produced inside the pass that took the click, before it draws. So on a slow machine single-thread mode is
-the faster one for a click, which is what it was meant for. A wake from a parked loop is unchanged at 0.6 ms. Animation and idle are unchanged: draws at ~57 a second, five idle
+answer is produced inside the pass that took the click, before it draws. That is not single-thread mode being the
+better one; it is the remaining conflation. The lane answers in well under a millisecond, but by then the main thread
+has started a draw, and the draw is not on a clock of its own: while it runs, the main thread takes no input and no
+messages. Input, logic and drawing are on independent clocks only while a draw is short. **Open**: a draw must not
+hold the thread that takes input and messages (drawing off the main thread, or a draw that yields), which runs into
+"Vulkan, the window and present stay on the main thread" and has to be settled against it. A wake from a parked loop is unchanged at 0.6 ms. Animation and idle are unchanged: draws at ~57 a second, five idle
 refreshes a second, 0.8–2.7 % CPU. Held by `LoopCountersTest.aWakeInsideTheCeilingsGapIsTakenAtOnceAndOnlyItsDrawWaitsForTheSlot`
 (a wake 50 ms into a 400 ms gap runs its pass at once; its draw waits for the slot).
 
@@ -812,8 +816,11 @@ author has ruled out. Fixed in new code only:*
   one headless frame, so a test of a view can step the frames it hears in.*
 * **Single-thread mode** (fork 4): a launch setting that runs the tick on the main thread, with or without a window.
   Tested by running the same witness in both modes and comparing their message logs, which must be identical.
-  **`vexelray-mini` is the witness for the mode's purpose**: it exists to make VexelRay usable on low-end and
-  CPU-only machines, so the mode is judged there, on such a machine, not only on the development one.
+  ~~**`vexelray-mini` is the witness for the mode's purpose**: it exists to make VexelRay usable on low-end and
+  CPU-only machines, so the mode is judged there, on such a machine, not only on the development one.~~
+  **Revoked by the author 2026-10-29**: vexelray-mini is not tied to single-thread mode and is not its witness. It
+  runs like any other application, logic on its own lane. The mode stays what the ruling above made it, for
+  CPU-constrained, headless runs.
 * `Outbox<T>` (fork 5): injected per topic, built by the generated wiring. The raw `Atchung` and every `Executor`
   become non-injectable into application parts.
 * New processor checks, all from declarations:
@@ -840,7 +847,8 @@ folder expanded through its job, a file opened from the navigator.*
 * *Single-thread mode is `--logic=main` (`thread` is the default; anything else is refused at launch). The tick runs in
   the framework's own `APP` hook, or in `VexelApplication.frame` when headless, and an arrival wakes the loop for the
   frame that runs it. `LogicTest`'s witness runs two components on two lanes through three hops in both modes and
-  requires identical logs. **Not yet judged on vexelray-mini on a low-end machine**: that is phase 7's.*
+  requires identical logs. ~~Not yet judged on vexelray-mini on a low-end machine: that is phase 7's.~~ (Revoked
+  2026-10-29, above.)*
 * *`Outbox<T>` is atchung's own `Sender<T>`, taken as a constructor parameter. The wiring finds its topic by the
   payload: the `static final Topic<P>` declared in the payload's type or the one enclosing it. A component's sender is
   its inbox's, so its sends are ordered by the tick; a view's or a recipe's is an ordinary publish. The template's view,
@@ -1108,8 +1116,8 @@ frame, when every view's mailbox exists.*
   `Meter`.
 * Input-to-photon latency before and after (fork 4's cost), and idle CPU (a tick must not run when nothing arrived).
   **Measured at a low frame rate too, on `vexelray-mini`.** Fork 4's extra frame is 17 ms at 60 Hz and 67 ms at the
-  fifteen a second where `SlowFrames` makes its offer, which is where a person feels it. Taken in both modes, since
-  single-thread mode is meant for exactly those machines.
+  fifteen a second where `SlowFrames` makes its offer, which is where a person feels it. Taken in both modes.
+  (Revoked 2026-10-29: vexelray-mini is no longer single-thread mode's witness; see phase 4.)
 * `mvn clean install -Pacceptance` green.
 
 ***Witnesses rewritten 2026-10-29; acceptance green (the whole profile 17 of 17, then the fifteen-a-second pacing

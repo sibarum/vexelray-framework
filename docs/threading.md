@@ -140,8 +140,8 @@ the default, anything else is refused at launch) runs the tick in the framework'
 `VexelApplication.frame` when headless, and an arrival wakes the loop for the frame that runs it.
 `LogicTest.theSameInputsGiveTheSameDeliveriesWithTheTicksOnTheirThreadOrOnTheMainThread` runs one witness, two
 components on two lanes over three hops, in both modes and requires identical logs. The template's application was
-driven in both modes with ottermate, 2026-10-29. Not yet judged on a low-end machine, which is vexelray-mini's,
-phase 7)*
+driven in both modes with ottermate, 2026-10-29. vexelray-mini is not this mode's witness: that rule was revoked by
+the author 2026-10-29)*
 
 ## 2. Colour
 
