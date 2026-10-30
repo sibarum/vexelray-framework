@@ -1296,6 +1296,10 @@ Inspector's R1 needs it.
 * Merge `v0.2` into `develop` in each repo, in `bootstrap.sh` order. Bump the apps' framework dependency one at a
   time: vexelray-mini, scheduler, calculator, text editor, vexplore, mainframe. Each app's `docs/framework-notes.md`
   records what the port found.
+* **The Inspector is not ported: it is replaced.** Phase 7½ rebuilt it from the template in
+  `Spike/vexelray-inspector`, and that checkout takes over `vexelray-inspector` here: it becomes the repository's
+  history and keeps the name, with the 0.1.3 code kept under a tag, as mainframe's was at `archive/pre-v1` (ruled by
+  the author 2026-10-30, the Inspector's design §9.5).
 * **vexelray-mini** goes first because it is the smallest port: it uses none of the APIs this branch removes
   (no handler, `async`/`offload`, `Runnable` action, `@BeforeFrame` or `@MainThread`), and its whole application is
   one start recipe building a fixed tree, which becomes a view component (T7.4). Its pom already carries
