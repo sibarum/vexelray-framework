@@ -407,8 +407,10 @@ final class LinkRows {                                    // final fields only, 
   bounded threads for good (T1.5), which is exactly what the job lane is bounded to refuse.
 - **One run at a time per source, and the newest request wins.** A request while a run is going stops that run
   first, then starts the new one; its end reply is still published. That is attaching elsewhere in the Inspector and
-  reconnecting in netcode. A request to stop without starting is the framework's `Stop` for that source, a topic
-  the framework declares per source, sent like any other.
+  reconnecting in netcode. A request to stop without starting is a message of the application's own, named on the
+  annotation (`@Source(stop = Detach.class)`), so that it is a channel like any other: a type with a declared topic,
+  which the graph can show. (Proposed first as a `Stop` topic the framework declared per source; a topic is named by
+  its payload's type, and one framework type cannot name a channel per source.)
 - **Stopping interrupts the run's thread.** A source reads through something that answers an interrupt (an
   `InterruptibleChannel`: a socket or file channel closes and its read throws `ClosedByInterruptException`), and
   returns its end reply. At shutdown every run is stopped before the last tick, so their end replies are delivered in
@@ -426,22 +428,21 @@ carries are `Shareable`; the class has final fields only, each `Shareable`, a se
 `@Subscribe`, no `Inbox` (a source hears nothing but its request, which the framework delivers); `run` declares no
 `throws`; one source per request topic.
 
-**Still open, each settled by the first witness that needs it:**
+**The open questions, as ruled by the author 2026-10-30:**
 
-1. **Backpressure.** A source can produce faster than the logic hears. On an edge topic a full mailbox ends the
-   application (T4.2), which would make a fast peer a way to kill it. *Leaning:* a source's send to an edge **waits**
-   while the receiving mailbox is full, rather than halting: a source is the one part allowed to block, and waiting is
-   how the outside world is pushed back on (a socket's own flow control does the rest; the Inspector's target drops
-   rows in its ring and counts them, which it already does). A send on a state topic never waits, since it folds.
-   Needs a publish that waits for room, in atchung.
-2. **A read that ignores interrupts.** A child process's output is an `InputStream`, which an interrupt does not
-   unblock; nor may every elektro-Q transport. *Leaning:* a source may also be `AutoCloseable`, and stopping calls
-   `close()` from the stopping thread after the interrupt, to close the outside resource and nothing else. It is the
-   one call made into a source from another thread, and it is the standard way to unblock a stream read in Java.
-3. **Several runs of one source.** A server holds a connection per client. *Leaning:* `@Source(runs = n)`, each run
-   keyed by its request's key (T4.8's keys), the newest request per key winning. Not built until netcode needs it.
-4. **A cause of its own.** Each message a run sends begins a cause naming the source (atchung's `Cause`), so the
-   Inspector draws it as a source and not `uncaused`.
+1. **Backpressure: nothing in the framework.** *Ruled:* it is not a problem to add code for in advance. A source that
+   can outrun the logic buffers and batches what it sends (the Inspector's link reader sends rows by the batch), and
+   one that overflows a mailbox all the same fails as any publisher does (T4.2), since nothing better can be done. A
+   publish that waited for room was built in atchung and taken out again the same day.
+2. **A read that ignores interrupts: a close, accepted.** A child process's output is an `InputStream`, which an
+   interrupt does not unblock. Stopping closes the outside resource from the stopping thread, after the interrupt.
+   *Owed before it is built:* the proposed `close()` on the source has nothing to close, because a source's fields are
+   final and the resource belongs to one run, local to `run`. So the run has to hand the framework what to close.
+3. **Several runs of one source: not a rule, and nothing built.** The example was a server holding a connection
+   per client: the one shape where one run at a time stops fitting. It has nothing to do with the automation port.
+   Left until netcode is designed.
+4. **A cause of its own: built.** Each message a run sends begins a cause naming the source (atchung's
+   `Sender.outside`), so a trace finds where it came from and the Inspector draws it as a source, not `uncaused`.
 5. **The framework's own sources.** `Timer`, the automation sockets and tactroller's message pump are sources in
    all but name. Whether they become sources is decided after the first application one is built, not before.
 
