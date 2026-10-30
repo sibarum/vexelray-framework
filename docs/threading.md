@@ -81,8 +81,11 @@ by a race (T5.6).
 ## 1. Lanes
 
 **T1.1 — The lanes are a closed list.** The **main thread**, the **logic lane**, any **declared component
-lanes**, the **job lane**, and the **timeline**. A further lane is a design change, argued in architecture.md,
-not a convenience added at a call site. The framework also runs threads that are not lanes, because they must
+lanes**, the **job lane**, the **timeline**, and **a source's run**. A further lane is a design change, argued in
+architecture.md, not a convenience added at a call site. *Restated 2026-10-30, when sources were ruled
+(architecture.md, the message model; components.md section 11):* a running source has a platform thread of its own,
+`vexel-source-<name>`, started when a run starts and gone when it returns. It runs only that source's `run`, which
+reads from outside and sends, and hears nothing. *(owed for sources: not built)* The framework also runs threads that are not lanes, because they must
 stand outside what they watch or serve: the watchdog, the automation sockets, and the operating system's own
 dialog threads. They are listed in one place (`Lanes`' javadoc), never run application code, and reach the logic
 only by publishing.
@@ -97,7 +100,7 @@ entered from `FrameStage.CLOCK`. Whether it is physically the main thread or a c
 Kronometer's business; what is normative is T3.2.
 
 **T1.2 — Each lane has exactly one name, used everywhere.** The logic lane is `vexel-logic`, a declared lane
-`vexel-component-<name>`, the job lane `vexel-job`. *(held by `LanesTest.theLanesAreNamedApart` for all three, the job
+`vexel-component-<name>`, the job lane `vexel-job`, a source's run `vexel-source-<name>`. *(held by `LanesTest.theLanesAreNamedApart` for all three, the job
 lane's threads being `vexel-job-<n>`; by `LogicTest.componentsOnTheLogicLaneShareOneThreadThatIsNotThePublishers`
 for the logic lane's in use, and by `aLedgersStepRunsOnTheLaneAndWhatItSendsReachesADeclaredLane` for a declared
 lane's. The name is load-bearing in the thread dump somebody reaches for when one lane is the problem)*
@@ -381,10 +384,13 @@ component is on the tick; built in the bus,
 `TickLoop`, held by `TickTest.twoComponentsAnsweringEachOtherForeverAreALoop` and
 `aLoopIsCaughtEvenWhenEveryTickIsCutShortByItsDeadline`)*
 
-**T5.8 — Blocking work is a `@Job`, and nothing else blocks.** Disk, network, a decode, a long computation: each is
-a `@Job` with a request topic and a reply topic, run on the job lane. Its reply is a message like any other,
-delivered at the first tick after it finishes. A component's delivery never blocks, never sleeps and never waits for
-a reply. *(held for the `@Job` mechanism, by `JobsTest` and `VexelProcessorTest`'s job cases (components.md section
+**T5.8 — Blocking work is a `@Job` or a source, and nothing else blocks.** Disk, network, a decode, a long
+computation: each is a `@Job` with a request topic and a reply topic, run on the job lane. Its reply is a message like
+any other, delivered at the first tick after it finishes. What does not finish, because it reads from outside for as
+long as it is connected (a socket, a stream, a child process, a device), is a **source**: a run started by a request,
+on a thread of its own (T1.1), that may block in its read and sends as it goes, and whose end is a reply like a job's
+(components.md section 11). A component's delivery never blocks, never sleeps and never waits for a reply. *Restated
+2026-10-30 to add sources; owed for them, not built.* *(held for the `@Job` mechanism, by `JobsTest` and `VexelProcessorTest`'s job cases (components.md section
 10); owed for "nothing else blocks", phases 3 and 4, which withdraw `Gui.offload()`, `Gui.async()` and
 `Lanes.offload()` from application parts)*
 
@@ -496,7 +502,7 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
 
 **T7.3 — The framework's own concurrency is an allowlist.** `synchronized`, `volatile`, `java.util.concurrent` and
 `Thread` appear in the framework only in the classes that implement the model: the tick, the mailboxes, the job
-lane, the watchdog, the timer, the automation driver, and the operating-system seams (native dialogs, input backends) where
+lane, the sources' runs, the watchdog, the timer, the automation driver, and the operating-system seams (native dialogs, input backends) where
 a foreign thread hands something in. Each of those publishes; none hands a foreign thread's call to application
 code. Anywhere else, they are a defect. *Added 2026-10-29 with T7.6:* **the feed**, a fixed ring of stamped slots
 (vexelray-vulkan's `StreamTexture` with a presentation stamp per slot) that one producer off the GUI thread writes

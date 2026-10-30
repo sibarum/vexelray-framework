@@ -1286,10 +1286,11 @@ device. It only sends, has a thread of its own, is named in the wiring like any 
 that hear it and stops before them. **Why:** it is the right shape, and netcode and much else will need it, so it
 belongs in the framework rather than worked around in each application. The Inspector needs three (the link's rows,
 a recording's, a launched child's output); 0.1's Inspector made them as hand-made threads (its FN-1). *Rejected:* a
-loop of short jobs, each waiting a bounded time and asked again at once. **It changes two rules**, so it is argued in
-`threading.md` before code: T1.1's closed list of lanes gains the source's thread, and T5.8 ("blocking work is a
-`@Job`, and nothing else blocks") gains a source's read as the one other place that may block. Built before the
-Inspector's R1 needs it.
+loop of short jobs, each waiting a bounded time and asked again at once. **It changes two rules**: T1.1's closed list
+of lanes gains a source's run, and T5.8 ("blocking work is a `@Job`, and nothing else blocks") gains a source's read
+as the one other place that may block. *Argued 2026-10-30:* the reasons in `docs/architecture.md` (the message model),
+the proposed shape and its five open questions in `docs/components.md` section 11, and T1.1, T1.2, T5.8 and T7.3
+restated in `docs/threading.md`, all owed. Built before the Inspector's R1 needs it.
 
 ### Phase 8. Land and port
 

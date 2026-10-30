@@ -360,6 +360,91 @@ part to rule on before the freeze.
 **Ruled (above):** `@Job` and the reply topic are the v1 offload API. Failure's shape is ruled (above). Still to do
 before the freeze: withdraw the executors from application parts, which is the breaking half.
 
+### 11. Sources: what keeps producing from outside (ruled 2026-10-30; the shape proposed, not built)
+
+**Ruled by the author 2026-10-30: sources are a kind of part in the framework.** A source keeps producing messages
+from outside the application for as long as it runs: a socket, a stream, a child process, a device. **Why:** it is
+the right shape, and netcode and much else will need it, so it belongs in the framework rather than worked around in
+each application. The occasion was the Inspector (ROADMAP phase 7½), which reads a running application's rows over a
+link for as long as it is attached, a recording at its recorded pace, and a launched child's output. Its 0.1 form made
+three hand-made threads for them (its FN-1). *Rejected:* a loop of short jobs, each waiting a bounded time for what
+arrived and asked again at once. That needs nothing new, but every client of a stream would write the same loop, and a
+connection's life would be a chain of requests rather than one thing the wiring can name.
+
+**The shape: a job that sends while it runs, on a thread of its own.** Everything a job is, a source is, with two
+differences: `run` may send as it goes, and it lasts as long as what it reads from.
+
+```java
+@Source
+final class LinkRows {                                    // final fields only, as a job's
+    private final Sender<RowBatch> rows;
+    LinkRows(Sender<RowBatch> rows) { this.rows = rows; } // declared sends, by construction (T4.5)
+
+    Detached run(Attach request) {                        // one run per request, on vexel-source-link-rows
+        try (LinkClient link = LinkClient.open(request.discovery())) {
+            for (RowBatch b; (b = link.next()) != null; ) {
+                rows.send(b);                             // as it goes
+            }
+            return new Detached(request.run(), Detached.Why.WENT_AWAY);
+        } catch (ClosedByInterruptException stopped) {
+            return new Detached(request.run(), Detached.Why.STOPPED);
+        } catch (IOException e) {
+            return new Detached(request.run(), Detached.Why.failed(e));
+        }
+    }
+}
+```
+
+- **A run starts on a request**, published on the request's topic like any message, so it is a declared send and in
+  the channel graph. **It ends by returning**, and the return value is published as a job's reply is: why it ended,
+  stopped, went away or failed, carrying what the caller needs to tell which run it was. A failure it expects is part
+  of that reply; anything else that escapes `run` halts, as a job's does (section 10).
+- **Per-run state is local to `run`.** The source's fields are final, as a job's are (only senders, `Shareable`
+  values and declared services), so nothing is shared between runs or with anything else, and there is nothing to
+  check beyond what a job already gets.
+- **A thread of its own per run**, a platform thread named `vexel-source-<name>` (T1.2, T1.4), started when the run
+  starts and gone when it returns. Not the job lane: a run that blocks for an hour would hold one of the job lane's
+  bounded threads for good (T1.5), which is exactly what the job lane is bounded to refuse.
+- **One run at a time per source, and the newest request wins.** A request while a run is going stops that run
+  first, then starts the new one; its end reply is still published. That is attaching elsewhere in the Inspector and
+  reconnecting in netcode. A request to stop without starting is the framework's `Stop` for that source, a topic
+  the framework declares per source, sent like any other.
+- **Stopping interrupts the run's thread.** A source reads through something that answers an interrupt (an
+  `InterruptibleChannel`: a socket or file channel closes and its read throws `ClosedByInterruptException`), and
+  returns its end reply. At shutdown every run is stopped before the last tick, so their end replies are delivered in
+  it and nothing is sent into a component that is closing (T6.2).
+- **What it sends arrives from outside**: hops zero, ordered by arrival, as input is (T5.6, T5.7). One run's messages
+  keep their order, since one thread sends them. A source is therefore one of the things a replay must record (ROADMAP
+  §5, item 5), with input.
+- **Nothing changes between modes** (T1.7). A run's thread is outside the tick in both.
+- **The watchdog does not watch a source.** A run blocked in a read is resting, not wedged; it holds no lane.
+- **Listed like a job**: `@Configuration(sources = ...)` in the module that compiles it, for the reason section 10
+  gives for jobs.
+
+**What the processor checks**, all from declarations, as for a job: the request, the reply and every payload a sender
+carries are `Shareable`; the class has final fields only, each `Shareable`, a sender or a provided part; no
+`@Subscribe`, no `Inbox` (a source hears nothing but its request, which the framework delivers); `run` declares no
+`throws`; one source per request topic.
+
+**Still open, each settled by the first witness that needs it:**
+
+1. **Backpressure.** A source can produce faster than the logic hears. On an edge topic a full mailbox ends the
+   application (T4.2), which would make a fast peer a way to kill it. *Leaning:* a source's send to an edge **waits**
+   while the receiving mailbox is full, rather than halting: a source is the one part allowed to block, and waiting is
+   how the outside world is pushed back on (a socket's own flow control does the rest; the Inspector's target drops
+   rows in its ring and counts them, which it already does). A send on a state topic never waits, since it folds.
+   Needs a publish that waits for room, in atchung.
+2. **A read that ignores interrupts.** A child process's output is an `InputStream`, which an interrupt does not
+   unblock; nor may every elektro-Q transport. *Leaning:* a source may also be `AutoCloseable`, and stopping calls
+   `close()` from the stopping thread after the interrupt, to close the outside resource and nothing else. It is the
+   one call made into a source from another thread, and it is the standard way to unblock a stream read in Java.
+3. **Several runs of one source.** A server holds a connection per client. *Leaning:* `@Source(runs = n)`, each run
+   keyed by its request's key (T4.8's keys), the newest request per key winning. Not built until netcode needs it.
+4. **A cause of its own.** Each message a run sends begins a cause naming the source (atchung's `Cause`), so the
+   Inspector draws it as a source and not `uncaused`.
+5. **The framework's own sources.** `Timer`, the automation sockets and tactroller's message pump are sources in
+   all but name. Whether they become sources is decided after the first application one is built, not before.
+
 ## Build order once the rulings are taken
 
 Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) orders the whole.

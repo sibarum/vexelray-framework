@@ -335,6 +335,26 @@ on a message, and the asked half only chooses among what was built ("told builds
 frames come in through a feed, a ring of stamped slots a producer writes off the GUI thread (T7.3 names it). The
 design and its order of work are vexelray-gui's `docs/plans/frame-contract.md`.
 
+**Ruled 2026-10-30: a source is a kind of part, and its thread a lane.** The lanes were a closed list (T1.1), and
+blocking was a job's alone (T5.8), because a job finishes. Something that reads from outside for as long as it is
+connected never finishes, so it had nowhere to go. The Inspector, the first application written for 0.2 from
+nothing, needs three of them; its 0.1 form made three threads by hand, outside anything the wiring could name or the
+framework could check. The author's ruling: it is the right shape, and netcode and much else will need it, so it is
+the framework's. Three reasons decide the shape against the alternative, a loop of short jobs each waiting a bounded
+time:
+
+- **A connection is one thing, and the wiring should be able to name it.** A loop of jobs makes it a chain of
+  requests, each one the caller has to remember to send again, which is the shape T5.3's note warns about: a rule held
+  by an API you must remember to call is not held.
+- **The job lane is bounded so that work waits behind work** (T1.5). A run that blocks for an hour inside it would
+  hold one of its threads for good, so a source cannot be a job on that lane, and gets a thread per run instead.
+- **It adds no new kind of code.** A source is a job that may send while it runs: final fields, declared sends, a
+  `run` that returns why it ended. Every check a job gets, a source gets, and the processor needs only one more: that
+  a source hears nothing but its request.
+
+What it costs: one thread per running source, outside the tick, which T1.1 now lists, and a second place that may
+block (T5.8). The shape and its open questions are [components.md section 11](components.md).
+
 **What it costs, and where that is priced.** One tick of latency between an input and a logic-driven response
 (T5.4), measured in phase 7 before it is accepted; widget-local responses stay inside the widget and cost nothing
 (T3.9). One wedged component now stops every component on the logic lane, though not the window (T6.5). And in
