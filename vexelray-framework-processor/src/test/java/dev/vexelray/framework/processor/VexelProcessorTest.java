@@ -242,6 +242,44 @@ class VexelProcessorTest {
                                                    int capacity, String... keys) {
                         Shell.LOG.add("view mailbox " + topic.name() + " " + java.util.List.of(keys));
                     }
+                    public static final java.util.List<dev.vexelray.gui.core.spi.Asked> ASKED =
+                            new java.util.ArrayList<>();
+                    public static void draw(dev.vexelray.gui.core.Gui gui, dev.vexelray.gui.core.spi.Asked part) {
+                        Shell.LOG.add("view draw");
+                        ASKED.add(part);
+                    }
+                    /** Ask every registered part for a frame at {@code present}, logging the offsets it sets. */
+                    public static long ask(long present) {
+                        long due = dev.vexelray.gui.core.Frame.NEVER;
+                        for (dev.vexelray.gui.core.spi.Asked a : ASKED) {
+                            due = Math.min(due, a.draw(new dev.vexelray.gui.core.Frame(present, false),
+                                    (node, dx, dy) -> { Shell.LOG.add("offset " + node.name + " " + dy); return null; }));
+                        }
+                        return due;
+                    }
+                }
+                """),
+            Map.entry("dev.vexelray.gui.core.Frame", """
+                package dev.vexelray.gui.core;
+                public record Frame(long presentNanos, boolean reducedMotion) {
+                    public static final long NEVER = Long.MAX_VALUE;
+                }
+                """),
+            Map.entry("dev.vexelray.gui.core.Drawn", """
+                package dev.vexelray.gui.core;
+                public interface Drawn { Drawn offset(Node node, float dx, float dy); }
+                """),
+            Map.entry("dev.vexelray.gui.core.Node", """
+                package dev.vexelray.gui.core;
+                public final class Node {
+                    public final String name;
+                    public Node(String name) { this.name = name; }
+                }
+                """),
+            Map.entry("dev.vexelray.gui.core.spi.Asked", """
+                package dev.vexelray.gui.core.spi;
+                public interface Asked {
+                    long draw(dev.vexelray.gui.core.Frame frame, dev.vexelray.gui.core.Drawn out);
                 }
                 """),
             Map.entry("dev.vexelray.gui.widget.Tree", """
@@ -1024,6 +1062,53 @@ class VexelProcessorTest {
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
         assertEquals(List.of(), run.phase("config"));
         assertEquals(List.of("view mailbox dev.vexelray.gui.widget.Tree.Chosen []"), run.phase("tree"));
+    }
+
+    /**
+     * T7.6: a view's {@code @Draw} method is registered to be asked on every frame, with whatever its state field holds
+     * when it is asked, so a state its {@code @Subscribe} method replaced is drawn on the next frame with nothing more
+     * said. The body's rules are {@link DrawCheckTest}'s.
+     */
+    @Test
+    void aViewsDrawIsAskedWithTheStateItsFieldHoldsOnEachFrame() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @View
+                public final class Timeline {
+                    public record Strip(dev.vexelray.gui.core.Node rows, float y, long settles) {}
+                    public Strip state = new Strip(new dev.vexelray.gui.core.Node("rows"), 0f, 0L);
+                    public Timeline() {}
+                    @Draw
+                    public static long draw(Strip s, dev.vexelray.gui.core.Frame frame, dev.vexelray.gui.core.Drawn out) {
+                        out.offset(s.rows(), 0f, s.y());
+                        return frame.presentNanos() < s.settles() ? frame.presentNanos()
+                                : dev.vexelray.gui.core.Frame.NEVER;
+                    }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("dev.vexelray.framework.shell.Views.draw(shell.gui(), (frame, out) ->"
+                + " app.Timeline.draw(timeline.state, frame, out));"), wiring);
+
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
+        assertEquals(List.of("view draw"), run.phase("tree"));
+        Class<?> views = run.wiring().getClass().getClassLoader().loadClass("dev.vexelray.framework.shell.Views");
+        var ask = views.getMethod("ask", long.class);
+        run.log().clear();
+        assertEquals(Long.MAX_VALUE, ask.invoke(null, 10L), "at rest");
+        assertEquals(List.of("offset rows 0.0"), run.log());
+
+        // What a @Subscribe method does: a new state in the field. The next frame draws it, and is due again.
+        Object timeline = run.part("timeline");
+        var strip = timeline.getClass().getField("state");
+        Object rows = strip.getType().getMethod("rows").invoke(strip.get(timeline));
+        strip.set(timeline, strip.getType().getConstructors()[0].newInstance(rows, -30f, 100L));
+        run.log().clear();
+        assertEquals(20L, ask.invoke(null, 20L), "moving: due on the next frame");
+        assertEquals(List.of("offset rows -30.0"), run.log());
     }
 
     @Test

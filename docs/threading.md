@@ -581,12 +581,15 @@ asked half over its budget for a run of frames is frozen on what it last drew an
 stuck picture, loudly, and never stops the window.
 **Why:** drawing, presentation and pacing a video are one thing, the author's ruling, and a list of exceptions grows
 by one door per kind of moving thing. A declared step is already not a callback (T7.2), and the asked half is the
-same kind of declaration with a frame's conditions added. *(owed. Phase 4, with `@View`'s checks: the processor
-finds both halves from declarations and refuses, after the step check's principle, only what is certainly unsafe in
-an asked half (`new`, locks, I/O, `Thread`, logging, the bus). The host half is built in vexelray-gui (frame-contract.md
-step 2, 2026-10-30): `Frame`, `Drawn`, `spi.Asked` and due times, with `PaintMotion` and `LayoutMotion` as its
-first users, held by their tests and `AskedTest`. Phase 8, with the codec: the feed and
-the video player as a witness)*
+same kind of declaration with a frame's conditions added. *(partly held. The host half is built in vexelray-gui
+(frame-contract.md step 2, 2026-10-30): `Frame`, `Drawn`, `spi.Asked` and due times, with `PaintMotion` and
+`LayoutMotion` as its first users, held by their tests and `AskedTest`. A view's asked half is built (step 3, the same
+day): `@Draw`, a static method on a `@View` taking its one state field, the Frame and the Drawn, registered by the
+generated wiring and read by the step check with a frame's rules besides (`new`, an array, a string built, varargs,
+logging, `Thread`, the bus, a call on a node it holds), held by `DrawCheckTest`. Owed: the budget that freezes a slow
+asked half, which waits for something in the host to report through and for step 0's number; and a view's told half
+as declared steps, with `@View`'s checks in phase 4. Phase 8, with the codec: the feed and the video player as a
+witness)*
 
 ---
 

@@ -919,6 +919,23 @@ final class Generator {
                       + ", " + literal(declarations.lane(b.component)) + ", " + topic + ", "
                       + subscriber + ", " + m.capacity() + keys + ");");
         }
+        ExecutableElement draw = view ? declarations.drawOf(b.component) : null;
+        if (draw != null && draw.getParameters().size() == 3) {
+            // The asked half, handed the view's state as it is on each frame: the field is read in the frame, so a
+            // @Subscribe method that replaced it in this frame's widget tick is drawn in this frame.
+            List<VariableElement> holders = Declarations.stateFields(b.component, draw.getParameters().get(0).asType());
+            if (holders.size() == 1) {
+                VariableElement state = holders.get(0);
+                if (!visibleFrom(app, draw) || !visibleFrom(app, state)) {
+                    error(draw, "@Draw " + Mirrors.where(draw) + " or its state field " + Mirrors.simple(state)
+                            + " is not visible from " + Mirrors.simple(app) + "'s package, where the generated wiring"
+                            + " calls the one with the other. Make both public");
+                }
+                after.add(Framework.VIEWS + ".draw(shell.gui(), (frame, out) -> "
+                        + b.component.getQualifiedName() + "." + Mirrors.simple(draw) + "(" + field + "."
+                        + Mirrors.simple(state) + ", frame, out));");
+            }
+        }
         if (b.job != null && graph.isSource(b.component)) {
             // A run per key of the request, each on a thread of its own: Sources. A run that takes no Closer is handed
             // one all the same, and ignores it.

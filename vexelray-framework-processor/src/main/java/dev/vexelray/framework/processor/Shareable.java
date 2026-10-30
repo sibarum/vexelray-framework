@@ -65,7 +65,7 @@ final class Shareable {
      * because it is one the holder made and can change.
      */
     static String why(TypeMirror type) {
-        return why(type, "", new HashSet<>(), false);
+        return why(type, "", new HashSet<>(), Rules.STATE);
     }
 
     /**
@@ -76,10 +76,30 @@ final class Shareable {
      * the check refuses what is certainly wrong, and a collection of shareable values is not.
      */
     static String crossing(TypeMirror type) {
-        return why(type, "", new HashSet<>(), true);
+        return why(type, "", new HashSet<>(), Rules.PAYLOAD);
     }
 
-    private static String why(TypeMirror type, String path, Set<String> visiting, boolean collections) {
+    /**
+     * Why a view's state, the one its {@code @Draw} method is asked with, is not deeply immutable; as {@link #crossing},
+     * except that a vexelray-gui {@code Node} in it is a <b>handle</b>, accepted: the nodes the told half made and the
+     * asked half addresses through its {@code Drawn} (frame-contract.md B). It never crosses a lane, and the step check
+     * refuses calling anything on it in the asked half, so all the asked half can do with one is name it.
+     */
+    static String drawnState(TypeMirror type) {
+        return why(type, "", new HashSet<>(), Rules.DRAWN);
+    }
+
+    /** What the walk accepts beyond the deeply immutable: collections on trust (a payload's), and nodes as handles. */
+    private record Rules(boolean collections, boolean handles) {
+        static final Rules STATE = new Rules(false, false);
+        static final Rules PAYLOAD = new Rules(true, false);
+        static final Rules DRAWN = new Rules(true, true);
+    }
+
+    /** vexelray-gui's node, a final class: what a view's state may hold as a handle. */
+    static final String NODE = "dev.vexelray.gui.core.Node";
+
+    private static String why(TypeMirror type, String path, Set<String> visiting, Rules rules) {
         if (type.getKind().isPrimitive()) {
             return null;
         }
@@ -92,16 +112,16 @@ final class Shareable {
         DeclaredType declared = (DeclaredType) type;
         TypeElement element = (TypeElement) declared.asElement();
         String name = element.getQualifiedName().toString();
-        if (VALUES.contains(name) || element.getKind() == ElementKind.ENUM) {
+        if (VALUES.contains(name) || element.getKind() == ElementKind.ENUM || rules.handles() && name.equals(NODE)) {
             return null;
         }
         if (!declared.getTypeArguments().isEmpty()) {
             if (name.equals("java.util.Optional")) {
-                return why(declared.getTypeArguments().get(0), path, visiting, collections);
+                return why(declared.getTypeArguments().get(0), path, visiting, rules);
             }
-            if (collections && COLLECTIONS.contains(name)) {
+            if (rules.collections() && COLLECTIONS.contains(name)) {
                 for (TypeMirror held : declared.getTypeArguments()) {
-                    String why = why(held, join(path, Mirrors.simple(element) + " of " + held), visiting, true);
+                    String why = why(held, join(path, Mirrors.simple(element) + " of " + held), visiting, rules);
                     if (why != null) {
                         return why;
                     }
@@ -115,18 +135,18 @@ final class Shareable {
             return null; // a recursive type: the first visit decides it
         }
         try {
-            return structure(element, path, visiting, collections);
+            return structure(element, path, visiting, rules);
         } finally {
             visiting.remove(name);
         }
     }
 
-    private static String structure(TypeElement element, String path, Set<String> visiting, boolean collections) {
+    private static String structure(TypeElement element, String path, Set<String> visiting, Rules rules) {
         String simple = Mirrors.simple(element);
         switch (element.getKind()) {
             case RECORD -> {
                 for (RecordComponentElement c : element.getRecordComponents()) {
-                    String why = why(c.asType(), join(path, simple + "." + c.getSimpleName()), visiting, collections);
+                    String why = why(c.asType(), join(path, simple + "." + c.getSimpleName()), visiting, rules);
                     if (why != null) {
                         return why;
                     }
@@ -138,7 +158,7 @@ final class Shareable {
                     return at(path, simple + " is an interface that is not sealed, so what implements it is unknown");
                 }
                 for (TypeMirror permitted : element.getPermittedSubclasses()) {
-                    String why = why(permitted, join(path, simple), visiting, collections);
+                    String why = why(permitted, join(path, simple), visiting, rules);
                     if (why != null) {
                         return why;
                     }
@@ -147,12 +167,12 @@ final class Shareable {
             }
             case CLASS -> {
                 if (element.getModifiers().contains(Modifier.SEALED)) {
-                    String why = fields(element, path, visiting, collections);
+                    String why = fields(element, path, visiting, rules);
                     if (why != null) {
                         return why;
                     }
                     for (TypeMirror permitted : element.getPermittedSubclasses()) {
-                        why = why(permitted, join(path, simple), visiting, collections);
+                        why = why(permitted, join(path, simple), visiting, rules);
                         if (why != null) {
                             return why;
                         }
@@ -162,7 +182,7 @@ final class Shareable {
                 if (!element.getModifiers().contains(Modifier.FINAL)) {
                     return at(path, simple + " is neither final nor sealed, so a subclass could add mutable state");
                 }
-                return fields(element, path, visiting, collections);
+                return fields(element, path, visiting, rules);
             }
             default -> {
                 return at(path, simple + " is " + element.getKind().toString().toLowerCase().replace('_', ' ')
@@ -177,7 +197,7 @@ final class Shareable {
      * it is what it holds. A class that holds its enclosing instance is refused at any level, because that
      * reference is a field javac never shows.
      */
-    private static String fields(TypeElement element, String path, Set<String> visiting, boolean collections) {
+    private static String fields(TypeElement element, String path, Set<String> visiting, Rules rules) {
         for (TypeElement at = element; at != null; at = superclass(at)) {
             String simple = Mirrors.simple(at);
             if (holdsItsMaker(at)) {
@@ -192,7 +212,7 @@ final class Shareable {
                 if (!f.getModifiers().contains(Modifier.FINAL)) {
                     return at(where, "is not final, so it can change after the value has been sent");
                 }
-                String why = why(f.asType(), where, visiting, collections);
+                String why = why(f.asType(), where, visiting, rules);
                 if (why != null) {
                     return why;
                 }

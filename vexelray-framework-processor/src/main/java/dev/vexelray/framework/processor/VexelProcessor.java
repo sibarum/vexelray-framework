@@ -5,6 +5,7 @@ import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.ConditionalOnType;
 import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Default;
+import dev.vexelray.framework.api.Draw;
 import dev.vexelray.framework.api.Job;
 import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.OnMode;
@@ -67,6 +68,8 @@ import java.util.Set;
  *   <li><b>A ledger's steps</b> ({@link StepCheck}): what is certainly wrong in a step's body, a capture, a static
  *       written, a lock, a known effect or wait. Read from bodies rather than declarations, in every class of the
  *       compilation once javac has analyzed it, so the processor asks for {@code *} to be started at all.</li>
+ *   <li><b>A view's {@code @Draw}</b>: its shape and its one state field, and its body read as a step's is, with a
+ *       frame's rules besides (T7.6).</li>
  * </ul>
  *
  * <p><b>Why checks came first.</b> {@code docs/threading.md} counted fourteen of its thirty-two rules as the
@@ -84,7 +87,7 @@ public final class VexelProcessor extends AbstractProcessor {
     private static final List<Class<? extends Annotation>> VOCABULARY = List.of(
             VexelApp.class, Component.class, Configuration.class, Provides.class, Default.class,
             MainThread.class, Setting.class, BeforeFrame.class, OnMode.class, ConditionalOnType.class,
-            Subscribe.class, Publishes.class, Job.class, Source.class, View.class, Hears.class);
+            Subscribe.class, Publishes.class, Job.class, Source.class, View.class, Hears.class, Draw.class);
 
     private Mirrors mirrors;
     private Declarations declarations;
@@ -176,6 +179,9 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(Subscribe.class)) {
             declarations.subscribe((ExecutableElement) e);
+        }
+        for (Element e : round.getElementsAnnotatedWith(Draw.class)) {
+            declarations.draw((ExecutableElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Publishes.class)) {
             channels.publishes(e);

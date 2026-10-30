@@ -492,6 +492,92 @@ final class Declarations {
         }
     }
 
+    // --- @Draw -----------------------------------------------------------------------------------------------
+
+    /**
+     * A view's asked half (T7.6): on a {@code @View}, one per view, {@code static long draw(S state, Frame, Drawn)},
+     * with {@code S} deeply immutable and held by exactly one of the view's instance fields. What its body may do is
+     * {@link StepCheck}'s.
+     */
+    void draw(ExecutableElement method) {
+        String where = Mirrors.where(method);
+        Element owner = method.getEnclosingElement();
+        if (!mirrors.has(owner, View.class)) {
+            error(method, "@Draw " + where + " is not on a @View. An asked half belongs to a view, which the GUI thread"
+                    + " runs; a component decides on its lane and has nothing drawn to choose");
+            return;
+        }
+        if (drawOf((TypeElement) owner) == null) {
+            error(method, "@Draw " + where + ": " + Mirrors.simple(owner) + " has more than one. A view has one asked"
+                    + " half, which sets everything it shows that changes from frame to frame");
+            return;
+        }
+        if (!method.getModifiers().contains(Modifier.STATIC)) {
+            error(method, "@Draw " + where + " is not static. An asked half reads the view's state and the frame and"
+                    + " nothing else, so it has no view to read: make it static, taking the state as its first parameter");
+        }
+        if (method.getReturnType().getKind() != TypeKind.LONG) {
+            error(method, "@Draw " + where + " returns " + method.getReturnType() + ", and must return a long: when the"
+                    + " view next needs asking, on the frame's clock, or Frame.NEVER once it is at rest");
+        }
+        if (!method.getThrownTypes().isEmpty()) {
+            error(method, "@Draw " + where + " declares " + method.getThrownTypes() + ". A frame has nowhere to send"
+                    + " a checked exception; an asked half that can fail is doing work the told half should have done");
+        }
+        List<? extends VariableElement> params = method.getParameters();
+        if (params.size() != 3 || !named(params.get(1).asType(), Framework.FRAME)
+                || !named(params.get(2).asType(), Framework.DRAWN)) {
+            error(method, "@Draw " + where + " must take (state, Frame, Drawn): the view's state, then vexelray-gui's"
+                    + " dev.vexelray.gui.core.Frame and dev.vexelray.gui.core.Drawn");
+            return;
+        }
+        TypeMirror state = params.get(0).asType();
+        String why = Shareable.drawnState(state);
+        if (why != null) {
+            error(method, "@Draw " + where + " takes its state as " + state + ", which is not deeply immutable: " + why
+                    + ". The view replaces its state with a new value and never changes it in place, so what one frame"
+                    + " is asked with is what it was told: a record of primitives, strings, enums,"
+                    + " lists of those and records of those, and the Nodes it shows, which it holds as handles");
+        }
+        int holders = stateFields((TypeElement) owner, state).size();
+        if (holders != 1) {
+            error(method, "@Draw " + where + " takes a " + state + ", and " + Mirrors.simple(owner) + " has " + holders
+                    + " instance fields of that type. A view keeps its state in exactly one field, which its @Subscribe"
+                    + " methods replace and the generated wiring hands to this method on every frame");
+        }
+    }
+
+    /** A view's one {@code @Draw} method; null when it has none, or more than one (reported by {@link #draw}). */
+    ExecutableElement drawOf(TypeElement view) {
+        ExecutableElement found = null;
+        for (Element e : view.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.METHOD && mirrors.has(e, dev.vexelray.framework.api.Draw.class)) {
+                if (found != null) {
+                    return null;
+                }
+                found = (ExecutableElement) e;
+            }
+        }
+        return found;
+    }
+
+    /** The instance fields of {@code view} whose type is exactly {@code state}. */
+    static List<VariableElement> stateFields(TypeElement view, TypeMirror state) {
+        List<VariableElement> out = new java.util.ArrayList<>();
+        for (Element e : view.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)
+                    && e.asType().toString().equals(state.toString())) {
+                out.add((VariableElement) e);
+            }
+        }
+        return out;
+    }
+
+    private static boolean named(TypeMirror type, String qualified) {
+        return type instanceof DeclaredType d && d.asElement() instanceof TypeElement t
+                && t.getQualifiedName().contentEquals(qualified);
+    }
+
     // --- @Job ------------------------------------------------------------------------------------------------
 
     /**

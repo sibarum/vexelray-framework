@@ -31,6 +31,9 @@ final class Framework {
     static final String INBOXES = "dev.vexelray.framework.shell.Inboxes";
     /** What the generated wiring calls to give a {@code @View} its mailboxes on the GUI thread; see {@code Views}. */
     static final String VIEWS = "dev.vexelray.framework.shell.Views";
+    /** What a {@code @Draw} method is asked for and sets its nodes through: vexelray-gui's, named and not imported. */
+    static final String FRAME = "dev.vexelray.gui.core.Frame";
+    static final String DRAWN = "dev.vexelray.gui.core.Drawn";
     static final String APPEARANCE ="dev.vexelray.framework.shell.Appearance";
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";

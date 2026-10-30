@@ -1,6 +1,7 @@
 package dev.vexelray.framework.processor;
 
 import com.sun.source.tree.AssignmentTree;
+import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.CompoundAssignmentTree;
@@ -12,7 +13,9 @@ import com.sun.source.tree.MemberReferenceTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.NewClassTree;
+import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.SynchronizedTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
@@ -29,7 +32,9 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
@@ -64,6 +69,12 @@ import java.util.Set;
  * same way when its source is in this compilation, so a step written as a static method, or one that leans on a
  * helper, is checked through to the helper; its {@code this}, if it is an instance method, is the receiver's, not a
  * capture. Under a compiler without javac's tree API there is nothing to read, and nothing is refused.
+ *
+ * <p><b>A view's {@code @Draw} method is read the same way, and held to more</b> (T7.6, vexelray-gui's
+ * {@code docs/plans/frame-contract.md}): it runs in every frame the window draws, so on top of a step's refusals it may
+ * not allocate ({@code new}, an array, a string built, a varargs call), log, touch a {@code Thread} or reach the bus.
+ * The same principle holds: an allocation hidden in a library call it cannot read is let through, and a string that
+ * javac folds to a constant is not built at all.
  *
  * <p><b>When it reads: after javac has attributed a class, never while annotations are processed.</b> Asking javac
  * what a name means in a tree it has not attributed makes it attribute the whole class there and then, and
@@ -219,17 +230,30 @@ final class StepCheck implements TaskListener {
                 ExpressionTree body = call.getArguments().get(1);
                 TreePath at = new TreePath(getCurrentPath(), body);
                 if (body instanceof LambdaExpressionTree) {
-                    new Body(name, unit, false, new HashSet<>()).scan(at, null);
+                    new Body(Subject.step(name), unit, false, new HashSet<>()).scan(at, null);
                 } else if (body instanceof MemberReferenceTree ref) {
-                    named(name, trees.getElement(at), ref, unit, new HashSet<>());
+                    named(Subject.step(name), trees.getElement(at), ref, unit, new HashSet<>());
                 }
             }
             return super.visitMethodInvocation(call, unused);
         }
+
+        /** A view's {@code @Draw} method: read as a step is, with the frame's rules. Its shape is Declarations'. */
+        @Override
+        public Void visitMethod(MethodTree tree, Void unused) {
+            if (trees.getElement(getCurrentPath()) instanceof ExecutableElement method && drawn(method)
+                    && method.getModifiers().contains(Modifier.STATIC) && tree.getBody() != null) {
+                Set<Element> seen = new HashSet<>();
+                seen.add(method);
+                new Body(Subject.draw(Mirrors.where(method)), unit, false, seen)
+                        .scan(getCurrentPath(), null);
+            }
+            return super.visitMethod(tree, unused);
+        }
     }
 
     /** A step written as a method reference: a bound receiver is a capture; the method's body is read if it is here. */
-    private void named(String step, Element target, MemberReferenceTree ref, CompilationUnitTree unit,
+    private void named(Subject step, Element target, MemberReferenceTree ref, CompilationUnitTree unit,
                        Set<Element> seen) {
         if (!(target instanceof ExecutableElement method)) {
             return;
@@ -239,7 +263,7 @@ final class StepCheck implements TaskListener {
         boolean unbound = qualifier != null && (qualifier.getKind().isClass() || qualifier.getKind().isInterface());
         if (!isStatic && !unbound) {
             error(step, "is a method reference on an object, " + ref.getQualifierExpression() + ", so it captures it",
-                    "declare the step as a static method, or keep what it needs in the ledger's state",
+                    "declare the step as a static method, or keep what it needs in " + step.state(),
                     ref, unit);
             return;
         }
@@ -247,7 +271,7 @@ final class StepCheck implements TaskListener {
     }
 
     /** Read {@code method}'s body as part of {@code step}'s, if its source is in this compilation. */
-    private void follow(String step, ExecutableElement method, Set<Element> seen) {
+    private void follow(Subject step, ExecutableElement method, Set<Element> seen) {
         if (!seen.add(method)) {
             return;
         }
@@ -265,14 +289,14 @@ final class StepCheck implements TaskListener {
 
     /** Reads one body: the step's lambda, or a method it reaches. */
     private final class Body extends TreePathScanner<Void, Void> {
-        private final String step;
+        private final Subject step;
         private final CompilationUnitTree unit;
         /** Whether {@code this} belongs to the body (a method reached on its receiver), so using it captures nothing. */
         private final boolean hasThis;
         private final Set<Element> seen;
         private final Set<Element> locals = new LinkedHashSet<>();
 
-        Body(String step, CompilationUnitTree unit, boolean hasThis, Set<Element> seen) {
+        Body(Subject step, CompilationUnitTree unit, boolean hasThis, Set<Element> seen) {
             this.step = step;
             this.unit = unit;
             this.hasThis = hasThis;
@@ -293,7 +317,7 @@ final class StepCheck implements TaskListener {
             if (id.getName().contentEquals("this") || id.getName().contentEquals("super")) {
                 if (!hasThis) {
                     error(step, "uses " + id.getName() + ", so it captures the enclosing object",
-                            "declare the step as a static method, or keep what it needs in the ledger's state",
+                            "declare the step as a static method, or keep what it needs in " + step.state(),
                             id, unit);
                 }
                 return null;
@@ -312,15 +336,15 @@ final class StepCheck implements TaskListener {
                     || k == ElementKind.RESOURCE_VARIABLE || k == ElementKind.BINDING_VARIABLE) {
                 if (!locals.contains(e)) {
                     error(step, "captures '" + e.getSimpleName() + "' from outside it",
-                            "carry '" + e.getSimpleName() + "' in the step's arguments, or keep it in the ledger's "
-                                    + "state", at, unit);
+                            "carry '" + e.getSimpleName() + "' in " + step.carry() + ", or keep it in "
+                                    + step.state(), at, unit);
                 }
             } else if (k == ElementKind.FIELD || k == ElementKind.ENUM_CONSTANT) {
                 field(e, at, true);
             } else if (k == ElementKind.METHOD && !e.getModifiers().contains(Modifier.STATIC) && !hasThis
                     && at instanceof IdentifierTree) {
                 error(step, "calls " + e.getSimpleName() + "() on the enclosing object, so it captures it",
-                        "make " + e.getSimpleName() + " static, or keep what it needs in the ledger's state", at, unit);
+                        "make " + e.getSimpleName() + " static, or keep what it needs in " + step.state(), at, unit);
             }
         }
 
@@ -339,28 +363,27 @@ final class StepCheck implements TaskListener {
             String name = owner(e) + "." + e.getSimpleName();
             if (e.getModifiers().contains(Modifier.VOLATILE)) {
                 error(step, "uses the volatile field " + name + ", which is state another thread changes",
-                        "keep what the step needs in the ledger's state", at, unit);
+                        "keep what the step needs in " + step.state(), at, unit);
                 return;
             }
             if (isStatic) {
                 if (written(at)) {
                     error(step, "writes the static field " + name,
-                            "a step changes only its ledger's state; keep this there", at, unit);
+                            "keep this in " + step.state(), at, unit);
                 } else if (!e.getModifiers().contains(Modifier.FINAL)) {
                     error(step, "reads the static field " + name + ", which is not final, so another thread may be "
                                     + "changing it",
-                            "keep it in the ledger's state, or make it a constant", at, unit);
+                            "keep it in " + step.state() + ", or make it a constant", at, unit);
                 } else if (owner(e).equals("java.lang.System") && Set.of("in", "out", "err")
                         .contains(e.getSimpleName().toString())) {
-                    error(step, "uses " + name + ", the process's own stream, which does I/O",
-                            "a step makes no effects: send a message to a @Job that does it, or log outside the step",
+                    error(step, "uses " + name + ", the process's own stream, which does I/O", step.noEffects(),
                             at, unit);
                 }
                 return;
             }
             if (bare && !hasThis) {
                 error(step, "uses the field " + e.getSimpleName() + " of the enclosing object, so it captures it",
-                        "declare the step as a static method, or keep what it needs in the ledger's state", at, unit);
+                        "declare the step as a static method, or keep what it needs in " + step.state(), at, unit);
             }
         }
 
@@ -399,7 +422,7 @@ final class StepCheck implements TaskListener {
         public Void visitMethodInvocation(MethodInvocationTree call, Void unused) {
             Element e = trees.getElement(getCurrentPath());
             if (e instanceof ExecutableElement m) {
-                if (!effect(m, call)) {
+                if (!effect(m, call) && !(step.drawn() && framed(m, call))) {
                     follow(step, m, seen);
                 }
             }
@@ -410,9 +433,100 @@ final class StepCheck implements TaskListener {
         public Void visitNewClass(NewClassTree create, Void unused) {
             Element e = trees.getElement(getCurrentPath());
             if (e instanceof ExecutableElement m) {
-                effect(m, create);
+                if (!effect(m, create) && step.drawn()) {
+                    error(step, "creates a new " + m.getEnclosingElement().getSimpleName() + ", which allocates in every"
+                            + " frame", BUILT, create, unit);
+                }
             }
             return super.visitNewClass(create, unused);
+        }
+
+        @Override
+        public Void visitNewArray(NewArrayTree create, Void unused) {
+            if (step.drawn()) {
+                error(step, "builds an array, which allocates in every frame", BUILT, create, unit);
+            }
+            return super.visitNewArray(create, unused);
+        }
+
+        @Override
+        public Void visitBinary(BinaryTree binary, Void unused) {
+            if (step.drawn() && binary.getKind() == Tree.Kind.PLUS && string() && !constant(binary)) {
+                error(step, "builds a string, which allocates in every frame", BUILT, binary, unit);
+            }
+            return super.visitBinary(binary, unused);
+        }
+
+        @Override
+        public Void visitCompoundAssignment(CompoundAssignmentTree assign, Void unused) {
+            if (step.drawn() && assign.getKind() == Tree.Kind.PLUS_ASSIGNMENT && string()) {
+                error(step, "builds a string, which allocates in every frame", BUILT, assign, unit);
+            }
+            return super.visitCompoundAssignment(assign, unused);
+        }
+
+        /**
+         * Refuse what a step may do and an asked half may not: log, touch a thread, reach the bus, or pass varargs, which
+         * builds an array. @return whether it was refused, so that the method is not read on top of it.
+         */
+        private boolean framed(ExecutableElement m, MethodInvocationTree call) {
+            if (!(m.getEnclosingElement() instanceof TypeElement owner)) {
+                return false;
+            }
+            String what = owner.getSimpleName() + "." + m.getSimpleName();
+            if (is(owner, LOGGERS)) {
+                error(step, "calls " + what + ", which logs in every frame",
+                        "log in the told half, where something changed, or count with a Probe", call, unit);
+                return true;
+            }
+            if (is(owner, Set.of("java.lang.Thread"))) {
+                error(step, "calls " + what + ". An asked half runs on the GUI thread and has no business with any",
+                        "take what it needs from the view's state and the Frame", call, unit);
+                return true;
+            }
+            if (inPackage(owner, "sibarum.atchung")) {
+                error(step, "calls " + what + ", which reaches the bus. An asked half may not send; what it would report,"
+                        + " the told half derives", "send from a @Subscribe method", call, unit);
+                return true;
+            }
+            if (owner.getQualifiedName().contentEquals(Shareable.NODE)) {
+                error(step, "calls " + what + ". A node in an asked half is a handle, held in the view's state so that"
+                        + " it can be named, and what it shows changes only through the Drawn",
+                        "set it with out.offset(...), or change the node in a @Subscribe method", call, unit);
+                return true;
+            }
+            int params = m.getParameters().size();
+            if (m.isVarArgs() && (call.getArguments().size() != params || trees.getTypeMirror(
+                    new TreePath(getCurrentPath(), call.getArguments().get(params - 1))).getKind() != TypeKind.ARRAY)) {
+                error(step, "calls " + what + " with varargs, which builds an array in every frame", BUILT, call, unit);
+                return true;
+            }
+            return false;
+        }
+
+        /** Whether the expression at the current path is a String. */
+        private boolean string() {
+            TypeMirror type = trees.getTypeMirror(getCurrentPath());
+            return type instanceof DeclaredType d && d.asElement() instanceof TypeElement t
+                    && t.getQualifiedName().contentEquals("java.lang.String");
+        }
+
+        /** Whether {@code tree} is a compile-time constant, which javac folds and so allocates nothing. */
+        private boolean constant(ExpressionTree tree) {
+            if (tree instanceof LiteralTree) {
+                return true;
+            }
+            if (tree instanceof ParenthesizedTree p) {
+                return constant(p.getExpression());
+            }
+            if (tree instanceof BinaryTree b) {
+                return constant(b.getLeftOperand()) && constant(b.getRightOperand());
+            }
+            if (tree instanceof IdentifierTree || tree instanceof MemberSelectTree) {
+                Element e = trees.getElement(trees.getPath(unit, tree));
+                return e instanceof VariableElement v && v.getConstantValue() != null;
+            }
+            return false;
         }
 
         @Override
@@ -436,9 +550,7 @@ final class StepCheck implements TaskListener {
             }
             String what = m.getKind() == ElementKind.CONSTRUCTOR ? "new " + owner.getSimpleName()
                     : owner.getSimpleName() + "." + method;
-            error(step, "calls " + what + ", which " + found.what,
-                    "a step makes no effects and never waits: send a message to a @Job that does it, and take its "
-                            + "reply in a later step", at, unit);
+            error(step, "calls " + what + ", which " + found.what, step.noEffects(), at, unit);
             return true;
         }
     }
@@ -483,6 +595,48 @@ final class StepCheck implements TaskListener {
         return null;
     }
 
+    /** The fix for anything an asked half allocates: told builds, asked chooses. */
+    private static final String BUILT = "build it in a @Subscribe method and keep it in the view's state; an asked half"
+            + " only chooses among what the told half built, and sets numbers on it";
+
+    /** The loggers an asked half may not call, the house's own first: in every frame a log line is a cost, enabled or not. */
+    private static final Set<String> LOGGERS = Set.of("sibarum.probe.Log", "java.util.logging.Logger",
+            "java.lang.System.Logger", "org.slf4j.Logger", "org.apache.logging.log4j.Logger");
+
+    /** Whether {@code type}, or any of its supertypes, is one of {@code names}. */
+    private boolean is(TypeElement type, Set<String> names) {
+        if (names.contains(type.getQualifiedName().toString())) {
+            return true;
+        }
+        for (TypeMirror sup : types.directSupertypes(type.asType())) {
+            if (sup instanceof DeclaredType d && d.asElement() instanceof TypeElement t && is(t, names)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code type} is declared in {@code pkg} or a package under it. */
+    private static boolean inPackage(TypeElement type, String pkg) {
+        Element at = type;
+        while (at != null && at.getKind() != ElementKind.PACKAGE) {
+            at = at.getEnclosingElement();
+        }
+        String name = at == null ? "" : at.toString();
+        return name.equals(pkg) || name.startsWith(pkg + ".");
+    }
+
+    /** Whether {@code method} is marked {@code @Draw}. */
+    private static boolean drawn(ExecutableElement method) {
+        for (var a : method.getAnnotationMirrors()) {
+            if (a.getAnnotationType().asElement() instanceof TypeElement t
+                    && t.getQualifiedName().contentEquals(dev.vexelray.framework.api.Draw.class.getCanonicalName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The top-level class {@code e} is declared in, or null for one outside any class. */
     private static TypeElement topLevel(Element e) {
         TypeElement top = null;
@@ -499,11 +653,37 @@ final class StepCheck implements TaskListener {
                 : String.valueOf(field.getEnclosingElement());
     }
 
-    private void error(String step, String what, String fix, Tree at, CompilationUnitTree unit) {
+    private void error(Subject step, String what, String fix, Tree at, CompilationUnitTree unit) {
         if (!said.add(at)) {
             return;
         }
-        report.at(trees, Diagnostic.Kind.ERROR, "step '" + step + "' " + what + ". A step sees only its state, its "
-                + "arguments and its Out (docs/plans/chains.md, design F): " + fix + ".", at, unit);
+        report.at(trees, Diagnostic.Kind.ERROR, step.name() + " " + what + ". " + step.rule() + ": " + fix + ".", at,
+                unit);
+    }
+
+    /**
+     * What a body is read as, and so how its errors are worded: a ledger's step, or a view's asked half, which is held
+     * to everything a step is and to the frame's rules besides.
+     *
+     * @param drawn whether the body runs in every frame, so that allocating, logging, a thread or the bus is refused too
+     */
+    private record Subject(String name, String rule, String state, String carry, String noEffects, boolean drawn) {
+
+        static Subject step(String name) {
+            return new Subject("step '" + name + "'",
+                    "A step sees only its state, its arguments and its Out (docs/plans/chains.md, design F)",
+                    "the ledger's state", "the step's arguments",
+                    "a step makes no effects and never waits: send a message to a @Job that does it, and take its "
+                            + "reply in a later step", false);
+        }
+
+        static Subject draw(String where) {
+            return new Subject("@Draw " + where,
+                    "An asked half reads only its state, the Frame and its Drawn, and allocates nothing, since it runs"
+                            + " in every frame (vexelray-gui docs/plans/frame-contract.md, B)",
+                    "the view's state", "the view's state",
+                    "an asked half makes no effects and never waits: do it in a @Subscribe method or a @Job, and keep "
+                            + "what it found in the view's state", true);
+        }
     }
 }

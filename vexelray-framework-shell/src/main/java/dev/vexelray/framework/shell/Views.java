@@ -30,4 +30,14 @@ public final class Views {
             gui.mailbox(topic, subscriber, capacity, java.util.Set.of(keys));
         }
     }
+
+    /**
+     * A view's {@code @Draw} method, registered with the tree to be asked on every frame it draws (T7.6,
+     * vexelray-gui's {@code docs/plans/frame-contract.md}). The generated {@code part} reads the view's state field and
+     * calls the static method with it; the processor has checked the method's body, so this is the one place
+     * application code is handed to the host's asking, and it is code the compiler has read.
+     */
+    public static void draw(Gui gui, dev.vexelray.gui.core.spi.Asked part) {
+        dev.vexelray.gui.core.spi.Seams.of(gui).ask(part);
+    }
 }
