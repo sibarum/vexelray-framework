@@ -299,10 +299,16 @@ how long the pass took.
 | Animation | ~57 draws a second | 55 to 62 frames in each 0.6 s pulse, no late frames, worst early gap 18.8 ms |
 | W3 | ~210 passes a second | ~214 |
 
-So the two modes no longer differ for a click on a slow machine, which was the point. **Not settled:** idle CPU read
-4.7 to 7.4 % in this run's four-second windows against fork 7's 0.8 to 2.7 %, with the same eighteen frames each. Phase
-7 recorded that this reading is noisy (Windows accounts CPU in 15.6 ms ticks), and nothing new runs while idle (the
-waiter waits only while a draw is held), so it is noted rather than called; a minute-long run would settle it. Held by
+So the two modes no longer differ for a click on a slow machine, which was the point. **Idle CPU is unchanged.** The
+acceptance run's four-second windows read 4.7 to 7.4 % (fork 7's had read 0.8 to 2.7 %), so idle was measured again,
+per thread, from the OS's own thread times, on the pacing witness left alone: two minutes after a 90-second warm-up,
+**fork 7 1.47 % of a core and fork 8 1.52 %**, five passes a second and no draws in both. What the four-second reading
+was seeing: the JIT (GraalVM's compiler thread was still the largest consumer three minutes in, 0.7 to 0.8 % of a
+core, and far more in the first minute, which is when the acceptance measures), and `tactroller-win-msgpump`, which
+spent 0.7 to 1.1 % in some samples and nothing in others. Raw input is registered with `RIDEV_INPUTSINK`, so every mouse
+move on the desktop is delivered to the process and read there whether or not the application is in front, or even
+listening (a background run is deaf, but still pays): that cost follows whoever is using the machine. The loop itself
+is 0.26 to 0.34 % (passes of 0.5 to 0.7 ms), and the GPU waiter never runs while idle. Held by
 `LoopCountersTest.aPassThatDrewNothingDoesNotSpendTheSlot` (a write right after a pass that drew nothing is drawn at
 once, not 400 ms later) beside fork 7's test. The GPU-held path is exercised by the acceptance runs, which present
 through DXGI; the harness presents offscreen and does not reach it.
