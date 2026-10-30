@@ -1265,6 +1265,21 @@ shape and bends the new API to fit it, so it tests whether 0.2 can carry old cod
 template, so it tests what 0.2 is for: whether the framework is easy to use correctly from nothing. What it finds goes
 in its `docs/framework-notes.md`, and is fixed in the framework before phase 8 begins.*
 
+**The application is the Inspector, redesigned** (ruled by the author 2026-10-29, over the idea held for this phase).
+It is generated fresh from the template; the 0.1.3 Inspector (`vexelray-inspector` on `develop`) is a source of
+ideas and of its framework notes, not of code. **Why it, over an unrelated application:** its model is the 0.1
+loop this branch removed, so it cannot be ported, only rethought, and the rethinking is 0.2's whole subject. Its
+heartbeat is one `frame.present` and its one correlation key the frame number, where 0.2 has three clocks (fork 7)
+and a click's answer crosses a logic tick before any draw; its planned frame stages put the application in the
+frame (fork 4); it has no state for a draw held for the ceiling or the GPU (fork 8); its flow table counts every
+message on a state topic that delivers only the last (fork 1); and its thread ledger (`docs/threads.md`, not built)
+cuts time into main-loop turns. What 0.2 hands it in return: senders known at compile time (fork 5) answer its
+FN-6 to FN-8, handlers and pools are gone (FN-11, FN-15), and a run that replays (§5, item 5) makes it the front end
+for real replay rather than a recording played back. Its own 0.1 code also breaks the rules it would display: the
+show runs on the timeline inside the frame, and FN-1 is three hand-made threads. What it needs from the stack is
+found as it is built, starting with the bus graph, which still speaks 0.1 (phase 7's finding) because the old
+Inspector parses it.
+
 ### Phase 8. Land and port
 
 * Merge `v0.2` into `develop` in each repo, in `bootstrap.sh` order. Bump the apps' framework dependency one at a
