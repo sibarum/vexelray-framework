@@ -307,7 +307,10 @@ was seeing: the JIT (GraalVM's compiler thread was still the largest consumer th
 core, and far more in the first minute, which is when the acceptance measures), and `tactroller-win-msgpump`, which
 spent 0.7 to 1.1 % in some samples and nothing in others. Raw input is registered with `RIDEV_INPUTSINK`, so every mouse
 move on the desktop is delivered to the process and read there whether or not the application is in front, or even
-listening (a background run is deaf, but still pays): that cost follows whoever is using the machine. The loop itself
+listening (a background run is deaf, but still pays): that cost follows whoever is using the machine. *(Narrowed the
+same day in tactroller: nothing is registered while every window is one its application cloaked, the keyboard only
+while one of the process's windows is in front, and the mouse whenever a reachable window exists, since the activating
+click and the wheel over a hovered window arrive before it is in front. `RawInputRegistrationTest` reads it back.)* The loop itself
 is 0.26 to 0.34 % (passes of 0.5 to 0.7 ms), and the GPU waiter never runs while idle. Held by
 `LoopCountersTest.aPassThatDrewNothingDoesNotSpendTheSlot` (a write right after a pass that drew nothing is drawn at
 once, not 400 ms later) beside fork 7's test. The GPU-held path is exercised by the acceptance runs, which present
