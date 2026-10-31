@@ -35,7 +35,7 @@ that outlives the code.
 | | When | Why |
 | --- | --- | --- |
 | **Always** | At the end of each milestone, before the next one starts | One finding is an instance; a shape needs several, and a milestone is the first point where there are several. Leave it later and whoever did the work no longer remembers the cost of each finding |
-| **Always** | Before a rebuild, an archive, or a "starting over" | It is the calculator's lesson. The rebuild is the moment the notes are thrown away, so it is the last moment to read them |
+| **Only what is put off** | Before a rebuild, an archive, or a "starting over" | The old notes stay behind. The findings already dealt with need nothing more. Write down the ones you are putting off, and carry them into the new notes marked 📋, or they are left behind with the rest |
 | **Worth it** | When `framework-notes.md` has gained five or more findings since the last one | It is cheap at that size, and shapes start to show |
 | **Not needed** | A milestone with no new findings | Write one line under its date saying so. That is a result too: the framework carried a milestone without a gap |
 
@@ -80,8 +80,8 @@ Keep it to a page or two. A retrospective that is longer than the notes it read 
 ## Where it goes
 
 - **In the application:** `docs/retrospective.md`, with one section per milestone, newest first, each headed with
-  the milestone and its date. Sections are never deleted, and a rebuild carries the file over with the notes it
-  cites (or moves it to the framework, below). A generated project starts with this file, holding the format and
+  the milestone and its date. Sections are never deleted, and a rebuild carries the file over (or moves it
+  to the framework, below), as it carries the findings it puts off. A generated project starts with this file, holding the format and
   no entries.
 - **Into the framework:** each numbered proposal becomes an entry in [TODO.md](../TODO.md), under *Found by
   \<application\>*, that links back to the section it came from. A proposal whose fix belongs in a sibling becomes
