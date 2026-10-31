@@ -88,6 +88,30 @@ Before writing anything, the generator looks for the stack in your local Maven r
 cannot find (`not installed: ...`), since a missing `mvn install` is the likeliest reason a new project will not
 build. It writes the project anyway: you may be about to install it.
 
+### Bringing an existing project over
+
+To move an application to a new version of the framework, generate it again and bring its pieces across, rather
+than upgrading the old code in place. The new project then starts with the framework's current idioms and none of
+the old ones. Give the generator the old project's names, so the package, the main class and the paths stay the
+same:
+
+```bash
+java -cp vexelray-framework-template/target/classes dev.vexelray.framework.template.Generate --in <scratch> --name my-app --group dev.example --className MyApp --title "My App" --icon my-mark
+```
+
+Generate into a scratch folder, not over the old checkout. Then, on a new branch of the old repository, delete
+every tracked file, copy the generated project in, and carry these over from the old tree:
+
+| Carry over | Why |
+| --- | --- |
+| `LICENSE`, `NOTICE`, third-party notices | They are the project's, and the template has none |
+| `installer.json` | The installer's address does not change with the framework |
+| `src/main/rc`: the mark and any other icons | Put the mark at `<icon>.ico`, with its source beside it as `<icon>.svg` (rename the source if it was called something else), so the README's account of the mark is true. Leave out the old `.rc` and `.manifest`: the generated ones replace them |
+| `docs/retrospective.md` | Sections are never deleted. Before the rebuild, write the retrospective of the old `framework-notes.md` ([Looking back at a milestone](developers/retrospective.md)). That is the last chance to read those notes. Findings that are still open go into the new notes marked 📋 |
+
+Everything else stays on the old branch: code, fonts, grammars, art and design notes. Copy each piece across only
+when the feature you are rebuilding needs it, and write it again the new way as you do.
+
 ## 4. Run it
 
 ```bash
