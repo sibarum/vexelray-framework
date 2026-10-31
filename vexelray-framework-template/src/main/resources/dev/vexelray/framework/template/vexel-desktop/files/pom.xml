@@ -57,6 +57,15 @@
         <automation></automation>
 
         <!--
+          The probe, passed through by name as automation is, so "mvn exec:exec -Dprobe=all -Dprobe.format=csv"
+          records what it says. Before these were named here, a -Dprobe on the mvn line never reached the app, which
+          then recorded only what automation turns on (input, frame, layout, app) and said nothing of the rest. Blank,
+          as here, is unset: the probe falls back to the PROBE variables, then to what the mode records.
+        -->
+        <probe></probe>
+        <probe.format></probe.format>
+
+        <!--
           Extra JVM flags for exec:exec, split on whitespace. Needed because a -D on the mvn command line sets a
           MAVEN property, which reaches the forked JVM only if the command line below names it: without this,
           "mvn exec:exec -Dmy.setting=48" runs the app with the default and reports a measurement of nothing.
@@ -103,7 +112,7 @@
                         <skip>$${app.run.skip}</skip>
                         <executable>$${java.home}/bin/java</executable>
                         <classpathScope>runtime</classpathScope>
-                        <commandlineArgs>--enable-native-access=ALL-UNNAMED -Dstdout.encoding=UTF-8 -Dautomation=$${automation} "-Dbuild.dir=$${project.build.directory}" $${app.jvmArgs} -classpath %classpath $${app.mainClass} $${app.args}</commandlineArgs>
+                        <commandlineArgs>--enable-native-access=ALL-UNNAMED -Dstdout.encoding=UTF-8 -Dautomation=$${automation} -Dprobe=$${probe} -Dprobe.format=$${probe.format} "-Dbuild.dir=$${project.build.directory}" $${app.jvmArgs} -classpath %classpath $${app.mainClass} $${app.args}</commandlineArgs>
                     </configuration>
                 </plugin>
             </plugins>
