@@ -22,13 +22,12 @@ public final class Views {
      * A mailbox for a view: {@code topic} delivered to {@code subscriber} on the GUI thread, in the widget tick.
      * The topic is the payload's own declared constant, the one the {@code @Subscribe} method's parameter names, so its
      * kind is the publisher's. {@code keys}, when any, are the keys of a state topic it is handed and the only ones.
+     * {@code mailbox} is its name in the bus graph, {@code class#method}, which each delivery's {@code receive} row
+     * says after the widgets' inbox, so a reader following a message's cause sees which view method it reached.
      */
-    public static <T> void mailbox(Gui gui, Topic<T> topic, Subscriber<T> subscriber, int capacity, String... keys) {
-        if (keys.length == 0) {
-            gui.mailbox(topic, subscriber, capacity);
-        } else {
-            gui.mailbox(topic, subscriber, capacity, java.util.Set.of(keys));
-        }
+    public static <T> void mailbox(Gui gui, String mailbox, Topic<T> topic, Subscriber<T> subscriber, int capacity,
+                                   String... keys) {
+        gui.mailbox(mailbox, topic, subscriber, capacity, keys.length == 0 ? null : java.util.Set.of(keys));
     }
 
     /**

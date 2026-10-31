@@ -913,11 +913,11 @@ final class Generator {
             String topic = topic(app, m.method(), m.payload());
             String subscriber = field + "::" + Mirrors.simple(m.method());
             after.add(view
-                    ? Framework.VIEWS + ".mailbox(shell.gui(), " + topic + ", " + subscriber
-                      + ", " + m.capacity() + keys + ");"
+                    ? Framework.VIEWS + ".mailbox(shell.gui(), " + literal(m.name()) + ", " + topic + ", "
+                      + subscriber + ", " + m.capacity() + keys + ");"
                     : Framework.INBOXES + ".mailbox(shell, " + literal(b.component.getQualifiedName().toString())
-                      + ", " + literal(declarations.lane(b.component)) + ", " + topic + ", "
-                      + subscriber + ", " + m.capacity() + keys + ");");
+                      + ", " + literal(declarations.lane(b.component)) + ", " + literal(m.name()) + ", " + topic
+                      + ", " + subscriber + ", " + m.capacity() + keys + ");");
         }
         ExecutableElement draw = view ? declarations.drawOf(b.component) : null;
         if (draw != null && draw.getParameters().size() == 3) {

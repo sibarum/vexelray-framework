@@ -47,16 +47,13 @@ public final class Inboxes {
      * {@code capacity} edges queued (a state topic holds one message per key and cannot overflow). {@code keys}, when
      * any, are the keys of a state topic the subscription hears and the only ones it is handed (T4.8). The topic
      * is the payload's own declared constant, the one the {@code @Subscribe} method's parameter names, so its kind is the
-     * one its declaration chose.
+     * one its declaration chose. {@code mailbox} is its name in the bus graph, {@code class#method}, which each
+     * delivery's {@code receive} row says, so a reader following a message's cause sees which method it reached.
      */
-    public static <T> void mailbox(Shell shell, String component, String lane, Topic<T> topic,
+    public static <T> void mailbox(Shell shell, String component, String lane, String mailbox, Topic<T> topic,
                                    Subscriber<T> subscriber, int capacity, String... keys) {
-        Inbox in = shell.inbox(component, lane);
-        if (keys.length == 0) {
-            in.subscribe(topic, subscriber, capacity);
-        } else {
-            in.subscribe(topic, subscriber, capacity, Set.of(keys));
-        }
+        shell.inbox(component, lane).subscribe(mailbox, topic, subscriber, capacity,
+                keys.length == 0 ? null : Set.of(keys));
     }
 
     /**

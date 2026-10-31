@@ -113,11 +113,11 @@ class FrameworkTableTest {
         assertEquals(dev.vexelray.framework.shell.LivenessPolicy.class.getName(), Framework.LIVENESS);
         assertEquals(Framework.INBOX, Inboxes.class.getMethod("of", Shell.class, String.class, String.class,
                 sibarum.atchung.Topic[].class).getReturnType().getName());
-        Inboxes.class.getMethod("mailbox", Shell.class, String.class, String.class,
+        Inboxes.class.getMethod("mailbox", Shell.class, String.class, String.class, String.class,
                 sibarum.atchung.Topic.class, sibarum.atchung.Subscriber.class, int.class, String[].class);
         assertEquals(Channels.SENDER, Inboxes.class.getMethod("sender", Shell.class, String.class, String.class,
                 sibarum.atchung.Topic.class).getReturnType().getName());
-        dev.vexelray.framework.shell.Views.class.getMethod("mailbox", dev.vexelray.gui.core.Gui.class,
+        dev.vexelray.framework.shell.Views.class.getMethod("mailbox", dev.vexelray.gui.core.Gui.class, String.class,
                 sibarum.atchung.Topic.class, sibarum.atchung.Subscriber.class, int.class, String[].class);
         assertEquals(dev.vexelray.framework.shell.Absences.class.getName(), Framework.ABSENCES);
         for (String report : new String[]{"provided", "handedBack"}) {

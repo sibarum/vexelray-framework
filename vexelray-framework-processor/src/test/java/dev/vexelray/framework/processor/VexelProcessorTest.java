@@ -271,10 +271,10 @@ class VexelProcessorTest {
             Map.entry("dev.vexelray.framework.shell.Views", """
                 package dev.vexelray.framework.shell;
                 public final class Views {
-                    public static <T> void mailbox(dev.vexelray.gui.core.Gui gui,
+                    public static <T> void mailbox(dev.vexelray.gui.core.Gui gui, String mailbox,
                                                    sibarum.atchung.Topic<T> topic, java.util.function.Consumer<T> on,
                                                    int capacity, String... keys) {
-                        Shell.LOG.add("view mailbox " + topic.name() + " " + java.util.List.of(keys));
+                        Shell.LOG.add("view mailbox " + mailbox + " " + topic.name() + " " + java.util.List.of(keys));
                     }
                     public static final java.util.List<dev.vexelray.gui.core.spi.Asked> ASKED =
                             new java.util.ArrayList<>();
@@ -343,7 +343,7 @@ class VexelProcessorTest {
                         LOG_HEARS.add(String.join(",", names));
                         return shell.inbox(name);
                     }
-                    public static <T> void mailbox(Shell shell, String component, String lane,
+                    public static <T> void mailbox(Shell shell, String component, String lane, String mailbox,
                                                    sibarum.atchung.Topic<T> topic, java.util.function.Consumer<T> on,
                                                    int capacity, String... keys) {
                         Shell.LOG.add("mailbox " + component + " " + lane + " " + topic.name() + " "
@@ -1097,12 +1097,13 @@ class VexelProcessorTest {
                 """);
         assertEquals(List.of(), compiled.errors());
         String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
-        assertTrue(wiring.contains("dev.vexelray.framework.shell.Views.mailbox(shell.gui(),"
+        assertTrue(wiring.contains("dev.vexelray.framework.shell.Views.mailbox(shell.gui(), \"app.Navigator#chosen\","
                 + " dev.vexelray.gui.widget.Tree.CHOSEN, navigator::chosen, 64);"), wiring);
 
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
         assertEquals(List.of(), run.phase("config"));
-        assertEquals(List.of("view mailbox dev.vexelray.gui.widget.Tree.Chosen []"), run.phase("tree"));
+        assertEquals(List.of("view mailbox app.Navigator#chosen dev.vexelray.gui.widget.Tree.Chosen []"),
+                run.phase("tree"));
     }
 
     /** A view's drawn state may hold a feed beside its nodes, and its asked half may ask the feed what is due. */
@@ -1328,7 +1329,7 @@ class VexelProcessorTest {
         assertEquals(List.of(), compiled.errors());
         assertTrue(Files.readString(compiled.out().resolve("app/DemoAppWiring.java")).contains(
                 "dev.vexelray.framework.shell.Inboxes.mailbox(shell, \"app.Composer\", \"compose\","
-                        + " app.Edit.TOPIC, composer::edited, 8);"));
+                        + " \"app.Composer#edited\", app.Edit.TOPIC, composer::edited, 8);"));
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
         assertEquals(List.of("mailbox app.Composer compose app.Edit 8 []",
                 "mailbox app.Composer compose app.Move 64 []"), run.phase("config"));
