@@ -58,15 +58,15 @@ only the entries that name this program.
 
 ## The icon
 
-`${artifactId}-gui/src/main/rc/${artifactId}.ico` is the application's mark, and it is one file read three ways: the window and its
+`${artifactId}-gui/src/main/rc/${icon}.ico` is the application's mark, and it is one file read three ways: the window and its
 taskbar button wear it (`@VexelApp(icon = ${className}.ICON)`; the pom puts it on the class path), and so does the
 title bar the framework draws; the `.exe` links it (`src/main/rc/${artifactId}.rc`), and so Explorer, a shortcut and a
-pinned button show it too. It starts as the framework's "new app" mark, whose source is `${artifactId}.svg` beside it.
+pinned button show it too. It starts as the framework's "new app" mark, whose source is `${icon}.svg` beside it.
 
 A second window — a viewer, a settings window — wears the window mark, on the taskbar and in its title bar, with
 nothing to write: declare it in a recipe with `windows.named(...)`, and the framework builds its tree and claims it
 wearing `shell.windowMark()`. That mark is this same one unless
-a `${artifactId}-window.ico` sits beside it, which is then found by name and registered for the native image with
+a `${icon}-window.ico` sits beside it, which is then found by name and registered for the native image with
 the mark. The VexelRay suite's applications ship one: a band of the application's colour over its glyph, so a
 second window reads as its own and is still told apart from the main one.
 

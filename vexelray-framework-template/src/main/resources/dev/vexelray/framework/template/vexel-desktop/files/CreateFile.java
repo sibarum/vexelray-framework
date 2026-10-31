@@ -6,6 +6,7 @@ import dev.vexelray.framework.api.Job;
 import sibarum.probe.Log;
 
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 
 /** Make an empty file, which the path bar named into being. */
@@ -21,8 +22,13 @@ public final class CreateFile {
         try {
             Files.createFile(c.path());
             return new Created(c.path(), CRLF, "");
+        } catch (FileAlreadyExistsException e) {
+            // Somebody named a file that is there: an answer, which the reply carries, so a story rather than a warning.
+            LOG.info("not created, already there: {}", c.path());
+            return new Created(c.path(), CRLF, String.valueOf(e.getMessage()));
         } catch (IOException e) {
-            LOG.warn("could not create {}", c.path(), e);
+            // A line, not a trace: the reply says why, and the disk's trouble is not a bug in this program.
+            LOG.warn("could not create {}: {}", c.path(), e.toString());
             return new Created(c.path(), CRLF, String.valueOf(e.getMessage()));
         }
     }

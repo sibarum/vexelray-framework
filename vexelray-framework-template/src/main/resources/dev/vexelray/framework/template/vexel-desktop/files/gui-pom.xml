@@ -7,7 +7,7 @@
     <parent>
         <groupId>${groupId}</groupId>
         <artifactId>${artifactId}</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>${version}</version>
     </parent>
 
     <artifactId>${artifactId}-gui</artifactId>
@@ -103,7 +103,7 @@
             <resource>
                 <directory>src/main/rc</directory>
                 <includes>
-                    <include>${artifactId}.ico</include>
+                    <include>${icon}.ico</include>
                 </includes>
             </resource>
         </resources>

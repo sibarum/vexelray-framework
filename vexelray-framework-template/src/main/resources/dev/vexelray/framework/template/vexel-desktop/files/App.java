@@ -49,11 +49,11 @@ public final class ${className} {
     static final int H = ${height};
 
     /**
-     * The mark, from the class path's root: {@code src/main/rc/${artifactId}.ico}, which the pom also puts there and
+     * The mark, from the class path's root: {@code src/main/rc/${icon}.ico}, which the pom also puts there and
      * the executable links. It starts as the framework's own; replace the file, and the window, its taskbar button
      * and the {@code .exe} all change together.
      */
-    static final String ICON = "/${artifactId}.ico";
+    static final String ICON = "/${icon}.ico";
 
     /**
      * The smallest this UI is still coherent at, in root ems — a floor, not the design size: a navigator and a

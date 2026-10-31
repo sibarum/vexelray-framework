@@ -6,6 +6,7 @@ import dev.vexelray.framework.api.Job;
 import sibarum.probe.Log;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 
 /**
  * Read a file and decide whether it can be opened, on the offload lane.
@@ -27,8 +28,14 @@ public final class ReadFile {
                     String.join(", ", loaded.notes()), "");
         } catch (TextFile.Unsupported e) {
             return failed(r, e.getMessage());
+        } catch (NoSuchFileException e) {
+            // A file of the last session that has gone since: an answer, which the reply carries, so a story rather
+            // than a warning.
+            LOG.info("not read, gone: {}", r.path());
+            return failed(r, String.valueOf(e.getMessage()));
         } catch (IOException e) {
-            LOG.warn("could not read {}", r.path(), e);
+            // A line, not a trace: the reply says why, and the disk's trouble is not a bug in this program.
+            LOG.warn("could not read {}: {}", r.path(), e.toString());
             return failed(r, String.valueOf(e.getMessage()));
         }
     }

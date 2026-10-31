@@ -56,6 +56,13 @@ slot groupId
     rule      maven-id
     help      your Maven groupId, e.g. dev.vexelray.demo
 
+slot version
+    label     project version
+    kind      text
+    required  no
+    match     [0-9A-Za-z][0-9A-Za-z._-]*
+    help      the project's Maven version; leave blank for the framework's own, the stack it is made against
+
 slot summary
     label     one-line summary
     kind      text
@@ -88,6 +95,13 @@ slot title
     required  no
     most      60
     help      leave blank to use the project name
+
+slot icon
+    label     icon name
+    kind      text
+    required  no
+    match     [a-z][a-z0-9]*(-[a-z0-9]+)*
+    help      the mark's file name without .ico, for a project that brings its own; leave blank for the project name
 
 # ---- the window ------------------------------------------------------------------
 
@@ -139,6 +153,7 @@ fill always packagePath    path     ${packageName}
 fill blank  className      type     ${artifactId}
 fill blank  title          title    ${artifactId}
 fill blank  summary        text     A VexelRay desktop application.
+fill blank  icon           text     ${artifactId}
 fill always appName        slug     ${artifactId}
 # The framework's own version, which vexelray-gui and vexelray-codec move with; the engine and the build
 # plugin keep theirs. VexelDesktopTest.theStackIsTheFrameworksOwnVersion holds it to this module's.
@@ -146,6 +161,8 @@ fill always frameworkVersion text     0.2.0-SNAPSHOT
 fill always guiVersion       text     ${frameworkVersion}
 fill always buildVersion     text     ${vexelrayVersion}
 fill always codecVersion     text     ${frameworkVersion}
+# A new project starts at the version of the stack it was made against: 0.2's projects are 0.2.0-SNAPSHOT.
+fill blank  version          text     ${frameworkVersion}
 fill always junitVersion   text     5.11.4
 
 # ---- the tree ------------------------------------------------------------------------
@@ -224,11 +241,12 @@ file ${artifactId}-gui/src/main/java/${packagePath}/Navigator.java     from Navi
 # The mark, and what a native build needs. The .ico is copied as it is (it is not
 # text, so nothing is substituted into it): the window wears it from the class
 # path and the executable links it through the .rc, so they are one file. The
+# icon slot names it, so a project that brings its mark keeps its file names. The
 # .svg is its source; the metadata is this program's own, everything else in a
 # native image registers itself.
 
-file ${artifactId}-gui/src/main/rc/${artifactId}.ico       from new-app.ico
-file ${artifactId}-gui/src/main/rc/${artifactId}.svg       from new-app.svg
+file ${artifactId}-gui/src/main/rc/${icon}.ico             from new-app.ico
+file ${artifactId}-gui/src/main/rc/${icon}.svg             from new-app.svg
 file ${artifactId}-gui/src/main/rc/${artifactId}.rc        from app.rc
 file ${artifactId}-gui/src/main/rc/${artifactId}.manifest  from app.manifest
 

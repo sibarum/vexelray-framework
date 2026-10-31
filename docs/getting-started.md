@@ -80,7 +80,9 @@ java -cp vexelray-framework-template/target/classes dev.vexelray.framework.templ
 That writes `../my-app`, and its last line is the command that runs it. On Linux the classes are in
 `target-linux/classes` instead. `--name` is the folder and the Maven artifactId; the Java package becomes
 `dev.example.myapp` and the main class `MyApp` unless you say otherwise. Other options include `--title`,
-`--width`, `--height`, `--packageName` and `--className`; `--help` lists them all with their defaults.
+`--width`, `--height`, `--packageName` and `--className`; `--help` lists them all with their defaults. The project
+starts at the framework's own version unless `--version` names another, and its mark is `<name>.ico` unless
+`--icon` names the file (without `.ico`) a project bringing its own mark already has.
 
 Before writing anything, the generator looks for the stack in your local Maven repository and names any piece it
 cannot find (`not installed: ...`), since a missing `mvn install` is the likeliest reason a new project will not

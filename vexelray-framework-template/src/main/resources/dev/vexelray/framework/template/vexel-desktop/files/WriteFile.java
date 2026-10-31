@@ -21,7 +21,8 @@ public final class WriteFile {
             TextFile.write(w.path(), TextFile.encode(w.text(), w.crlf()));
             return new Written(w.id(), w.path(), "");
         } catch (IOException e) {
-            LOG.warn("could not save {}", w.path(), e);
+            // A line, not a trace: the reply says why, and the disk's trouble is not a bug in this program.
+            LOG.warn("could not save {}: {}", w.path(), e.toString());
             return new Written(w.id(), w.path(), String.valueOf(e.getMessage()));
         }
     }

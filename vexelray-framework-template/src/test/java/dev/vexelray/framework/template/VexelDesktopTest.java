@@ -284,6 +284,31 @@ class VexelDesktopTest {
         assertTrue(pom.contains("<vexelray-framework.version>" + own + "</vexelray-framework.version>"), pom);
         assertTrue(pom.contains("<vexelray-gui.version>" + own + "</vexelray-gui.version>"), pom);
         assertTrue(pom.contains("<vexelray-codec.version>" + own + "</vexelray-codec.version>"), pom);
+        for (String p : List.of("pom.xml", "my-app-core/pom.xml", "my-app-gui/pom.xml")) {
+            assertTrue(blueprint(Map.of()).text(p).contains("<version>" + own + "</version>"),
+                    "and the project starts at it, in " + p);
+        }
+    }
+
+    @Test
+    void aVersionGivenWins() {
+        Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "version", "1.4.0"));
+        for (String p : List.of("pom.xml", "plot-viewer-core/pom.xml", "plot-viewer-gui/pom.xml")) {
+            assertTrue(blueprint.text(p).contains("<version>1.4.0</version>"), p);
+        }
+    }
+
+    /** A project that brings its mark keeps its file name, and every reader of the mark follows it. */
+    @Test
+    void anIconNameGivenNamesTheMark() {
+        Blueprint blueprint = blueprint(Map.of("artifactId", "plot-viewer", "groupId", "dev.example", "icon", "plot"));
+        String rc = "plot-viewer-gui/src/main/rc/";
+        assertNotNull(blueprint.entry(rc + "plot.ico"), "expected the icon; got " + blueprint.paths());
+        assertNotNull(blueprint.entry(rc + "plot.svg"));
+        assertNull(blueprint.entry(rc + "plot-viewer.ico"));
+        assertTrue(blueprint.text(rc + "plot-viewer.rc").contains("1 ICON \"plot.ico\""));
+        assertTrue(blueprint.text("plot-viewer-gui/pom.xml").contains("<include>plot.ico</include>"));
+        assertTrue(blueprint.text(GUI + "PlotViewer.java").contains("ICON = \"/plot.ico\""));
     }
 
     @Test
