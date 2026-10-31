@@ -121,7 +121,7 @@ final class Graph {
         return out;
     }
 
-    /** The live providers, as the last {@link #check()} found them — what the generator builds from. */
+    /** The live providers, as the last {@link #check} found them — what the generator builds from. */
     List<Provider> providersSeen() {
         return live;
     }
@@ -137,7 +137,11 @@ final class Graph {
         return out;
     }
 
-    void check() {
+    /**
+     * @param application whether this compilation holds the {@code @VexelApp}, so every provider is in view: only then
+     *                    can a part nothing supplies be told from one another module's recipe supplies
+     */
+    void check(boolean application) {
         List<Provider> providers = providers();
         live = providers;
         conflicts(providers);
@@ -185,7 +189,7 @@ final class Graph {
             }
             for (Element e : job.getEnclosedElements()) {
                 if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)) {
-                    jobField(job, (VariableElement) e, providers);
+                    jobField(job, (VariableElement) e, providers, application);
                 }
             }
         }
@@ -485,8 +489,14 @@ final class Graph {
     /**
      * A job's field: final ({@link Declarations#job}), and of a type that is shareable or that the container supplies.
      * A field of any other type is state the job made for itself, which two requests running at once would share.
+     *
+     * <p>Whether the container supplies it is the application's answer, as it is for a parameter (see the class
+     * comment). A module compiled on its own sees only its own recipes, and a job in a {@code -core} module may take a
+     * part its {@code -gui} module's recipe builds. So with no application here, a type no provider here returns is
+     * left for the application's compilation, which checks the job again from the configuration that lists it, with
+     * every recipe in view.
      */
-    private void jobField(TypeElement job, VariableElement field, List<Provider> providers) {
+    private void jobField(TypeElement job, VariableElement field, List<Provider> providers, boolean application) {
         TypeMirror type = field.asType();
         if (Shareable.why(type) == null) {
             return;
@@ -502,6 +512,9 @@ final class Graph {
             if (types.isSameType(p.type(), type)) {
                 return;
             }
+        }
+        if (!application) {
+            return;
         }
         error(field, (isSource(job) ? "@Source " : "@Job ") + Mirrors.simple(job) + " has the field "
                 + Mirrors.simple(field) + ", a " + type

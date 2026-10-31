@@ -196,7 +196,7 @@ public final class VexelProcessor extends AbstractProcessor {
         // first round, so the whole program is already here; a starter is a class file, resolved by name.
         if (app != null && !checked) {
             checked = true;
-            graph.check();
+            graph.check(true);
             channels.check(graph, true);
             if (!report.failed()) {
                 generator.generate(app);
@@ -204,7 +204,7 @@ public final class VexelProcessor extends AbstractProcessor {
         } else if (round.processingOver() && !checked) {
             // A library -- a starter compiled on its own. Checked, and there is nothing to generate for.
             checked = true;
-            graph.check();
+            graph.check(false);
             channels.check(graph, false);
         }
         return false;

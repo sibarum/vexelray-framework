@@ -116,6 +116,40 @@ class VexelProcessorTest {
                 @Configuration(components = {Remote.class, Ledgered.class}, jobs = Measure.class)
                 public final class Parts {}
                 """),
+            // Another module's job that takes a part with state, which that module has no recipe for: the
+            // application's does, the way a -gui module builds what its -core module's job colours with.
+            Map.entry("lib.Palette", """
+                package lib;
+                public final class Palette { private int asked; }
+                """),
+            Map.entry("lib.Tint", """
+                package lib;
+                public record Tint(String what) {
+                    public static final sibarum.atchung.Topic<Tint> TOPIC = sibarum.atchung.Topic.edge(Tint.class);
+                }
+                """),
+            Map.entry("lib.Tinted", """
+                package lib;
+                public record Tinted(String what) {
+                    public static final sibarum.atchung.Topic<Tinted> TOPIC = sibarum.atchung.Topic.edge(Tinted.class);
+                }
+                """),
+            Map.entry("lib.Paint", """
+                package lib;
+                import dev.vexelray.framework.api.*;
+                @Job
+                public final class Paint {
+                    private final Palette palette;
+                    public Paint(Palette palette) { this.palette = palette; }
+                    public Tinted run(Tint t) { return new Tinted(t.what()); }
+                }
+                """),
+            Map.entry("lib.Painting", """
+                package lib;
+                import dev.vexelray.framework.api.*;
+                @Configuration(jobs = Paint.class)
+                public final class Painting {}
+                """),
             Map.entry("dev.vexelray.framework.shell.Jobs", """
                 package dev.vexelray.framework.shell;
                 public final class Jobs {
@@ -1492,6 +1526,75 @@ class VexelProcessorTest {
         assertTrue(graph.contains("publishes lib.Measure topic=lib.Measured"), "a job answers:\n" + graph);
     }
 
+    /**
+     * A module compiled on its own, whose job takes a part with state that no recipe of the module's builds. It sees
+     * only its own recipes, and the part may be another module's to build, so whether anything supplies it is the
+     * application's question: the module compiles.
+     */
+    @Test
+    void aModulesJobMayTakeAPartAnotherModuleBuilds() throws IOException {
+        Path out = Files.createTempDirectory(temp, "module");
+        List<String> errors = compile(Map.of(
+                "mod.Grammars", """
+                    package mod;
+                    public final class Grammars { private int parsed; }
+                    """,
+                "mod.Mark", """
+                    package mod;
+                    public record Mark(String text) {
+                        public static final sibarum.atchung.Topic<Mark> TOPIC = sibarum.atchung.Topic.edge(Mark.class);
+                    }
+                    """,
+                "mod.Marked", """
+                    package mod;
+                    public record Marked(String text) {
+                        public static final sibarum.atchung.Topic<Marked> TOPIC =
+                                sibarum.atchung.Topic.edge(Marked.class);
+                    }
+                    """,
+                "mod.MarkText", """
+                    package mod;
+                    @dev.vexelray.framework.api.Job
+                    public final class MarkText {
+                        private final Grammars grammars;
+                        public MarkText(Grammars grammars) { this.grammars = grammars; }
+                        public Marked run(Mark m) { return new Marked(m.text()); }
+                    }
+                    """), out, lib, false);
+        assertEquals(List.of(), errors);
+    }
+
+    /** The application builds the part another module's job takes, so the job is wired with it. */
+    @Test
+    void anotherModulesJobTakesThePartTheApplicationsRecipeBuilds() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo", starters = Painting.class)
+                public final class DemoApp {}
+                """, """
+                @Component @Publishes(Tint.class)
+                public final class Painter { @Subscribe public void tinted(Tinted t) {} }
+                """, """
+                @Configuration
+                public final class Parts { @Provides public Palette palette() { return null; } }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        assertTrue(compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config")
+                .contains("job lib.Paint lib.Tint Tint -> lib.Tinted Tinted"));
+    }
+
+    /** With every recipe in view and none building it, the part is state the job made for itself after all. */
+    @Test
+    void anotherModulesJobIsRefusedWhenNoRecipeBuildsItsPart() {
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo", starters = Painting.class)
+                public final class DemoApp {}
+                """, """
+                @Component @Publishes(Tint.class)
+                public final class Painter { @Subscribe public void tinted(Tinted t) {} }
+                """), "@Job Paint has the field palette, a lib.Palette, which is neither shareable nor something the"
+                + " container supplies");
+    }
+
     @Test
     void withoutTheStarterAnotherModulesComponentIsNotBuilt() throws Exception {
         Compiled compiled = build("""
@@ -1586,9 +1689,13 @@ class VexelProcessorTest {
                 """)), "has the field asked, which is not final");
     }
 
+    /** In the application's compilation, where every recipe is in view: see {@link #aModulesJobMayTakeAPartAnotherModuleBuilds}. */
     @Test
     void aJobsFieldIsShareableOrSupplied() {
-        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, job("""
+        onlyError(app("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, MESSAGES_ASK, MESSAGES_TOLD, TOLD, job("""
                     private final java.util.List<String> seen = new java.util.ArrayList<>();
                     public Told run(Ask a) { return new Told(a.q()); }
                 """)), "has the field seen, a java.util.List<java.lang.String>, which is neither shareable nor"
