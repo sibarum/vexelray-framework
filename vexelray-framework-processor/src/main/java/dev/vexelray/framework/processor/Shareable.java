@@ -31,7 +31,10 @@ import java.util.Set;
  *   <li>a {@code sealed} interface or class whose every permitted subtype is shareable (and, for a class, whose
  *       own fields are);</li>
  *   <li>{@code Optional} of a shareable type;</li>
- *   <li>in a payload only ({@link #crossing}), a {@code List}, {@code Set} or {@code Map} of shareable types.</li>
+ *   <li>in a payload only ({@link #crossing}), a {@code List}, {@code Set} or {@code Map} of shareable types;</li>
+ *   <li>in a payload or a view's drawn state, a vexelray-gui {@code Feed}: a handle to the one memory a producer and
+ *       the GUI thread share (threading.md T7.3, frame-contract.md D), which is how pixels reach the screen without
+ *       crossing the bus themselves.</li>
  * </ul>
  * <b>What is refused, and why it is not a limitation of the check:</b> an array (mutable), an interface that is not
  * sealed (its implementations are unknown), any other generic type, a class with a mutable field, and an inner
@@ -89,15 +92,25 @@ final class Shareable {
         return why(type, "", new HashSet<>(), Rules.DRAWN);
     }
 
-    /** What the walk accepts beyond the deeply immutable: collections on trust (a payload's), and nodes as handles. */
-    private record Rules(boolean collections, boolean handles) {
-        static final Rules STATE = new Rules(false, false);
-        static final Rules PAYLOAD = new Rules(true, false);
-        static final Rules DRAWN = new Rules(true, true);
+    /**
+     * What the walk accepts beyond the deeply immutable: collections on trust (a payload's), nodes as handles (a view's
+     * drawn state), and feeds as handles (a payload, and a view's drawn state).
+     */
+    private record Rules(boolean collections, boolean nodes, boolean feeds) {
+        static final Rules STATE = new Rules(false, false, false);
+        static final Rules PAYLOAD = new Rules(true, false, true);
+        static final Rules DRAWN = new Rules(true, true, true);
     }
 
     /** vexelray-gui's node, a final class: what a view's state may hold as a handle. */
     static final String NODE = "dev.vexelray.gui.core.Node";
+
+    /**
+     * vexelray-gui's feed: a ring of slots a producer hands pictures into and the GUI thread shows. Mutable by design,
+     * and the mutation is the seam T7.3 allows; what crosses is the handle, and the pixels stay where they were written.
+     * Not a job's field: a job answers with the feed it wrote, and keeps nothing.
+     */
+    static final String FEED = "dev.vexelray.gui.core.Feed";
 
     private static String why(TypeMirror type, String path, Set<String> visiting, Rules rules) {
         if (type.getKind().isPrimitive()) {
@@ -112,7 +125,8 @@ final class Shareable {
         DeclaredType declared = (DeclaredType) type;
         TypeElement element = (TypeElement) declared.asElement();
         String name = element.getQualifiedName().toString();
-        if (VALUES.contains(name) || element.getKind() == ElementKind.ENUM || rules.handles() && name.equals(NODE)) {
+        if (VALUES.contains(name) || element.getKind() == ElementKind.ENUM || rules.nodes() && name.equals(NODE)
+                || rules.feeds() && name.equals(FEED)) {
             return null;
         }
         if (!declared.getTypeArguments().isEmpty()) {

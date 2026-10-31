@@ -504,10 +504,11 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
 lane, the sources' runs, the watchdog, the timer, the automation driver, and the operating-system seams (native dialogs, input backends) where
 a foreign thread hands something in. Each of those publishes; none hands a foreign thread's call to application
 code. Anywhere else, they are a defect. *Added 2026-10-29 with T7.6:* **the feed**, a fixed ring of stamped slots
-(vexelray-vulkan's `StreamTexture` with a presentation stamp per slot) that one producer off the GUI thread writes
-and a part's asked half reads, is on the list. It is a foreign thread handing something in, with one writer, one
-reader, no lock in the read and nothing called across it, and it is how pixels made off the GUI thread reach a part
-without crossing the bus. *(owed, phase 5. Held, when built, by a test that reads the shell's and
+that one producer off the GUI thread writes and a part's asked half reads, is on the list. It is a foreign thread
+handing something in, with one writer, one reader, no lock in the read and nothing called across it, and it is how
+pixels made off the GUI thread reach a part without crossing the bus. *Built 2026-10-31 as vexelray-gui's `Feed`*
+(frame-contract.md D): device-free, its slots in the heap, each renderer uploading the slot shown; the processor
+accepts a `Feed` as a handle in a payload and in a view's drawn state, and nowhere else (`Shareable.FEED`). *(owed, phase 5. Held, when built, by a test that reads the shell's and
 core's sources against the list. In 0.1 `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` hold
 locks and volatiles for state the main thread and the handler pool both touched)*
 

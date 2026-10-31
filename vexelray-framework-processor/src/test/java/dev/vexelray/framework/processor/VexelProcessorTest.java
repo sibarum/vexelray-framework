@@ -276,6 +276,13 @@ class VexelProcessorTest {
                     public Node(String name) { this.name = name; }
                 }
                 """),
+            Map.entry("dev.vexelray.gui.core.Feed", """
+                package dev.vexelray.gui.core;
+                public final class Feed {
+                    private int shown = -1;
+                    public int due(long stamp) { return shown; }
+                }
+                """),
             Map.entry("dev.vexelray.gui.core.spi.Asked", """
                 package dev.vexelray.gui.core.spi;
                 public interface Asked {
@@ -1064,6 +1071,28 @@ class VexelProcessorTest {
         assertEquals(List.of("view mailbox dev.vexelray.gui.widget.Tree.Chosen []"), run.phase("tree"));
     }
 
+    /** A view's drawn state may hold a feed beside its nodes, and its asked half may ask the feed what is due. */
+    @Test
+    void aViewsDrawnStateMayHoldAFeed() {
+        assertEquals(List.of(), build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @View
+                public final class Player {
+                    public record Playing(dev.vexelray.gui.core.Node screen, dev.vexelray.gui.core.Feed feed, long at) {}
+                    public Playing state = new Playing(new dev.vexelray.gui.core.Node("screen"),
+                            new dev.vexelray.gui.core.Feed(), 0L);
+                    public Player() {}
+                    @Draw
+                    public static long draw(Playing s, dev.vexelray.gui.core.Frame frame, dev.vexelray.gui.core.Drawn out) {
+                        return s.feed().due(frame.presentNanos() - s.at()) < 0 ? frame.presentNanos()
+                                : dev.vexelray.gui.core.Frame.NEVER;
+                    }
+                }
+                """).errors());
+    }
+
     /**
      * T7.6: a view's {@code @Draw} method is registered to be asked on every frame, with whatever its state field holds
      * when it is asked, so a state its {@code @Subscribe} method replaced is drawn on the next frame with nothing more
@@ -1827,6 +1856,27 @@ class VexelProcessorTest {
                     }
                 }
                 """, sink("Edit")));
+    }
+
+    /** A job answers with the feed it wrote: the handle crosses, and the pixels stay in its slots (frame-contract.md D). */
+    @Test
+    void aFeedMayCrossInAPayloadThoughItIsMutable() {
+        assertEquals(List.of(), app("""
+                public record Pictured(java.nio.file.Path path, dev.vexelray.gui.core.Feed feed) {
+                    public static final sibarum.atchung.Topic<Pictured> T = sibarum.atchung.Topic.edge(Pictured.class);
+                }
+                """, sink("Pictured")));
+    }
+
+    @Test
+    void aClassLikeAFeedIsNotOne() {
+        onlyError(app("""
+                public final class Feed {
+                    private int shown = -1;
+                }
+                """, """
+                public record Pictured(Feed feed) {}
+                """, sink("Pictured")), "Pictured.feed -> Feed.shown: is not final");
     }
 
     @Test
