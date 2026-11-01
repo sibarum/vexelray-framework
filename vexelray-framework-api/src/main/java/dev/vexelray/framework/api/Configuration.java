@@ -52,4 +52,10 @@ public @interface Configuration {
 
     /** The {@link Source} classes this configuration brings, on the same terms as {@link #components()}. */
     Class<?>[] sources() default {};
+
+    /**
+     * The {@link Destination} classes this configuration brings, on the same terms as {@link #components()}. A part that
+     * is both a source and a destination is listed here, and found there too.
+     */
+    Class<?>[] destinations() default {};
 }

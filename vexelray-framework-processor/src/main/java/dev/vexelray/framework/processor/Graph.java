@@ -74,6 +74,8 @@ final class Graph {
     private final Set<TypeElement> jobs = new LinkedHashSet<>();
     /** The sources among {@link #jobs}. */
     private final Set<TypeElement> sources = new LinkedHashSet<>();
+    /** The destinations among {@link #jobs}, a part that is also a source included. */
+    private final Set<TypeElement> destinations = new LinkedHashSet<>();
 
     Graph(Mirrors mirrors, Declarations declarations, Elements elements, Types types, Messager messager) {
         this.mirrors = mirrors;
@@ -108,6 +110,28 @@ final class Graph {
     /** Whether {@code job}, one of {@link #jobsSeen}, is a {@code @Source}. */
     boolean isSource(TypeElement job) {
         return sources.contains(job);
+    }
+
+    /**
+     * A destination, which is a job in everything the graph asks, as a source is ({@code docs/components.md}, section
+     * 12). A part that is also a {@code @Source} is one as well, so it may take the senders a source takes.
+     */
+    void destination(TypeElement type) {
+        jobs.add(type);
+        destinations.add(type);
+        if (mirrors.has(type, dev.vexelray.framework.api.Source.class)) {
+            sources.add(type);
+        }
+    }
+
+    /** Whether {@code job}, one of {@link #jobsSeen}, is a {@code @Destination}. */
+    boolean isDestination(TypeElement job) {
+        return destinations.contains(job);
+    }
+
+    /** What a part held as a job is called in a message: its annotation. */
+    String kind(TypeElement job) {
+        return isDestination(job) ? "@Destination" : isSource(job) ? "@Source" : "@Job";
     }
 
     /** Every live job, in the order the rounds and the configurations offered them. */
@@ -449,7 +473,7 @@ final class Graph {
             return;
         }
         String name = Mirrors.simple(job);
-        String kind = isSource(job) ? "@Source" : "@Job";
+        String kind = kind(job);
         if (refused(kind + " " + name, parameter)) {
             return;
         }
@@ -462,7 +486,8 @@ final class Graph {
             }
             return;
         }
-        String lane = isSource(job) ? "a source runs on a thread of its own" : "a job runs on the job lane";
+        String lane = isDestination(job) ? "a destination writes on a thread of its own"
+                : isSource(job) ? "a source runs on a thread of its own" : "a job runs on the job lane";
         String main = whyOnMain(parameter.asType(), providers);
         if (main != null) {
             error(parameter, "T2.2: " + kind + " " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread"
@@ -516,7 +541,7 @@ final class Graph {
         if (!application) {
             return;
         }
-        error(field, (isSource(job) ? "@Source " : "@Job ") + Mirrors.simple(job) + " has the field "
+        error(field, kind(job) + " " + Mirrors.simple(job) + " has the field "
                 + Mirrors.simple(field) + ", a " + type
                 + ", which is neither shareable nor something the container supplies. Two requests may run at once,"
                 + " so a job keeps no state of its own: take the part from the container, or make the value a record"
@@ -530,7 +555,10 @@ final class Graph {
             error(parameter, who + " takes the job " + Mirrors.simple(other) + ". A job is reached by publishing its"
                     + " topic, never by holding it: publish the request and subscribe to the reply");
         }
-        if (other != null && mirrors.has(other, dev.vexelray.framework.api.Source.class)) {
+        if (other != null && mirrors.has(other, dev.vexelray.framework.api.Destination.class)) {
+            error(parameter, who + " takes the destination " + Mirrors.simple(other) + ". A destination is reached by"
+                    + " publishing what it writes, never by holding it");
+        } else if (other != null && mirrors.has(other, dev.vexelray.framework.api.Source.class)) {
             error(parameter, who + " takes the source " + Mirrors.simple(other) + ". A source is reached by publishing"
                     + " its request, never by holding it: publish the request and subscribe to what it sends");
         }

@@ -113,6 +113,8 @@ final class Generator {
         final List<Channels.Mailbox> mailboxes = new ArrayList<>();
         /** For a {@code @Job}, its channels; {@code component} is then the job's class. */
         Channels.JobChannel job;
+        /** For a {@code @Destination}, its channels; {@code component} is then its class. */
+        Channels.DestinationChannel destination;
         Set<RunMode> modes;
         Slot slot;
         Phase phase = Phase.CONFIG;
@@ -128,6 +130,11 @@ final class Generator {
 
         Element element() {
             return provider != null ? provider.method() : component;
+        }
+
+        /** Whether this is a part the job lane or a thread of its own runs: a job, a source or a destination. */
+        boolean part() {
+            return job != null || destination != null;
         }
 
         String where() {
@@ -319,6 +326,15 @@ final class Generator {
         // A job is constructed as a component is, by its one constructor in the phase its parameters put it in, and
         // then subscribed to its topic on the job lane instead of being placed on one of its own.
         for (TypeElement j : graph.jobsSeen()) {
+            if (graph.isDestination(j)) {
+                Channels.DestinationChannel d = channels.destination(j);
+                if (constructor(j) != null && d != null) {
+                    Binding b = new Binding(null, j, j.asType(), declaredModes(j));
+                    b.destination = d;
+                    bindings.add(b);
+                }
+                continue;
+            }
             Channels.JobChannel channel = channels.job(j);
             if (constructor(j) != null && channel != null) {
                 Binding b = new Binding(null, j, j.asType(), declaredModes(j));
@@ -398,7 +414,7 @@ final class Generator {
                 return new RootArg(root);
             }
             // Graph has refused an inbox anywhere but a component's constructor.
-            if (element.getQualifiedName().contentEquals(Framework.INBOX) && b.component != null && b.job == null) {
+            if (element.getQualifiedName().contentEquals(Framework.INBOX) && b.component != null && !b.part()) {
                 AnnotationMirror hears = mirrors.find(b.component, Hears.class);
                 List<String> heard = new ArrayList<>();
                 if (hears != null) {
@@ -411,8 +427,8 @@ final class Generator {
             // Channels has refused a sender with no declared topic, and Graph a job's.
             if (Channels.isSender(parameter) && Channels.sent(parameter) != null) {
                 String topic = topic(app, parameter, Channels.sent(parameter));
-                boolean component = b.component != null && b.job == null && !mirrors.has(b.component, View.class);
-                if (b.job != null && graph.isSource(b.component)) {
+                boolean component = b.component != null && !b.part() && !mirrors.has(b.component, View.class);
+                if (b.part() && graph.isSource(b.component)) {
                     // Outside every tick, and every message in a cause of the source's own.
                     return new SenderArg(Framework.SOURCES + ".sender(shell, "
                             + literal(b.component.getQualifiedName().toString()) + ", " + topic + ")");
@@ -618,7 +634,7 @@ final class Generator {
                         + " providers are public");
             }
         } else if (!visibleFrom(app, b.component) || !visibleFrom(app, constructor(b.component))) {
-            error(b.component, (b.job == null ? "@Component " : graph.isSource(b.component) ? "@Source " : "@Job ")
+            error(b.component, (!b.part() ? "@Component " : graph.kind(b.component) + " ")
                     + b.where() + " is not visible from "
                     + Mirrors.simple(app) + "'s package, where the generated wiring constructs it");
         } else if (b.job != null && !visibleFrom(app, b.job.run())) {
@@ -936,7 +952,9 @@ final class Generator {
                         + Mirrors.simple(state) + ", frame, out));");
             }
         }
-        if (b.job != null && graph.isSource(b.component)) {
+        if (b.destination != null) {
+            after.add(destination(app, b.destination, field));
+        } else if (b.job != null && graph.isSource(b.component)) {
             // A run per key of the request, each on a thread of its own: Sources. A run that takes no Closer is handed
             // one all the same, and ignores it.
             Channels.JobChannel j = b.job;
@@ -1054,6 +1072,47 @@ final class Generator {
             return f > 0 ? "Float.POSITIVE_INFINITY" : "Float.NEGATIVE_INFINITY";
         }
         return Float.toString(f) + "f";
+    }
+
+    /**
+     * The call that puts a destination on its topics: a connection per key of its request, or one opened at start when
+     * {@code open} takes nothing; each {@code write} on its message's topic, typed so the overload is the one meant.
+     */
+    private String destination(TypeElement app, Channels.DestinationChannel d, String field) {
+        String connection = d.connection().toString();
+        for (ExecutableElement m : List.of(d.open(), d.close())) {
+            if (!visibleFrom(app, m)) {
+                error(m, Mirrors.where(m) + " is not visible from " + Mirrors.simple(app) + "'s package, where the"
+                        + " generated wiring calls it. Make it public");
+            }
+        }
+        StringBuilder writes = new StringBuilder("java.util.List.of(");
+        for (int i = 0; i < d.writes().size(); i++) {
+            ExecutableElement w = d.writes().get(i);
+            if (!visibleFrom(app, w)) {
+                error(w, Mirrors.where(w) + " is not visible from " + Mirrors.simple(app) + "'s package, where the"
+                        + " generated wiring calls it. Make it public");
+            }
+            TypeMirror message = Channels.DestinationChannel.message(w);
+            writes.append(i == 0 ? "" : ", ").append(Framework.DESTINATIONS).append(".<").append(connection)
+                    .append(", ").append(message).append(">write(").append(topic(app, w, message))
+                    .append(", (c, m) -> ").append(field).append(".write(c, m))");
+        }
+        writes.append(")");
+        String name = literal(d.name());
+        String thread = literal(threadName(Mirrors.simple(d.part())));
+        String close = "c -> " + field + ".close(c)";
+        if (d.request() == null) {
+            return Framework.DESTINATIONS + ".<" + connection + ">atStart(shell, " + name + ", " + thread + ", () -> "
+                    + field + ".open(), " + close + ", " + writes + ");";
+        }
+        String reply = d.replyType() == null ? "java.lang.Object" : d.replyType().toString();
+        TypeMirror stop = channels.stopType(d.part());
+        return Framework.DESTINATIONS + ".<" + d.request() + ", " + connection + ", " + reply + ">keyed(shell, " + name
+                + ", " + thread + ", " + topic(app, d.open(), d.request()) + ", q -> " + field + ".open(q), "
+                + (d.run() == null ? "null, null" : "(q, c) -> " + field + ".run(q, c), "
+                + topic(app, d.run(), d.replyType()))
+                + ", " + (stop == null ? "null" : topic(app, d.part(), stop)) + ", " + close + ", " + writes + ");";
     }
 
     /** A source's thread name after {@code vexel-source-}: its simple name in lower case, words joined by hyphens. */

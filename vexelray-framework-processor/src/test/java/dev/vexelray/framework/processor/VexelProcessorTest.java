@@ -182,6 +182,44 @@ class VexelProcessorTest {
                     }
                 }
                 """),
+            Map.entry("dev.vexelray.framework.shell.Destinations", """
+                package dev.vexelray.framework.shell;
+                public final class Destinations {
+                    public static final class Write<C> {
+                        final String topic;
+                        Write(String topic) { this.topic = topic; }
+                    }
+                    public static <C, M> Write<C> write(sibarum.atchung.Topic<M> topic,
+                                                        java.util.function.BiConsumer<C, M> to) {
+                        return new Write<>(topic.name());
+                    }
+                    private static String writes(java.util.List<? extends Write<?>> writes) {
+                        StringBuilder out = new StringBuilder();
+                        for (Write<?> w : writes) {
+                            out.append(" write ").append(w.topic);
+                        }
+                        return out.toString();
+                    }
+                    public static <Q, C, R> void keyed(Shell shell, String part, String thread,
+                                                       sibarum.atchung.Topic<Q> request,
+                                                       java.util.function.Function<Q, C> open,
+                                                       java.util.function.BiFunction<Q, C, R> run,
+                                                       sibarum.atchung.Topic<R> reply, sibarum.atchung.Topic<?> stop,
+                                                       java.util.function.Consumer<C> close,
+                                                       java.util.List<Write<C>> writes) {
+                        Shell.LOG.add("destination " + part + " vexel-destination-" + thread + " " + request.name()
+                                + (reply == null ? "" : " -> " + reply.name()) + (stop == null ? "" : " stop "
+                                + stop.name()) + writes(writes));
+                    }
+                    public static <C> void atStart(Shell shell, String part, String thread,
+                                                   java.util.function.Supplier<C> open,
+                                                   java.util.function.Consumer<C> close,
+                                                   java.util.List<Write<C>> writes) {
+                        Shell.LOG.add("destination " + part + " vexel-destination-" + thread + " at start"
+                                + writes(writes));
+                    }
+                }
+                """),
             Map.entry("dev.vexelray.framework.shell.Shell", """
                 package dev.vexelray.framework.shell;
                 import dev.vexelray.framework.core.*;
@@ -1901,6 +1939,182 @@ class VexelProcessorTest {
                 @Component(lane = "asker")
                 public final class Asker { public Asker(Reader reader) {} }
                 """), "Asker takes the source Reader. A source is reached by publishing its request");
+    }
+
+    // --- @Destination ------------------------------------------------------------------------------------------
+
+    /** A connection the tests' destinations keep: any object the framework holds for a key. */
+    private static final String CONN = """
+            public final class Conn {}
+            """;
+
+    @Test
+    void aSourceThatIsADestinationKeepsAConnectionPerKeyAndWritesWhatItHears() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, MESSAGES_ASK, MESSAGES_TOLD, MESSAGES_STOP, MESSAGES_LINE, CONN, """
+                @Source(stop = Hush.class) @Destination
+                public final class Shell2 {
+                    private final sibarum.atchung.Sender<Told> told;
+                    public Shell2(sibarum.atchung.Sender<Told> told) { this.told = told; }
+                    public Conn open(Ask a) { return new Conn(); }
+                    public Told run(Ask a, Conn c) { return new Told(a.q()); }
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                }
+                """, """
+                @Destination
+                public final class Log {
+                    public Conn open() { return new Conn(); }
+                    public void write(Conn c, Hush h) {}
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                }
+                """, TOLD);
+        assertEquals(List.of(), compiled.errors());
+        List<String> config = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config");
+        assertTrue(config.contains("source sender app.Shell2 app.Told"), config.toString());
+        assertTrue(config.contains("destination app.Shell2 vexel-destination-shell2 app.Ask -> app.Told stop app.Hush"
+                + " write app.Line"), config.toString());
+        assertTrue(config.contains("destination app.Log vexel-destination-log at start write app.Hush write app.Line"),
+                config.toString());
+    }
+
+    private static String destination(String body) {
+        return """
+                @Destination
+                public final class Out {
+                %s
+                }
+                """.formatted(body);
+    }
+
+    @Test
+    void aDestinationOpensOnce() {
+        onlyError(app(MESSAGES_LINE, CONN, destination("""
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                """)), "@Destination Out has 0 open methods, and must have exactly one");
+    }
+
+    @Test
+    void aDestinationWrites() {
+        onlyError(app(CONN, destination("""
+                    public Conn open() { return new Conn(); }
+                    public void close(Conn c) {}
+                """)), "@Destination Out has no write method");
+    }
+
+    @Test
+    void aWriteTakesTheConnectionFirst() {
+        onlyError(app(MESSAGES_LINE, CONN, destination("""
+                    public Conn open() { return new Conn(); }
+                    public void write(Line l, Conn c) {}
+                    public void close(Conn c) {}
+                """)), "Out.write must take the connection, app.Conn, and then one message");
+    }
+
+    @Test
+    void whatADestinationWritesIsADeclaredChannel() {
+        onlyError(app(CONN, "public record Loose(String s) {}", destination("""
+                    public Conn open() { return new Conn(); }
+                    public void write(Conn c, Loose l) {}
+                    public void close(Conn c) {}
+                """)), "T4.1: @Destination Out writes Loose, and no topic of it is declared");
+    }
+
+    @Test
+    void whatADestinationWritesCrossesAsItself() {
+        onlyError(app(CONN, """
+                public final class Mutable {
+                    public static final sibarum.atchung.Topic<Mutable> TOPIC = sibarum.atchung.Topic.edge(Mutable.class);
+                    public int n;
+                }
+                """, destination("""
+                    public Conn open() { return new Conn(); }
+                    public void write(Conn c, Mutable m) {}
+                    public void close(Conn c) {}
+                """)), "T2.4: Out.write's message is app.Mutable, and it cannot cross a lane as itself");
+    }
+
+    @Test
+    void aDestinationThatReadsTakesItsConnectionNotACloser() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, MESSAGES_LINE, CONN, TOLD, """
+                @Source @Destination
+                public final class Out {
+                    public Conn open(Ask a) { return new Conn(); }
+                    public Told run(Ask a, Closer closer) { return new Told(""); }
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                }
+                """), "A part with a connection takes no Closer");
+    }
+
+    @Test
+    void aRunOnADestinationMakesItASource() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, MESSAGES_LINE, CONN, TOLD, destination("""
+                    public Conn open(Ask a) { return new Conn(); }
+                    public Told run(Ask a, Conn c) { return new Told(""); }
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                """)), "one that also reads is annotated @Source as well");
+    }
+
+    @Test
+    void aDestinationKeepsNoStateThatChanges() {
+        onlyError(app(MESSAGES_LINE, CONN, destination("""
+                    private int written;
+                    public Conn open() { return new Conn(); }
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                """)), "@Destination Out has the field written, which is not final");
+    }
+
+    @Test
+    void aDestinationThatOnlyWritesSendsNothing() {
+        onlyError(app(MESSAGES_LINE, MESSAGES_TOLD, TOLD, CONN, """
+                @Destination
+                public final class Out {
+                    public Out(sibarum.atchung.Sender<Told> told) {}
+                    public Conn open() { return new Conn(); }
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                }
+                """), "Out takes told, a Sender");
+    }
+
+    @Test
+    void aDestinationAndASourceDoNotShareARequest() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, MESSAGES_LINE, CONN, TOLD, source("""
+                    public Told run(Ask a) { return new Told(""); }
+                """), destination("""
+                    public Conn open(Ask a) { return new Conn(); }
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                """)), "both take Ask. A request is answered once");
+    }
+
+    @Test
+    void aDestinationIsReachedByPublishingNeverHeld() {
+        onlyError(app(MESSAGES_LINE, CONN, destination("""
+                    public Conn open() { return new Conn(); }
+                    public void write(Conn c, Line l) {}
+                    public void close(Conn c) {}
+                """), """
+                @Component(lane = "asker")
+                public final class Asker { public Asker(Out out) {} }
+                """), "Asker takes the destination Out");
+    }
+
+    @Test
+    void aConfigurationListsADestinationUnderDestinations() {
+        onlyError(app(MESSAGES_ASK, MESSAGES_TOLD, TOLD, source("""
+                    public Told run(Ask a) { return new Told(""); }
+                """), """
+                @Configuration(destinations = Reader.class)
+                public final class Parts {}
+                """), "lists app.Reader among its destinations, and it is not a @Destination. It is a @Source");
     }
 
     // --- T2.4: a payload must be able to cross a lane as itself --------------------------------------------------

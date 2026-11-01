@@ -25,6 +25,7 @@ import javax.tools.Diagnostic;
 import javax.tools.StandardLocation;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -596,6 +597,9 @@ final class Declarations {
      * end is always news. Its senders are {@link Graph}'s, and its stop message {@link Channels}'.
      */
     void source(TypeElement type) {
+        if (mirrors.has(type, dev.vexelray.framework.api.Destination.class)) {
+            return;     // a connection read and written: its run takes the connection, and destination() checks it
+        }
         part(type, true);
         if (mirrors.has(type, dev.vexelray.framework.api.Job.class)) {
             error(type, "@Source " + Mirrors.simple(type) + " is also a @Job. A job answers one request on the job lane;"
@@ -603,13 +607,16 @@ final class Declarations {
         }
     }
 
-    private void part(TypeElement type, boolean source) {
-        String kind = source ? "@Source" : "@Job";
+    /**
+     * What every part the wiring constructs and the job lane or a thread of its own runs is: a final, static class with
+     * one constructor and final fields. Whether it is a class at all, so the rest can be asked.
+     */
+    private boolean shape(TypeElement type, String kind) {
         String name = Mirrors.simple(type);
         if (type.getKind() != ElementKind.CLASS) {
             error(type, kind + " " + name + " is not a class. A job is constructed by the wiring and holds no state, so"
                     + " it is a final class whose run method is the work");
-            return;
+            return false;
         }
         if (!type.getModifiers().contains(Modifier.FINAL)) {
             error(type, kind + " " + name + " is not final. A job holds no mutable state, and a subclass could add"
@@ -639,6 +646,157 @@ final class Declarations {
             error(type, kind + " " + name + " has " + constructors + " non-private constructors, and must have exactly"
                     + " one. The container does not pick between them");
         }
+        return true;
+    }
+
+    /**
+     * A destination ({@code docs/components.md}, section 12): shaped as a job is, with a connection the framework keeps
+     * per key and hands to each method. Exactly one {@code open}, taking nothing or the request; at least one
+     * {@code void write(connection, message)}; exactly one {@code void close(connection)}; and, when it is also a
+     * {@code @Source}, a {@code run(request, connection)} returning why it ended. The messages' channels are
+     * {@link Channels}', its senders {@link Graph}'s.
+     */
+    void destination(TypeElement type) {
+        String kind = "@Destination";
+        String name = Mirrors.simple(type);
+        if (!shape(type, kind)) {
+            return;
+        }
+        if (mirrors.has(type, dev.vexelray.framework.api.Job.class)) {
+            error(type, kind + " " + name + " is also a @Job. A job answers one request on the job lane; a destination"
+                    + " writes on a thread of its own for as long as its connection is open");
+        }
+        boolean source = mirrors.has(type, dev.vexelray.framework.api.Source.class);
+        Shape s = destinationShape(type);
+        if (s.opens.size() != 1) {
+            error(type, kind + " " + name + " has " + s.opens.size() + " open methods, and must have exactly one: an"
+                    + " instance method returning the connection, taking the request" + (source ? "" : ", or nothing for"
+                    + " one connection opened when the application starts"));
+        }
+        if (s.closes.size() != 1) {
+            error(type, kind + " " + name + " has " + s.closes.size() + " close methods, and must have exactly one: void"
+                    + " close(connection), which the framework calls once, after the connection's halves are done");
+        }
+        if (s.writes.isEmpty()) {
+            error(type, kind + " " + name + " has no write method. A destination writes: void write(connection,"
+                    + " message), one for each message it hears");
+        }
+        if (s.opens.size() != 1) {
+            return;
+        }
+        ExecutableElement open = s.opens.get(0);
+        TypeMirror connection = open.getReturnType();
+        int requests = open.getParameters().size();
+        if (connection.getKind() != TypeKind.DECLARED) {
+            error(open, Mirrors.where(open) + " returns " + connection + ". The connection is an object the framework"
+                    + " keeps for its key: a pseudo-terminal, a socket, a stream");
+            return;
+        }
+        if (requests > 1) {
+            error(open, Mirrors.where(open) + " takes " + requests + " parameters, and must take the request, whose type"
+                    + " names the channel it arrives on, or nothing");
+        } else if (requests == 1) {
+            message(open, "request", open.getParameters().get(0).asType());
+        } else if (source) {
+            error(open, Mirrors.where(open) + " takes nothing, and " + name + " is also a @Source, whose run starts"
+                    + " on a request: take it here, as run does");
+        }
+        if (source && mirrors.find(type, dev.vexelray.framework.api.Destination.class) != null
+                && mirrors.value(mirrors.find(type, dev.vexelray.framework.api.Destination.class), "stop")
+                instanceof TypeMirror stop && stop.getKind() != TypeKind.VOID) {
+            error(type, kind + " " + name + " names a stop on @Destination and is a @Source: name it on @Source(stop ="
+                    + " ...), once");
+        }
+        for (ExecutableElement w : s.writes) {
+            String where = Mirrors.where(w);
+            if (w.getReturnType().getKind() != TypeKind.VOID) {
+                error(w, where + " returns " + w.getReturnType() + ". A write returns nothing: what comes back from"
+                        + " outside is read by a source");
+            }
+            if (w.getParameters().size() != 2 || !same(w.getParameters().get(0).asType(), connection)) {
+                error(w, where + " must take the connection, " + connection + ", and then one message");
+                continue;
+            }
+            message(w, "message", w.getParameters().get(1).asType());
+        }
+        for (ExecutableElement c : s.closes) {
+            if (c.getReturnType().getKind() != TypeKind.VOID || c.getParameters().size() != 1
+                    || !same(c.getParameters().get(0).asType(), connection)) {
+                error(c, Mirrors.where(c) + " must be void close(" + connection + ")");
+            }
+        }
+        if (source) {
+            if (s.runs.size() != 1) {
+                error(type, kind + " " + name + " is also a @Source, and has " + s.runs.size() + " run methods: it must"
+                        + " have exactly one, taking the request and the connection and returning why it ended");
+            } else {
+                ExecutableElement run = s.runs.get(0);
+                List<? extends VariableElement> p = run.getParameters();
+                if (p.size() != 2 || requests != 1
+                        || !same(p.get(0).asType(), open.getParameters().get(0).asType())
+                        || !same(p.get(1).asType(), connection)) {
+                    error(run, Mirrors.where(run) + " must take the request open takes and then the connection, "
+                            + connection + ". A part with a connection takes no Closer: closing the connection is what"
+                            + " ends a read that ignores an interrupt");
+                }
+                if (run.getReturnType().getKind() == TypeKind.VOID) {
+                    error(run, Mirrors.where(run) + " returns nothing. A source's run returns why it ended, stopped,"
+                            + " went away or failed: a run's end is always news");
+                } else {
+                    message(run, "reply", run.getReturnType());
+                }
+            }
+        } else if (!s.runs.isEmpty()) {
+            error(s.runs.get(0), Mirrors.where(s.runs.get(0)) + " is a run method on a destination that is not a"
+                    + " @Source. A destination only writes; one that also reads is annotated @Source as well");
+        }
+        for (List<ExecutableElement> methods : List.of(s.opens, s.writes, s.closes, s.runs)) {
+            for (ExecutableElement m : methods) {
+                if (!m.getThrownTypes().isEmpty()) {
+                    error(m, Mirrors.where(m) + " declares " + m.getThrownTypes() + ". A failure a destination expects"
+                            + " is part of what its run reads, or of its reply; anything else that escapes ends the"
+                            + " application. Catch it here");
+                }
+            }
+        }
+    }
+
+    /** Whether two types are the same type, by their names: a destination's parameters against its connection. */
+    private static boolean same(TypeMirror a, TypeMirror b) {
+        return a.toString().equals(b.toString());
+    }
+
+    /** A destination's methods, by name: the instance methods that are not private. */
+    record Shape(List<ExecutableElement> opens, List<ExecutableElement> writes, List<ExecutableElement> closes,
+                 List<ExecutableElement> runs) {
+    }
+
+    static Shape destinationShape(TypeElement type) {
+        Shape s = new Shape(new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        for (Element e : type.getEnclosedElements()) {
+            if (e.getKind() != ElementKind.METHOD || e.getModifiers().contains(Modifier.PRIVATE)
+                    || e.getModifiers().contains(Modifier.STATIC)) {
+                continue;
+            }
+            ExecutableElement m = (ExecutableElement) e;
+            switch (Mirrors.simple(m)) {
+                case "open" -> s.opens.add(m);
+                case "write" -> s.writes.add(m);
+                case "close" -> s.closes.add(m);
+                case "run" -> s.runs.add(m);
+                default -> {
+                }
+            }
+        }
+        return s;
+    }
+
+    private void part(TypeElement type, boolean source) {
+        String kind = source ? "@Source" : "@Job";
+        if (!shape(type, kind)) {
+            return;
+        }
+        String name = Mirrors.simple(type);
         ExecutableElement run = null;
         int runs = 0;
         for (Element e : type.getEnclosedElements()) {
@@ -729,7 +887,7 @@ final class Declarations {
     /** What a configuration lists is what it says it is: every class literal resolves, to a component or a job. */
     void listed(TypeElement configuration, AnnotationMirror mirror) {
         String name = Mirrors.simple(configuration);
-        for (String member : List.of("components", "jobs", "sources")) {
+        for (String member : List.of("components", "jobs", "sources", "destinations")) {
             if (mirrors.unresolved(mirror, member) > 0) {
                 error(configuration, "@Configuration " + name + " lists " + member + " that do not resolve. A listed"
                         + " class comes from the module that declares it, so that module has to be on the class path");
@@ -759,6 +917,14 @@ final class Declarations {
                 error(configuration, "@Configuration " + name + " lists " + type + " among its sources, and it is not"
                         + " a @Source." + (s != null && mirrors.has(s, dev.vexelray.framework.api.Job.class)
                         ? " It is a @Job: list it under jobs" : ""));
+            }
+        }
+        for (TypeMirror type : mirrors.types(mirror, "destinations")) {
+            TypeElement d = Mirrors.element(type);
+            if (d == null || !mirrors.has(d, dev.vexelray.framework.api.Destination.class)) {
+                error(configuration, "@Configuration " + name + " lists " + type + " among its destinations, and it is"
+                        + " not a @Destination." + (d != null && mirrors.has(d, dev.vexelray.framework.api.Source.class)
+                        ? " It is a @Source: list it under sources" : ""));
             }
         }
     }

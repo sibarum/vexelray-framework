@@ -81,11 +81,16 @@ by a race (T5.6).
 ## 1. Lanes
 
 **T1.1 — The lanes are a closed list.** The **main thread**, the **logic lane**, any **declared component
-lanes**, the **job lane**, the **timeline**, and **a source's run**. A further lane is a design change, argued in
+lanes**, the **job lane**, the **timeline**, **a source's run**, and **a destination's writer**. A further lane is a design change, argued in
 architecture.md, not a convenience added at a call site. *Restated 2026-10-30, when sources were ruled
 (architecture.md, the message model; components.md section 11):* a running source has a platform thread of its own,
 `vexel-source-<name>`, started when a run starts and gone when it returns. It runs only that source's `run`, which
-reads from outside and sends, and hears nothing. One run per key of its request, side by side. *(held by `SourcesTest.eachKeyRunsOnAThreadOfItsOwnAndSendsAsItGoes`, built 2026-10-30)* The framework also runs threads that are not lanes, because they must
+reads from outside and sends, and hears nothing. One run per key of its request, side by side. *(held by `SourcesTest.eachKeyRunsOnAThreadOfItsOwnAndSendsAsItGoes`, built 2026-10-30)* *Restated 2026-11-01, when destinations were
+ruled (components.md section 12):* a destination's open connection has a platform thread of its own,
+`vexel-destination-<name>`, which opens it, then writes what the destination hears to it, in order, and nothing else.
+One per key of its request, or one for the application's life when it takes none. A part that is both a source and a
+destination has both threads per key, sharing the connection the framework holds for it. *(held by
+`DestinationsTest.eachKeysMessagesReachItsOwnConnectionInOrderAndItsRunReadsThem`, built 2026-11-01)* The framework also runs threads that are not lanes, because they must
 stand outside what they watch or serve: the watchdog, the automation sockets, and the operating system's own
 dialog threads. They are listed in one place (`Lanes`' javadoc), never run application code, and reach the logic
 only by publishing.
@@ -384,13 +389,15 @@ component is on the tick; built in the bus,
 `TickLoop`, held by `TickTest.twoComponentsAnsweringEachOtherForeverAreALoop` and
 `aLoopIsCaughtEvenWhenEveryTickIsCutShortByItsDeadline`)*
 
-**T5.8 — Blocking work is a `@Job` or a source, and nothing else blocks.** Disk, network, a decode, a long
+**T5.8 — Blocking work is a `@Job`, a source or a destination, and nothing else blocks.** Disk, network, a decode, a long
 computation: each is a `@Job` with a request topic and a reply topic, run on the job lane. Its reply is a message like
 any other, delivered at the first tick after it finishes. What does not finish, because it reads from outside for as
 long as it is connected (a socket, a stream, a child process, a device), is a **source**: a run started by a request,
 on a thread of its own (T1.1), that may block in its read and sends as it goes, and whose end is a reply like a job's
-(components.md section 11). A component's delivery never blocks, never sleeps and never waits for a reply. *Restated
-2026-10-30 to add sources, and built the same day.* *(held for the `@Job` and `@Source` mechanisms, by `JobsTest`, `SourcesTest` and `VexelProcessorTest`'s job and source cases (components.md sections 10 and 11); owed for "nothing else blocks", phases 3 and 4, which withdraw `Gui.offload()`, `Gui.async()` and
+(components.md section 11). What writes outside, where a write may wait (a pipe whose reader is not reading), is a
+**destination**: its writes run on its connection's own thread (T1.1), in the order they were sent
+(components.md section 12). A component's delivery never blocks, never sleeps and never waits for a reply. *Restated
+2026-10-30 to add sources, and built the same day; 2026-11-01 to add destinations, and built the same day.* *(held for the `@Job` and `@Source` mechanisms, by `JobsTest`, `SourcesTest` and `VexelProcessorTest`'s job and source cases (components.md sections 10 and 11); owed for "nothing else blocks", phases 3 and 4, which withdraw `Gui.offload()`, `Gui.async()` and
 `Lanes.offload()` from application parts)*
 
 ## 6. Lifecycle

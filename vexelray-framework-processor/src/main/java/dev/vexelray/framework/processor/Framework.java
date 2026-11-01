@@ -25,6 +25,8 @@ final class Framework {
     static final String JOBS = "dev.vexelray.framework.shell.Jobs";
     /** What the generated wiring calls to put a {@code @Source} on its topics, and to make its senders. */
     static final String SOURCES = "dev.vexelray.framework.shell.Sources";
+    /** What the generated wiring calls to put a {@code @Destination} on its topics, a connection per key. */
+    static final String DESTINATIONS = "dev.vexelray.framework.shell.Destinations";
     /** A component's inbox on the logic lane: a component takes one in its constructor, and nothing else may. */
     static final String INBOX = "sibarum.atchung.Inbox";
     /** What the generated wiring calls to put a component on the logic lane: its inbox, mailboxes and senders. */

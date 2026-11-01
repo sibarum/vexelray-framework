@@ -151,6 +151,54 @@ final class Channels {
         }
     }
 
+    /**
+     * One declared {@code @Destination} ({@code docs/components.md}, section 12): its {@code open}, the connection it
+     * returns, the request it takes ({@code null} for one connection opened at start), its {@code write} methods and
+     * {@code close}, and, when it is also a source, its {@code run} and the reply that names why a run ended.
+     */
+    record DestinationChannel(TypeElement part, ExecutableElement open, TypeMirror connection, TypeMirror request,
+                              List<ExecutableElement> writes, ExecutableElement close, ExecutableElement run,
+                              TypeMirror replyType) {
+
+        String name() {
+            return part.getQualifiedName().toString();
+        }
+
+        /** What {@code write} hears: its second parameter. */
+        static TypeMirror message(ExecutableElement write) {
+            return write.getParameters().get(1).asType();
+        }
+    }
+
+    /** A destination's channels, or {@code null} when its shape is wrong (already reported by {@code Declarations}). */
+    DestinationChannel destination(TypeElement part) {
+        Declarations.Shape s = Declarations.destinationShape(part);
+        if (s.opens().size() != 1 || s.closes().size() != 1 || s.writes().isEmpty()) {
+            return null;
+        }
+        ExecutableElement open = s.opens().get(0);
+        if (open.getParameters().size() > 1 || open.getReturnType().getKind() != TypeKind.DECLARED) {
+            return null;
+        }
+        for (ExecutableElement w : s.writes()) {
+            if (w.getParameters().size() != 2
+                    || !w.getParameters().get(0).asType().toString().equals(open.getReturnType().toString())) {
+                return null;
+            }
+        }
+        TypeMirror request = open.getParameters().isEmpty() ? null : open.getParameters().get(0).asType();
+        ExecutableElement run = null;
+        if (mirrors.has(part, dev.vexelray.framework.api.Source.class)) {
+            if (s.runs().size() != 1 || s.runs().get(0).getParameters().size() != 2 || request == null
+                    || s.runs().get(0).getReturnType().getKind() == TypeKind.VOID) {
+                return null;
+            }
+            run = s.runs().get(0);
+        }
+        return new DestinationChannel(part, open, open.getReturnType(), request, List.copyOf(s.writes()),
+                s.closes().get(0), run, run == null ? null : run.getReturnType());
+    }
+
     /** A job's channels, or {@code null} when its shape is wrong (already reported by {@code Declarations}). */
     JobChannel job(TypeElement job) {
         ExecutableElement run = Declarations.run(job);
@@ -224,7 +272,13 @@ final class Channels {
                 }
             }
         }
-        jobs(graph.jobsSeen(), heard, application);
+        List<TypeElement> jobs = new ArrayList<>();
+        List<TypeElement> destinations = new ArrayList<>();
+        for (TypeElement j : graph.jobsSeen()) {
+            (graph.isDestination(j) ? destinations : jobs).add(j);
+        }
+        writes(destinations, heard);
+        destinations(destinations, heard, jobs(jobs, heard, application), application);
         closes(closeHearers, sent, application);
     }
 
@@ -345,8 +399,8 @@ final class Channels {
      * A job's two channels against everything else declared: each is declared (T4.1), one job takes each request type,
      * and, in an application, somebody hears the reply.
      */
-    private void jobs(List<TypeElement> declared, Set<String> heard, boolean application) {
-        Map<String, JobChannel> byRequest = new LinkedHashMap<>();
+    private Map<String, TypeElement> jobs(List<TypeElement> declared, Set<String> heard, boolean application) {
+        Map<String, TypeElement> byRequest = new LinkedHashMap<>();
         for (TypeElement j : declared) {
             JobChannel job = job(j);
             if (job == null || !plain(job.request())) {
@@ -358,10 +412,10 @@ final class Channels {
             }
             declared(job.run(), job.request(), kind + " " + Mirrors.simple(j) + " takes "
                     + Mirrors.simple(Mirrors.element(job.request())), null);
-            JobChannel first = byRequest.putIfAbsent(Topics.name(job.request()), job);
+            TypeElement first = byRequest.putIfAbsent(Topics.name(job.request()), j);
             if (first != null) {
-                error(j, kind + " " + Mirrors.simple(j) + " and " + kind(first.job()) + " "
-                        + Mirrors.simple(first.job()) + " both take " + Mirrors.simple(Mirrors.element(job.request()))
+                error(j, kind + " " + Mirrors.simple(j) + " and " + kind(first) + " "
+                        + Mirrors.simple(first) + " both take " + Mirrors.simple(Mirrors.element(job.request()))
                         + ". A request is answered once: give each a request of its own");
             }
             if (job.replyType() == null || !plain(job.replyType())) {
@@ -377,29 +431,94 @@ final class Channels {
                         ? ", or make the job void if it is run for its effect" : ""));
             }
         }
-    }
-
-    private String kind(TypeElement part) {
-        return mirrors.has(part, dev.vexelray.framework.api.Source.class) ? "@Source" : "@Job";
+        return byRequest;
     }
 
     /**
-     * A source's stop message, the type {@code @Source(stop = ...)} names, or {@code null} for none ({@code void.class},
-     * the default).
+     * What each destination writes is heard: declared (T4.1), and counted as heard, so a reply or a send it takes is
+     * not talking to nobody. Before {@link #jobs}, whose replies a destination may be what hears.
      */
-    TypeMirror stopType(TypeElement source) {
-        AnnotationMirror annotation = mirrors.find(source, dev.vexelray.framework.api.Source.class);
-        Object stop = annotation == null ? null : mirrors.value(annotation, "stop");
-        return stop instanceof TypeMirror type && type.getKind() != javax.lang.model.type.TypeKind.VOID ? type : null;
+    private void writes(List<TypeElement> destinations, Set<String> heard) {
+        for (TypeElement d : destinations) {
+            DestinationChannel channel = destination(d);
+            if (channel == null) {
+                continue;
+            }
+            for (ExecutableElement w : channel.writes()) {
+                TypeMirror message = DestinationChannel.message(w);
+                if (plain(message) && Shareable.crossing(message) == null) {
+                    declared(w, message, "@Destination " + Mirrors.simple(d) + " writes "
+                            + Mirrors.simple(Mirrors.element(message)), null);
+                    heard.add(Topics.name(message));
+                }
+            }
+        }
     }
 
-    /** A source's stop message is a channel like any (T4.1), and crosses from its sender's lane to whoever stops. */
+    /**
+     * A destination's request, reply and stop against everything else declared, as a job's and a source's are: each is
+     * declared (T4.1), one part takes each request type, and, in an application, somebody hears the reply.
+     */
+    private void destinations(List<TypeElement> destinations, Set<String> heard, Map<String, TypeElement> byRequest,
+                              boolean application) {
+        for (TypeElement d : destinations) {
+            DestinationChannel channel = destination(d);
+            if (channel == null) {
+                continue;
+            }
+            stop(d);
+            String name = "@Destination " + Mirrors.simple(d);
+            if (channel.request() != null && plain(channel.request())) {
+                declared(channel.open(), channel.request(), name + " takes "
+                        + Mirrors.simple(Mirrors.element(channel.request())), null);
+                TypeElement first = byRequest.putIfAbsent(Topics.name(channel.request()), d);
+                if (first != null) {
+                    error(d, name + " and " + kind(first) + " " + Mirrors.simple(first) + " both take "
+                            + Mirrors.simple(Mirrors.element(channel.request()))
+                            + ". A request is answered once: give each a request of its own");
+                }
+            }
+            if (channel.replyType() == null || !plain(channel.replyType())) {
+                continue;
+            }
+            declared(channel.run(), channel.replyType(), name + " answers "
+                    + Mirrors.simple(Mirrors.element(channel.replyType())), null);
+            if (application && !heard.contains(Topics.name(channel.replyType()))) {
+                error(channel.run(), name + " answers with " + Mirrors.simple(Mirrors.element(channel.replyType()))
+                        + ", and no component hears it. A reply nobody hears is a lost result, which this framework"
+                        + " refuses as it refuses a full mailbox: subscribe to it");
+            }
+        }
+    }
+
+    private String kind(TypeElement part) {
+        return mirrors.has(part, dev.vexelray.framework.api.Destination.class) ? "@Destination"
+                : mirrors.has(part, dev.vexelray.framework.api.Source.class) ? "@Source" : "@Job";
+    }
+
+    /**
+     * A part's stop message, the type {@code @Source(stop = ...)} or {@code @Destination(stop = ...)} names, or
+     * {@code null} for none ({@code void.class}, the default).
+     */
+    TypeMirror stopType(TypeElement part) {
+        for (Class<? extends java.lang.annotation.Annotation> kind : List.of(dev.vexelray.framework.api.Source.class,
+                dev.vexelray.framework.api.Destination.class)) {
+            AnnotationMirror annotation = mirrors.find(part, kind);
+            Object stop = annotation == null ? null : mirrors.value(annotation, "stop");
+            if (stop instanceof TypeMirror type && type.getKind() != javax.lang.model.type.TypeKind.VOID) {
+                return type;
+            }
+        }
+        return null;
+    }
+
+    /** A part's stop message is a channel like any (T4.1), and crosses from its sender's lane to whoever stops. */
     private void stop(TypeElement source) {
         TypeMirror stop = stopType(source);
         if (stop == null) {
             return;
         }
-        String what = "@Source " + Mirrors.simple(source) + " is stopped by "
+        String what = kind(source) + " " + Mirrors.simple(source) + " is stopped by "
                 + (Mirrors.element(stop) != null ? Mirrors.simple(Mirrors.element(stop)) : stop.toString());
         if (!plain(stop)) {
             error(source, what + ", which cannot name a channel. A message is a class or interface with no type"
@@ -497,10 +616,17 @@ final class Channels {
         // A job answers on its reply's channel, so it is a sender the Inspector draws. Where its requests arrive has no
         // line in version 1 of the text: a mailbox there is a component's, drained on a lane, and a job has neither.
         for (TypeElement j : jobs) {
-            JobChannel job = job(j);
+            JobChannel job = graph.isDestination(j) ? null : job(j);
             if (job != null && job.replyType() != null && plain(job.replyType())) {
                 others.add("publisher " + job.name() + " lane=-");
                 sends.add("publishes " + job.name() + " topic=" + Topics.name(job.replyType()));
+            }
+            // A destination that reads answers as a source does; what it writes has no line, as a job's requests have
+            // none.
+            DestinationChannel d = graph.isDestination(j) ? destination(j) : null;
+            if (d != null && d.replyType() != null && plain(d.replyType())) {
+                others.add("publisher " + d.name() + " lane=-");
+                sends.add("publishes " + d.name() + " topic=" + Topics.name(d.replyType()));
             }
         }
         Collections.sort(chips);

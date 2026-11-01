@@ -457,6 +457,77 @@ one part, job or source, per request topic; and nothing holds a source.
 5. **The framework's own sources.** `Timer`, the automation sockets and tactroller's message pump are sources in
    all but name. Whether they become sources is decided after the first application one is built, not before.
 
+### 12. Destinations: what writes outside, and a source that is one too (ruled 2026-11-01)
+
+**Found porting MainFrame:** a terminal goes both ways. Its shell's output is a source's run, and the pseudo-terminal
+it reads is local to that run, so the keys typed into the tab and the size it is laid out at had no way to reach the
+pseudo-terminal: a source hears nothing but its request. A socket, a serial port and a child process's pipes are the
+same: one connection, read and written.
+
+**Ruled by the author 2026-11-01: a `@Destination` is a kind of part, the mirror of a source, and a part may be both.**
+A destination takes messages and writes them outside the application: a pseudo-terminal's input, a socket's sending
+half, a log file, a recording. Any application may declare one, as it declares a job or a source, listed with
+`@Configuration(destinations = ...)` when another module compiles it. *Rejected:* a service of the application's own
+holding the open connections by key, which a source fills and a job writes through. It needs no framework, and it is
+state shared between threads in application code, which is what 0.2 removes.
+
+**The shape: the framework holds the connection, and hands it to each half.**
+
+```java
+@Source(stop = CloseShell.class) @Destination
+public final class Shell {
+    private final Sender<Output> output;
+    public Shell(Sender<Output> output) { this.output = output; }
+
+    public Pty open(OpenShell request) { ... }               // the connection, made on the key's writer thread
+    public ShellEnded run(OpenShell request, Pty pty) { ... } // the source half: reads, and sends as it goes
+    public void write(Pty pty, Typed typed) { ... }          // the destination half, one method per message heard
+    public void write(Pty pty, Resized resized) { ... }
+    public void close(Pty pty) { ... }                       // once, after both halves are done with it
+}
+```
+
+- **The connection is a value the framework keeps per key**, never a field, so a destination's fields are final as a
+  job's are and nothing new is checked. It never crosses a lane: it is made, used and closed by the part's own
+  methods, so it need not be shareable.
+- **`open` makes it.** With the request as its one parameter, one connection per key of the request's topic, as a
+  source has one run per key; a request for a key already open stops that one first, and the new one opens once it is
+  closed. With no parameter, one connection, opened when the application starts (after `ATTACH`, as a part's
+  constructor runs before it) and closed at shutdown (after the logic's last tick, as an `AutoCloseable` part is).
+  Opening may block, so it runs on the key's writer thread.
+- **`write` is the destination half**: one method per message type it hears, the connection first. Each heard type
+  has a declared topic, and on a keyed connection a message goes to the connection its topic's key names; on an
+  unkeyed one, to the one there is. Every message, in the order sent, on the key's writer thread, which is a thread
+  of its own (`vexel-destination-<name>`) because a write may block: a pipe whose program reads nothing fills, and
+  waits. Messages for a key whose connection is still opening wait for it. One for a key with no connection is
+  dropped and counted, as a widget message for an address nobody answers to is. **T5.8 gains a third place that
+  may block**, a destination's write, beside a job and a source's read.
+- **`run` is the source half**, present when the part is also a `@Source`: it takes the request and the connection,
+  sends as it goes, and returns why it ended, published as a source's reply is. A run that returns stops the key, so
+  its connection is closed and its writes end.
+- **`close` ends it**, once per connection, after the run is interrupted (or has returned) and the writer has
+  stopped, on whichever thread stopped it. A stop message (`@Source(stop = ...)`, or `@Destination(stop = ...)` for a
+  destination that is not a source) stops the key. Closing is what ends a read that ignores an interrupt, so a part
+  with a connection needs no `Closer`.
+- **Backpressure: nothing in the framework**, as for a source (section 11, question 1). A destination's writes are
+  heard inline and queued for its writer; one that cannot keep up grows its queue.
+- **Failure:** as a job's. What escapes `open`, `write`, `run` or `close` goes to the process-wide fault policy, which
+  halts, except once the part is stopping for shutdown. An expected failure is the run's reply, or for a destination
+  with no run, nothing: a write that cannot land is the connection's to report through what it reads.
+
+**What the processor checks**, from declarations, as for a job or a source: a final class, one constructor, final
+fields (senders only if it is also a source); exactly one `open`, taking nothing or one request, returning the
+connection; at least one `write`, each `void`, taking the connection and one message whose type is shareable and has a
+declared topic; exactly one `close`, `void`, taking the connection; with `@Source`, a `run` taking the request and the
+connection and returning a reply (no `Closer`), and `open` taking that request; no `throws` anywhere; no `@Subscribe`
+and no `Inbox`; nothing holds one. The messages a destination writes count as heard, so a sender of them is not
+talking to nobody.
+
+**Where it is built:** `@Destination` and `@Configuration(destinations = ...)` in `-api`; `Destinations` in `-shell`
+(the connections, by key, with their writers and runs); the processor's `Declarations.destination`, `Graph`'s
+destinations, `Channels.destination` and the generator's call. Held by `DestinationsTest` and `VexelProcessorTest`'s
+destination cases.
+
 ## Build order once the rulings are taken
 
 Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) orders the whole.

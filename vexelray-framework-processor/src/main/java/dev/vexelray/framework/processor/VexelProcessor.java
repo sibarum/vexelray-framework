@@ -12,6 +12,7 @@ import dev.vexelray.framework.api.OnMode;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.Publishes;
 import dev.vexelray.framework.api.Setting;
+import dev.vexelray.framework.api.Destination;
 import dev.vexelray.framework.api.Source;
 import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.api.VexelApp;
@@ -87,7 +88,8 @@ public final class VexelProcessor extends AbstractProcessor {
     private static final List<Class<? extends Annotation>> VOCABULARY = List.of(
             VexelApp.class, Component.class, Configuration.class, Provides.class, Default.class,
             MainThread.class, Setting.class, BeforeFrame.class, OnMode.class, ConditionalOnType.class,
-            Subscribe.class, Publishes.class, Job.class, Source.class, View.class, Hears.class, Draw.class);
+            Subscribe.class, Publishes.class, Job.class, Source.class, Destination.class, View.class, Hears.class,
+            Draw.class);
 
     private Mirrors mirrors;
     private Declarations declarations;
@@ -156,6 +158,9 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(Source.class)) {
             source((TypeElement) e);
+        }
+        for (Element e : round.getElementsAnnotatedWith(Destination.class)) {
+            destination((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Configuration.class)) {
             declarations.configuration((TypeElement) e);
@@ -257,6 +262,12 @@ public final class VexelProcessor extends AbstractProcessor {
                 source(s);
             }
         }
+        for (TypeMirror type : mirrors.types(mirror, "destinations")) {
+            TypeElement d = Mirrors.element(type);
+            if (d != null && mirrors.has(d, Destination.class)) {
+                destination(d);
+            }
+        }
     }
 
     /** Read a component once; whether this was the first time. */
@@ -278,9 +289,21 @@ public final class VexelProcessor extends AbstractProcessor {
 
     /** A source is read as a job is, and marked as one: see {@code Graph.source}. */
     private void source(TypeElement type) {
+        if (mirrors.has(type, Destination.class)) {
+            destination(type);
+            return;
+        }
         if (parts.add(type)) {
             declarations.source(type);
             graph.source(type);
+        }
+    }
+
+    /** A destination is read as a job is, and marked as one, a source too when it is both: see {@code Graph.destination}. */
+    private void destination(TypeElement type) {
+        if (parts.add(type)) {
+            declarations.destination(type);
+            graph.destination(type);
         }
     }
 
