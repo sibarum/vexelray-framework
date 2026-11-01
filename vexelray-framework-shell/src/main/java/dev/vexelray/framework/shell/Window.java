@@ -10,6 +10,7 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.core.app.WindowSpec;
 import dev.vexelray.gui.core.edit.History;
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
 import dev.vexelray.os.WindowConfig;
@@ -88,7 +89,10 @@ public final class Window {
         gui.history(history);
         UndoFeedback.install(gui, shell);
         // Motion for the whole window, on the application's one clock, so a second window moves exactly as the main
-        // one does rather than not at all. See WindowMotion.
+        // one does rather than not at all. See WindowMotion. The tree's clock too, which runs every Tween and Timing in
+        // it: KronoGui installed it in the main window's tree only, and without one a named window's tween landed at
+        // once (the About window's intro never played).
+        Seams.of(gui).clock(Seams.of(shell.gui()).clock());
         WindowMotion.install(gui, shell.krono());
     }
 

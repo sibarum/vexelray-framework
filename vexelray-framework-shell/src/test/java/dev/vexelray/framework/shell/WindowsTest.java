@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -141,6 +142,15 @@ final class WindowsTest {
                 NamedWindow.of("system", "System", 300, 200));
         IllegalStateException e = assertThrows(IllegalStateException.class, system::titleBar);
         assertTrue(e.getMessage().contains("SYSTEM"), e.getMessage());
+    }
+
+    @Test
+    void itRunsOnTheApplicationsClock() {
+        Window w = declare(Appearance.DEFAULT, NamedWindow.of("tool", "Tool", 300, 200));
+        // Without a clock a Tween lands at once: the About window's intro was one frame at its end.
+        assertNotNull(Seams.of(shell.gui()).clock());
+        assertSame(Seams.of(shell.gui()).clock(), Seams.of(w.gui()).clock(),
+                "a second window's tree has no clock, so every Tween and Timing in it lands at once");
     }
 
     @Test
