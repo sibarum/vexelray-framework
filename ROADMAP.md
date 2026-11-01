@@ -379,7 +379,7 @@ Each phase ends with its repos building and its tests green. The apps are not bu
   them into `v0.2` before phase 3. They are the right first step, and the redesign builds on them rather than
   redoing them. `vexelray-gui` also has six uncommitted files there; the same applies.
 * **Added 2026-10-29: `vexelray-codec`**, cloned beside the others on a `v0.2` branch from `develop` (`4940a1e`), at
-  `0.2.0-SNAPSHOT` for the same reason (Pix and Vexplore build against its `0.1.3-SNAPSHOT`). Its stack properties
+  `0.2.0-SNAPSHOT` for the same reason (Rasterware and Vexplore build against its `0.1.3-SNAPSHOT`). Its stack properties
   are spelled with dots (`vexelray.gui.version`), unlike the apps'. Here so it compiles against every change to
   `Seams` as a widget library outside vexelray-gui, and because the frame contract's codec step lands in it. See
   phase 8.
@@ -1313,7 +1313,7 @@ restated in `docs/threading.md`, all owed. Built before the Inspector's R1 needs
   form here yet: the row menu (`ListView.onContextMenu`) and drag and drop onto its own file list
   (`ListView.draggable`/`droppable`), which makes it the witness for a declared drop zone.
 * **vexelray-codec and vex-suite-common** are libraries this list missed, and both stand between the stack and two
-  of its applications. They come after the framework in `bootstrap.sh` order and before Vexplore and Pix. **The codec
+  of its applications. They come after the framework in `bootstrap.sh` order and before Vexplore and Rasterware. **The codec
   is on `v0.2` beside the other clones since 2026-10-29** (phase 0): its five call sites are fixed (`onResize` on `Seams`,
   `gui.input()`, and a movie opened on a thread of its own, as its decoders are), its 194 tests pass, and it is
   installed at `0.2.0-SNAPSHOT`. Still owed: its players take a `KronoGui` an application can no longer be given, so
@@ -1321,15 +1321,15 @@ restated in `docs/threading.md`, all owed. Built before the Inspector's R1 needs
   compile until it ports with the frame contract. Every moving picture in it (an
   animated image, a video, the viewer's inertia) is paced by `KronoGui`, which step 18 took from applications, and
   0.2 has no form yet for code that runs every frame while a video plays. **The codec's player is the witness for
-  it.** vex-suite-common's viewer (`PictureViewer` and its `Tile`s) is shared by Vexplore and Pix, so it is ported
+  it.** vex-suite-common's viewer (`PictureViewer` and its `Tile`s) is shared by Vexplore and Rasterware, so it is ported
   once for both. The codec's views and the suite's viewer are **widget libraries** (ruled 2026-10-29: they use `Seams`
   and publish what happened). How a video is paced is **proposed** in
   [vexelray-gui's frame-contract.md](../vexelray-gui/docs/plans/frame-contract.md): drawing, presentation and
   pacing as one contract, a part told by declared steps and asked by a declared, checked draw at the present time,
   picking a video's frame from a feed of stamped slots. *Inventoried
-  2026-10-29* in [Pix's port inventory](../Pix/docs/framework-notes.md#the-v02-port-inventory), checked by
+  2026-10-29* in [Rasterware's port inventory](../Pix/docs/framework-notes.md#the-v02-port-inventory), checked by
   compiling copies of all three against this branch.
-* **Pix**, added 2026-10-29, after Vexplore, since both stand on the suite's viewer. Its own code is the smallest
+* **Rasterware**, added 2026-10-29, after Vexplore, since both stand on the suite's viewer. Its own code is the smallest
   part of its port. The one new shape is its picture reader: deliberately one worker with one slot, so holding an
   arrow key decodes only the picture it stops on. In 0.2 that is a ledger that sends one job request at a time, which
   no application has done yet.

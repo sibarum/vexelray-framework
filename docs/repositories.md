@@ -42,9 +42,9 @@ These belong to the suite's own applications. You do not need them to build one 
 
 | Repository | What it is |
 | --- | --- |
-| [`vex-suite-common`](https://github.com/sibarum/vex-suite-common) | What the suite's applications share: Vexplore's and Pix's viewer, for pictures and video, VexelRay IDE's and MainFrame's terminal |
+| [`vex-suite-common`](https://github.com/sibarum/vex-suite-common) | What the suite's applications share: Vexplore's and Rasterware's viewer, for pictures and video, VexelRay IDE's and MainFrame's terminal |
 | [`cott-engine`](https://github.com/sibarum/cott-engine) | The Calculator's number model, which divides by zero |
 | [`cardinal`](https://github.com/sibarum/cardinal) and [`concordance-indexer`](https://github.com/sibarum/concordance-indexer) | VexelRay IDE's source index: queries over Java that go beyond text search |
 | [`vexelray-icons`](https://github.com/sibarum/vexelray-icons) | The source art of the suite's icons. `vexelray-gui` carries a copy, so it builds without this |
 | [`vexelray-dist`](https://github.com/sibarum/vexelray-dist) | How the suite's applications are built, released and installed |
-| The applications | [Vexplore](https://github.com/sibarum/vexplore), [VexelRay IDE](https://github.com/sibarum/text-editor-vexel-demo), [Pix](https://github.com/sibarum/Pix), [MainFrame](https://github.com/sibarum/mainframe), [Calculator](https://github.com/sibarum/calculator-vexel-demo), [Maistro](https://github.com/sibarum/vexelray-maistro), and the simulations. Each is a worked example of something larger than the template, and worth reading |
+| The applications | [Vexplore](https://github.com/sibarum/vexplore), [VexelRay IDE](https://github.com/sibarum/text-editor-vexel-demo), [Rasterware](https://github.com/sibarum/Pix), [MainFrame](https://github.com/sibarum/mainframe), [Calculator](https://github.com/sibarum/calculator-vexel-demo), [Maistro](https://github.com/sibarum/vexelray-maistro), and the simulations. Each is a worked example of something larger than the template, and worth reading |

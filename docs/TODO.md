@@ -337,19 +337,19 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       narrower accessor, and not the `GuiApp`.
 
       **Ruled 2026-10-11: `app()` stays, as the device and not the windows.** Reason: the same census found every
-      remaining use of `GuiApp` is the device or a dialog — Pix's and Vexplore's textures, the fluid and rigid
-      simulators' viewports and compute, and the dialogs of the text editor, Vexplore and Pix — and none is window
+      remaining use of `GuiApp` is the device or a dialog — Rasterware's and Vexplore's textures, the fluid and rigid
+      simulators' viewports and compute, and the dialogs of the text editor, Vexplore and Rasterware — and none is window
       management, which is all `Windows` now covers. The device is the main thread's by rule, so a recipe taking it
       is `@MainThread` correctly, and a narrower type for it would be the same boundary under another name. The
       dialogs are the `Window` seam entry's own bullet and move off it there. They have (`Dialogs`, the same day),
-      and so has the one window-management use the census missed (Pix's viewer closing the main window, now
+      and so has the one window-management use the census missed (Rasterware's viewer closing the main window, now
       `windows.main().close()`), so what is left behind the `GuiApp` is the device and nothing else: textures,
       viewports and compute.
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and for a while left one generated counter-style
       application validating everything. (Since then the template writes a text editor, and VexelRay IDE, the calculator,
-      Vexplore, Pix and the simulation demos are generated from it; their findings are below. Most are
+      Vexplore, Rasterware and the simulation demos are generated from it; their findings are below. Most are
       one-window-plus-dialogs desktop applications; the calculator's settings and Vexplore's viewer are each one
       second window, and W1 is the one with several.) *One component is not a census* applies to the framework itself.
       Wants two or three generated applications that differ where it matters — several windows on one
@@ -444,7 +444,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       - **`Dialogs`**, a root from `CONFIG`: a `Modal`, and NFD's open, folder and save pickers, parented to the
         main window and answered on the handler lane. A question asked before there is a window is held and asked
         once there is; a `@Provides Dialogs` (or `shell.dialogs(...)` by `WINDOW`) replaces the framework's, which
-        is how a test answers. The text editor's `NativeDialogs`, Vexplore's `Chooser` and Pix's `Opener` were
+        is how a test answers. The text editor's `NativeDialogs`, Vexplore's `Chooser` and Rasterware's `Opener` were
         three copies of one class, each taking the `GuiApp`, and are gone (Vex FN-6's dialog half, FN-7).
         `Modals` stays a static, for MainFrame, which is hand-wired.
       - **`Window.onClose(CloseGate)`**, a close gate on any window, the main one included: two callbacks rather
@@ -633,7 +633,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         holds `Recorder` and `WindowVideoRecorder`. The template and every generated application depend on it, so
         every camera records. `bootstrap.sh` now installs ffmpeg-wrapper (building the encoder, which on Windows needs
         MSYS2) and vexelray-codec. A native image finds the encoder only in an `ffmpeg-record` folder beside its
-        executable, so every native build (the template's too) stages one there as Pix stages `ffmpeg`
+        executable, so every native build (the template's too) stages one there as Rasterware stages `ffmpeg`
         (`ffmpeg-record-beside`, `ffmpeg-record-zip`, and `ffmpeg-record-tar` in `native-linux`), every
         `installer.json` installs it as `<id>-ffmpeg-record`, and `vexelray-dist/notices/notices.py` points every
         app's notices at FFmpeg's and SVT-AV1's licences and patent licence in that folder. Checked on the
@@ -1006,13 +1006,13 @@ blocks v1, and one thing worked better than expected: the processor's compile er
       only from `WINDOW`, and a part taking `GuiApp` is itself `@MainThread` and pulls everything that takes it into
       the window's phase, so a headless capture can no longer build the tree. The way through is the README's
       clipboard shape: a tree-phase object, plus a `@MainThread @Provides AutoCloseable` that binds it to the device
-      and un-binds on close (Vexplore's and Pix's `windowBinding`). It is right and roundabout; a provider that runs
+      and un-binds on close (Vexplore's and Rasterware's `windowBinding`). It is right and roundabout; a provider that runs
       *when the window exists* and returns nothing the container needs to hold would say it in one line. Narrower
       than it was: the folder dialog it was found with (Vexplore's `Chooser`) is the framework's `Dialogs` since
       2026-10-11, which hold a question until there is a window, so only the device is left late-bound.
       **Narrower again, 2026-10-24:** a `@Provides` may return `void` now, so a `@MainThread` recipe that binds a
       tree-phase part to the device is one method with no marker. What is left is an effect that has to be undone at
-      close: it still returns an `AutoCloseable`, and two of those are two providers of one type, which Pix had to merge
+      close: it still returns an `AutoCloseable`, and two of those are two providers of one type, which Rasterware had to merge
       into one.
 
 - [ ] **`settle` does not wait for the handler and offload lanes.** The rest of this entry landed in

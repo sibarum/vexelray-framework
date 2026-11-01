@@ -1,19 +1,19 @@
-# Pix
+# Rasterware
 
 **Pictures, animations and video: one at a time, as large as the window allows, and the rest of the folder a key
 press away.**
 
-Open a picture or a video and Pix shows it whole, with the folder it is in one key away. A picture is never
+Open a picture or a video and Rasterware shows it whole, with the folder it is in one key away. A picture is never
 enlarged past its own pixels; a video fills the window, as players show it. The controls float over it and fade
 when the pointer rests.
 
-![Pix: a picture, and under it the file's name, the filmstrip of its neighbours, and the controls](img/pix-viewer.png)
+![Rasterware: a picture, and under it the file's name, the filmstrip of its neighbours, and the controls](img/pix-viewer.png)
 
 ## Opening one
 
 - **Ctrl+O**, or a click on the name, opens a picture or a video, and its folder comes with it.
 - **Ctrl+Shift+O** opens a folder on its first one.
-- Both use the system's own dialogs, starting in the folder that is open. Started with nothing, Pix shows the
+- Both use the system's own dialogs, starting in the folder that is open. Started with nothing, Rasterware shows the
   first image in your Pictures folder.
 
 ## Video
@@ -30,7 +30,7 @@ under its name (*H.264 video · 1920 × 1080 · 0:42*), and play as soon as they
   The volume and the mute are kept from one video to the next, and between runs.
 - **The seek bar shows the frame under the pointer**, with its time, before you click. Those frames come from a
   second, small decode of the file, so looking never disturbs what is playing.
-- A video pauses where it is while Pix is not the window in front, and plays on when it is again.
+- A video pauses where it is while Rasterware is not the window in front, and plays on when it is again.
 - **An animated GIF, WebP or APNG plays the same way**, with the same transport and keys, however long or large.
 
 ## Built to play smoothly
@@ -76,12 +76,12 @@ file that will not open says why in place of the picture. Nothing in a file is e
 
 ## With the rest of the suite
 
-Open a picture or a video in [Vexplore](vexplore.md) and it goes to Pix. Without Pix, Vexplore shows it in a viewer
+Open a picture or a video in [Vexplore](vexplore.md) and it goes to Rasterware. Without Rasterware, Vexplore shows it in a viewer
 of its own, which is the same viewer. `pix <file>` opens a file and `pix <folder>` the first one in a folder.
 
 ## Status
 
-Pictures, animations and video, with sound, work on Windows and Linux. FFmpeg's libraries are installed beside Pix
-as separate files; without them Pix still shows pictures, and a video says its decoder is unavailable.
+Pictures, animations and video, with sound, work on Windows and Linux. FFmpeg's libraries are installed beside Rasterware
+as separate files; without them Rasterware still shows pictures, and a video says its decoder is unavailable.
 
 [Install the suite](../install/) · [Source](https://github.com/sibarum/Pix)

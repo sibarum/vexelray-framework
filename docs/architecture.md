@@ -1435,7 +1435,7 @@ a dialog (see the `Shell` surface ruling in TODO.md), and the dialogs went next.
 folder and save pickers. What a part is handed is the same value in every phase, and it holds a question until
 something can answer it — the framework's own from `ATTACH` (`Modals` and NFD, parented to the main window), or the
 application's, handed back through a `@Provides Dialogs`, which is how a test answers in a headless run. It replaced
-three copies of one class, the text editor's `NativeDialogs`, Vexplore's `Chooser` and Pix's `Opener`, each of which took
+three copies of one class, the text editor's `NativeDialogs`, Vexplore's `Chooser` and Rasterware's `Opener`, each of which took
 the `GuiApp` for a window handle it only passed along, and the `ask` fields the text editor and the template had grown
 so a test could answer (Vex FN-6). W1's fourth launch asks from `TREE`, before there is a window: the question comes
 up in a window of its own once there is one, Enter takes its default button and the count moves, and a second one,
@@ -1447,7 +1447,7 @@ callbacks, `proceed` and `cancel`, rather than gui-core's `CloseRequest`, which 
 the template and the text editor had each kept a `guardClose(Runnable, Runnable)` beneath the real gate so a test could
 call it (Vex FN-6's other half), and now that is the gate. `Shell.onClose` is deleted. W1's palette has a gate that
 asks through `Dialogs` before it closes: its own Close button brings the question up as a fourth window, Escape keeps
-the palette, and Enter lets it go. One window-management use of the `GuiApp` was left on the stack — Pix's viewer
+the palette, and Enter lets it go. One window-management use of the `GuiApp` was left on the stack — Rasterware's viewer
 closed the main window through `app.controls()` — and it is `windows.main().close()` now, so a close gate would be
 asked there too. Since then, the only uses of `GuiApp` left on the stack are the device.
 

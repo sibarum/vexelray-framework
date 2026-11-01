@@ -125,7 +125,7 @@ applications built on the stack and their installer.
 | --- | --- |
 | [Vexplore](docs/apps/vexplore.md) | A file explorer that suggests instead of asking, and where every action can be undone |
 | [VexelRay IDE](docs/apps/text-editor.md) | A tabbed text editor with a file navigator |
-| [Pix](docs/apps/pix.md) | An image viewer |
+| [Rasterware](docs/apps/pix.md) | An image viewer |
 | [Calculator](docs/apps/calculator.md) | A calculator and plotter |
 
 The fluid and rigid-body simulation demos are built on it too. The applications install together on Windows; see
