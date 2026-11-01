@@ -1,7 +1,8 @@
 # Making it move
 
 **Nothing on screen changes in one frame.** A colour fades, a moved node slides, an arriving node comes up from
-nothing, a leaving one goes down to nothing before it is removed, and changed words dip out and come back. This
+nothing, a leaving one goes down to nothing before it is removed, changed words and images crossfade, and anything
+clickable lifts under the pointer and shows a press. This
 page says which of those the framework does for you, which you write, and how to check them. It assumes you have
 read [Building a custom view](custom-view.md), and above all its rule: keep the nodes and change them. A node that
 is rebuilt cannot be animated, because the node that would move is not the one on screen.
@@ -17,6 +18,12 @@ README's *Motion* section is the short version of this page.
 | A cut-off name revealed (a tree row, a table cell) | `WindowMotion` sets `Unclip`'s motion | 150 ms, in-out cubic |
 | A node that layout moved: a row pushed down, a card reordered | `WindowMotion` attaches `Transitions`, enrolled over the whole tree | 180 ms, out cubic |
 | A node added, and a node removed | `WindowMotion` attaches `Presence` as the enter and exit motion, over the whole tree | 140 ms, out cubic, rising 0.35 em |
+| A node shown with `visible(true)` or hidden with `visible(false)` | The same `Presence`: hidden, it keeps its place and fades, then is hidden for real | 140 ms |
+| An opacity written to a node | `Fades`, as a fourth channel (`PaintMotion.Channel.OPACITY`) | 120 ms, linear |
+| A label's words replaced | `Fades` (`Channel.REPLACED`): the old words fade out under the new, and the box's size change slides | 120 ms, linear |
+| An image replaced (`Node.image`) | `Fades` (`Channel.REPLACED`): the new comes up over the old, which goes in the second half and is held until then | 120 ms |
+| An icon recoloured (`IconView.tint`) | `Fades`, on the text colour channel | 120 ms, linear |
+| The pointer over, or pressing, anything with a click handler painted in a `Role` | The framework shades it (`Role.at(state)`) unless it hears `NodeEvent.STATE` itself, as every widget does | 120 ms |
 | The focus ring moving to another control | `TactrollerInputBackend.pointerFeel`: `gui.focusFade` | 120 ms |
 | The mouse wheel | `TactrollerInputBackend.pointerFeel`: `gui.scrollGlide` | 45 ms half-life |
 | A shelf widget's own motion: `Tabs.slide`, `TreeView.motion`, `Cues` | Only when handed a `Timing`, run on the tree's clock that `KronoGui` installs. The template's `Motion.java` says the tempi | 160 ms, 240 ms for a cue |
@@ -27,10 +34,12 @@ seasickness: a resize or a zoom (the window moving under the user's hand), a nod
 by someone else's ramp (followed, not chased, after its first two frames), and the children of a container that says
 `childMotion(false)`. `ListView` (and so `Table` and `Select`) says it, because its rows are a view the user scrolls,
 and so do `TreeView` and `Board`, which move their own rows. Say it on a container of yours that animates its
-children itself, or whose children track something drawn. A node whose colour is data rather than state (a cell
-coloured by its value) says `paintCuts(true)`, and a colour an application ramps by hand, frame by frame, is followed
-rather than faded behind. A node shown again with `visible(true)` appears where it is; it does not slide from where
-it was hidden.
+children itself, or whose children track something drawn. A node whose look is data rather than state (a cell
+coloured by its value), or that the application animates itself (a picture it throws, a thumbnail sliding with a
+step), says `paintCuts(true)`: its colours, opacity, words, image and visibility then change at once. A look an
+application ramps by hand, frame by frame, is followed rather than faded behind, and so are words or an image replaced
+again while the last were still crossfading (a counter, a meter). A node shown again with `visible(true)` fades up
+where it is; it does not slide from where it was hidden.
 
 **A panel rebuilt whole is a replacement.** Removing everything a container holds and appending new nodes is the
 commonest way to redraw one, and the framework treats it as a replacement: the old children are lifted out of the
@@ -112,18 +121,11 @@ squeezed and grow a scrollbar for a frame (the Scheduler's FN-5).
 
 ## Text
 
-`Fades` blends a text colour, not the text. Changed words are drawn in one frame. The Scheduler's `Motion.Label`
-dips the node's opacity out, swaps the words, and brings it back. It can be interrupted. It is used for the day's
-name, the status line and button labels:
-
-```java
-Motion.Label count = motion.label(status.slot(Landmarks.STATUS_COUNT),
-        s -> status.text(Landmarks.STATUS_COUNT, s));
-count.set(n + " visits");          // the first set is at once; later ones dip
-```
-
-`TitleBar.title` is the one label this cannot reach, because the framework draws it. So keep in the title only
-words that do not change as the user works.
+Done for you, since 2026-11-01. A label's words replaced on screen crossfade: the old words fade out where they were
+in the box while the new fade in, and the box's change of size is a layout move, which slides. Nothing to call. A
+field's words are the user's and change at once; so do words replaced again before the last were all the way up,
+which is a readout being driven. The title bar's title is a label like any other. The Scheduler's `Motion.Label`
+predates this, and a new application should not copy it.
 
 ## Zoom
 
@@ -149,6 +151,12 @@ to scroll at the sizes you design for. Turn scrolling off and clip
 ([Building a custom view](custom-view.md#three-things-to-know-first)).
 
 ## Checking it
+
+**The cut watch fails a test on anything that changed in one frame.** `Cuts.watch(gui)` sees, frame by frame, a
+colour, an opacity, words or an image given anew and drawn at once, and a node appearing whole or gone without leaving.
+The template's `ViewTest` watches every test with it and fails on a cut, naming the node and what changed. A cut
+there means a node was rebuilt where it should have been changed, or something stepped round the framework: fix
+that, and never take the watch out. What follows is for looking at a transition itself.
 
 `settle` waits for the frame loop and then for the clock to go quiet, so a `shot` after it is the window at rest.
 That proves where things end up. It does not prove how they got there. A transition is over in a fifth of a
@@ -185,7 +193,6 @@ camera records as well as photographs*). Until it lands, the burst is the check,
 | The page wobbles at the start of something growing | A size animated frame by frame: the first two frames are chased | Take the full size at once, fade it in, let the rest slide |
 | A scrollbar flickers in mid-animation | Scrolling is on by default; something overflowed for a frame | `scroll(false, false).clip(true)` on that box |
 | An outgoing page is squeezed during a crossfade | A float is clamped inside its parent | The stage region fills its parent and has no padding |
-| Words change in one frame | `Fades` does not cover text | A `Label`: dip out, swap, dip in |
 | The view jumps to show something | `scrollIntoView` (and navigation) scroll at once | Do not reveal by scrolling |
 | Zoom keys re-lay the window in one frame | `zoomIn`/`zoomOut` step | Glide `Gui.zoom(float)` |
 | A slow-motion burst shows a step at full speed it does not have | The framework's ring and wheel are not slowed | Ignore those two; read your own transitions |
