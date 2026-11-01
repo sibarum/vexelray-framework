@@ -18,7 +18,7 @@ README's *Motion* section is the short version of this page.
 | A cut-off name revealed (a tree row, a table cell) | `WindowMotion` sets `Unclip`'s motion | 150 ms, in-out cubic |
 | A node that layout moved: a row pushed down, a card reordered | `WindowMotion` attaches `Transitions`, enrolled over the whole tree | 180 ms, out cubic |
 | A node added, and a node removed | `WindowMotion` attaches `Presence` as the enter and exit motion, over the whole tree | 140 ms, out cubic, rising 0.35 em |
-| A node shown with `visible(true)` or hidden with `visible(false)` | The same `Presence`: hidden, it keeps its place and fades, then is hidden for real | 140 ms |
+| A node shown with `visible(true)` or hidden with `visible(false)` | The same `Presence`: hidden, it keeps its place and fades, then is hidden for real; hidden as the sibling beside it is shown, it is swapped (below) | 140 ms |
 | An opacity written to a node | `Fades`, as a fourth channel (`PaintMotion.Channel.OPACITY`) | 120 ms, linear |
 | A label's words replaced | `Fades` (`Channel.REPLACED`): the old words fade out under the new, and the box's size change slides | 120 ms, linear |
 | An image replaced (`Node.image`) | `Fades` (`Channel.REPLACED`): the new comes up over the old, which goes in the second half and is held until then | 120 ms |
@@ -46,6 +46,13 @@ commonest way to redraw one, and the framework treats it as a replacement: the o
 flow and fade out where they stood, in half the time, and the new ones take their places and fade in after. No
 doubling, and no two pages seen through each other. A container that keeps any child is edited, not replaced: a
 removed row keeps its place while it fades, and then the gap closes.
+
+**One view shown in place of another is a swap.** Hiding a node as you show the sibling beside it (a hint that gives
+way to the tabs, the files that give way to a picker, a source that gives way to its formatted view) is the same
+replacement on a smaller scale, though the container keeps everything else: the shown one takes the whole place at
+once, and the hidden one fades out over it where it stood, then is hidden for real. Beside means next to it with
+nothing visible between; a hide and a show further apart are two edits. So keep both views and flip `visible`, rather
+than removing one and appending the other.
 
 **What default motion still asks of you: keep the nodes and change them.** A row that is rebuilt cannot slide to its
 new place, because the node that would move is not the one on screen. Draw a list with `Node.keyed` and it keeps,
