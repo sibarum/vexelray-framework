@@ -57,10 +57,10 @@
         <automation></automation>
 
         <!--
-          The probe, passed through by name as automation is, so "mvn exec:exec -Dprobe=all -Dprobe.format=csv"
-          records what it says. Before these were named here, a -Dprobe on the mvn line never reached the app, which
-          then recorded only what automation turns on (input, frame, layout, app) and said nothing of the rest. Blank,
-          as here, is unset: the probe falls back to the PROBE variables, then to what the mode records.
+          The probe, passed through by name as automation is, for a run nobody inspects: "mvn exec:exec -Dprobe=gpu"
+          records what it says. The Inspector needs neither: "-Dautomation=0" alone opens its socket and records
+          every lane, traced, whatever these say. Blank, as here, is unset: the probe falls back to the PROBE
+          variables, then to what the mode records.
         -->
         <probe></probe>
         <probe.format></probe.format>

@@ -205,6 +205,8 @@ log, the Inspector). Both are in every build, the release one too, and both star
   a free one).
 - **Switched on at launch**, for an agent that means to: `--automation=0` (both, on a free port),
   `--automation.control=<port>`, `--automation.diagnostics=<port>`, or `VEXELRAY_AUTOMATION=0` in the environment.
+  **The diagnostics socket is all the Inspector needs**: a run that opens it at launch records everything the
+  Inspector reads, whatever `-Dprobe` says, so there is nothing else to set.
 - **Not there at all**: `--automation.available=none` (or `control`, or `diagnostics`), or
   `VEXELRAY_AUTOMATION_AVAILABLE` in the environment. A socket that is not available cannot be switched on by
   anything, and with neither available the plug is gone.
