@@ -3,6 +3,7 @@ package dev.vexelray.framework.shell;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.core.WindowClosed;
 import dev.vexelray.framework.core.WindowCommand;
+import dev.vexelray.framework.core.WindowFullScreen;
 import dev.vexelray.framework.core.WindowOpened;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.AppWindow;
@@ -13,6 +14,7 @@ import dev.vexelray.gui.core.edit.History;
 import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
+import dev.vexelray.os.NativeWindow;
 import dev.vexelray.os.WindowConfig;
 
 /**
@@ -64,6 +66,8 @@ public final class Window {
     private Handle handle;
     /** Whether the window should be on screen once it is claimed: the commands given before it could be. */
     private boolean shown;
+    /** Full screen as the commands before the claim left it: null for none given, so the window opens as remembered. */
+    private Boolean fullScreen;
     /** Whether a close was asked for before the claim. Only the main window acts on it: see {@link #claimMain}. */
     private boolean closeAsked;
     /**
@@ -140,6 +144,11 @@ public final class Window {
         return shown;
     }
 
+    /** Full screen as the commands before the claim left it, or null for none given. Main thread; for a test. */
+    Boolean fullScreen() {
+        return fullScreen;
+    }
+
     /** Carry out {@code command}. Main thread. */
     void command(WindowCommand command) {
         command.to(commands);
@@ -172,6 +181,24 @@ public final class Window {
         @Override
         public void close() {
             Window.this.close();
+        }
+
+        @Override
+        public void fullScreen(boolean on) {
+            if (handle == null) {
+                fullScreen = on;
+            } else {
+                handle.fullScreen(on);
+            }
+        }
+
+        @Override
+        public void toggleFullScreen() {
+            if (handle == null) {
+                fullScreen = !Boolean.TRUE.equals(fullScreen);
+            } else {
+                handle.toggleFullScreen();
+            }
         }
     };
 
@@ -272,10 +299,23 @@ public final class Window {
             public void close() {
                 w.close();
             }
+
+            @Override
+            public void fullScreen(boolean on) {
+                app.post(() -> screen(w.window(), on));
+            }
+
+            @Override
+            public void toggleFullScreen() {
+                app.post(() -> screen(w.window(), null));
+            }
         };
         // A close asked for before now has nothing to close: the window was never open.
         if (shown) {
             handle.show();
+            if (fullScreen != null) {
+                handle.fullScreen(fullScreen);
+            }
         }
     }
 
@@ -316,13 +356,37 @@ public final class Window {
                 // The route the title bar's X takes, so the application is asked first.
                 app.post(() -> app.controls().close());
             }
+
+            @Override
+            public void fullScreen(boolean on) {
+                app.post(() -> screen(app.window(), on));
+            }
+
+            @Override
+            public void toggleFullScreen() {
+                app.post(() -> screen(app.window(), null));
+            }
         };
         shell.bus().publish(WindowOpened.TOPIC, new WindowOpened(key()));
         if (closeAsked) {
             handle.close();
         } else if (!shown) {
             handle.hide();
+        } else if (fullScreen != null) {
+            handle.fullScreen(fullScreen);
         }
+    }
+
+    /**
+     * Put {@code w} full screen ({@code on}), back to its window, or, with null, whichever it is not; and say what it is
+     * now. Main thread, between frames. A window not open has nothing to change, and nothing is said.
+     */
+    private void screen(NativeWindow w, Boolean on) {
+        if (w == null) {
+            return;
+        }
+        w.fullscreen(on == null ? !w.isFullscreen() : on);
+        shell.bus().publish(WindowFullScreen.TOPIC, new WindowFullScreen(key(), w.isFullscreen()));
     }
 
     /** The main window's loop has ended. Main thread, before anything is closed. */

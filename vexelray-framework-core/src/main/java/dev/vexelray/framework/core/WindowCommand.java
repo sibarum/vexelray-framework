@@ -5,7 +5,7 @@ import sibarum.atchung.Topic;
 
 /**
  * <b>Put a window in front of the person, or take it away</b>: what a part sends to open, hide or close one of the
- * application's windows, by its key. The framework carries it out on the main thread, in the main window's frame, and
+ * application's windows, or put it full screen and back, by its key. The framework carries it out on the main thread, in the main window's frame, and
  * says what happened with {@link WindowOpened} and {@link WindowClosed}.
  *
  * {@snippet :
@@ -47,6 +47,25 @@ public record WindowCommand(String window, Command command) {
         return new WindowCommand(window, Command.CLOSE);
     }
 
+    /**
+     * Put {@code window} full screen: borderless over its whole display, not a change of display mode, so switching
+     * away is instant. While it is, the window remembers the placement it will go back to, and that is the one
+     * remembered between runs. Said as {@link WindowFullScreen}.
+     */
+    public static WindowCommand fullScreen(String window) {
+        return new WindowCommand(window, Command.FULL_SCREEN);
+    }
+
+    /** Bring {@code window} back from full screen to the window it was, maximized if it was. */
+    public static WindowCommand windowed(String window) {
+        return new WindowCommand(window, Command.WINDOWED);
+    }
+
+    /** Full screen if {@code window} is not, the window it was if it is. */
+    public static WindowCommand toggleFullScreen(String window) {
+        return new WindowCommand(window, Command.TOGGLE_FULL_SCREEN);
+    }
+
     /** Hand this command to {@code sink}'s method for it. */
     public void to(Sink sink) {
         command.to(sink);
@@ -76,6 +95,24 @@ public record WindowCommand(String window, Command command) {
             void to(Sink sink) {
                 sink.close();
             }
+        },
+        FULL_SCREEN {
+            @Override
+            void to(Sink sink) {
+                sink.fullScreen(true);
+            }
+        },
+        WINDOWED {
+            @Override
+            void to(Sink sink) {
+                sink.fullScreen(false);
+            }
+        },
+        TOGGLE_FULL_SCREEN {
+            @Override
+            void to(Sink sink) {
+                sink.toggleFullScreen();
+            }
         };
 
         abstract void to(Sink sink);
@@ -91,5 +128,10 @@ public record WindowCommand(String window, Command command) {
         void toggle();
 
         void close();
+
+        /** Full screen, or back to the window it was. */
+        void fullScreen(boolean on);
+
+        void toggleFullScreen();
     }
 }

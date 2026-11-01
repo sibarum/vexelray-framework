@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -171,6 +172,22 @@ final class WindowsTest {
         VexelApplication.frame(shell);
         assertFalse(w.shown(), "a toggle before the claim flips what the claim will do");
         assertTrue(said.isEmpty(), "a window was said to open before there was a device to open it on");
+    }
+
+    @Test
+    void fullScreenBeforeTheWindowExistsIsWhatTheClaimDoes() {
+        Window w = declare(Appearance.DEFAULT, NamedWindow.of("screen", "Screen", 300, 200));
+        assertNull(w.fullScreen(), "with nothing asked the window opens as it was remembered");
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.toggleFullScreen("screen"));
+        VexelApplication.frame(shell);
+        assertEquals(Boolean.TRUE, w.fullScreen(), "a toggle from nothing asked is full screen");
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.toggleFullScreen("screen"));
+        VexelApplication.frame(shell);
+        assertEquals(Boolean.FALSE, w.fullScreen());
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.fullScreen("screen"));
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.windowed("screen"));
+        VexelApplication.frame(shell);
+        assertEquals(Boolean.FALSE, w.fullScreen(), "the last command is the one the claim carries out");
     }
 
     @Test
