@@ -1,7 +1,7 @@
 # Transactions and chains: a function sent to the state that runs it
 
 Status: **Direction ruled 2026-10-28; steps 2 to 5 built, and 6 for the controller (see *Order of work*).**
-**Proposed 2026-11-02, not ruled: waits that branch (ALL, ANY, NONE), near the end.** The
+**Proposed 2026-11-02, not ruled: chains as trees, with bounded waits (ALL, ANY, NONE), near the end.** The
 author's words first, then the rules settled in the same conversation, then the design, what it changes in the 0.2
 roadmap ([ROADMAP.md](../../ROADMAP.md)), the questions it leaves open, and the order of work. It builds on
 the 0.2 message model, on vexelray-gui's
@@ -300,109 +300,200 @@ Each step lands on its own and leaves the suites green.
    step of the view's. Undo of a close would need the view's tabs and texts restored with the editor's
    state, so it waits for the view's ledger too.
 
-## Proposed 2026-11-02: waits that branch, ALL, ANY and NONE
+## Proposed 2026-11-02: chains as trees, with bounded waits
 
-*Not ruled. Written at the author's ask, from a conversation the same day.*
+*Not ruled. Converged with the author over one conversation the same day; each proposed ruling below carries its
+reason, and the questions still open are at the end.*
+
+### Why
 
 **Found writing the template's first worked example** ([template-examples.md](template-examples.md), A8): "wait until
 the typing stops" cannot be written as a step. A held run resumes only when some message arrives, and nothing a step
 can reach sends one after a while has passed. `Timer` can, but it is an object a component holds and calls; the one
 use of it on 0.2 (the Inspector's `Bench`) starts a period in its constructor and never stops it. The one way with
 today's parts is a `@Job` that sleeps and replies, which holds an offload thread asleep per keystroke on a bounded
-lane, and cannot be cancelled. Search as you type, autosave after a pause, a timeout on a job's reply and a retry
-are all the same missing piece.
+lane and cannot be cancelled. Search as you type, autosave after a pause, a timeout on a job's reply and a retry are
+all the same missing piece.
 
-**The author's turn of it:** not a timer a step can ask for, but a chain whose waits are a tree. And not one kind of
-branch:
+**The second finding, the author's:** a run can stay open forever today, and nothing says so. A step that holds a run
+and is never resumed (the forgotten resume) answers no close gate and draws nothing wrong:
+
+> we need to ensure, also, that some timeout is configured at every link of a chain, otherwise a chain could stay
+> open forever. That's the same degree of failure as the window freezing. Sensible defaults. Can be overwritten
+> explicitly in the chain, also: it should be possible to unset a timeout too. I'm not trying to babysit the
+> developer, I'm trying to make the easiest implementation the one least likely to cause problems.
+
+**How it converged.** A timer a step could ask for came first, and was dropped for the author's *a tree rather than a
+chain*. Then not one kind of branch:
 
 > I don't think there would always be "one branch wins". I think that's just one of the kinds of branches there are.
 > Specifically, an "OR" branch - that's last-one-there-gets-de-rezzed. There's also an "AND" branch, maybe a "NOT"
 > branch?
 
-and then, so that they are not read as boolean logic or confused with `.or`: *"use ANY and ALL"*. NONE is the third,
-proposed to match.
+named ANY and ALL so that they are not read as boolean logic or confused with `.or`, with NONE to match. Then a
+timeout for the whole chain, which the author turned into composition: `chain.asBranch().within(...)`, *so you can
+connect different chains together to make a tree type deal*. That removed the last special case, and the structure
+came out recursive:
 
-### The three kinds
+> When you've converged on a recursive data structure, that's usually a good sign.
 
-A **wait** is a node where a run stops for things to arrive, instead of a step holding it by hand. Its branches are
-what it waits for: a message of a declared type, or time.
+### The structure
 
-| Kind | Goes on when | With | What it is for |
-| --- | --- | --- | --- |
-| **ALL** | every branch has arrived | all their outcomes, as one record | two jobs, or a job and the person's answer, then go on |
-| **ANY** | the first branch arrives; the rest are cut off | that branch's outcome | a reply or a deadline: a timeout |
-| **NONE** | nothing in its branches arrives before its bound | the bound's outcome | nothing typed for 300 ms: a debounce; "unless cancelled first" |
+```
+chain   = link, link, ...                    a line, read top to bottom, ending in an outcome of type R
+link    = step | wait                        a step on a ledger, or a node where the run stops for things to arrive
+wait    = ALL | ANY | NONE  over branches
+branch  = message | time | chain             each with a bound
+```
 
-**NONE always has a bound.** That nothing happened can only be seen when a window closes, either a time or another
-event: *none of these within 300 ms*, or *none of these before that*. That is also why time belongs in the tree at
-all. NONE bounded by time is the debounce, and ANY with a time branch is the timeout. If something in a NONE's
-branches does arrive, the wait fails: the run ends there, or takes the alternative the next link declares for it.
+A chain is a line, as now. The tree is in what its waits wait for, and a branch may be a whole chain, so flows
+compose: ALL over two chains is two flows in parallel that join; ANY over two is a race between flows; a chain used as
+one branch, with a bound, is a deadline for the whole of it.
 
-**Today's `.or` keeps its name and meaning.** It is an exclusive choice by the type of one step's outcome, a fork in
-the road, and nothing races. ANY is a race. BPMN keeps the same two apart, as an exclusive gateway and an event-based
-one.
+### The three kinds of wait
 
-### What they look like
+| Kind | Goes on when | With | Fails with | What it is for |
+| --- | --- | --- | --- | --- |
+| **ALL** | every branch has arrived | all their outcomes, as one record | `Missing`, naming what had not arrived, when its bound runs out | two jobs, or two flows, then go on |
+| **ANY** | the first branch arrives; the rest are cut off | that branch's outcome | `TimedOut`, when its bound runs out first | a reply or a deadline; a race |
+| **NONE** | nothing in its branches arrives before its bound | the bound's outcome | `Broken`, carrying what arrived | nothing typed for 300 ms: a debounce; "unless cancelled first" |
 
-Illustrative, not an API proposal yet:
+**NONE's bound is its meaning.** That nothing happened can only be seen when a window closes, a time or another event
+(`.within(time)` or `.before(Type.class)`), so a NONE without one does not build.
+
+**Today's `.or` keeps its name and meaning.** It is an exclusive choice by the type of one outcome, a fork in the road,
+and nothing races. ANY is a race. BPMN keeps the same two apart, as an exclusive gateway and an event-based one.
+
+### What it looks like
+
+Illustrative; the names are proposals.
 
 ```java
-// Search as you type: each keystroke starts a run; the next keystroke fails the NONE of the run before it, which ends.
-Chain.start("search", finder, Finder::typed)          // Typed: remembers the query
-     .none(Typed.class).within(QUIET)                 // nothing typed for QUIET
-     .then(Quiet.class, finder, Finder::search)       // sends Find to the job
+// Search as you type. Each keystroke starts a run; the next keystroke breaks the waiting run's NONE, which ends it.
+Chain.start("search", finder, Finder::typed)                  // Typed: remembers the query
+     .none(Typed.class).within(QUIET)                         // nothing typed for QUIET
+     .then(Quiet.class, finder, Finder::search)               // sends Find to the job; Broken goes to no link: the run ends
 
-// A timeout: the reply, or after SLOW say so.
-Chain.start("open", editor, Editor::open)             // sends Read to the job
+// A timeout on a job's reply, said to the person.
+Chain.start("open", editor, Editor::open)                     // sends Read to the job
      .any(FileRead.class).within(SLOW)
      .then(FileRead.class, editor, Editor::show)
      .or(TimedOut.class, editor, Editor::stillWorking)
 
-// Both, then go on.
-Chain.start("compare", editor, Editor::compare)       // sends Read twice
-     .all(Left.class, Right.class).as(Both::new)      // record Both(Left left, Right right)
+// Two flows, then go on.
+Chain.start("compare", editor, Editor::compare)               // sends Read twice
+     .all(Left.class, Right.class).as(Both::new).within(SLOW) // record Both(Left left, Right right)
      .then(Both.class, editor, Editor::diff)
+     .or(Missing.class, editor, Editor::sayWhatDidNotCome)
+
+// A chain as a branch: written once, used in close, quit and autosave, with a deadline on the whole of it.
+Chain<Doc, SaveAsked, Saved> save = Chain.start("save", editor, Editor::save)
+        .then(Written.class, editor, Editor::saved)
+        .build();
+
+Chain.start("close", editor, Editor::closeAsked)
+     .any(save.asBranch().within(Duration.ofSeconds(10)))
+     .then(Saved.class, editor, Editor::finishClose)
+     .or(TimedOut.class, editor, Editor::sayStillSaving)
 ```
 
-The debounce needs no rule about replacing a waiting run: the keystroke that fails the old run's NONE is the one that
-starts the new run.
+### Proposed rulings
+
+1. **Three kinds of wait: ALL, ANY, NONE.** *Reason:* they are quantifiers, so they say what a wait waits for, and
+   they cannot be mistaken for boolean logic or for `.or`. They cover every case found: debounce, timeout, join,
+   race, "unless cancelled".
+2. **A branch is a message, a time, or a chain.** *Reason:* the chain branch makes flows composable and reusable (save
+   written once, used in three places), and it makes a deadline on a whole flow the same thing as a deadline on one
+   reply, so neither needs a mechanism of its own. A recursive structure with one rule at each level is the smallest
+   that covers it.
+3. **Every branch and every hand-written hold has a bound, and the framework supplies one when the chain does not.**
+   *Reason:* a run that can stay open forever is a hang that has not been noticed yet, the same degree of failure as a
+   frozen window. Supplying it means the easiest chain, one that says nothing about time, is the one that cannot hang.
+   A step is not bounded this way: it runs inside a tick, and the watchdog already holds it.
+4. **The defaults depend on what is waited for.**
+
+   | Waiting for | Default bound | Why |
+   | --- | --- | --- |
+   | a reply to a request the run made | a time (`DEFAULT_REPLY`, see open question 1) | a stuck job is the usual invisible hang |
+   | a hand-written `out.hold()` | the same time | the forgotten resume |
+   | the person, through the framework's dialogs | the dialog: closing it unanswered ends the wait with `Dismissed` | a person may take an hour, and a timeout there would be wrong; the framework already guarantees a dialog an answer, as it answers a close gate exactly once, so the wait is bounded by an event |
+   | a chain used as a branch | none of its own: each of its waits has its bound, so it ends | a fixed number of links, each bounded, is bounded |
+   | NONE | none: it states its bound or does not build | its bound is what it means |
+
+5. **A bound is set at three levels, the most specific winning, and switched off with `.forever()`.** `.within(Duration)`
+   on a branch or a hold, a default on a chain's builder, and the application's default in its configuration over the
+   framework's. `.forever()` takes no reason and needs no ceremony; the Inspector lists the open runs waiting forever.
+   *Reason:* the author's: not babysitting the developer, but making the easy path the safe one. A deliberate
+   `.forever()` reads as a choice in review, and stays visible while it runs.
+6. **Failure is an outcome, taken by type.** `TimedOut`, `Missing`, `Broken` and `Dismissed` are the framework's
+   records, and the next link's `.or` takes them as it takes any outcome. An outcome no link takes ends the run, as
+   now, and the trace says why. *Reason:* one way to branch, which the processor checks and which reads top to bottom.
+   An ELSE keyword would be a second way to say the same thing, and a bare one would throw away what the failure
+   carries (which branches were missing, what broke the NONE). A catch-all is `.or(Object.class, ...)`, which chains
+   already allow after more specific alternatives.
+7. **A default bound running out is a bug; an explicit one is behaviour.** An explicit `.within` that runs out is
+   traced. A default that runs out is logged at warn, and **fails a test** under the test clock, as `Cuts` fails a
+   view that changed in one frame. *Reason:* the developer who wrote `.within` expected it; the one who wrote nothing
+   did not think about it, so it should be loud where it is cheap to hear (tests, the log) and harmless where it is
+   not (the run ends, the window stays live).
+8. **What cutting off a branch means.** A cut message or time branch: its late arrival goes nowhere, and is traced as
+   arriving after its run moved on. A cut chain: it stops at its next wait (a running step is never interrupted), its
+   committed changes stay, and its run is in the parent's undo group, so the parent's `.or(TimedOut...)` may undo it.
+   Nothing is undone by itself. *Reason:* a job already running cannot be stopped mid-way, and a chain is atomic per
+   step and a saga as a whole; what a loss should cost is the application's to say, at the one place that handles it.
+   Tracing the late arrival keeps a dropped reply from hiding a bug.
+9. **Which message belongs to which run is decided by where it comes from.** A reply to a request the run made is
+   matched by run id, stamped on the request and carried by its reply by the framework, never by the application. Any
+   other message (a keystroke, a source's output) is matched by its type. *Reason:* two opens of two files at once
+   must not take each other's replies, and keys written into an application's messages would be invented per
+   application, and wrong at run time with no error. Jobs are already a request with a reply-to (components.md
+   section 10), and the probe's cause already travels through every outbox, so the carrier exists. A keystroke is a
+   reply to nothing, and the debounce wants any keystroke.
+10. **A wait hears only what arrives after it is entered.** *Reason:* the message that starts a run must never break
+    or satisfy that run's own first wait. The debounce depends on it (the keystroke that starts the new run is not a
+    keystroke inside its window), and one sentence covers every kind of wait, with no rule about the order of two runs
+    within one delivery.
+11. **ALL's record is named at the wait and built by a constructor reference** (`.as(Both::new)`). *Reason:* it is
+    typed and checked by javac, a constructor reference captures nothing (rule 1), and the processor can check the
+    record's components against the branches. A record the processor generated would be one the application never
+    wrote, and a `List<Object>` throws the types away.
+12. **A chain declares what it ends with**: `Chain<T, A, R>`, and a chain used as a branch starts with the outcome
+    before it. *Reason:* a parent has to know what a sub-chain hands back for javac to check the join, and a chain's
+    start already checks the type of what starts it.
+13. **A sub-chain's run is a child of the run that started it.** *Reason:* the trace becomes the click's whole causal
+    tree, which the Inspector can draw, and the undo group of rule 8 is the parent run, whole.
+14. **A time branch is atchung's to declare and the tick's to be given.** The tick takes something that schedules a
+    wake: the framework hands it its `Timer`, and a test hands it a clock moved by hand, so a thirty-second timeout is
+    tested at once. A time branch that fires is an input, recorded like any message from outside. *Reason:* atchung
+    has no clock and takes no thread, and the framework owns the threads (T2.5); recording it keeps replay (ROADMAP
+    *Done means* 5, and G above) independent of the real clock. No application part holds a timer for this, so none
+    can leak one.
+15. **No repeat.** *Reason:* a loop inside a chain stops it reading top to bottom, and the debounce already shows the
+    shape that replaces one: the next cause starts a new run.
 
 ### What it changes
 
-- **Step 4 above said the chain stays a line, not a tree, so it reads top to bottom.** This revisits that. A wait's
-  branches are declared at the wait, so the chain still reads top to bottom: the tree is in what a node waits for,
-  not in where the steps go.
+- **Step 4 above said the chain stays a line, not a tree, so it reads top to bottom.** It still reads top to bottom:
+  each chain is a line, and the tree is in what its waits wait for and which chains they compose.
 - **Most hand-written holds go.** A step that holds a run and keeps its `Resume` in state for a later step to find
-  becomes a wait the chain declares. `out.hold()` stays for what a wait cannot say, such as a person's answer
-  arriving through the framework's dialogs.
-- **A run resumed twice goes on twice** (step 4) stops being possible at a wait: an ANY goes on once, by definition.
+  becomes a wait the chain declares. `out.hold()` stays for what a wait cannot say, now bounded by rule 3.
+- **A run resumed twice goes on twice** (step 4) stops being possible: an ANY goes on once, and a late resume after a
+  bound has run out is refused and traced.
+- **`Chain<T, A>` becomes `Chain<T, A, R>`.** The template's close chain is the one caller, and is changed with it.
+- **The template's worked examples A7 and A8** ([template-examples.md](template-examples.md)) are written on this
+  once it is built.
 
-### Where time comes from
+### Open questions
 
-atchung has no clock and takes no thread, and the framework owns the threads (T2.5). So a time branch is atchung's
-to declare and the tick's to be given: the tick takes something that schedules a wake (the framework hands it its
-`Timer`; a test hands it a clock it moves by hand), and the wait cancels its own when the run moves on or ends. No
-application part holds a timer for this, so none can leak one.
-
-**Replay:** a time branch that fires is an input, recorded like any message from outside, so a replayed run does not
-depend on the real clock (ROADMAP *Done means* 5, and G above).
-
-### Questions to rule
-
-1. **The three kinds and their names:** ALL, ANY, NONE, with NONE always bounded by a time or an event.
-2. **Waits only, to begin with.** A branch of an ANY or a NONE is a message or a time, never a sub-chain that does
-   work: a losing branch whose steps had already committed would leave their changes behind, and nothing could take
-   them back. ALL's branches may do work later, since none of them loses. Lifted when a real case needs it.
-3. **What cutting off a branch means:** what was asked for is not stopped (a job already running finishes), and its
-   late outcome goes nowhere.
-4. **Which message belongs to which run.** The examples above take any message of the type that reaches the first
-   step's ledger while the run waits, which is right for the debounce and wrong for two opens of two files at once.
-   Either a key the outcome carries and the run remembers, or the run id travelling in the request and its reply.
-5. **ALL's record:** named at the wait and built by a constructor reference, which is a non-capturing function (rule
-   1), so the processor can check its components against the branches.
-6. **Order within one delivery:** when one message both fails a waiting run and starts a new one, which happens first.
-   The debounce needs the failure first.
-7. **What else turns up**, such as N of M or a repeat. Not proposed: ALL, ANY and NONE cover every case found so far.
+1. **The default for a reply.** Long enough that reaching it means something is wrong, not that a job was slow; a
+   tiled render or an export says `.within` or `.forever()`. Thirty seconds is a placeholder, to be set from what the
+   applications' jobs actually take.
+2. **Undoing a cut sub-chain.** Undo restores latest first, so undoing a cut child after other runs have committed
+   can conflict. The conflict check refuses rather than corrupting anything, so this is a limit, not a hazard, but
+   "the loser can always be undone" is not yet true.
+3. **N of M**, ALL with a count (a quorum, any two of three mirrors). An addition when a real case asks.
+4. **Whether a default bound running out should also fail a run in debug builds**, not only in tests. Rule 7 says
+   tests and the log; a debug build could say it on screen, if the log proves too quiet.
 
 ## Decided
 
