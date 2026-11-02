@@ -288,12 +288,26 @@ class GeneratedProjectTest {
             driver.ok("settle");
             String about = driver.ok("tree");
             assertTrue(about.contains("about-name") && about.contains("about-version"), about);
+            assertTrue(about.contains("@instrument-keymap"), "the key button is on every bar, About's too\n" + about);
             driver.ok("zoom 2");
             driver.ok("settle");
             driver.ok("resize 260x480");
             driver.ok("settle");
             driver.ok("shot " + root.resolve("about.png"));
             driver.ok("zoom 1");
+            driver.ok("window main");
+
+            // The key button: the framework's, shown because the view declared its commands on the framework's
+            // keymap, and opening the editor that lists them under the labels the view gave them.
+            driver.ok("click instrument-keymap");
+            driver.ok("settle");
+            assertTrue(driver.ok("windows").contains(" keymap "), "the key button did not open the editor\n"
+                    + tail(log));
+            driver.ok("window keymap");
+            driver.ok("settle");
+            String keys = driver.ok("tree");
+            assertTrue(keys.contains("Save") && keys.contains("Next tab") && keys.contains("Ctrl+S"), keys);
+            driver.ok("shot " + root.resolve("keymap.png"));
             driver.ok("window main");
 
             // Being driven is what makes a run loud: the mode is AUTOMATION, so DEBUG on the console and TRACE in a

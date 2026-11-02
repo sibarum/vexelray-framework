@@ -108,6 +108,9 @@ final class Framework {
             // Not the main thread's, though a window is: every command on a Window only posts, and the framework
             // claims the window itself, so a recipe holding one is not coloured by a GuiApp it never took.
             new Root("dev.vexelray.framework.shell.Windows", "windows", Phase.TREE, false),
+            // With the Gui for the same reason: it claims its chords on it. Its button is the framework's, at ATTACH,
+            // and shown only when something was declared on it by the end of TREE.
+            new Root("dev.vexelray.gui.keymap.Keymap", "keymap", Phase.TREE, false),
             // "Vulkan, the window and present stay on the main thread" -- vexelray-gui/CLAUDE.md.
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),
             // The exception to it, and the only one: a queue nothing on the main thread submits to.

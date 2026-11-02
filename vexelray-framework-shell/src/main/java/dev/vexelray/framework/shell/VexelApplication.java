@@ -11,10 +11,13 @@ import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.WindowControls;
+import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.app.AppHome;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
+import dev.vexelray.gui.keymap.Keymap;
+import dev.vexelray.gui.keymap.KeymapWindow;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
@@ -24,6 +27,7 @@ import dev.vexelray.os.NativeWindow;
 import dev.vexelray.os.WindowConfig;
 
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -51,6 +55,9 @@ public final class VexelApplication {
      * orphan somebody's window.
      */
     private static final String MAIN = "main";
+
+    /** The store in the application's home the person's chords are kept in: {@code keys.properties}. */
+    private static final String KEYS_STORE = "keys";
 
     /** 5 Hz floor while focused: a missed wake is late, never lost. */
     private static final long IDLE_REFRESH_NANOS = 200_000_000L;
@@ -282,6 +289,9 @@ public final class VexelApplication {
         if (appearance.drawsOwnFrame()) {
             shell.titleBar(new TitleBar(gui, WindowControls.NONE, info.title()));
         }
+        // The chords, on the main window's tree, for the application to declare its commands on through TREE. Empty
+        // and unsaved until ATTACH, which decides from what was declared whether the bars show its button.
+        shell.keymap(new Keymap(gui));
         // The other windows, declared by name from here to the end of TREE. Each one's tree is built when it is
         // declared, beside this one and with no window; the windows themselves are claimed at ATTACH.
         shell.windows(new Windows(shell, new Window(NamedWindow.of(Windows.MAIN, info.title(), info.width(),
@@ -374,8 +384,21 @@ public final class VexelApplication {
         // complained". The mark too: the window wears it in the taskbar, and a drawn caption without it is the
         // one place the native frame showed it and ours did not. Here because its sizes are textures, and a
         // texture needs the device.
-        if (appearance.drawsOwnFrame()) {
-            shell.titleBar().controls(app.controls()).instruments(appearance.instruments()).icon(app, mark);
+        //
+        // The key button joins every bar's instruments once the application has declared a command, every action having been declared by
+        // the end of TREE. The person's own chords are read here and not earlier, so a headless tree sees the
+        // defaults, and from here every rebind is written as it happens (Keymap.persist). A store of its own,
+        // because the settings store writes back everything it holds and would race the keymap's.
+        Keymap keymap = shell.keymap();
+        Appearance chrome = appearance;
+        if (!keymap.actions().isEmpty()) {
+            keymap.persist(AppHome.of(info.name()).settings(KEYS_STORE));
+            List<WindowInstrument> tools = new ArrayList<>(appearance.instruments());
+            tools.add(KeymapWindow.instrument(app, gui, keymap));
+            chrome = appearance.instruments(tools);
+        }
+        if (chrome.drawsOwnFrame()) {
+            shell.titleBar().controls(app.controls()).instruments(chrome.instruments()).icon(app, mark);
         }
         if (memory.maximized(MAIN)) {
             app.window().maximize();
@@ -386,7 +409,9 @@ public final class VexelApplication {
         // Every other window the wiring declared, claimed by the framework rather than by a recipe that would have
         // had to take the GuiApp to do it: remembered under its name, wearing the window mark, commanded by its
         // own bar and bound to the clipboard. Before the wiring's ATTACH, so a part built there finds them claimed.
-        shell.windows().claim(app, memory, shell.clipboard(), shell.windowMark());
+        // Wearing the same instruments as the main bar, the key button among them: a person rebinds from whichever window
+        // they are in, and the editor it opens is the one window however many bars it is clicked on.
+        shell.windows().claim(app, memory, shell.clipboard(), shell.windowMark(), chrome);
         // The mark on every bar opens the About window, as the native caption's icon opens the system menu. Here, once
         // every bar wears its mark, and with the logo uploaded, since its sizes are textures too.
         if (about != null) {

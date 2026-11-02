@@ -243,6 +243,17 @@ dialog parented to the clicked window, rather than core's, which files a timesta
 directory. A desktop application's working directory is wherever it was launched from, and nothing on
 screen names it, so a person clicking the camera could not find the picture. Core's stays for a script.
 
+**The key button is the framework's too, and earned rather than given.** The framework makes one `Keymap`
+(vexelray-gui's `-keymap`) on the main window's `Gui` at `GUI` and hands it to parts from `TREE`; an application
+declares its commands on it by id, label and default chords, each sending a message, in place of `gui.shortcut`.
+At `ATTACH`, if anything was declared, every framework bar gets `KeymapWindow`'s button after the
+application's own instruments, the declared windows' as well as the main one's, and the person's changes are read from and written to `keys.properties` in the
+application's home. Nothing declared, no button: keymap.md's rule that an application without rebindable
+commands has nothing for it to open. A store of its own because a `Settings` writes back everything it holds,
+and two over one file would race. A headless tree never reaches `ATTACH`, so a test sees the defaults and writes
+nothing. An action declared after `TREE` still works but cannot add the button retroactively; declare at
+construction, as the template's `View` does.
+
 Two knobs an application will want are **not yet expressible**, and neither gap is the framework's to
 close:
 

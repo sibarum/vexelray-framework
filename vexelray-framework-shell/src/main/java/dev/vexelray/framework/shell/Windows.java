@@ -172,10 +172,11 @@ public final class Windows {
     /**
      * Claim every declared window, and bind each to the application's clipboard; then the main window. Once, at the
      * start of {@code ATTACH}, on the main thread, after the main window is set up.
+     *
+     * @param appearance the look the main bar was given, its instruments included, so every bar carries the same tools
      */
-    void claim(GuiApp app, WindowMemory memory, ClipboardBackend clipboard, Icon mark) {
+    void claim(GuiApp app, WindowMemory memory, ClipboardBackend clipboard, Icon mark, Appearance appearance) {
         this.app = app;
-        Appearance appearance = shell.appearance();
         for (Window w : declared()) {
             // A window that is forgotten is one where Ctrl+C does nothing and reports nothing: see Shell.clipboard.
             clipboard.installOn(w.gui());

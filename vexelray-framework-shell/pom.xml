@@ -60,6 +60,12 @@
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-nfd</artifactId>
         </dependency>
+        <!-- The keymap every application declares its chords on, and the editor the key button opens. The
+             framework owns the button for the same reason it owns the screenshot: it lives in the strip. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-keymap</artifactId>
+        </dependency>
 
         <!-- Input, and the bridge that puts it on the bus. -->
         <dependency>

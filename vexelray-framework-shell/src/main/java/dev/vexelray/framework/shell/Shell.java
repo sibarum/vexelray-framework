@@ -16,6 +16,7 @@ import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.ComputeQueue;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
+import dev.vexelray.gui.keymap.Keymap;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
@@ -95,6 +96,7 @@ public final class Shell {
     private GuiApp app;
     private TitleBar titleBar;
     private Windows windows;
+    private Keymap keymap;
     private Icon windowMark;
     private InputBackend input;
     private ClipboardBackend clipboard;
@@ -787,6 +789,23 @@ public final class Shell {
     }
 
     /**
+     * The application's keyboard commands, by name, with chords the person can change: declare each one here
+     * ({@code keymap.action("file.save", "Save", chord).sends(sender, message)}) in place of a
+     * {@code gui.shortcut}. Exists from {@link Phase#GUI}, on the main window's {@code Gui}; a command meant from
+     * another window too is claimed there with {@code keymap.attach(window.gui())}.
+     *
+     * <p><b>The framework owns the button that rebinds them</b>, as it owns the screenshot: once any action is
+     * declared by the end of {@code TREE}, every framework title bar shows the key button, which opens the editor in a
+     * window of its own (vexelray-gui's {@code KeymapWindow}). An application that declares none shows none, because
+     * it has nothing for the editor to list. What the person changed is kept in {@code keys.properties} in the
+     * application's home, from {@code ATTACH}; a headless tree ({@code VexelApplication.tree}) neither reads nor
+     * writes it, so a test sees the defaults.
+     */
+    public Keymap keymap() {
+        return require(Phase.GUI, "the keymap", keymap);
+    }
+
+    /**
      * The GPU device, and the main-thread boundary. Exists from {@link Phase#WINDOW}; anything reached through this
      * must be touched on the main thread only.
      *
@@ -956,6 +975,10 @@ public final class Shell {
 
     void windows(Windows windows) {
         this.windows = windows;
+    }
+
+    void keymap(Keymap keymap) {
+        this.keymap = keymap;
     }
 
     void app(GuiApp app) {

@@ -704,6 +704,9 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         never held across a dialog. Other windows may pick a change up from a `WatchService` or on focus;
         optional. Shared settings want a home shared across applications, where `AppHome` today is per
         application (`~/.{name}`), e.g. `~/.vexelray/`.
+      - **Since 2026-11-01** keybindings are already split out: the framework's keymap keeps them in
+        `keys.properties` beside the settings, written on each rebind. Two instances still each write their own
+        whole map, so the last rebind wins; the lock-and-merge above would cover it with the rest.
 
       **Why after v1:** `Settings`' accessors and `save()` keep their signatures, the lock and merge are inside
       them, and the ephemeral switch is a new option with a default. The *`Window` seam* did not move it:
@@ -1143,6 +1146,18 @@ it found and left:
 - [ ] **A job's request topic is not in the bus graph** (`BUS_GRAPH`, vexelray-inspector `docs/bus-circuit.md`). Version 1
       of the text has a line for a component's mailbox and none for a job's, so the Inspector draws a job's reply and
       not what asks for it. A `job` line is a version 2 of the text.
+
+### Found by putting the keymap in the framework (2026-11-01)
+
+- [x] **The key button was on the main window's bar only.** Done 2026-11-01: every framework bar carries it now.
+      What kept it off About's was not the button. `settle` straight after About opened raced the window's
+      2.8-second intro against the loop's 2-second bound. Each step of the intro's tween owes the next frame, so the
+      loop is owed for as long as the motion runs, and `settle` refused before it reached the timeline's wait, which
+      is the one meant for motion. It passed only when the `settle` before it, on the main window, happened to sit
+      through most of the intro. That `settle` waited about 2.3 s in some runs and about 0.2 s in others, with or
+      without the button. Without the button it still failed 4 runs in 5 once measured, so the two passes that
+      seemed to clear it were luck. Fixed in vexelray-gui's `Automation.settle`: a loop still owed while the
+      timeline is busy goes on to wait for the timeline (`settleWaitsOutMotionThatKeepsTheLoopOwedPastItsBound`).
 
 ## Upstream
 

@@ -91,6 +91,11 @@ groups the button with other Java programs, and pinning it pins Java. The native
 | Ctrl+Z / Ctrl+Y | undo / redo |
 | Ctrl+= / Ctrl+- / Ctrl+0 | zoom |
 
+Those are the defaults. The keyboard button in the title bar lists every command and lets you give each one other
+keys; what you change is kept in `keys.properties` in the application's home folder. Find, undo and redo belong to
+the text field and are not on the list. A new command goes in `View.commands`, under an id that stays the same once
+it has shipped, because the id is what someone's changes are stored under.
+
 Selecting a file in the navigator opens it — a click, or walking the tree with the arrow keys, which keep the
 keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and Reveal in navigator. A bullet in
 front of a tab's name means unsaved changes; closing anything unsaved asks first, and so does quitting.
