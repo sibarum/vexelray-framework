@@ -25,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import dev.vexelray.framework.acceptance.Support.Driver;
 
@@ -278,17 +280,23 @@ class GeneratedProjectTest {
             assertTrue(driver.ok("size").contains("dpi=2"));
             driver.ok("dpi 1");
 
-            // The About window, from the mark on the title bar, as a person opens it: at the size it opens, zoomed,
+            // The About window, from the app menu the lockup opens, as a person opens it: at the size it opens, zoomed,
             // and narrower than it opens. It shipped once with a sideways scrollbar nobody asked for, and the layout
             // now says so in the log (vexelray-gui docs/reference/scrolling.md §5), which is read below with the rest.
             driver.ok("click titlebar-mark");
             driver.ok("settle");
-            assertTrue(driver.ok("windows").contains(" about "), "the mark did not open the About window\n" + tail(log));
+            String menu = driver.ok("tree");
+            Matcher aboutLine = Pattern.compile("@(menu\\.about-[a-z0-9-]+)").matcher(menu);
+            assertTrue(aboutLine.find(), "the lockup's menu does not open with About\n" + menu);
+            driver.ok("click " + aboutLine.group(1));
+            driver.ok("settle");
+            assertTrue(driver.ok("windows").contains(" about "), "About in the menu did not open the window\n"
+                    + tail(log));
             driver.ok("window about");
             driver.ok("settle");
             String about = driver.ok("tree");
             assertTrue(about.contains("about-name") && about.contains("about-version"), about);
-            assertTrue(about.contains("@instrument-keymap"), "the key button is on every bar, About's too\n" + about);
+            assertTrue(about.contains("@titlebar-mark"), "the lockup is on every bar, About's too\n" + about);
             driver.ok("zoom 2");
             driver.ok("settle");
             driver.ok("resize 260x480");
@@ -297,11 +305,13 @@ class GeneratedProjectTest {
             driver.ok("zoom 1");
             driver.ok("window main");
 
-            // The key button: the framework's, shown because the view declared its commands on the framework's
-            // keymap, and opening the editor that lists them under the labels the view gave them.
-            driver.ok("click instrument-keymap");
+            // Key bindings, a line of the app menu: the framework's, there because the view declared its commands on the
+            // framework's keymap, and opening the editor that lists them under the labels the view gave them.
+            driver.ok("click titlebar-mark");
             driver.ok("settle");
-            assertTrue(driver.ok("windows").contains(" keymap "), "the key button did not open the editor\n"
+            driver.ok("click menu.key-bindings");
+            driver.ok("settle");
+            assertTrue(driver.ok("windows").contains(" keymap "), "Key bindings did not open the editor\n"
                     + tail(log));
             driver.ok("window keymap");
             driver.ok("settle");

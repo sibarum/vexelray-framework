@@ -77,7 +77,7 @@ class LongRunWitnessTest {
         build(project, root.resolve("build.log"));
         String generated = Files.readString(project.wiring());
         String p = project.packageName() + ".";
-        assertTrue(generated.contains("\"component " + p + "Metronome lane=metronome"),
+        assertTrue(generated.contains("\"part component " + p + "Metronome lane=metronome"),
                 "the metronome is not on its lane\n" + generated);
         assertFalse(generated.contains("shell.hooks().add("), "an application's code is in the frame\n" + generated);
     }
