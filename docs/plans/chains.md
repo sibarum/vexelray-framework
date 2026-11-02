@@ -1,6 +1,7 @@
 # Transactions and chains: a function sent to the state that runs it
 
-Status: **Direction ruled 2026-10-28; steps 2 to 5 built, and 6 for the controller (see *Order of work*).** The
+Status: **Direction ruled 2026-10-28; steps 2 to 5 built, and 6 for the controller (see *Order of work*).**
+**Proposed 2026-11-02, not ruled: waits that branch (ALL, ANY, NONE), near the end.** The
 author's words first, then the rules settled in the same conversation, then the design, what it changes in the 0.2
 roadmap ([ROADMAP.md](../../ROADMAP.md)), the questions it leaves open, and the order of work. It builds on
 the 0.2 message model, on vexelray-gui's
@@ -298,6 +299,110 @@ Each step lands on its own and leaves the suites green.
    ledger, so the chain's first link is still the editor's step, started by the view's `Close` message, rather than a
    step of the view's. Undo of a close would need the view's tabs and texts restored with the editor's
    state, so it waits for the view's ledger too.
+
+## Proposed 2026-11-02: waits that branch, ALL, ANY and NONE
+
+*Not ruled. Written at the author's ask, from a conversation the same day.*
+
+**Found writing the template's first worked example** ([template-examples.md](template-examples.md), A8): "wait until
+the typing stops" cannot be written as a step. A held run resumes only when some message arrives, and nothing a step
+can reach sends one after a while has passed. `Timer` can, but it is an object a component holds and calls; the one
+use of it on 0.2 (the Inspector's `Bench`) starts a period in its constructor and never stops it. The one way with
+today's parts is a `@Job` that sleeps and replies, which holds an offload thread asleep per keystroke on a bounded
+lane, and cannot be cancelled. Search as you type, autosave after a pause, a timeout on a job's reply and a retry
+are all the same missing piece.
+
+**The author's turn of it:** not a timer a step can ask for, but a chain whose waits are a tree. And not one kind of
+branch:
+
+> I don't think there would always be "one branch wins". I think that's just one of the kinds of branches there are.
+> Specifically, an "OR" branch - that's last-one-there-gets-de-rezzed. There's also an "AND" branch, maybe a "NOT"
+> branch?
+
+and then, so that they are not read as boolean logic or confused with `.or`: *"use ANY and ALL"*. NONE is the third,
+proposed to match.
+
+### The three kinds
+
+A **wait** is a node where a run stops for things to arrive, instead of a step holding it by hand. Its branches are
+what it waits for: a message of a declared type, or time.
+
+| Kind | Goes on when | With | What it is for |
+| --- | --- | --- | --- |
+| **ALL** | every branch has arrived | all their outcomes, as one record | two jobs, or a job and the person's answer, then go on |
+| **ANY** | the first branch arrives; the rest are cut off | that branch's outcome | a reply or a deadline: a timeout |
+| **NONE** | nothing in its branches arrives before its bound | the bound's outcome | nothing typed for 300 ms: a debounce; "unless cancelled first" |
+
+**NONE always has a bound.** That nothing happened can only be seen when a window closes, either a time or another
+event: *none of these within 300 ms*, or *none of these before that*. That is also why time belongs in the tree at
+all. NONE bounded by time is the debounce, and ANY with a time branch is the timeout. If something in a NONE's
+branches does arrive, the wait fails: the run ends there, or takes the alternative the next link declares for it.
+
+**Today's `.or` keeps its name and meaning.** It is an exclusive choice by the type of one step's outcome, a fork in
+the road, and nothing races. ANY is a race. BPMN keeps the same two apart, as an exclusive gateway and an event-based
+one.
+
+### What they look like
+
+Illustrative, not an API proposal yet:
+
+```java
+// Search as you type: each keystroke starts a run; the next keystroke fails the NONE of the run before it, which ends.
+Chain.start("search", finder, Finder::typed)          // Typed: remembers the query
+     .none(Typed.class).within(QUIET)                 // nothing typed for QUIET
+     .then(Quiet.class, finder, Finder::search)       // sends Find to the job
+
+// A timeout: the reply, or after SLOW say so.
+Chain.start("open", editor, Editor::open)             // sends Read to the job
+     .any(FileRead.class).within(SLOW)
+     .then(FileRead.class, editor, Editor::show)
+     .or(TimedOut.class, editor, Editor::stillWorking)
+
+// Both, then go on.
+Chain.start("compare", editor, Editor::compare)       // sends Read twice
+     .all(Left.class, Right.class).as(Both::new)      // record Both(Left left, Right right)
+     .then(Both.class, editor, Editor::diff)
+```
+
+The debounce needs no rule about replacing a waiting run: the keystroke that fails the old run's NONE is the one that
+starts the new run.
+
+### What it changes
+
+- **Step 4 above said the chain stays a line, not a tree, so it reads top to bottom.** This revisits that. A wait's
+  branches are declared at the wait, so the chain still reads top to bottom: the tree is in what a node waits for,
+  not in where the steps go.
+- **Most hand-written holds go.** A step that holds a run and keeps its `Resume` in state for a later step to find
+  becomes a wait the chain declares. `out.hold()` stays for what a wait cannot say, such as a person's answer
+  arriving through the framework's dialogs.
+- **A run resumed twice goes on twice** (step 4) stops being possible at a wait: an ANY goes on once, by definition.
+
+### Where time comes from
+
+atchung has no clock and takes no thread, and the framework owns the threads (T2.5). So a time branch is atchung's
+to declare and the tick's to be given: the tick takes something that schedules a wake (the framework hands it its
+`Timer`; a test hands it a clock it moves by hand), and the wait cancels its own when the run moves on or ends. No
+application part holds a timer for this, so none can leak one.
+
+**Replay:** a time branch that fires is an input, recorded like any message from outside, so a replayed run does not
+depend on the real clock (ROADMAP *Done means* 5, and G above).
+
+### Questions to rule
+
+1. **The three kinds and their names:** ALL, ANY, NONE, with NONE always bounded by a time or an event.
+2. **Waits only, to begin with.** A branch of an ANY or a NONE is a message or a time, never a sub-chain that does
+   work: a losing branch whose steps had already committed would leave their changes behind, and nothing could take
+   them back. ALL's branches may do work later, since none of them loses. Lifted when a real case needs it.
+3. **What cutting off a branch means:** what was asked for is not stopped (a job already running finishes), and its
+   late outcome goes nowhere.
+4. **Which message belongs to which run.** The examples above take any message of the type that reaches the first
+   step's ledger while the run waits, which is right for the debounce and wrong for two opens of two files at once.
+   Either a key the outcome carries and the run remembers, or the run id travelling in the request and its reply.
+5. **ALL's record:** named at the wait and built by a constructor reference, which is a non-capturing function (rule
+   1), so the processor can check its components against the branches.
+6. **Order within one delivery:** when one message both fails a waiting run and starts a new one, which happens first.
+   The debounce needs the failure first.
+7. **What else turns up**, such as N of M or a repeat. Not proposed: ALL, ANY and NONE cover every case found so far.
 
 ## Decided
 

@@ -53,8 +53,8 @@ easily, which is the order I would build them in.
 | A4 ★ | Keep reading from outside for as long as it runs | to show | `@Source`. Example: follow a file as it grows (a log), stopping when it is closed. Nothing native, so it builds everywhere |
 | A5 ★ | Write outside, and read and write one connection | to show | `@Destination`, and a part that is both. Example: a loopback socket the example opens to itself, a line typed in, the echo shown |
 | A6 ★ | Heavy compute that must never stall input or drawing | open | Rasterware's case. Example: a tiled render with progress. **Open:** how a superseded run is cancelled (the person changes the input mid-run), and whether progress is a reply per tile or a source |
-| A7 ★ | Do something later, or every so often | to show | `Timer`: a one-shot (autosave after a pause) and a periodic (a clock in the status bar) |
-| A8 ★ | Wait until the typing stops (search as you type) | to show | `Timer` plus a field of state; the debounce is the common case of A7 and the one done wrong most often |
+| A7 ★ | Do something later, or every so often | open | A step cannot ask for a message later; waits on [chains.md](chains.md)'s ALL, ANY and NONE proposal |
+| A8 ★ | Wait until the typing stops (search as you type) | open | Found writing slice 1: the same gap. NONE within a time, if ruled |
 | A9 | Put a part on its own lane | to show | `@Component(lane = ...)`, and when that is the right call instead of a job |
 | A10 | Pick a part by run mode or by what is on the class path | to show | `@OnMode`, `@ConditionalOnType`, replacing a `@Default` |
 
@@ -137,6 +137,8 @@ generate and build both ways, so the flag cannot quietly break.
 
 1. **The frame:** the `examples` flag, the Examples window (D1), `EXAMPLES.md`, the check-script convention (E2), and
    the first example to prove them end to end: A7/A8 (the timer and the debounce), the smallest that crosses a lane.
+   *Starting it on 2026-11-02 found that a step cannot ask for a message later, so A7/A8 wait on the waits proposed
+   in [chains.md](chains.md) (ALL, ANY, NONE).*
 2. **The ones Rasterware and MainFrame found:** A4, A5, A6 with C6.
 3. **The everyday view:** C4, C5, C8, B1, D3.
 4. **The rest**, in the table's order, with **open** rows put to the author before their example is written.
