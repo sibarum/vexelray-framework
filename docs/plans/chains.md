@@ -1,7 +1,7 @@
 # Transactions and chains: a function sent to the state that runs it
 
 Status: **Direction ruled 2026-10-28; steps 2 to 5 built, and 6 for the controller (see *Order of work*).**
-**Ruled 2026-11-02, not yet built: chains as trees, with bounded waits (ALL, ANY, NONE), near the end.** The
+**Ruled and built 2026-11-02: chains as trees, with bounded waits (ALL, ANY, NONE), near the end.** The
 author's words first, then the rules settled in the same conversation, then the design, what it changes in the 0.2
 roadmap ([ROADMAP.md](../../ROADMAP.md)), the questions it leaves open, and the order of work. It builds on
 the 0.2 message model, on vexelray-gui's
@@ -303,7 +303,7 @@ Each step lands on its own and leaves the suites green.
 ## Ruled 2026-11-02: chains as trees, with bounded waits
 
 *Ruled by the author 2026-11-02: all fifteen rulings below accepted as written, after converging on them over one
-conversation the same day, and the questions it left answered at the end. Not yet built.*
+conversation the same day, and the questions it left answered at the end. Built the same day; see *As built* at the end of the section.*
 
 ### Why
 
@@ -437,7 +437,7 @@ Chain.start("close", editor, Editor::closeAsked)
    did not think about it, so it should be loud where it is cheap to hear (tests, the log) and harmless where it is
    not (the run ends, the window stays live).
 8. **What cutting off a branch means.** A cut message or time branch: its late arrival goes nowhere, and is traced as
-   arriving after its run moved on. A cut chain: it stops at its next wait (a running step is never interrupted), its
+   arriving after its run moved on. A cut chain takes no further step and enters no further wait (a running step is never interrupted); its
    committed changes stay, and its run is in the parent's undo group, so the parent's `.or(TimedOut...)` may undo it.
    Nothing is undone by itself. An undo that conflicts is refused, said, and blocks the undo menu (see *Answered*).
    *Reason:* a job already running cannot be stopped mid-way, and a chain is atomic per step and a saga as a whole;
@@ -505,6 +505,36 @@ Chain.start("close", editor, Editor::closeAsked)
    counting wait would get it subtly wrong.
 
 Nothing is left open.
+
+### As built, 2026-11-02
+
+- **atchung (`dd6cf29`, and `dca7cc0`, which keeps the waits' own channel out of what an inbox says it hears):** `Chain<T, A, R>` with `any`, `all(...).as(...)`, `none(...)` and `before`, `within`,
+  `forever`, `boundedBy`, and `asBranch()`; `Branch.of(topic)`; `TimedOut`, `Missing`, `Broken`, `Quiet`; `Out.hold`
+  bounded and `Out.holdForPerson`; `Tick.alarm`, `Tick.defaultBound` (`DEFAULT_BOUND`, 5 s) and `Tick.whenOverdue`
+  (`TRACE`, `FAIL`); `HandClock` for tests. A wait's runs and timers live in a per-inbox `Waits`, reached only through
+  the inbox's own topic, so nothing is shared between lanes. Run ids travel with every message beside the probe's
+  cause, through outboxes, staging, hand-over and async delivery. Held by `ChainTreeTest`, one test per ruling, with
+  `ChainTest` and `UndoTest` moved onto a hand clock.
+- **The framework:** the logic lane's tick keeps its bounds with the shell's `Timer` (`Logic.keepBoundsWith`), and a
+  default bound running out is logged at warn under `framework.chains`.
+- **The template:** the close chain's question is held for the person, and its saves within the default bound;
+  `Editor.late` takes the `TimedOut`, says so and closes nothing. `EditorTest` runs on a hand clock with
+  `Overdue.FAIL`, with two tests for the bounds. Driven live in an application generated from it: the question stayed
+  up 28 s, past the default, and Don't save then closed the tab; Save wrote the file through the job and closed it.
+
+**Where a wait listens:** on the chain's first ledger's inbox, which hears every topic the chain's waits name.
+
+**Not built yet:**
+
+1. **A default bound said on screen in a debug build** (answer 3). It is logged; the overlay is owed.
+2. **The application's own default in its configuration** (ruling 5's third level). `Tick.defaultBound` exists; no
+   setting reaches it yet.
+3. **The Inspector listing open runs waiting forever** (ruling 5).
+4. **Run ids through a `Pump`.** A view drained by a pump sends with no run, so what it sends is matched by type.
+5. **The applications generated before this** (MainFrame and the text editor in `Spike/`, on `v0.2`) still hold their
+   close question with `out.hold()`, which is now bounded by the default: their question would time out after five
+   seconds and the quit would not be answered. They take the template's two changes (`holdForPerson`, and a step for
+   `TimedOut` after the saves) when they are next touched.
 
 ## Decided
 

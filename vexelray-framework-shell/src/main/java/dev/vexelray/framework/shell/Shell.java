@@ -349,6 +349,7 @@ public final class Shell {
     private Logic logic() {
         if (logic == null) {
             logic = new Logic(bus, lanes, logicOnMain);
+            logic.keepBoundsWith(timer);
             disposer.register(logic);
         }
         return logic;

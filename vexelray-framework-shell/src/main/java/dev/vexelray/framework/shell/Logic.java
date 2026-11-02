@@ -3,13 +3,16 @@ package dev.vexelray.framework.shell;
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.framework.core.Lanes;
+import dev.vexelray.framework.core.Timer;
 import dev.vexelray.framework.core.WakeSource;
+import sibarum.atchung.Alarm;
 import sibarum.atchung.Atchung;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Step;
 import sibarum.atchung.Tick;
 import sibarum.atchung.Topic;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -109,6 +112,23 @@ public final class Logic implements WakeSource, AutoCloseable {
         this.lanes = lanes;
         this.onMain = onMain;
     }
+
+    /**
+     * Keep the bounds of every chain on this lane with {@code timer}, and log a default bound running out as the bug
+     * it is (atchung's {@code Chain}; {@code docs/plans/chains.md}, rulings 3, 7 and 14). The timer publishes a wait's
+     * due message on its inbox's own topic, like any other message from outside, so nothing here runs a callback.
+     */
+    void keepBoundsWith(Timer timer) {
+        tick.alarm(new Alarm() {
+            @Override
+            public <T> Cancel after(Duration delay, Topic<T> topic, T message) {
+                return timer.after(delay, topic, message)::cancel;
+            }
+        });
+        tick.whenOverdue(what -> CHAINS.warn(what));
+    }
+
+    private static final sibarum.probe.Log CHAINS = sibarum.probe.Log.of("framework.chains");
 
     /** The inbox named {@code name} on the logic lane's own share of the tick. */
     Inbox inbox(String name) {
