@@ -414,7 +414,7 @@ Chain.start("close", editor, Editor::closeAsked)
 
    | Waiting for | Default bound | Why |
    | --- | --- | --- |
-   | a reply to a request the run made | a time (`DEFAULT_REPLY`, see open question 1) | a stuck job is the usual invisible hang |
+   | a reply to a request the run made | a time: **5 s** (the author, 2026-11-02; see *Answered*) | a stuck job is the usual invisible hang |
    | a hand-written `out.hold()` | the same time | the forgotten resume |
    | the person, through the framework's dialogs | the dialog: closing it unanswered ends the wait with `Dismissed` | a person may take an hour, and a timeout there would be wrong; the framework already guarantees a dialog an answer, as it answers a close gate exactly once, so the wait is bounded by an event |
    | a chain used as a branch | none of its own: each of its waits has its bound, so it ends | a fixed number of links, each bounded, is bounded |
@@ -439,9 +439,10 @@ Chain.start("close", editor, Editor::closeAsked)
 8. **What cutting off a branch means.** A cut message or time branch: its late arrival goes nowhere, and is traced as
    arriving after its run moved on. A cut chain: it stops at its next wait (a running step is never interrupted), its
    committed changes stay, and its run is in the parent's undo group, so the parent's `.or(TimedOut...)` may undo it.
-   Nothing is undone by itself. *Reason:* a job already running cannot be stopped mid-way, and a chain is atomic per
-   step and a saga as a whole; what a loss should cost is the application's to say, at the one place that handles it.
-   Tracing the late arrival keeps a dropped reply from hiding a bug.
+   Nothing is undone by itself. An undo that conflicts is refused, said, and blocks the undo menu (see *Answered*).
+   *Reason:* a job already running cannot be stopped mid-way, and a chain is atomic per step and a saga as a whole;
+   what a loss should cost is the application's to say, at the one place that handles it. Tracing the late arrival
+   keeps a dropped reply from hiding a bug.
 9. **Which message belongs to which run is decided by where it comes from.** A reply to a request the run made is
    matched by run id, stamped on the request and carried by its reply by the framework, never by the application. Any
    other message (a keystroke, a source's output) is matched by its type. *Reason:* two opens of two files at once
@@ -483,16 +484,23 @@ Chain.start("close", editor, Editor::closeAsked)
 - **The template's worked examples A7 and A8** ([template-examples.md](template-examples.md)) are written on this
   once it is built.
 
+### Answered by the author, 2026-11-02
+
+1. **The default for a reply is 5 s.** Long enough that reaching it means something is wrong rather than slow, for
+   the jobs the applications have: reading and writing a file, listing a folder, colouring a document. A job that
+   is slow by nature (a tiled render, an export, a large file on a network drive) says `.within` or `.forever()`,
+   and rule 7 makes forgetting to say so loud in its tests rather than in a person's session.
+2. **Undo is defensive.** An undo that conflicts (undoing a cut sub-chain after other runs have committed, or any
+   group the conflict check refuses) shows the person an error saying so and blocks off the undo menu, rather than
+   moving anything or quietly skipping to an older change. This is undo.md's *block* policy (`CONFLICT` on
+   `outcomes()`), made visible. **Where undo cannot reach, backups do:** in some cases an application keeps backups
+   a few versions back, as a way back that does not depend on the history being untangled. Which cases, and what
+   unblocks the undo menu again, are for undo.md and the application to say.
+
 ### Open questions
 
-1. **The default for a reply.** Long enough that reaching it means something is wrong, not that a job was slow; a
-   tiled render or an export says `.within` or `.forever()`. Thirty seconds is a placeholder, to be set from what the
-   applications' jobs actually take.
-2. **Undoing a cut sub-chain.** Undo restores latest first, so undoing a cut child after other runs have committed
-   can conflict. The conflict check refuses rather than corrupting anything, so this is a limit, not a hazard, but
-   "the loser can always be undone" is not yet true.
-3. **N of M**, ALL with a count (a quorum, any two of three mirrors). An addition when a real case asks.
-4. **Whether a default bound running out should also fail a run in debug builds**, not only in tests. Rule 7 says
+1. **N of M**, ALL with a count (a quorum, any two of three mirrors). An addition when a real case asks.
+2. **Whether a default bound running out should also fail a run in debug builds**, not only in tests. Rule 7 says
    tests and the log; a debug build could say it on screen, if the log proves too quiet.
 
 ## Decided
