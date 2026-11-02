@@ -1143,9 +1143,9 @@ it found and left:
       pulled rather than answered. An asynchronous source (ask for children, be handed them later) would let it be.
 - [ ] **The editor writes the session to `Settings` on its own lane.** A small file, and so far harmless, but it is disk
       work on a component lane, which is what jobs are for; a job cannot take it while the session is a list of files.
-- [ ] **A job's request topic is not in the bus graph** (`BUS_GRAPH`, vexelray-inspector `docs/bus-circuit.md`). Version 1
-      of the text has a line for a component's mailbox and none for a job's, so the Inspector draws a job's reply and
-      not what asks for it. A `job` line is a version 2 of the text.
+- [x] **A job's request topic is not in the bus graph.** Done 2026-11-02: version 2 of the text (vexelray-inspector
+      `docs/bus-graph.md`) has a `hears ... by=request` line for it, and lines for an inbox's `@Hears`, a source's start
+      and stop, a destination's, each part's real lane, and each topic's kind.
 
 ### Found by putting the keymap in the framework (2026-11-01)
 

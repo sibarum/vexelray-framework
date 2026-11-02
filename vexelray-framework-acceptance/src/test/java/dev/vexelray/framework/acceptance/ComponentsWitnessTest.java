@@ -83,25 +83,27 @@ class ComponentsWitnessTest {
         String generated = Files.readString(wiring);
         assertTrue(generated.contains("shell.liveness("), "the liveness policy was not handed back\n" + generated);
 
-        // The declared graph, for the Inspector's bus circuit: every component on its lane, the view on the GUI
-        // thread's, a pin per @Subscribe, and every send, each read from a constructor's senders (fork 5).
+        // The declared graph (vexelray-inspector docs/bus-graph.md): every component on its lane, the view on the GUI
+        // thread's, each @Subscribe as a way of hearing, every send, each read from a constructor's senders (fork 5),
+        // and each topic's kind, read off its constant when the wiring loads.
         String p = project.packageName() + ".";
         for (String line : List.of(
-                "# vexelray bus graph 1",
-                "component " + p + "Counter lane=<default>",
-                "component " + p + "Echo lane=<default>",
-                "component " + p + "Wedger lane=<default>",
-                "component " + p + "Isolated lane=isolated",
-                "component " + p + "Worker lane=worker",
-                "component " + p + "Shown lane=<gui>",
-                "mailbox " + p + "Echo#ping topic=" + p + "Ping",
-                "mailbox " + p + "Worker#job topic=" + p + "Job",
-                "mailbox " + p + "Shown#pressed topic=dev.vexelray.gui.widget.Button.Pressed",
-                "mailbox " + p + "Shown#stalled topic=dev.vexelray.framework.core.Stalled",
-                "publishes " + p + "Shown topic=" + p + "Job",
-                "publishes " + p + "Shown topic=dev.vexelray.framework.core.WindowCommand",
-                "publishes " + p + "Wedger topic=" + p + "Wedging",
-                "publishes " + p + "Worker topic=" + p + "Worked")) {
+                "# vexelray bus graph 2",
+                "part component " + p + "Counter lane=logic",
+                "part component " + p + "Echo lane=logic",
+                "part component " + p + "Wedger lane=logic",
+                "part component " + p + "Isolated lane=isolated",
+                "part component " + p + "Worker lane=worker",
+                "part view " + p + "Shown lane=gui",
+                "hears " + p + "Echo#ping topic=" + p + "Ping by=mailbox",
+                "hears " + p + "Worker#job topic=" + p + "Job by=mailbox",
+                "hears " + p + "Shown#pressed topic=dev.vexelray.gui.widget.Button.Pressed by=mailbox",
+                "hears " + p + "Shown#stalled topic=dev.vexelray.framework.core.Stalled by=mailbox",
+                "sends " + p + "Shown topic=" + p + "Job",
+                "sends " + p + "Shown topic=dev.vexelray.framework.core.WindowCommand",
+                "sends " + p + "Wedger topic=" + p + "Wedging",
+                "sends " + p + "Worker topic=" + p + "Worked",
+                "topic " + p + "Job kind=")) {
             assertTrue(generated.contains("\"" + line), "the bus graph has no \"" + line + "\"\n" + generated);
         }
     }

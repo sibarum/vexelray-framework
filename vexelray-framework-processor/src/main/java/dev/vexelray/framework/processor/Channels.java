@@ -561,83 +561,167 @@ final class Channels {
 
     // --- the graph, as text ----------------------------------------------------------------------------------
 
+    /** The bus-graph text's first line, version 2 (vexelray-inspector {@code docs/bus-graph.md}). */
+    static final String GRAPH_HEADER = "# vexelray bus graph 2";
+
+    /** The framework's timer, which a component that takes one sends through. */
+    private static final String TIMER = "dev.vexelray.framework.core.Timer";
+
     /**
-     * T4.5's "exposing the graph": what this class holds, written as version 1 of the bus-graph text
-     * (vexelray-inspector {@code docs/bus-circuit.md} §1), for the generated wiring's {@code BUS_GRAPH}.
-     *
-     * <p>Each channel is named as it is at run time, by its payload's canonical name ({@link Topics#name}). A part that
-     * sends but hears nothing, a {@code Ui} or a recipe, is a {@code publisher}. A send on a component this build does
-     * not construct ({@code @ConditionalOnType}) is left out, as its mailboxes are. Every mailbox's {@code overflow} is
-     * {@code FAIL}, which is what the tick does with an edge one more than its capacity, and a state topic never reaches.
-     * Each section is sorted, so two builds of the same declarations give the same text.
+     * The graph as text, but for its {@code topic} lines: {@code lines} the header and the {@code part}, {@code hears}
+     * and {@code sends} lines, and {@code topics} every channel they name, once each in the order of their names, which
+     * the generated wiring writes a line for from the channel's own constant (vexelray-inspector
+     * {@code docs/bus-graph.md}).
      */
-    String text(Collection<TypeElement> components, Collection<TypeElement> jobs, Graph graph) {
+    record GraphText(List<String> lines, List<TypeMirror> topics) {
+    }
+
+    /**
+     * T4.5's "exposing the graph": what this class holds, written as version 2 of the bus-graph text
+     * (vexelray-inspector {@code docs/bus-graph.md}), for the generated wiring's {@code BUS_GRAPH}.
+     *
+     * <p>Each channel is named as it is at run time, by its payload's canonical name ({@link Topics#name}), and each lane
+     * as its threads are: {@code logic}, {@code gui}, {@code job}, a declared lane's own name, and {@code own} for a
+     * source's or a destination's thread. A part that sends but is not one the wiring runs, a {@code Ui} or a recipe, is
+     * a {@code sender}. A component this build does not construct ({@code @ConditionalOnType}) is left out, with its
+     * mailboxes and sends. Each section is sorted, so two builds of the same declarations give the same text.
+     */
+    GraphText text(Collection<TypeElement> components, Collection<TypeElement> jobs, Graph graph) {
         Set<TypeElement> live = new LinkedHashSet<>(components);
-        List<String> chips = new ArrayList<>();
-        List<String> pins = new ArrayList<>();
+        Set<String> parts = new TreeSet<>();
+        Set<String> hears = new TreeSet<>();
+        Set<String> sends = new TreeSet<>();
+        Map<String, TypeMirror> named = new java.util.TreeMap<>();
         for (TypeElement c : live) {
-            chips.add("component " + c.getQualifiedName() + " lane=" + (mirrors.has(c, View.class) ? View.LANE
-                    : mirrors.string(mirrors.find(c, Component.class), "lane")));
+            boolean view = mirrors.has(c, View.class);
+            String lane = view ? "gui" : laneName(mirrors.string(mirrors.find(c, Component.class), "lane"));
+            parts.add("part " + (view ? "view " : "component ") + c.getQualifiedName() + " lane=" + lane
+                    + (takesTimer(c) ? " timer" : ""));
             for (Mailbox m : mailboxes(c)) {
                 if (plain(m.payload())) {
-                    String name = Topics.name(m.payload());
-                    pins.add("mailbox " + m.name() + " topic=" + name + " type=" + name + " overflow=FAIL capacity="
-                            + m.capacity());
+                    hears.add("hears " + m.name() + " topic=" + name(named, m.payload()) + " by=mailbox capacity="
+                            + m.capacity() + (m.keys().isEmpty() ? "" : " keys=" + String.join(",", m.keys())));
+                }
+            }
+            AnnotationMirror heard = mirrors.find(c, Hears.class);
+            if (heard != null) {
+                for (TypeMirror payload : mirrors.types(heard, "value")) {
+                    if (plain(payload)) {
+                        hears.add("hears " + c.getQualifiedName() + " topic=" + name(named, payload) + " by=inbox");
+                    }
                 }
             }
         }
-        Set<String> others = new TreeSet<>();
-        Set<String> sends = new TreeSet<>();
+        for (TypeElement j : jobs) {
+            if (graph.isDestination(j)) {
+                DestinationChannel d = destination(j);
+                if (d == null) {
+                    continue;
+                }
+                parts.add("part destination " + d.name() + " lane=own");
+                if (d.request() != null && plain(d.request())) {
+                    hears.add("hears " + d.name() + " topic=" + name(named, d.request()) + " by=open");
+                }
+                for (ExecutableElement w : d.writes()) {
+                    if (plain(DestinationChannel.message(w))) {
+                        hears.add("hears " + d.name() + " topic=" + name(named, DestinationChannel.message(w))
+                                + " by=write");
+                    }
+                }
+                stopLine(hears, named, j, d.name());
+                if (d.replyType() != null && plain(d.replyType())) {
+                    sends.add("sends " + d.name() + " topic=" + name(named, d.replyType()));
+                }
+                continue;
+            }
+            JobChannel job = job(j);
+            if (job == null) {
+                continue;
+            }
+            boolean source = graph.isSource(j);
+            parts.add("part " + (source ? "source " : "job ") + job.name() + " lane=" + (source ? "own" : "job"));
+            if (plain(job.request())) {
+                hears.add("hears " + job.name() + " topic=" + name(named, job.request()) + " by="
+                        + (source ? "start" : "request"));
+            }
+            if (source) {
+                stopLine(hears, named, j, job.name());
+            }
+            if (job.replyType() != null && plain(job.replyType())) {
+                sends.add("sends " + job.name() + " topic=" + name(named, job.replyType()));
+            }
+        }
         for (Element publisher : publishers) {
             TypeElement type = enclosingType(publisher);
             if (type == null || (!live.contains(type) && mirrors.has(type, Component.class))) {
                 continue;
             }
-            if (!live.contains(type)) {
-                others.add("publisher " + type.getQualifiedName() + " lane=-");
+            if (!live.contains(type) && !jobs.contains(type)) {
+                parts.add("part sender " + type.getQualifiedName() + " lane=-");
             }
             for (TypeMirror payload : mirrors.types(mirrors.find(publisher, Publishes.class), "value")) {
                 if (plain(payload)) {
-                    sends.add("publishes " + type.getQualifiedName() + " topic=" + Topics.name(payload));
+                    sends.add("sends " + type.getQualifiedName() + " topic=" + name(named, payload));
                 }
             }
         }
         for (VariableElement s : senders(graph)) {
             TypeElement type = enclosingType(s);
             TypeMirror payload = sent(s);
-            if (type == null || payload == null) {
+            if (type == null || payload == null || !plain(payload)) {
                 continue;
             }
-            if (!live.contains(type)) {
-                others.add("publisher " + type.getQualifiedName() + " lane=-");
+            if (!live.contains(type) && !jobs.contains(type)) {
+                parts.add("part sender " + type.getQualifiedName() + " lane=-");
             }
-            sends.add("publishes " + type.getQualifiedName() + " topic=" + Topics.name(payload));
+            sends.add("sends " + type.getQualifiedName() + " topic=" + name(named, payload));
         }
-        // A job answers on its reply's channel, so it is a sender the Inspector draws. Where its requests arrive has no
-        // line in version 1 of the text: a mailbox there is a component's, drained on a lane, and a job has neither.
-        for (TypeElement j : jobs) {
-            JobChannel job = graph.isDestination(j) ? null : job(j);
-            if (job != null && job.replyType() != null && plain(job.replyType())) {
-                others.add("publisher " + job.name() + " lane=-");
-                sends.add("publishes " + job.name() + " topic=" + Topics.name(job.replyType()));
-            }
-            // A destination that reads answers as a source does; what it writes has no line, as a job's requests have
-            // none.
-            DestinationChannel d = graph.isDestination(j) ? destination(j) : null;
-            if (d != null && d.replyType() != null && plain(d.replyType())) {
-                others.add("publisher " + d.name() + " lane=-");
-                sends.add("publishes " + d.name() + " topic=" + Topics.name(d.replyType()));
+        List<String> lines = new ArrayList<>();
+        lines.add(GRAPH_HEADER);
+        lines.addAll(parts);
+        lines.addAll(hears);
+        lines.addAll(sends);
+        return new GraphText(List.copyOf(lines), List.copyOf(named.values()));
+    }
+
+    /** What {@code constant}'s declaration says its kind is, from its source; see {@link Topics#kindWritten}. */
+    String kindWritten(VariableElement constant) {
+        return topics.kindWritten(constant);
+    }
+
+    /** A source's or destination's stop message, as a {@code hears} line, when it declares one. */
+    private void stopLine(Set<String> hears, Map<String, TypeMirror> named, TypeElement part, String name) {
+        TypeMirror stop = stopType(part);
+        if (stop != null && plain(stop)) {
+            hears.add("hears " + name + " topic=" + name(named, stop) + " by=stop");
+        }
+    }
+
+    /** {@code payload}'s channel name, noted as one the text names. */
+    private static String name(Map<String, TypeMirror> named, TypeMirror payload) {
+        String name = Topics.name(payload);
+        named.putIfAbsent(name, payload);
+        return name;
+    }
+
+    /** A component's lane as its thread is named: the logic lane for the default. */
+    private static String laneName(String declared) {
+        return declared.equals(Component.DEFAULT_LANE) ? "logic" : declared;
+    }
+
+    /** Whether {@code component}'s constructor takes the framework's timer, which then sends for it. */
+    private static boolean takesTimer(TypeElement component) {
+        ExecutableElement constructor = Graph.constructor(component);
+        if (constructor == null) {
+            return false;
+        }
+        for (VariableElement p : constructor.getParameters()) {
+            TypeElement type = Mirrors.element(p.asType());
+            if (type != null && type.getQualifiedName().contentEquals(TIMER)) {
+                return true;
             }
         }
-        Collections.sort(chips);
-        Collections.sort(pins);
-        StringBuilder out = new StringBuilder("# vexelray bus graph 1\n");
-        for (List<String> section : List.of(chips, List.copyOf(others), pins, List.copyOf(sends))) {
-            for (String line : section) {
-                out.append(line).append('\n');
-            }
-        }
-        return out.toString();
+        return false;
     }
 
     private static TypeElement enclosingType(Element element) {

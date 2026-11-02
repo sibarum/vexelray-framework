@@ -286,8 +286,8 @@ public final class Driver implements AutoCloseable {
             // What this build is, exactly, before any socket writes its discovery file: the coordinates and commit
             // (plus any uncommitted change) the generated wiring baked in, and the stack's (vexelray-build/README.md).
             Discovery.build(shell.build().facts());
-            // And what it declares on its bus: the graph the processor wrote into the wiring, for the Inspector's bus
-            // circuit and the socket's bus graph (vexelray-inspector docs/bus-circuit.md). A hand-written wiring has
+            // And what it declares on its bus: the graph the processor wrote into the wiring, for the Inspector's graph
+            // and the socket's bus graph (vexelray-inspector docs/bus-graph.md). A hand-written wiring has
             // none, and declares nothing, so bus graph says so.
             if (shell.busGraph() != null) {
                 BusGraph.declare(shell.busGraph());

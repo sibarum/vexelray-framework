@@ -239,6 +239,7 @@ class VexelProcessorTest {
                     public Shell input(InputBackend i) { LOG.add("input handed back"); return this; }
                     public Shell clipboard(ClipboardBackend c) { LOG.add("clipboard handed back"); return this; }
                     public ClipboardBackend clipboard() { return null; }
+                    public dev.vexelray.framework.core.Timer timer() { return new dev.vexelray.framework.core.Timer(sibarum.atchung.Atchung.create()); }
                     public Shell liveness(LivenessPolicy p) { LOG.add("liveness handed back"); return this; }
                     sibarum.atchung.Inbox inbox(String name) { LOG.add("inbox " + name); return sibarum.atchung.Atchung.create().tick(null).inbox(name); }
                     public Senders senders() { return new Senders(); }
@@ -1561,8 +1562,8 @@ class VexelProcessorTest {
                 "inbox lib.Ledgered",
                 "job lib.Measure lib.Asked Asked -> lib.Measured Measured"), run.phase("config"));
         String graph = run.busGraph();
-        assertTrue(graph.contains("publishes lib.Remote topic=lib.Asked"), "a send read off a class file:\n" + graph);
-        assertTrue(graph.contains("publishes lib.Measure topic=lib.Measured"), "a job answers:\n" + graph);
+        assertTrue(graph.contains("sends lib.Remote topic=lib.Asked"), "a send read off a class file:\n" + graph);
+        assertTrue(graph.contains("sends lib.Measure topic=lib.Measured"), "a job answers:\n" + graph);
     }
 
     /**
@@ -2312,11 +2313,10 @@ class VexelProcessorTest {
 
     // --- the declared graph, as text (T4.5) ---------------------------------------------------------------------
     /**
-     * A publisher that is not a component is a chip too; a method's send is its type's; a constructor's
-     * {@code Sender<T>} is a send on T's declared topic; every channel is named by its payload's canonical name, which is
-     * the name a topic named by its payload carries at run time; a component this build
-     * does not construct is not drawn; and every mailbox is {@code FAIL}, which is what the tick does with an edge one
-     * past its capacity, and what a state topic never reaches.
+     * A part that sends and is not one the wiring runs is a {@code sender}; a method's send is its type's; a
+     * constructor's {@code Sender<T>} is a send on T's declared topic; every channel is named by its payload's canonical
+     * name, which is the name a topic named by its payload carries at run time; a component this build does not construct
+     * is not drawn; the logic lane is called {@code logic}, as its thread is; and each topic says its kind.
      */
     @Test
     void theWiringCarriesTheDeclaredGraphAsTheBusGraphText() throws Exception {
@@ -2353,17 +2353,83 @@ class VexelProcessorTest {
                 public final class Ghost {}
                 """);
         assertEquals("""
-                # vexelray bus graph 1
-                component app.Echo lane=<default>
-                component app.Pinger lane=pinger
-                component app.Worker lane=worker
-                publisher app.Ui lane=-
-                mailbox app.Echo#onPing topic=app.Ping type=app.Ping overflow=FAIL capacity=64
-                mailbox app.Worker#onJob topic=app.Job type=app.Job overflow=FAIL capacity=8
-                publishes app.Pinger topic=app.Ping
-                publishes app.Ui topic=app.Job
-                publishes app.Ui topic=app.Ping
-                publishes app.Worker topic=app.Ping
+                # vexelray bus graph 2
+                part component app.Echo lane=logic
+                part component app.Pinger lane=pinger
+                part component app.Worker lane=worker
+                part sender app.Ui lane=-
+                hears app.Echo#onPing topic=app.Ping by=mailbox capacity=64
+                hears app.Worker#onJob topic=app.Job by=mailbox capacity=8
+                sends app.Pinger topic=app.Ping
+                sends app.Ui topic=app.Job
+                sends app.Ui topic=app.Ping
+                sends app.Worker topic=app.Ping
+                topic app.Job kind=edge
+                topic app.Ping kind=edge
+                """, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).busGraph());
+    }
+
+    /**
+     * Every kind of part says what it is and where it runs, and every way of hearing is a line: a component that hears
+     * through its inbox, by what {@code @Hears} lists; a job, by its request; a source, by what starts and stops it; a
+     * view, on the gui lane, by its mailboxes. A component that takes the timer says so, and a state topic says it is
+     * one, read off its constant when the wiring loads.
+     */
+    @Test
+    void theGraphSaysEachPartsKindAndEveryWayItHears() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, MESSAGES_ASK, MESSAGES_TOLD, MESSAGES_STOP, MESSAGES_LINE, """
+                public record Shown(String text) {
+                    public static final sibarum.atchung.Topic<Shown> TOPIC = sibarum.atchung.Topic.state(Shown.class);
+                }
+                """, """
+                @Source(stop = Hush.class)
+                public final class LinkRows {
+                    public LinkRows(sibarum.atchung.Sender<Line> lines) {}
+                    public Told run(Ask a, Closer closer) { return new Told(a.q()); }
+                }
+                """, """
+                @Job
+                public final class Answerer {
+                    public Hush run(Told t) { return new Hush(t.a()); }
+                }
+                """, """
+                @Component @Hears({Line.class, Hush.class, Told.class}) @Publishes({Ask.class, Shown.class})
+                public final class Bench {
+                    public Bench(sibarum.atchung.Inbox inbox, dev.vexelray.framework.core.Timer timer) {}
+                }
+                """, """
+                @View
+                public final class Screen {
+                    @Subscribe public void shown(Shown s) {}
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        assertEquals("""
+                # vexelray bus graph 2
+                part component app.Bench lane=logic timer
+                part job app.Answerer lane=job
+                part source app.LinkRows lane=own
+                part view app.Screen lane=gui
+                hears app.Answerer topic=app.Told by=request
+                hears app.Bench topic=app.Hush by=inbox
+                hears app.Bench topic=app.Line by=inbox
+                hears app.Bench topic=app.Told by=inbox
+                hears app.LinkRows topic=app.Ask by=start
+                hears app.LinkRows topic=app.Hush by=stop
+                hears app.Screen#shown topic=app.Shown by=mailbox capacity=64
+                sends app.Answerer topic=app.Hush
+                sends app.Bench topic=app.Ask
+                sends app.Bench topic=app.Shown
+                sends app.LinkRows topic=app.Line
+                sends app.LinkRows topic=app.Told
+                topic app.Ask kind=edge
+                topic app.Hush kind=edge
+                topic app.Line kind=edge
+                topic app.Shown kind=state
+                topic app.Told kind=edge
                 """, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).busGraph());
     }
 
@@ -2388,7 +2454,7 @@ class VexelProcessorTest {
                 """);
         assertEquals(List.of(), compiled.errors());
         Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
-        assertTrue(run.busGraph().contains("mailbox app.Editor#open topic=app.Messages.Open type=app.Messages.Open"),
+        assertTrue(run.busGraph().contains("hears app.Editor#open topic=app.Messages.Open by=mailbox capacity=64"),
                 run.busGraph());
         assertEquals(List.of("mailbox app.Editor <default> app.Messages.Open 64 []"), run.phase("config"));
     }
@@ -2408,7 +2474,7 @@ class VexelProcessorTest {
                 @VexelApp(name = "demo", title = "Demo")
                 public final class DemoApp {}
                 """);
-        assertEquals("# vexelray bus graph 1\n",
+        assertEquals("# vexelray bus graph 2\n",
                 compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).busGraph());
     }
 

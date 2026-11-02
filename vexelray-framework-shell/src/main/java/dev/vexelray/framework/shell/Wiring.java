@@ -74,10 +74,9 @@ public abstract class Wiring {
     }
 
     /**
-     * The message graph the application declares, as the bus-graph text (vexelray-inspector
-     * {@code docs/bus-circuit.md}, version 1): its components, its other publishers, every {@code @Subscribe} mailbox
-     * and every {@code @Publishes} topic. The generated wiring answers a constant, possibly with nothing in it but its
-     * header; {@code null}, the default, is a hand-written wiring, which declares no graph at all. The automation
+     * The message graph the application declares, as the bus-graph text (vexelray-inspector {@code docs/bus-graph.md},
+     * version 2): its parts and their lanes, every way each hears a topic, what each sends, and each topic's kind. The
+     * generated wiring answers a constant, possibly with nothing in it but its header; {@code null}, the default, is a hand-written wiring, which declares no graph at all. The automation
      * module hands it to the Inspector's {@code bus graph}.
      */
     public String busGraph() {

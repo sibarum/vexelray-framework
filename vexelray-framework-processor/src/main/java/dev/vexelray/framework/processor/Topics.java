@@ -100,6 +100,25 @@ final class Topics {
     }
 
     /**
+     * The kind {@code constant}'s declaration says, {@code state} or {@code edge}, read from its source; {@code null}
+     * when there is no source to read or it is made some other way. For the bus graph, where the wiring cannot name a
+     * constant to ask.
+     */
+    String kindWritten(VariableElement constant) {
+        if (trees == null) {
+            return null;
+        }
+        Tree tree = trees.getTree(constant);
+        if (!(tree instanceof VariableTree variable)
+                || !(variable.getInitializer() instanceof MethodInvocationTree call)) {
+            return null;
+        }
+        String method = call.getMethodSelect() instanceof MemberSelectTree member ? member.getIdentifier().toString()
+                : call.getMethodSelect() instanceof IdentifierTree id ? id.getName().toString() : "";
+        return method.equals("state") || method.equals("edge") ? method : null;
+    }
+
+    /**
      * Why {@code constant} is not declared as a channel is, or {@code null} when it is, or when there is no source to
      * read (a class file, or a compiler without javac's trees): made with {@code Topic.of}, which says nothing of its
      * kind, or named by a string rather than by its payload.

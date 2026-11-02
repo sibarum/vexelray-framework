@@ -760,11 +760,29 @@ final class Generator {
         // carries it with no resource and no reflection, handed to the shell like the build identity above, which the
         // automation module passes on to BusGraph. Always written, since a wiring that declares no channel has an empty
         // graph, which is an answer; a hand-written wiring has none.
-        src.append("\n    /** The message graph this application declares (vexelray-inspector docs/bus-circuit.md, version 1). */\n")
+        // A topic's kind is its constant's, read when this class loads rather than guessed here: a channel declared in a
+        // library this compilation has no source of says it all the same. One the wiring cannot see is read from its
+        // declaration's source, or said unknown.
+        src.append("\n    /** The message graph this application declares (vexelray-inspector docs/bus-graph.md, version 2). */\n")
                 .append("    static final String BUS_GRAPH =");
-        String[] lines = channels.text(graph.componentsSeen(), graph.jobsSeen(), graph).split("\n");
-        for (int i = 0; i < lines.length; i++) {
-            src.append(i == 0 ? "\n            " : "\n            + ").append(literal(lines[i] + "\n"));
+        Channels.GraphText text = channels.text(graph.componentsSeen(), graph.jobsSeen(), graph);
+        List<String> lines = text.lines();
+        for (int i = 0; i < lines.size(); i++) {
+            src.append(i == 0 ? "\n            " : "\n            + ").append(literal(lines.get(i) + "\n"));
+        }
+        for (TypeMirror payload : text.topics()) {
+            VariableElement constant = channels.topicOf(payload);
+            String topicName = Topics.name(payload);
+            if (constant != null && visibleFrom(app, constant) && visibleFrom(app, constant.getEnclosingElement())) {
+                String c = Topics.expression(constant);
+                src.append("\n            + ").append(literal("topic " + topicName + " kind=")).append(" + (").append(c)
+                        .append(".kind() == sibarum.atchung.Topic.Kind.STATE ? \"state\\n\" : ").append(c)
+                        .append(".keyed() ? \"edge keyed\\n\" : \"edge\\n\")");
+            } else {
+                String kind = constant == null ? null : channels.kindWritten(constant);
+                src.append("\n            + ").append(literal("topic " + topicName + " kind=" + (kind == null ? "?" : kind)
+                        + "\n"));
+            }
         }
         src.append(";\n\n    @Override\n    public String busGraph() {\n        return BUS_GRAPH;\n    }\n");
         // A component takes the compute queue, so the device is made with one to lend it (T3.1). Graph has made sure
