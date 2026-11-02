@@ -53,8 +53,8 @@ easily, which is the order I would build them in.
 | A4 ★ | Keep reading from outside for as long as it runs | to show | `@Source`. Example: follow a file as it grows (a log), stopping when it is closed. Nothing native, so it builds everywhere |
 | A5 ★ | Write outside, and read and write one connection | to show | `@Destination`, and a part that is both. Example: a loopback socket the example opens to itself, a line typed in, the echo shown |
 | A6 ★ | Heavy compute that must never stall input or drawing | open | Rasterware's case. Example: a tiled render with progress. **Open:** how a superseded run is cancelled (the person changes the input mid-run), and whether progress is a reply per tile or a source |
-| A7 ★ | Do something later, or every so often | open | A step cannot ask for a message later; waits on [chains.md](chains.md)'s ALL, ANY and NONE proposal |
-| A8 ★ | Wait until the typing stops (search as you type) | open | Found writing slice 1: the same gap. NONE within a time, if ruled |
+| A7 ★ | Do something later, or every so often | open | A step cannot ask for a message later; ANY and NONE with a time branch, ruled 2026-11-02 in [chains.md](chains.md), not yet built |
+| A8 ★ | Wait until the typing stops (search as you type) | open | Found writing slice 1: the same gap. NONE within a time, ruled 2026-11-02 in [chains.md](chains.md), not yet built |
 | A9 | Put a part on its own lane | to show | `@Component(lane = ...)`, and when that is the right call instead of a job |
 | A10 | Pick a part by run mode or by what is on the class path | to show | `@OnMode`, `@ConditionalOnType`, replacing a `@Default` |
 

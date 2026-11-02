@@ -1,7 +1,7 @@
 # Transactions and chains: a function sent to the state that runs it
 
 Status: **Direction ruled 2026-10-28; steps 2 to 5 built, and 6 for the controller (see *Order of work*).**
-**Proposed 2026-11-02, not ruled: chains as trees, with bounded waits (ALL, ANY, NONE), near the end.** The
+**Ruled 2026-11-02, not yet built: chains as trees, with bounded waits (ALL, ANY, NONE), near the end.** The
 author's words first, then the rules settled in the same conversation, then the design, what it changes in the 0.2
 roadmap ([ROADMAP.md](../../ROADMAP.md)), the questions it leaves open, and the order of work. It builds on
 the 0.2 message model, on vexelray-gui's
@@ -300,10 +300,10 @@ Each step lands on its own and leaves the suites green.
    step of the view's. Undo of a close would need the view's tabs and texts restored with the editor's
    state, so it waits for the view's ledger too.
 
-## Proposed 2026-11-02: chains as trees, with bounded waits
+## Ruled 2026-11-02: chains as trees, with bounded waits
 
-*Not ruled. Converged with the author over one conversation the same day; each proposed ruling below carries its
-reason, and the questions still open are at the end.*
+*Ruled by the author 2026-11-02: all fifteen rulings below accepted as written, after converging on them over one
+conversation the same day, and the questions it left answered at the end. Not yet built.*
 
 ### Why
 
@@ -397,7 +397,7 @@ Chain.start("close", editor, Editor::closeAsked)
      .or(TimedOut.class, editor, Editor::sayStillSaving)
 ```
 
-### Proposed rulings
+### Rulings
 
 1. **Three kinds of wait: ALL, ANY, NONE.** *Reason:* they are quantifiers, so they say what a wait waits for, and
    they cannot be mistaken for boolean logic or for `.or`. They cover every case found: debounce, timeout, join,
@@ -509,6 +509,12 @@ Nothing is left open.
 ## Decided
 
 The four rules above, 2026-10-28 (rule 4 after the plan was first written).
+
+**Chains are trees, with bounded waits** (2026-11-02, all fifteen rulings in the section above, accepted as written).
+*Reason:* a step could not wait for time, and a run could stay open forever with nothing saying so, the same degree of
+failure as a frozen window. The recursive structure (a branch may be a chain) covers debounce, timeouts, joins, races
+and deadlines on whole flows with one rule at each level, and the defaults make the chain that says nothing about time
+the one that cannot hang.
 
 **A plain message runs a step, and starts a chain** (2026-10-28, building step 6). `Ledger.Builder.on(topic, step)`
 and `Chain.Builder.on(topic)`, additions to atchung. *Reason:* a job's reply, a view's report and a close gate's
