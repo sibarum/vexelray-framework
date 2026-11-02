@@ -496,12 +496,12 @@ Chain.start("close", editor, Editor::closeAsked)
    `outcomes()`), made visible. **Where undo cannot reach, backups do:** in some cases an application keeps backups
    a few versions back, as a way back that does not depend on the history being untangled. Which cases, and what
    unblocks the undo menu again, are for undo.md and the application to say.
+3. **A default bound running out is said on screen in a debug build too**, not only in tests and the log: rule 7's
+   "loud where it is cheap to hear" includes the developer running the application. A release build only logs it.
 
 ### Open questions
 
 1. **N of M**, ALL with a count (a quorum, any two of three mirrors). An addition when a real case asks.
-2. **Whether a default bound running out should also fail a run in debug builds**, not only in tests. Rule 7 says
-   tests and the log; a debug build could say it on screen, if the log proves too quiet.
 
 ## Decided
 
