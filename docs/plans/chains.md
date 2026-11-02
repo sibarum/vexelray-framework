@@ -531,10 +531,10 @@ Nothing is left open.
    setting reaches it yet.
 3. **The Inspector listing open runs waiting forever** (ruling 5).
 4. **Run ids through a `Pump`.** A view drained by a pump sends with no run, so what it sends is matched by type.
-5. **The applications generated before this** (MainFrame and the text editor in `Spike/`, on `v0.2`) still hold their
-   close question with `out.hold()`, which is now bounded by the default: their question would time out after five
-   seconds and the quit would not be answered. They take the template's two changes (`holdForPerson`, and a step for
-   `TimedOut` after the saves) when they are next touched.
+
+The applications generated before this, MainFrame and the text editor in `Spike/`, held their close question with
+`out.hold()`, which the default bound would have timed out after five seconds. They took the template's two changes
+the same day (mainframe f2e9059, text-editor-vexel-demo 3aeb9e3).
 
 ## Decided
 
