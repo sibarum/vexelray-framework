@@ -1,0 +1,24 @@
+# The later example, driven as a person would: open the Examples window, type a search, and set a reminder.
+# Run from the project's folder:
+#   ottermate --script checks/later.txt --launch mvn.cmd compile exec:exec -Dautomation=0
+# (mvn, not mvn.cmd, off Windows). It stops at the first step that fails; the screenshot is the last thing it does.
+
+settle
+key F1
+settle
+window examples
+settle
+
+# The search waits until the typing stops, then says what it searched for, once.
+click later.search
+type cat
+await later.searched cat
+
+# The reminder is due three seconds after it is asked for; Never mind is open while one waits.
+click later.remind
+await later.reminders Reminding
+await later.reminders passed
+
+# Words fade from one to the next, so let the last change finish before the picture.
+settle
+shot later.png

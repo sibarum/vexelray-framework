@@ -104,11 +104,24 @@ public record Template(
         public enum When { ALWAYS, BLANK }
     }
 
-    /** One file the template writes. */
-    public record Item(String path, String source, String when, boolean unless) {
+    /**
+     * One file the template writes, when every one of its {@code conditions} holds: an example's test is written
+     * {@code when tests when examples}, and only if both are yes.
+     */
+    public record Item(String path, String source, List<Condition> conditions) {
+
+        public Item {
+            conditions = List.copyOf(conditions);
+        }
 
         /** True when this file is written only if a flag says so. */
-        public boolean conditional() { return when != null; }
+        public boolean conditional() { return !conditions.isEmpty(); }
+    }
+
+    /** A flag a file waits on: written when it is yes, or, {@code unless}, when it is no. */
+    public record Condition(String flag, boolean unless) {
+
+        public boolean holds(boolean on) { return on != unless; }
     }
 
     /**

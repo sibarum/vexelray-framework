@@ -146,6 +146,13 @@ slot tests
     preset    yes
     help      unit tests for the editor, the jobs, the file policy, the Markdown spans, the navigator and the real tree headless
 
+slot examples
+    label     worked examples
+    kind      flag
+    required  no
+    preset    yes
+    help      worked examples of what an application reaches for, in an Examples window (F1); delete any you do not want
+
 # ---- worked out rather than asked for ------------------------------------------------
 
 fill blank  packageName    package  ${groupId}.${artifactId}
@@ -261,6 +268,34 @@ file ${artifactId}-gui/src/main/resources/META-INF/native-image/${groupId}/${art
 
 file ${artifactId}-gui/src/test/java/${packagePath}/ViewTest.java          from ViewTest.java          when tests
 file ${artifactId}-gui/src/test/java/${packagePath}/LookTest.java          from LookTest.java          when tests
+
+# ---- the worked examples ----------------------------------------------------------------
+#
+# What an application reaches for, each worked out the polished way, in a window of its
+# own (F1) so the editor's window stays as it is: docs/plans/template-examples.md is the
+# plan. EXAMPLES.md indexes them, question to files, test and ottermate script. Each one is
+# a folder in each module and is named nowhere else: every @Configuration in -gui's sources
+# is read by the processor, so an example's own configuration adds its -core part and its
+# piece of the window, and deleting its folders takes it out. A test needs both flags.
+
+file EXAMPLES.md                                                            when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/Examples.java       from examples/Examples.java       when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesWindow.java from examples/ExamplesWindow.java when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesPage.java   from examples/ExamplesPage.java   when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesView.java   from examples/ExamplesView.java   when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/Example.java        from examples/Example.java        when examples
+file ${artifactId}-gui/src/test/java/${packagePath}/ExamplesTest.java            from examples/ExamplesTest.java   when tests when examples
+
+# Do something later, or once the typing stops: a chain's NONE within a time.
+
+file ${artifactId}-core/src/main/java/${packagePath}/core/examples/later/Later.java         from examples/Later.java         when examples
+file ${artifactId}-core/src/main/java/${packagePath}/core/examples/later/LaterMessages.java from examples/LaterMessages.java when examples
+file ${artifactId}-core/src/test/java/${packagePath}/core/examples/later/LaterTest.java     from examples/LaterTest.java     when tests when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterParts.java          from examples/LaterParts.java    when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterPanel.java          from examples/LaterPanel.java    when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterNodes.java          from examples/LaterNodes.java    when examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterView.java           from examples/LaterView.java     when examples
+file checks/later.txt                                                                       from examples/later.txt          when examples
 
 # ---- what it will not build without ---------------------------------------------------
 #

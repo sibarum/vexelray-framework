@@ -341,6 +341,28 @@ class VexelDesktopTest {
     }
 
     @Test
+    void turningTheExamplesOffLeavesThemAllOutAndTheEditorAsItIs() {
+        Blueprint with = blueprint(Map.of());
+        Blueprint without = blueprint(Map.of("examples", "no"));
+        assertTrue(with.paths().contains("EXAMPLES.md"), "the examples are on unless asked");
+        assertTrue(without.paths().stream().noneMatch(p -> p.contains("/examples/") || p.equals("EXAMPLES.md")
+                        || p.startsWith("checks/") || p.endsWith("ExamplesTest.java")),
+                "no example should be written; got " + without.paths());
+        List<String> editor = with.paths().stream().filter(without.paths()::contains).toList();
+        assertEquals(without.paths(), editor, "turning them off changes nothing else that is written");
+    }
+
+    @Test
+    void anExamplesTestNeedsBothTheTestsAndTheExamples() {
+        Map<String, String> noTests = new LinkedHashMap<>();
+        noTests.put("tests", "no");
+        Blueprint examplesOnly = blueprint(noTests);
+        assertTrue(examplesOnly.paths().stream().anyMatch(p -> p.endsWith("examples/later/Later.java")));
+        assertTrue(examplesOnly.paths().stream().noneMatch(p -> p.contains("/src/test/")),
+                "\"when tests when examples\" writes nothing with the tests off; got " + examplesOnly.paths());
+    }
+
+    @Test
     void theFolderIsTheProjectName() {
         Path where = Path.of("/tmp/checkouts");
         assertEquals(where.resolve("plot-viewer"),

@@ -46,13 +46,17 @@ public final class Scaffold {
         List<Blueprint.Entry> entries = new ArrayList<>(template.items().size());
         List<String> notes = new ArrayList<>();
         for (Template.Item item : template.items()) {
-            if (item.conditional()) {
-                boolean on = answers.flag(item.when());
-                if (item.unless() == on) {
-                    notes.add(resolvePath(item.path(), answers, template)
-                            + " left out (" + item.when() + " is " + (on ? "yes" : "no") + ")");
-                    continue;
+            Template.Condition failed = null;
+            for (Template.Condition c : item.conditions()) {
+                if (!c.holds(answers.flag(c.flag()))) {
+                    failed = c;
+                    break;
                 }
+            }
+            if (failed != null) {
+                notes.add(resolvePath(item.path(), answers, template)
+                        + " left out (" + failed.flag() + " is " + (failed.unless() ? "yes" : "no") + ")");
+                continue;
             }
             String path = resolvePath(item.path(), answers, template);
             byte[] source = catalogue.read(template.id(), item.source());

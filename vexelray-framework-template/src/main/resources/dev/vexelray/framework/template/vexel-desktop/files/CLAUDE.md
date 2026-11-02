@@ -116,6 +116,8 @@ When a run fails, read `${artifactId}-gui/target/logs/${appName}.log` (`target-l
 
 - **One slice at a time**: a change from the model to the screen, with its test and its `ottermate` check. Not
   several features at once.
+- **Look in `EXAMPLES.md` first**, if this project kept its worked examples: each question there is answered in this
+  project, with its test and its `ottermate` script (`checks/`), and F1 opens them in the running application.
 - **Copy a precedent.** The template's own files, and the applications generated from it (VexelRay IDE, Calculator,
   MainFrame, Scheduler), have solved most problems once. Find how they did it before inventing a way. Scheduler
   is the one to read for motion: it keeps its nodes and changes them, so nothing on screen changes in one frame.

@@ -1,7 +1,7 @@
 # The template as the manual
 
 *Proposed 2026-11-02, written by the coding agent as the template's customer, at the author's ask. Nothing here is
-ruled yet.*
+ruled yet. Slice 1 (the frame and A7/A8) built 2026-11-02: see* [Slice 1, as built](#slice-1-as-built).
 
 **The goal (the author's, 2026-11-02):** building a well-polished application without compromise should be *easy*,
 for the author and for a coding agent, and should work on the first try. **The proposal:** a generated project carries
@@ -53,8 +53,8 @@ easily, which is the order I would build them in.
 | A4 ★ | Keep reading from outside for as long as it runs | to show | `@Source`. Example: follow a file as it grows (a log), stopping when it is closed. Nothing native, so it builds everywhere |
 | A5 ★ | Write outside, and read and write one connection | to show | `@Destination`, and a part that is both. Example: a loopback socket the example opens to itself, a line typed in, the echo shown |
 | A6 ★ | Heavy compute that must never stall input or drawing | open | Rasterware's case. Example: a tiled render with progress. **Open:** how a superseded run is cancelled (the person changes the input mid-run), and whether progress is a reply per tile or a source |
-| A7 ★ | Do something later, or every so often | open | A step cannot ask for a message later; ANY and NONE with a time branch, ruled 2026-11-02 in [chains.md](chains.md), not yet built |
-| A8 ★ | Wait until the typing stops (search as you type) | open | Found writing slice 1: the same gap. NONE within a time, ruled 2026-11-02 in [chains.md](chains.md), not yet built |
+| A7 ★ | Do something later, or every so often | shown (later) | `examples/later`: a reminder is NONE of `NeverMind` within 3 s, called off by a `NeverMind`. *Every so often* is still to show: the framework's `Timer`, since a chain has no repeat |
+| A8 ★ | Wait until the typing stops (search as you type) | shown | `examples/later`: NONE of `Typed` within 400 ms |
 | A9 | Put a part on its own lane | to show | `@Component(lane = ...)`, and when that is the right call instead of a job |
 | A10 | Pick a part by run mode or by what is on the class path | to show | `@OnMode`, `@ConditionalOnType`, replacing a `@Default` |
 
@@ -89,7 +89,7 @@ easily, which is the order I would build them in.
 
 | # | Question | Status | Notes |
 | --- | --- | --- | --- |
-| D1 ★ | A second window, opened, remembered and closed | to show | a named window. The examples' own window (below) is this example |
+| D1 ★ | A second window, opened, remembered and closed | shown | the Examples window itself (`examples/`), opened by F1 |
 | D2 | Full screen, and the other window commands | to show | `WindowCommand` (`741e7ca`) |
 | D3 ★ | Copy and paste | to show | `tactroller-clipboard` |
 | D4 | Refuse to close while there is unsaved work | shown | the close gate |
@@ -140,5 +140,30 @@ generate and build both ways, so the flag cannot quietly break.
    *Starting it on 2026-11-02 found that a step cannot ask for a message later, so A7/A8 wait on the waits proposed
    in [chains.md](chains.md) (ALL, ANY, NONE).*
 2. **The ones Rasterware and MainFrame found:** A4, A5, A6 with C6.
+
+## Slice 1, as built
+
+Built 2026-11-02: the `examples` flag (default yes), the Examples window (D1, opened by F1, rebindable), `EXAMPLES.md`,
+`checks/<name>.txt`, and the first example, `later` (A7's *later* and A8). Checked by `LaterTest` (a clock of its own),
+`ExamplesTest` (the app headless, `Cuts` on both windows), `VexelDesktopTest` (the flag both ways), a project generated
+and built each way, and `checks/later.txt` driven live. What building it changed in the plan above:
+
+1. **An example touches no shared file at all**, rather than "one line in each of a few registries". The processor
+   reads every `@Configuration` in `-gui`'s sources, and such a configuration may list a `-core` component, so each
+   example's own configuration (`LaterParts`) builds its `-core` part and adds its piece of the window. Nothing in
+   `Recipes`, `Core`, the app declaration or `Messages` names an example, so the flag needed no conditional lines.
+2. **A recipe in a package of its own returns an interface.** The wiring is generated in the top package, and the
+   processor refuses a recipe that returns a concrete class from elsewhere (only `Recipes`' package-private classes
+   escape that). So the window and each panel are an interface and a class (`ExamplesWindow`/`ExamplesPage`,
+   `LaterPanel`/`LaterNodes`): two files where one would do. It is the processor's rule working as written; whether a
+   public class an application owns should count as swappable is the author's call, and it is the only cost an example
+   paid for living in its own package.
+3. **An example's test that needs the app sits beside the wiring**, which is package-private: `ExamplesTest` in the
+   top test package, not in the example's folder. Removing an example means removing its test there too, and
+   `EXAMPLES.md` says so.
+4. **The template engine took several conditions on a file line** (`when tests when examples`), every one of which
+   must hold, so an example's test is left out with either flag off.
+5. **Live, `type cat` is one keystroke**: ottermate's `type` lands in one frame, so the field changes once. The
+   debounce is checked keystroke by keystroke in `LaterTest`, where time is the test's.
 3. **The everyday view:** C4, C5, C8, B1, D3.
 4. **The rest**, in the table's order, with **open** rows put to the author before their example is written.

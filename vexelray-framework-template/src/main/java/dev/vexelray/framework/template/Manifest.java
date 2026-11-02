@@ -39,6 +39,7 @@ import java.util.regex.PatternSyntaxException;
  * file pom.xml
  * file src/main/java/${packagePath}/${className}.java  from App.java
  * file src/main/java/${packagePath}/Capture.java       when capture
+ * file src/test/java/${packagePath}/CaptureTest.java   when tests when capture
  *
  * needs dev.vexelray.gui:vexelray-gui-widget:${guiVersion}
  * </pre>
@@ -47,6 +48,10 @@ import java.util.regex.PatternSyntaxException;
  * line's first word is what it is. Indentation is for reading: a {@code label}
  * line belongs to the {@code slot} above it because it says {@code label}, not
  * because of the spaces in front of it.
+ *
+ * <p>A file line may say {@code when} and {@code unless} as often as it needs, and
+ * the file is written only if every one holds: a test of something optional waits on
+ * both the tests and the thing.
  *
  * <p>The whole thing is refused if any part of it is wrong, and every refusal
  * carries the line number. That is the same promise the rest of MainFrame makes,
@@ -183,8 +188,8 @@ public final class Manifest {
         }
         String path = words.getFirst();
         String source = null;
-        String when = null;
-        boolean unless = false;
+        // Every one must hold: "when tests when examples" is an example's test, written only if both are yes.
+        List<Template.Condition> conditions = new ArrayList<>();
         for (int i = 1; i < words.size(); i++) {
             String key = words.get(i);
             if (i + 1 >= words.size()) {
@@ -193,14 +198,14 @@ public final class Manifest {
             String value = words.get(++i);
             switch (key) {
                 case "from" -> source = value;
-                case "when" -> { when = value; unless = false; }
-                case "unless" -> { when = value; unless = true; }
+                case "when" -> conditions.add(new Template.Condition(value, false));
+                case "unless" -> conditions.add(new Template.Condition(value, true));
                 default -> throw at(where, line, "a file line has no " + quoted(key))
                         .hint("it can say: from, when, unless")
                         .build();
             }
         }
-        return new Template.Item(path, source == null ? path : source, when, unless);
+        return new Template.Item(path, source == null ? path : source, conditions);
     }
 
     /** {@code needs dev.vexelray.gui:vexelray-gui-widget:${guiVersion}} */
@@ -321,14 +326,15 @@ public final class Manifest {
             names.add(fill.name());
         }
         for (Template.Item item : items) {
-            if (item.when() == null) continue;
-            if (!flags.contains(item.when())) {
-                throw TemplateError.of(id + " writes " + item.path() + " only when "
-                                + quoted(item.when()) + " says so, and there is no such yes-or-no slot")
-                        .hint(flags.isEmpty()
-                                ? "add one: slot " + item.when() + ", then kind flag"
-                                : "the yes-or-no slots are: " + String.join(", ", flags))
-                        .build();
+            for (Template.Condition c : item.conditions()) {
+                if (!flags.contains(c.flag())) {
+                    throw TemplateError.of(id + " writes " + item.path() + " only when "
+                                    + quoted(c.flag()) + " says so, and there is no such yes-or-no slot")
+                            .hint(flags.isEmpty()
+                                    ? "add one: slot " + c.flag() + ", then kind flag"
+                                    : "the yes-or-no slots are: " + String.join(", ", flags))
+                            .build();
+                }
             }
         }
         Set<String> paths = new LinkedHashSet<>();
