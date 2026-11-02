@@ -498,10 +498,13 @@ Chain.start("close", editor, Editor::closeAsked)
    unblocks the undo menu again, are for undo.md and the application to say.
 3. **A default bound running out is said on screen in a debug build too**, not only in tests and the log: rule 7's
    "loud where it is cheap to hear" includes the developer running the application. A release build only logs it.
+4. **No N of M** (ALL with a count: go on once any N of M branches have arrived). The author's case against it:
+   buffering wants the first N samples, in order and without a gap, not any N of them. A count would go on with
+   samples 1, 2, 4 and 7. What the case needs is a step that folds each sample into its ledger's state and gives its
+   outcome once the run from the start is complete: the rule is the application's, written once and tested, and a
+   counting wait would get it subtly wrong.
 
-### Open questions
-
-1. **N of M**, ALL with a count (a quorum, any two of three mirrors). An addition when a real case asks.
+Nothing is left open.
 
 ## Decided
 
