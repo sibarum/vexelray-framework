@@ -12,6 +12,7 @@ import dev.vexelray.gui.automation.Windows;
 import dev.vexelray.framework.shell.Relaunch;
 import dev.vexelray.gui.automation.window.AutomationButton;
 import dev.vexelray.gui.core.WindowInstrument;
+import dev.vexelray.gui.icons.Icon;
 import dev.vexelray.gui.core.app.LoopCounters;
 import dev.vexelray.gui.inspector.link.InspectorLink;
 import dev.vexelray.gui.krono.KronoGui;
@@ -334,12 +335,12 @@ public final class Driver implements AutoCloseable {
         List<WindowInstrument> tools = new ArrayList<>(shell.titleBar().instruments());
         if (debugRun()) {
             tools.add(AutomationButton.instrument(shell.gui(), sockets, menu -> {
-                menu.item(OPEN_INSPECTOR, this::openInspector);
-                menu.item(RESTART_NORMALLY, this::restartNormally);
+                menu.item(Icon.SEARCH, OPEN_INSPECTOR, this::openInspector);
+                menu.item(Icon.REFRESH, RESTART_NORMALLY, this::restartNormally);
             }));
         } else {
             tools.add(WindowInstrument.automation("Restart in debug mode, to inspect or drive this application",
-                    menu -> menu.item(RESTART_IN_DEBUG_MODE, this::restartInDebugMode)));
+                    menu -> menu.item(Icon.AUTOMATION, RESTART_IN_DEBUG_MODE, this::restartInDebugMode)));
         }
         shell.titleBar().instruments(List.copyOf(tools));
     }
