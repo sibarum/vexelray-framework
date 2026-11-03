@@ -34,6 +34,9 @@ final class Replay {
     /** How many differences {@code replay} lists; it counts them all. */
     static final int LISTED = 16;
 
+    /** How long a replay waits for the recording's hasher to reach the ticks it takes. */
+    private static final long HASHED_WITHIN = 10_000_000_000L;
+
     /** How much of a send's text a difference shows. */
     private static final int SHOWN = 160;
 
@@ -66,6 +69,11 @@ final class Replay {
             }
             if (mine.isEmpty()) {
                 return "ok replay ticks=0 sends=0 differ=0" + (taken.full ? " full" : "");
+            }
+            // The fingerprints are taken behind the tick: those of the ticks taken are wanted before comparing.
+            if (!recording.awaitHashed(taken.sends(), HASHED_WITHIN)) {
+                return "err replay: the run's sends were not fingerprinted within " + HASHED_WITHIN / 1_000_000_000L
+                        + " s, so there is nothing to compare with yet";
             }
             return compare(taken, shell.logicTick());
         } catch (RuntimeException | Error e) {
@@ -131,11 +139,13 @@ final class Replay {
         String topic = recorded ? taken.topic(at).name() : replayed.topic(send).name();
         String was = recorded ? Integer.toHexString(taken.fingerprint(at)) : "none";
         String now = again ? Integer.toHexString(Objects.hashCode(replayed.event(send))) : "none";
-        String what = again ? oneLine(String.valueOf(replayed.event(send))) : "";
-        if (!again || recorded && !taken.topic(at).name().equals(replayed.topic(send).name())) {
-            what = again ? "sent " + replayed.topic(send).name() + " instead: " + what : "not sent again";
+        String what = again ? oneLine(String.valueOf(replayed.event(send))) : "nothing";
+        if (again && recorded && !taken.topic(at).name().equals(replayed.topic(send).name())) {
+            what = "on " + replayed.topic(send).name() + ": " + what;
         }
-        return "#" + tick + " " + send + " " + topic + " recorded=" + was + " replayed=" + now + " " + what;
+        // What the replay sent there, and, when the run kept its sends (--replayable=values), what the run did.
+        String line = "#" + tick + " " + send + " " + topic + " recorded=" + was + " replayed=" + now + "\n  now " + what;
+        return recorded && taken.values ? line + "\n  was " + oneLine(String.valueOf(taken.value(at))) : line;
     }
 
     private static String answer(int ticks, int sends, int differ, boolean full, List<String> listed) {

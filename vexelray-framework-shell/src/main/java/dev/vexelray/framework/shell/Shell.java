@@ -127,7 +127,7 @@ public final class Shell {
         this.lanes = lanes;
         this.replaying = replaying;
         this.timer = replaying ? Timer.silent(bus) : new Timer(bus);
-        this.recording = !replaying && replayable(launch) ? new InputRecording() : null;
+        this.recording = !replaying && replayable(launch) ? new InputRecording(keepsValues(launch)) : null;
         this.watchdog = new Watchdog(lanes, bus);
         this.logicOnMain = logicOnMain(launch);
         if (replaying) {
@@ -141,6 +141,11 @@ public final class Shell {
         // Second, so the lanes are the last of the rest: a lane outlives every tree presented on it, and the
         // whole point of the container owning the threads is that a window closing does not take them.
         disposer.register(lanes);
+        if (recording != null) {
+            // On a thread of the lanes, closed before them.
+            recording.start(lanes);
+            disposer.register(recording);
+        }
         disposer.beforeClose(() -> watchdog.haltAfter(liveness.closeBound().toNanos()));
         // When shutdown begins, before any placement closes: a beat sent into a closing component is one it cannot
         // answer.
@@ -371,11 +376,24 @@ public final class Shell {
      * when the launch does not say, as a tool that launches the application asks for it.
      */
     static boolean replayable(Launch launch) {
+        String asked = replayableAsked(launch);
+        return !asked.isEmpty() && !asked.equals("false") && !asked.equals("0");
+    }
+
+    /** What a recording keeps of each send besides its fingerprint: the send itself, with {@code --replayable=values}. */
+    static final String VALUES = "values";
+
+    /** Whether this launch keeps each send too, so a replay can say what the run sent where it differs. */
+    static boolean keepsValues(Launch launch) {
+        return replayableAsked(launch).equals(VALUES);
+    }
+
+    private static String replayableAsked(Launch launch) {
         String asked = launch.override(REPLAYABLE);
         if (asked == null) {
             asked = System.getenv("VEXELRAY_REPLAYABLE");
         }
-        return asked != null && !asked.isBlank() && !asked.trim().equals("false") && !asked.trim().equals("0");
+        return asked == null ? "" : asked.trim();
     }
 
     /** A shell for replaying {@code of}'s recording: the same launch, settings and build, and nothing running. */

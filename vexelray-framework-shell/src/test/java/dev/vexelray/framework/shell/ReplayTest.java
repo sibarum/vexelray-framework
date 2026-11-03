@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -63,6 +64,7 @@ class ReplayTest {
     /** Ask three questions of a run launched with {@code args}, then replay it. */
     private static String askedThenReplayed(boolean leaks, String... args) throws Exception {
         Shell shell = new Shell(Launch.parse(args, "demo", Set.of()), DEMO);
+        LEAKED.set(0);
         Counting wiring = new Counting(leaks);
         try {
             shell.phase(Phase.CONFIG);
@@ -99,8 +101,20 @@ class ReplayTest {
         String[] lines = answer.split("\n");
         assertEquals("ok replay ticks=3 sends=6 differ=6", lines[0], answer);
         assertTrue(lines[1].startsWith("#1 0 test.replay.answered recorded="), lines[1]);
-        assertTrue(lines[1].endsWith(" a #4"), "what the replay sent instead: " + lines[1]);
-        assertEquals(7, lines.length, "each difference listed");
+        assertEquals("  now a #4", lines[2], "what the replay sent there");
+        assertEquals(1 + 6 * 2, lines.length, "each difference listed, with what the replay sent; the run's not kept");
+    }
+
+    @Test
+    void aRunThatKeepsItsSendsSaysWhatItSentBesideWhatTheReplayDid() throws Exception {
+        for (String mode : new String[]{"--logic=thread", "--logic=main"}) {
+            String[] lines = askedThenReplayed(true, "--replayable=values", mode).split("\n");
+            assertEquals("ok replay ticks=3 sends=6 differ=6", lines[0], mode);
+            assertTrue(lines[2].startsWith("  now a #"), lines[2]);
+            assertTrue(lines[3].startsWith("  was a #"), lines[3]);
+            assertNotEquals(lines[2].substring(6), lines[3].substring(6), "the count kept outside moved on");
+            assertEquals(1 + 6 * 3, lines.length, mode);
+        }
     }
 
     @Test
