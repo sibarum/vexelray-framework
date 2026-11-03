@@ -1,7 +1,8 @@
 # The template in modules
 
-*Proposed 2026-11-02, written by the coding agent at the author's ask. Nothing here is ruled yet. The open decisions
-are in [The author's questions](#the-authors-questions).*
+*Proposed 2026-11-02, written by the coding agent at the author's ask. Its five questions were answered the same day,
+each **accepted as recommended**: see [The author's rulings](#the-authors-rulings). The rest of the plan is still a
+proposal.*
 
 **The ask (the author's, 2026-11-02):** make the template modular, so that its parts can be included or left out
 when a project is generated, or all of them taken at once. **The concern, also the author's:** what it costs to keep
@@ -69,7 +70,7 @@ Each rule is checked by the build, not by review, because a rule held by review 
 3. **Shared things are gathered, never edited.** Parts, windows and chords are gathered already, by the processor
    (every `@Configuration`) and by each view declaring its own chords. Messages go in the module's own `Messages`
    file in its own package, as the examples' do (`LaterMessages`). Docs are fragments the generator gathers: see
-   question 4. Whatever cannot be gathered is a gap in the framework and goes in [TODO.md](../TODO.md), not in the
+   ruling 4. Whatever cannot be gathered is a gap in the framework and goes in [TODO.md](../TODO.md), not in the
    template as a workaround.
 4. **The tests grow with the modules, not with their combinations.** With rules 1 to 3 holding, a module can only
    break the base or itself, so three kinds of generated build cover the matrix: the **base alone**, **each module
@@ -98,7 +99,7 @@ The examples could be modules from the start because they were written that way.
 beside the tabs; and `Recalled`/`Remember` carry the navigator's folder and the editor's files in one record. The
 template is about 5,500 lines of Java, and most of it is that one feature.
 
-The split, as candidates for the author to rule on (question 1):
+The split (ruling 1):
 
 | Module | What it takes from today's files | Needs |
 | --- | --- | --- |
@@ -106,7 +107,10 @@ The split, as candidates for the author to rule on (question 1):
 | **editor** | tabs, `Buffer`, `Workspace`, the editing steps of `Editor`, the unsaved-work close | files |
 | **navigator** | `ListFolder`, `Navigator`, the folder steps | files |
 | **markdown** | `Markdown`, `MarkText`: colour for Markdown in the editor | editor |
-| **session** | `ReadSession`, `WriteSession`: what comes back on the next run | - |
+
+**The session stays in the base** (ruling 1): `ReadSession` and `WriteSession` become the base's, keeping one key a
+module, and each module reads and writes its own piece (the editor its open files and the front one, the navigator its
+folder).
 
 **Four gaps this split meets, found by reading, not yet by building.** Each is a framework question first; each goes
 to [TODO.md](../TODO.md) under *Found by the template* if the author agrees it is one.
@@ -119,27 +123,36 @@ to [TODO.md](../TODO.md) under *Found by the template* if the author agrees it i
    which [chains.md](chains.md) has, but nothing yet gathers the branches from parts that do not know each other.
 3. **Each module's piece of the session.** One record holding the navigator's folder and the editor's files has to
    become one key a module, each read and written by its own module, so that leaving one out leaves its key unread
-   rather than a field to delete.
+   rather than a field to delete. Ruling 1 puts the keeping in the base; what is open is how a module hands the base
+   its piece without the base naming it.
 4. **A recipe in a package of its own returns an interface** ([slice 1, finding 2](template-examples.md#slice-1-as-built)).
    It costs an example two files where one would do; across every window piece of every module it is a tax. Whether
    a public class an application owns may be returned is already the author's call there.
 
-## The author's questions
+## The author's rulings
 
-1. **The module list.** The five above, or cut differently? In particular: is *session* its own module or part of
-   the base, as settings that outlive a run are something every application has?
-2. **What the base shows on its own.** The template's manifest says the editor was chosen because it is "the smallest
-   real application that reaches every seam". The base alone reaches few of them (no job, no close gate, little
-   motion). Is the bare base allowed to be an empty window, with *all* as the one that proves the seams, or does the
-   base keep one small thing of its own?
-3. **Is the editor still the default answer?** *All* is proposed as the default, as the examples flag defaults to
-   yes. The alternative is a default of the base and nothing else, for the rebuilds that delete the editor anyway.
-4. **Docs.** `README.md`, `CLAUDE.md` and `EXAMPLES.md` describe what is there. Proposed: each module brings a
-   fragment, and the generator writes one gathered file from the fragments of the modules chosen (one small engine
-   feature, tested once), so no doc lists a module that was left out. The alternative is a doc per module under
-   `docs/modules/`, with no gathering and no index.
-5. **Main-window regions** (gap 1). Settle the shape in the framework first, as `@Source` and the chains were, or let
-   the first module that needs one (the navigator) propose it?
+Answered 2026-11-02, each **accepted as recommended**: the author took the recommendation without discussion, so each
+is sound as far as its reason goes and is the first to re-check when something depends on it ([TODO.md](../TODO.md)
+says what the label means).
+
+1. **The modules are files, editor, navigator and markdown; the session is the base's.** The base keeps the session,
+   one key a module, and each module reads and writes its own piece. **Why:** every application has something that
+   outlives a run, so keeping it is not a feature to opt out of, while *what* is kept belongs to the feature that
+   owns it. A session module would have had to name every other module's state, breaking rule 2.
+2. **The base alone is an empty window**: the title bar, the app menu with About and the key bindings, and an empty
+   main region. **Why:** *all* is the reference (rule 5) and is what reaches every seam; a small feature kept in the
+   base only to reach them would be one more thing to keep up, and the first thing every rebuild deletes.
+3. **The default answer is all.** **Why:** it is the examples flag's default and the reference build, so the project a
+   person gets without choosing is the verified one; taking a module out is deleting its folders, which the rules
+   make safe.
+4. **Docs are gathered.** Each module brings a fragment, and the generator writes `README.md`, `CLAUDE.md` and
+   `EXAMPLES.md` from the base's text and the fragments of the modules chosen. **Why:** a doc that lists a module the
+   project does not have misleads an agent, which reads the docs before the code; gathering is one engine feature,
+   tested once, where a doc per module leaves nowhere to start reading.
+5. **Main-window regions are settled in the framework first**, argued in its docs and ruled before the navigator
+   moves, as `@Source` and the chains were; the navigator is then the regions' first witness. **Why:** a shape drawn
+   from one module fits that module, and the editor, the examples and every application's own panels would inherit
+   it.
 
 ## What would stop this
 
@@ -154,12 +167,14 @@ to [TODO.md](../TODO.md) under *Found by the template* if the author agrees it i
 ## Order
 
 1. **The mechanism, with nothing moved.** `module` blocks and `needs` in the manifest, the `modules` question with
-   *all*, the reference check (rule 2), the *n* + 2 matrix in `VexelDesktopTest` and the acceptance run, and the
-   examples turned into the first modules (they already obey the rules). The base is still the editor. Measured: the
-   acceptance run's time per module.
-2. **The questions above, put to the author**, with gaps 1 to 3 written up for the framework.
-3. **The navigator out**, the smallest piece with one edge into the editor (opening a file), and the first to fill a
-   region of the main window.
-4. **Markdown out**, then **the session**, then **the editor**, leaving the base.
+   *all* as its default, gathered docs (ruling 4), the reference check (rule 2), the *n* + 2 matrix in
+   `VexelDesktopTest` and the acceptance run, and the examples turned into the first modules (they already obey the
+   rules). The base is still the editor. Measured: the acceptance run's time per module.
+2. **Regions, in the framework** (ruling 5): argued in its docs, with gaps 2 and 3 (closing, a module's piece of the
+   session) written up beside it, and put to the author.
+3. **The navigator out**, the smallest piece with one edge into the editor (opening a file), and the regions' first
+   witness.
+4. **Markdown out**, then **the session's keeping into the base** (ruling 1), then **the editor**, leaving the base an
+   empty window (ruling 2).
 5. Worked examples keep coming in as modules from slice 1 on: [template-examples.md](template-examples.md)'s slice 2
    (A4, A5, A6 with C6) is the second and third module to obey the rules, which is the evidence the rules hold.
