@@ -18,16 +18,16 @@ import sibarum.tactroller.api.Key;
 @dev.vexelray.framework.api.View
 public final class ExamplesView {
 
-    private final ExamplesWindow window;
+    private final ExamplesList page;
 
-    public ExamplesView(ExamplesWindow window, Keymap keys, Sender<WindowCommand> windows) {
-        this.window = window;
+    public ExamplesView(ExamplesList page, Keymap keys, Sender<WindowCommand> windows) {
+        this.page = page;
         keys.action("help.examples", "Examples", Shortcut.of(Key.F1))
                 .sends(windows, WindowCommand.show(ExamplesWindow.KEY));
     }
 
     @Subscribe
     public void chosen(ListView.Selected m) {
-        window.chosen(m);
+        page.chosen(m);
     }
 }

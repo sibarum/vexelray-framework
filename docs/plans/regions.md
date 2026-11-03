@@ -163,3 +163,22 @@ and the first to re-check when something depends on it ([TODO.md](../TODO.md) sa
 3. **Both shapes exist in every mode.** A piece built only in some modes is null in the others and left out, and an
    `Optional<T>` whose one provider is not built is empty, so the part taking either is built in every mode it
    declares rather than narrowed to its pieces'.
+
+**Step 2, 2026-11-03:** the Examples window takes `All<Example>`, in the template, with nothing of the editor
+changed. What it changed:
+
+1. **The window and its page are two recipes.** An example builds its part into the window's `Gui`, so the window
+   has to exist before any example, and the page has to come after all of them: `examples(Windows)` provides the
+   `ExamplesWindow` (the window, nothing else), and `page(ExamplesWindow, All<Example>)` lays out the page. The
+   processor orders them by their parameters; `ExamplesWindow.add` is gone, and `ExamplesList` is the page as its
+   view sees it.
+2. **`Example` is an interface with an `of`**, since the processor refuses a record behind `@Provides`; it was a
+   record. An example now provides two things, its panel for its view and its `Example` for the page, the second a
+   one-line recipe from the first (`LaterParts.laterExample`): the two-provider cost *What it does not fix* named.
+3. **An empty page says why.** Seen live with `--modules examples`, which builds the window with no example in it:
+   a blank page, with nothing to say whether something was broken. It now says the project was made without
+   examples and how to read or add one.
+
+Checked by the template's tests, the acceptance matrix (`none`, `examples`, and the default, whose `LaterWindowTest`
+and `ExamplesTest` run in its build), the generated wiring (`page(examples, All.of(laterExample))`), and
+`checks/later.txt` driven live, with the page shown on the later example's question.

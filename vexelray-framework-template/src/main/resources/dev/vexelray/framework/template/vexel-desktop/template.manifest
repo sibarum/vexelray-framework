@@ -302,6 +302,7 @@ file ${artifactId}-gui/src/main/java/${packagePath}/examples/Examples.java      
 file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesWindow.java from examples/ExamplesWindow.java in examples
 file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesPage.java   from examples/ExamplesPage.java   in examples
 file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesView.java   from examples/ExamplesView.java   in examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesList.java   from examples/ExamplesList.java   in examples
 file ${artifactId}-gui/src/main/java/${packagePath}/examples/Example.java        from examples/Example.java        in examples
 file ${artifactId}-gui/src/test/java/${packagePath}/ExamplesTest.java            from examples/ExamplesTest.java   in examples when tests
 

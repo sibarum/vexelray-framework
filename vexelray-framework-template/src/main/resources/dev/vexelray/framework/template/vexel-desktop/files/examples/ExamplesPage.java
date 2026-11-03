@@ -1,5 +1,6 @@
 package ${packageName}.examples;
 
+import dev.vexelray.framework.api.All;
 import dev.vexelray.framework.shell.Window;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
@@ -20,13 +21,14 @@ import java.util.List;
  * {@link Examples}, opened by a chord ({@link ExamplesView}), its place and size remembered under its name, and its
  * widgets heard by a view as the main window's are, at {@code "examples.<name>"}.
  *
- * <p>Each example adds itself ({@link #add}) from its own recipe, so this class names none of them, and deleting an
- * example's folders takes it out of the list.
+ * <p>It takes every example there is ({@code All<Example>}, in {@link Examples}), so this class names none of them, and
+ * deleting an example's folders takes it out of the list. They are listed by question, since the order they come in
+ * means nothing.
  *
  * <p>Built in {@code TREE}, as the main window's tree is, so a test builds it headless; written to after that on the
  * GUI thread only, by {@link ExamplesView}.
  */
-final class ExamplesPage implements ExamplesWindow {
+final class ExamplesPage implements ExamplesList {
 
     /** Its size on a first run, in the engine's logical coordinates. */
     static final int W = 980;
@@ -40,25 +42,24 @@ final class ExamplesPage implements ExamplesWindow {
     private final Node question;
     private final Node about;
     private final Node stage;
-    private final List<Example> examples = new ArrayList<>();
-    /** The example on the right, or null before the first is added. */
+    /** The example on the right, or null when there is none. */
     private Example shown;
 
-    ExamplesPage(Window window) {
+    ExamplesPage(Window window, All<Example> examples) {
         gui = window.gui();
         list = new ListView<Example>(gui, 2.25f, (nodes, e) -> nodes.text(e.question())
                 .textSize(Length.rem(0.8125f))
                 .padding(Length.ZERO, Length.rem(0.75f)))
                 .name("list");
         list.node().width(Length.FILL).height(Length.FILL).background(gui.theme().color(Role.PANEL));
-        gui.landmark(LIST, list.node());
+        gui.landmark(ExamplesWindow.LIST, list.node());
 
         question = gui.text("").textSize(Length.rem(1.25f)).fontWeight(600).textColor(gui.theme().color(Role.INK))
                 .width(Length.FILL);
-        gui.landmark(QUESTION, question);
+        gui.landmark(ExamplesWindow.QUESTION, question);
         // As wide as the pane and wrapped inside it: it has no width of its own, so a long line never scrolls sideways.
         about = gui.text("").textSize(Length.rem(0.8125f)).textColor(gui.theme().color(Role.DIM)).width(Length.FILL);
-        gui.landmark(ABOUT, about);
+        gui.landmark(ExamplesWindow.ABOUT, about);
         stage = gui.column().width(Length.FILL).height(Length.grow(1f));
 
         Node right = gui.column().width(Length.FILL).height(Length.FILL)
@@ -72,22 +73,22 @@ final class ExamplesPage implements ExamplesWindow {
         gui.root().direction(Direction.COLUMN)
                 .background(gui.theme().color(Role.PAGE))
                 .children(window.titleBar().node(), split.node());
-    }
 
-    @Override
-    public Gui gui() {
-        return gui;
-    }
-
-    @Override
-    public void add(Example e) {
-        examples.add(e);
-        examples.sort(Comparator.comparing(Example::question));
-        list.items(List.copyOf(examples));
-        e.node().visible(false);
-        stage.append(e.node());
-        if (shown == null) {
-            show(e);
+        List<Example> sorted = new ArrayList<>(examples.list());
+        sorted.sort(Comparator.comparing(Example::question));
+        list.items(List.copyOf(sorted));
+        for (Example e : sorted) {
+            e.node().visible(false);
+            stage.append(e.node());
+        }
+        // Never open on an empty page while there is something to show, and say why when there is nothing.
+        if (!sorted.isEmpty()) {
+            show(sorted.get(0));
+        } else {
+            question.text("No worked examples in this project");
+            about.text("It was made without them. To read them, generate a scratch project with every module. To add "
+                    + "one, give it a folder under examples in each module, whose configuration provides an Example: "
+                    + "this page lists every one there is.");
         }
     }
 

@@ -2,6 +2,7 @@ package ${packageName}.examples.later;
 
 import ${packageName}.core.examples.later.LaterMessages.Reminders;
 import ${packageName}.core.examples.later.LaterMessages.Settled;
+import ${packageName}.examples.Example;
 import dev.vexelray.gui.widget.TextField;
 
 /**
@@ -16,6 +17,9 @@ public interface LaterPanel {
     String REMIND = "later.remind";
     String NEVER_MIND = "later.never-mind";
     String REMINDERS = "later.reminders";
+
+    /** This example as the Examples window lists and shows it. */
+    Example example();
 
     /** The search field, which a test beside the wiring types into as a person would. */
     TextField searchField();

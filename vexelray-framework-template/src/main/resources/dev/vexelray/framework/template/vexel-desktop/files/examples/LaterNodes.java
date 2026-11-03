@@ -63,8 +63,9 @@ final class LaterNodes implements LaterPanel {
         return gui.text(text).textSize(Length.rem(0.8125f)).textColor(gui.theme().color(Role.DIM)).width(Length.FILL);
     }
 
-    Example example() {
-        return new Example("later", QUESTION, ABOUT, node);
+    @Override
+    public Example example() {
+        return Example.of("later", QUESTION, ABOUT, node);
     }
 
     @Override
