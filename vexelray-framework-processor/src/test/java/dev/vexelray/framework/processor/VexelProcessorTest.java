@@ -3113,6 +3113,160 @@ class VexelProcessorTest {
         onlyError(errors, "@MainThread on Composer");
     }
 
+    // --- All<T> and Optional<T>: a part's pieces (docs/plans/regions.md) --------------------------------------
+
+    private static final String PIECE = """
+            public interface Piece { String name(); }
+            """;
+
+    /** A piece by name, package-private, so a recipe of the application's own may build it. */
+    private static final String NAMED = """
+            record Named(String name) implements Piece {}
+            """;
+
+    /** A holder that logs the pieces it was handed, in the order it was handed them. */
+    private static final String HOLDER = """
+            final class Holder {
+                Holder(java.util.List<String> names) { dev.vexelray.framework.shell.Shell.LOG.add("holder " + names); }
+            }
+            """;
+
+    @Test
+    void allTakesEveryProviderInTheOrderOfTheirNames() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, PIECE, NAMED, HOLDER, """
+                @Configuration
+                public final class ZParts {
+                    @Provides public Piece zebra() { dev.vexelray.framework.shell.Shell.LOG.add("zebra"); return new Named("zebra"); }
+                    @Provides public Piece aardvark() { dev.vexelray.framework.shell.Shell.LOG.add("aardvark"); return new Named("aardvark"); }
+                }
+                """, """
+                @Configuration
+                public final class AParts {
+                    @Provides public Piece mole() { dev.vexelray.framework.shell.Shell.LOG.add("mole"); return new Named("mole"); }
+                    @OnMode(RunMode.FRAMES) @Provides public Piece owl() { return new Named("owl"); }
+                }
+                """, """
+                @Configuration
+                public final class Owner {
+                    @Provides Holder holder(All<Piece> pieces) {
+                        return new Holder(pieces.list().stream().map(Piece::name).toList());
+                    }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors(), "two providers of a type taken as All<T> are no conflict");
+        List<String> built = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config");
+        assertEquals("holder [mole, aardvark, zebra]", built.get(built.size() - 1),
+                "after every piece, by configuration and then method name, with the one this mode does not build"
+                        + " left out: " + built);
+        List<String> scripted = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of()).phase("config");
+        assertEquals("holder [mole, owl, aardvark, zebra]", scripted.get(scripted.size() - 1));
+    }
+
+    @Test
+    void allWithNothingToGatherIsEmptyAndOptionalIsTheOneOrNone() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, PIECE, HOLDER, """
+                interface Centre { String name(); }
+                """, """
+                interface Corner { String name(); }
+                """, """
+                @Configuration
+                public final class Owner {
+                    @Provides Centre centre() { return () -> "middle"; }
+                    @Provides Holder holder(All<Piece> pieces, java.util.Optional<Centre> centre,
+                                                   java.util.Optional<Corner> corner) {
+                        return new Holder(java.util.List.of(pieces.size() + " pieces",
+                                centre.map(Centre::name).orElse("no centre"), corner.map(Corner::name).orElse("no corner")));
+                    }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors(), "nothing to gather, and nothing optional provided, are both fine");
+        assertEquals(List.of("holder [0 pieces, middle, no corner]"),
+                compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).phase("config"));
+    }
+
+    @Test
+    void optionalWithTwoProvidersIsTheConflictItAlwaysWas() {
+        onlyError(app("""
+                @Configuration
+                public final class Owner {
+                    @Provides public Piece one() { return null; }
+                    @Provides public Piece two() { return null; }
+                    @Provides public Object holder(java.util.Optional<Piece> piece) { return null; }
+                }
+                """, PIECE), "Two providers, and neither is a @Default: Owner.one and Owner.two both provide");
+    }
+
+    @Test
+    void aTypeTakenAsAllCannotAlsoBeTakenAsOne() {
+        onlyError(app("""
+                @Configuration
+                public final class Owner {
+                    @Provides public Piece one() { return null; }
+                    @Provides public Object holder(All<Piece> pieces) { return null; }
+                    @Provides public String single(Piece piece) { return null; }
+                }
+                """, PIECE), "is taken as All<Piece> elsewhere, so it has any number of providers");
+    }
+
+    @Test
+    void aTypeTakenAsAllCannotAlsoBeTakenAsOptional() {
+        onlyError(app("""
+                @Configuration
+                public final class Owner {
+                    @Provides public Object holder(All<Piece> pieces) { return null; }
+                    @Provides public String single(java.util.Optional<Piece> piece) { return null; }
+                }
+                """, PIECE), "as an Optional of one app.Piece");
+    }
+
+    @Test
+    void aDefaultProviderOfAGatheredTypeIsRefused() {
+        onlyError(app("""
+                @Configuration
+                public final class Owner {
+                    @Default @Provides public Piece one() { return null; }
+                    @Provides public Object holder(All<Piece> pieces) { return null; }
+                }
+                """, PIECE), "there is nothing for a default to stand back from");
+    }
+
+    @Test
+    void onlyARecipeTakesAll() {
+        onlyError(app("""
+                @Component
+                public final class Gatherer {
+                    public Gatherer(All<Piece> pieces) {}
+                }
+                """, PIECE), "Gatherer takes pieces, an All, and only a recipe takes one");
+    }
+
+    @Test
+    void allNamesWhatItGathers() {
+        onlyError(app("""
+                @Configuration
+                public final class Owner {
+                    @SuppressWarnings("rawtypes")
+                    @Provides public Object holder(All pieces) { return null; }
+                }
+                """), "with no declared type to gather");
+    }
+
+    @Test
+    void thePiecesOfAllAreHeldToTheColourRule() {
+        onlyError(app("""
+                @Configuration
+                public final class Owner {
+                    @Provides public Object holder(All<dev.vexelray.gui.core.app.GuiApp> windows) { return null; }
+                }
+                """), "T2.2: Owner.holder takes windows, whose pieces are main-thread values");
+    }
+
     // --- harness --------------------------------------------------------------------------------------------
 
     private static List<String> app(String... bodies) {

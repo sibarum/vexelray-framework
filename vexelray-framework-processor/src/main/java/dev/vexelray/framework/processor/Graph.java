@@ -62,6 +62,12 @@ final class Graph {
     }
 
     private List<Provider> live = List.of();
+    /** The types some recipe takes as {@code All<T>}: a set, not a part, so exempt from one provider winning. */
+    private List<TypeMirror> gathered = List.of();
+
+    /** {@code All}'s name, which the processor reads a parameter's type against. */
+    static final String ALL = "dev.vexelray.framework.api.All";
+    static final String OPTIONAL = "java.util.Optional";
 
     private final Mirrors mirrors;
     private final Declarations declarations;
@@ -168,7 +174,9 @@ final class Graph {
     void check(boolean application) {
         List<Provider> providers = providers();
         live = providers;
+        gathered = gatheredTypes(providers);
         conflicts(providers);
+        gatheredUse(providers);
         VariableElement lentTo = null;
         for (TypeElement component : components) {
             if (live(component)) {
@@ -258,8 +266,10 @@ final class Graph {
         for (RunMode mode : RunMode.values()) {
             for (int i = 0; i < providers.size(); i++) {
                 Provider a = providers.get(i);
-                // A recipe run for its effect provides nothing, so two of them supply nothing twice.
-                if (a.effect() || !a.modes().contains(mode.name()) || !winsIn(a, mode, providers)) {
+                // A recipe run for its effect provides nothing, so two of them supply nothing twice; and a type taken
+                // as All<T> is a set, whose providers are all of them by design.
+                if (a.effect() || isGathered(a.type()) || !a.modes().contains(mode.name())
+                        || !winsIn(a, mode, providers)) {
                     continue;
                 }
                 for (int j = i + 1; j < providers.size(); j++) {
@@ -288,6 +298,125 @@ final class Graph {
             }
         }
         return true;
+    }
+
+    // --- every provider of a type, or at most one ------------------------------------------------------------
+
+    /**
+     * What {@code type} gathers, when it is {@code All<T>} or {@code Optional<T>} as {@code wrapper} names: its
+     * {@code T}, or {@code null} when it is not that wrapper. A wildcard or a raw type has no {@code T} to gather, and is
+     * {@code null} too; {@link #gatheredUse} refuses it.
+     */
+    static TypeMirror piece(TypeMirror type, String wrapper) {
+        if (type.getKind() != TypeKind.DECLARED) {
+            return null;
+        }
+        javax.lang.model.type.DeclaredType declared = (javax.lang.model.type.DeclaredType) type;
+        TypeElement element = (TypeElement) declared.asElement();
+        if (!element.getQualifiedName().contentEquals(wrapper) || declared.getTypeArguments().size() != 1) {
+            return null;
+        }
+        TypeMirror piece = declared.getTypeArguments().get(0);
+        return piece.getKind() == TypeKind.DECLARED ? piece : null;
+    }
+
+    /** Whether {@code type} is one some recipe takes as {@code All<T>}. */
+    boolean isGathered(TypeMirror type) {
+        for (TypeMirror g : gathered) {
+            if (types.isSameType(g, type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<TypeMirror> gatheredTypes(List<Provider> providers) {
+        List<TypeMirror> out = new ArrayList<>();
+        for (Provider p : providers) {
+            for (VariableElement parameter : p.method().getParameters()) {
+                TypeMirror piece = piece(parameter.asType(), ALL);
+                if (piece != null && out.stream().noneMatch(t -> types.isSameType(t, piece))) {
+                    out.add(piece);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Every parameter the wiring fills: every live recipe's, component's and job's. */
+    private List<VariableElement> everyParameter(List<Provider> providers) {
+        List<VariableElement> out = new ArrayList<>();
+        for (Provider p : providers) {
+            out.addAll(p.method().getParameters());
+        }
+        for (TypeElement part : componentsSeen()) {
+            ExecutableElement constructor = constructor(part);
+            if (constructor != null) {
+                out.addAll(constructor.getParameters());
+            }
+        }
+        for (TypeElement part : jobsSeen()) {
+            ExecutableElement constructor = constructor(part);
+            if (constructor != null) {
+                out.addAll(constructor.getParameters());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * {@code All<T>} and {@code Optional<T>} where they are allowed and nowhere else ({@code docs/plans/regions.md}): in
+     * a recipe, over a declared type, and with a type taken as {@code All<T>} taken that way everywhere. A gathered type
+     * has any number of providers, so a parameter asking for one of them, or at most one, would get whichever the
+     * build happened to pick, which is the error <i>exactly one provider wins</i> exists to stop.
+     */
+    private void gatheredUse(List<Provider> providers) {
+        for (VariableElement parameter : everyParameter(providers)) {
+            if (!mirrors.owned(parameter)) {
+                continue;
+            }
+            TypeMirror type = parameter.asType();
+            TypeElement element = Mirrors.element(type);
+            boolean all = element != null && element.getQualifiedName().contentEquals(ALL);
+            boolean optional = element != null && element.getQualifiedName().contentEquals(OPTIONAL);
+            Element owner = parameter.getEnclosingElement();
+            String who = owner.getKind() == ElementKind.METHOD ? Mirrors.where((ExecutableElement) owner)
+                    : Mirrors.simple(owner.getEnclosingElement());
+            if ((all || optional) && owner.getKind() != ElementKind.METHOD && !mirrors.has(parameter, Setting.class)) {
+                error(parameter, who + " takes " + Mirrors.simple(parameter) + ", " + (all ? "an All" : "an Optional")
+                        + ", and only a recipe takes one: a part's pieces are laid out where it is built. Take it in"
+                        + " the @Provides method that builds what holds them, and hand that the pieces");
+                continue;
+            }
+            if ((all || optional) && piece(type, all ? ALL : OPTIONAL) == null) {
+                error(parameter, who + " takes " + Mirrors.simple(parameter) + ", a " + type + ", with no declared type"
+                        + " to gather: name one, as in " + (all ? "All<SidePiece>" : "Optional<Centre>"));
+                continue;
+            }
+            TypeMirror single = optional ? piece(type, OPTIONAL) : all ? null : type;
+            if (single != null && isGathered(single)) {
+                error(parameter, who + " takes " + Mirrors.simple(parameter) + " as " + (optional ? "an Optional of " : "")
+                        + "one " + single + ", and " + single + " is taken as All<" + Mirrors.simple(Mirrors.element(single))
+                        + "> elsewhere, so it has any number of providers. A type is a set or a part, not both:"
+                        + " take All<" + Mirrors.simple(Mirrors.element(single)) + "> here too, or give the one part a"
+                        + " type of its own");
+            }
+            if (optional && single != null) {
+                TypeElement held = Mirrors.element(single);
+                if (held != null && Framework.root(held.getQualifiedName().toString()) != null) {
+                    error(parameter, who + " takes " + Mirrors.simple(parameter) + ", an Optional of "
+                            + Mirrors.simple(held) + ", which the framework always supplies: take it as it is");
+                }
+            }
+        }
+        for (Provider p : providers) {
+            if (p.isDefault() && isGathered(p.type()) && mirrors.owned(p.method())) {
+                error(p.method(), "@Default on " + Mirrors.where(p.method()) + ", which provides " + p.type() + ", and "
+                        + p.type() + " is taken as All<" + Mirrors.simple(Mirrors.element(p.type())) + ">: every"
+                        + " provider of it is taken, so there is nothing for a default to stand back from. Remove"
+                        + " @Default");
+            }
+        }
     }
 
     private void conflict(Provider a, Provider b, RunMode mode) {
@@ -430,6 +559,25 @@ final class Graph {
         }
         String where = Mirrors.where(provider.method());
         if (refused(where, parameter)) {
+            return;
+        }
+        // All<T> and Optional<T> hand over T's providers, so T is held to what a parameter of T would be.
+        TypeMirror piece = piece(parameter.asType(), ALL);
+        if (piece == null) {
+            piece = piece(parameter.asType(), OPTIONAL);
+        }
+        if (piece != null) {
+            String onMain = whyOnMain(piece, providers);
+            if (onMain != null) {
+                error(parameter, "T2.2: " + where + " takes " + Mirrors.simple(parameter) + ", whose pieces are"
+                        + " main-thread values (" + onMain + "). No application code runs on the main thread (T7.1)");
+            }
+            TypeElement held = Mirrors.element(piece);
+            if (held != null && (mirrors.has(held, Component.class) || mirrors.has(held, View.class))) {
+                error(parameter, "T3.7: " + where + " takes " + Mirrors.simple(parameter) + ", whose pieces are the"
+                        + " component " + Mirrors.simple(held) + ". The container hands out a channel or a shareable"
+                        + " value, never the object");
+            }
             return;
         }
         String main = whyOnMain(parameter.asType(), providers);

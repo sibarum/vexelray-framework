@@ -528,6 +528,26 @@ talking to nobody.
 destinations, `Channels.destination` and the generator's call. Held by `DestinationsTest` and `VexelProcessorTest`'s
 destination cases.
 
+### 13. Every provider of a type, or at most one (ruled and built 2026-11-03)
+
+**A recipe may take `All<T>`, every provider of `T`, or `Optional<T>`, zero or one.** It is how a part takes pieces it
+does not name: a window's owner declares what it holds as a type of its own, takes `All` of it, and lays the pieces
+out, and leaving a piece out of the build leaves one fewer. The modular template needs it so that a module adds a
+piece of a window without the base naming the module; the argument and the four rulings are in
+[plans/regions.md](plans/regions.md).
+
+**The rules, held by the processor:** the providers of a type taken as `All<T>` are exempt from *exactly one provider
+wins*, so a type taken that way anywhere is taken that way everywhere (as a plain `T` or an `Optional<T>` it is
+refused); a `@Default` provider of it is refused; only a recipe takes either shape, and a raw one is refused; the
+pieces are held to what a parameter of `T` would be (no main-thread value, no component). `Optional<T>` with two
+providers is the conflict it always was. The order of `All<T>` is the providers' qualified names, configuration and
+then method, stable and meaning nothing; a mode that does not build a piece leaves it out, and `Optional<T>` is empty
+there. Both exist in every mode, so neither narrows the modes of the part that takes it.
+
+**Where it is built:** `All` in `-api`; `Graph`'s `gatheredUse` and the exemption in `conflicts`; the generator's
+`AllArg` and `OptionalArg`, with a field of its own for each piece. Held by `VexelProcessorTest`'s *All<T> and
+Optional<T>* cases.
+
 ## Build order once the rulings are taken
 
 Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) orders the whole.

@@ -288,6 +288,68 @@ final class Generator {
         }
     }
 
+    /**
+     * {@code All<T>}: every slot a provider of {@code T} writes, in the order of their providers' qualified names, and
+     * none of them null, since a mode that does not build one leaves it out ({@code All.of} drops a null). It exists in
+     * every mode, with what that mode builds, so it narrows nothing; it is built after every piece.
+     */
+    private record AllArg(String piece, List<Slot> pieces) implements Arg {
+        public String expression() {
+            StringBuilder call = new StringBuilder(Graph.ALL).append(".<").append(piece).append(">of(");
+            for (int i = 0; i < pieces.size(); i++) {
+                call.append(i == 0 ? "" : ", ").append(pieces.get(i).field);
+            }
+            return call.append(')').toString();
+        }
+
+        public Phase phase() {
+            Phase latest = Phase.CONFIG;
+            for (Slot s : pieces) {
+                for (Binding b : s.writers) {
+                    if (b.phase.compareTo(latest) > 0) {
+                        latest = b.phase;
+                    }
+                }
+            }
+            return latest;
+        }
+
+        public Set<RunMode> modes() {
+            return EVERY_MODE;
+        }
+
+        public List<Binding> needs() {
+            List<Binding> out = new ArrayList<>();
+            for (Slot s : pieces) {
+                out.addAll(s.writers);
+            }
+            return out;
+        }
+    }
+
+    /**
+     * {@code Optional<T>}: the one provider of {@code T}, or empty when there is none, or none in this mode. Like
+     * {@link AllArg} it exists in every mode, so a part that takes it is built whether or not {@code T} is.
+     */
+    private record OptionalArg(String piece, Slot slot) implements Arg {
+        public String expression() {
+            return slot == null ? "java.util.Optional.<" + piece + ">empty()"
+                    : "java.util.Optional.<" + piece + ">ofNullable(" + slot.field + ")";
+        }
+
+        public Phase phase() {
+            return slot == null ? Phase.CONFIG : new SlotArg(slot).phase();
+        }
+
+        public Set<RunMode> modes() {
+            return EVERY_MODE;
+        }
+
+        public List<Binding> needs() {
+            return slot == null ? List.of() : slot.writers;
+        }
+    }
+
     private final List<Binding> bindings = new ArrayList<>();
     private final List<Slot> slots = new ArrayList<>();
     private final Map<TypeElement, String> configurations = new LinkedHashMap<>();
@@ -346,8 +408,11 @@ final class Generator {
             if (b.effect()) {
                 continue;   // provides nothing: no field, no accessor, and nothing can take it
             }
-            slotFor(b.type).writers.add(b);
-            b.slot = slotFor(b.type);
+            // A piece of an All<T> is a part of its own, held in a field of its own, and never one of a mode's
+            // providers of a single type.
+            Slot slot = graph.isGathered(b.type) ? newSlot(b.type) : slotFor(b.type);
+            slot.writers.add(b);
+            b.slot = slot;
         }
         for (Slot s : slots) {
             s.field = field(s.writers.size() == 1 && s.writers.get(0).provider != null
@@ -385,9 +450,20 @@ final class Generator {
                 return s;
             }
         }
+        return newSlot(type);
+    }
+
+    private Slot newSlot(TypeMirror type) {
         Slot s = new Slot(type);
         slots.add(s);
         return s;
+    }
+
+    /** Where a slot's provider is, as the order of {@code All<T>} reads it: configuration, then method. */
+    private static String providedAt(Slot s) {
+        Graph.Provider p = s.writers.get(0).provider;
+        return p == null ? Mirrors.element(s.type).getQualifiedName().toString()
+                : p.configuration().getQualifiedName() + "." + p.method().getSimpleName();
     }
 
     // --- resolving a parameter -------------------------------------------------------------------------------
@@ -438,6 +514,27 @@ final class Generator {
                           + ", " + literal(declarations.lane(b.component)) + ", " + topic + ")"
                         : "shell.senders().to(" + topic + ")");
             }
+        }
+        // Graph has refused either shape anywhere but a recipe, and a gathered type taken any other way.
+        TypeMirror all = Graph.piece(type, Graph.ALL);
+        if (all != null) {
+            List<Slot> pieces = new ArrayList<>();
+            for (Slot s : slots) {
+                if (types.isSameType(s.type, all)) {
+                    pieces.add(s);
+                }
+            }
+            pieces.sort(java.util.Comparator.comparing(Generator::providedAt));
+            return new AllArg(all.toString(), pieces);
+        }
+        TypeMirror optional = Graph.piece(type, Graph.OPTIONAL);
+        if (optional != null) {
+            for (Slot s : slots) {
+                if (types.isSameType(s.type, optional)) {
+                    return new OptionalArg(optional.toString(), s);
+                }
+            }
+            return new OptionalArg(optional.toString(), null);
         }
         for (Slot s : slots) {
             if (types.isSameType(s.type, type)) {

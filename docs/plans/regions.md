@@ -148,3 +148,18 @@ and the first to re-check when something depends on it ([TODO.md](../TODO.md) sa
 3. **Closing, asked in turn**, with the windows witness in the acceptance run (`Gate`) given a second answerer.
 4. **The navigator out of the editor** (template-modules step 3): the main window's first region, with the session's
    folder key and the command line's folders going with it.
+
+## As built
+
+**Step 1, 2026-11-03:** `All<T>` and `Optional<T>` in the processor, recorded in
+[components.md](../components.md) section 13. What building it found:
+
+1. **A piece is an interface, and so is anything else a recipe returns.** The processor's rule that a public recipe
+   returns an interface, and that a record behind `@Provides` is refused even package-private, applies to pieces as
+   to any value: the tests' pieces are an interface (`Piece`) built from a package-private record, and an optional
+   `Centre` is an interface built from a lambda. This is the cost *What it does not fix* names, met at once.
+2. **Each piece is a field of its own in the wiring**, named for its recipe, so it is readable through an accessor as
+   any part is; a type taken as `All<T>` never shares the one field a mode's single provider would write.
+3. **Both shapes exist in every mode.** A piece built only in some modes is null in the others and left out, and an
+   `Optional<T>` whose one provider is not built is empty, so the part taking either is built in every mode it
+   declares rather than narrowed to its pieces'.
