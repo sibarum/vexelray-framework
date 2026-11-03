@@ -1,7 +1,8 @@
 # The template as the manual
 
 *Proposed 2026-11-02, written by the coding agent as the template's customer, at the author's ask. Nothing here is
-ruled yet. Slice 1 (the frame and A7/A8) built 2026-11-02: see* [Slice 1, as built](#slice-1-as-built).
+ruled yet. Slice 1 (the frame and A7/A8) built 2026-11-02: see* [Slice 1, as built](#slice-1-as-built). *If
+[template-modules.md](template-modules.md) is ruled, each example becomes a module of the template, under its rules.*
 
 **The goal (the author's, 2026-11-02):** building a well-polished application without compromise should be *easy*,
 for the author and for a coding agent, and should work on the first try. **The proposal:** a generated project carries
