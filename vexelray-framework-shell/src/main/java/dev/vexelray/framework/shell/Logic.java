@@ -11,6 +11,9 @@ import sibarum.atchung.Inbox;
 import sibarum.atchung.Step;
 import sibarum.atchung.Tick;
 import sibarum.atchung.Topic;
+import sibarum.probe.Lane;
+import sibarum.probe.Probe;
+import sibarum.probe.Zone;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -110,7 +113,7 @@ public final class Logic implements WakeSource, AutoCloseable {
 
     /** The logic lane, with its ticks run on the main thread when {@code onMain} (single-thread mode, T1.7). */
     Logic(Atchung bus, Lanes lanes, boolean onMain) {
-        this.tick = bus.tick(this::arrived);
+        this.tick = bus.tick(this::arrived).named(LANE);
         this.lanes = lanes;
         this.onMain = onMain;
     }
@@ -199,9 +202,23 @@ public final class Logic implements WakeSource, AutoCloseable {
         }
         Thread t = thread;
         if (t != null) {
+            // Said once for the park it ends, on the thread that ended it, as the frame loop's wake is: the next
+            // tick's wait on this lane began here (vexelray-inspector framework-notes FN-17).
+            if (parked.compareAndSet(true, false) && Probe.ON) {
+                Probe.mark(Lane.BUS, "wake", WOKEN);
+            }
             LockSupport.unpark(t);
         }
     }
+
+    /** The idle zone the lane's thread parks in between ticks, on the bus lane. */
+    static final String PARK = "logic park";
+
+    /** What a {@code wake} row ending this lane's park says: the frame loop's form, {@code <why> on <whom>}. */
+    static final String WOKEN = "message on " + LANE;
+
+    /** Whether the lane's thread is parked waiting for a message, for {@link #arrived} to say it ended the park. */
+    private final java.util.concurrent.atomic.AtomicBoolean parked = new java.util.concurrent.atomic.AtomicBoolean();
 
     @Override
     public void onWake(Runnable onWake) {
@@ -289,7 +306,15 @@ public final class Logic implements WakeSource, AutoCloseable {
         boolean carried = false;
         while (running) {
             if (!carried && !arrived) {
-                LockSupport.parkNanos(this, PARK_NANOS);
+                // An idle zone, as the frame loop's wait for events is: rest, which a ledger reads as rest and never
+                // as work or as a gap the rows leave unsaid (vexelray-inspector framework-notes FN-17).
+                parked.set(true);
+                try (Zone z = Probe.idleZone(Lane.BUS, PARK)) {
+                    if (!arrived) {
+                        LockSupport.parkNanos(this, PARK_NANOS);
+                    }
+                }
+                parked.set(false);
                 continue;
             }
             arrived = false;
