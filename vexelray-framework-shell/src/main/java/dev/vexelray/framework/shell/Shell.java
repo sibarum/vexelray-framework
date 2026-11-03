@@ -433,12 +433,25 @@ public final class Shell {
         return logic().tick();
     }
 
+    /** The lane a replay runs on: its thread, {@code vexel-component-replay}, writes the replay's rows, not the run's. */
+    static final String REPLAY_LANE = "replay";
+
     /**
      * Run what the logic has taken in so far again, on a fresh set of this application's components, and say which
-     * sends differ: {@code replay}'s answer on the automation socket ({@link Replay}). Any thread but the logic's.
+     * sends differ: {@code replay}'s answer on the automation socket ({@link Replay}). Any thread but the logic's; the
+     * replay itself runs on a thread of its own, so that the rows its components write are told from the run's by
+     * their thread, and this one waits for it.
      */
     public String replay() {
-        return Replay.run(this);
+        String[] answer = {"err replay: it ended without an answer"};
+        Thread replaying = lanes.thread(REPLAY_LANE, () -> answer[0] = Replay.run(this));
+        try {
+            replaying.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "err replay: interrupted while it ran";
+        }
+        return answer[0];
     }
 
     /**
