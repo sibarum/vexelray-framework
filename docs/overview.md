@@ -208,8 +208,9 @@ cannot be cancelled, and nothing is restarted: the default policy reports and ex
 
 The main window is a `Window`, and so is every other. A second window is declared in a recipe and the framework
 builds and remembers it the same way. A window's close can be a question, for unsaved work: a part that
-hears `CloseRequested` is asked before any window closes, and answers with a `CloseAnswer`. With no such part,
-closing closes, because that has to be the default.
+hears `CloseRequested` is asked before any window closes, and answers with a `CloseAnswer`. When several do, each
+is asked in turn, and the first to refuse keeps the window open. With no such part, closing closes, because that has
+to be the default.
 
 The title bar is drawn by the framework from the application's identity (its title and icon) and in the
 application's theme. Its placement and controls are the framework's, so every window behaves the same and tools

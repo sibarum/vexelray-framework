@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.core.CloseRequested;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Sender;
 import sibarum.atchung.Subscriber;
@@ -33,13 +34,21 @@ public final class Inboxes {
      * {@code hears} is what the component declared it hears ({@code @Hears}, its payloads' topics); when the lane
      * starts, the inbox must be subscribed to exactly those, as well as its ledgers' own topics, or the application
      * does not start.
+     *
+     * <p>An inbox that hears {@link CloseRequested} hears only the requests addressed to {@code name}: a window's close
+     * is asked of each part in turn ({@code Closes}), and the component's own subscription to it, a ledger step's
+     * included, names no addressee.
      */
     public static Inbox of(Shell shell, String name, String lane, Topic<?>... hears) {
         List<String> names = new ArrayList<>(hears.length);
         for (Topic<?> t : hears) {
             names.add(t.name());
         }
-        return shell.inbox(name, lane, names);
+        Inbox inbox = shell.inbox(name, lane, names);
+        if (names.contains(CloseRequested.TOPIC.name())) {
+            inbox.only(CloseRequested.TOPIC, Set.of(name));
+        }
+        return inbox;
     }
 
     /**

@@ -526,6 +526,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       and `Placement.superseded()` is deleted. What is left of the sweep is the list above, and it binds the siblings
       `Shell` exposes.
 
+- [ ] **Two parts that ask the person share one id space.** An `Answer` names only its `Ask`'s id, and every part that
+      asks hears every answer, so two parts counting from 1 each act on the other's answers. Found when the windows
+      witness gained a second close answerer ([regions.md](plans/regions.md), step 3's *As built*), whose `Keeper`
+      counts from 2^40 to stay clear of `Gate`. Modules make this common, since each module asks its own questions.
+      It blocks v1 because the fix changes how an `Ask` is made, for example the framework issuing the id or keying
+      `Answer` by the asking part as `CloseRequested` is now, and every application that asks would change with it.
+
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
       is frozen. This is the step that turns *nothing known is wrong* into 1.0. It cannot start early,

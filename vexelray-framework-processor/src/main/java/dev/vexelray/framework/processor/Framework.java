@@ -50,9 +50,8 @@ final class Framework {
      */
     static final String COMPUTE_QUEUE = "dev.vexelray.gui.core.app.ComputeQueue";
     /**
-     * The framework's question before a window closes, and its answer. A window's close is asked of the application
-     * ({@code Wiring.answersClose}) exactly when a part hears the first, and {@link Channels} requires one part to and
-     * something to send the second.
+     * The framework's question before a window closes, and its answer. A window's close is asked of each part that hears
+     * the first, in turn ({@code Wiring.closeHearers}), and {@link Channels} requires each of them to send the second.
      */
     static final String CLOSE_REQUESTED = "dev.vexelray.framework.core.CloseRequested";
     static final String CLOSE_ANSWER = "dev.vexelray.framework.core.CloseAnswer";

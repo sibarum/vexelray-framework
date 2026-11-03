@@ -43,7 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WindowsWitnessTest {
 
     private static final String ARTIFACT = "vexel-witness-windows";
-    private static final List<String> OVERLAY = List.of("Landmarks", "Parts", "Ui", "Notes", "Palette", "Gate", "Shown", "Recipes");
+    private static final List<String> OVERLAY = List.of("Landmarks", "Parts", "Ui", "Notes", "Palette", "Gate", "Keeper",
+            "Shown", "Recipes");
 
     /** What the notes window is resized and zoomed to, and so what the second launch must find it at. */
     private static final String NOTES_SIZE = "520x380";
@@ -123,14 +124,18 @@ class WindowsWitnessTest {
             assertTrue(main.contains(" zoom=1 ") || main.contains(" zoom=1.0 "),
                     "zooming the notes window zoomed the main one: " + main);
 
-            // The palette's close gate asks first, in a dialog of its own: the fourth window. Escape is Cancel, and the
-            // palette stays; the second time Enter is Close, and it goes.
+            // The palette's close is asked of two parts in turn (regions.md, ruling 3), each in a dialog of its own: the
+            // fourth window. The Gate is first. Escape is Cancel, and the palette stays with the Keeper never asked; the
+            // second time Enter is Close, and then the Keeper asks, and its Enter puts the palette away.
             d.ok("window palette");
             d.ok("click " + d.ref("palette.close"));
             awaitWindows(d, 4);
             d.ok("window 4");
             d.ok("settle");
+            assertTrue(d.ok("tree").contains("Close the palette?"), "the Gate was not asked first");
             d.ok("key escape");
+            awaitWindows(d, 3);
+            Thread.sleep(300);
             awaitWindows(d, 3);
             d.ok("window palette");
             d.ok("await palette.count 1");
@@ -138,6 +143,9 @@ class WindowsWitnessTest {
             awaitWindows(d, 4);
             d.ok("window 4");
             d.ok("settle");
+            d.ok("key enter");
+            // The Gate's dialog goes and the Keeper's comes: one question up at a time.
+            awaitDialog(d, "Put the palette away?");
             d.ok("key enter");
             // Then it closes and comes back to the tree it left: same count, no second window made.
             awaitWindows(d, 2);
@@ -262,6 +270,26 @@ class WindowsWitnessTest {
                 "Quit did not end the application within 60 s\n" + tail(session.log()));
         String run = Support.read(session.log());
         assertTrue(run.contains("stopped: " + ARTIFACT), "the application did not stop by its own loop\n" + tail(session.log()));
+    }
+
+    /**
+     * Wait for the fourth window to be a dialog asking {@code question}, and settle in it: one dialog going and the
+     * next coming each lands a frame or so later.
+     */
+    private static void awaitDialog(Driver d, String question) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        String tree = "";
+        while (System.nanoTime() < deadline) {
+            if (d.send("window 4").startsWith("ok")) {
+                tree = d.send("tree");
+                if (tree.contains(question)) {
+                    d.ok("settle");
+                    return;
+                }
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("no dialog asked \"" + question + "\"; the fourth window's tree was\n" + tree);
     }
 
     /** Wait for {@code count} windows to be open. Opening and closing are posted, so they land a frame or so later. */

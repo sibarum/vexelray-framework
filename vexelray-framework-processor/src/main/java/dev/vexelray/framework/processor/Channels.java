@@ -226,6 +226,8 @@ final class Channels {
         Set<String> heard = new HashSet<>();
         Set<String> sent = new HashSet<>();
         Set<TypeElement> closeHearers = new LinkedHashSet<>();
+        // The parts that send CloseAnswer themselves: by a sender they take, or by @Publishes on them or a method of theirs.
+        Set<Element> answerers = new HashSet<>();
         for (Mailbox m : all) {
             // A payload that is not a plain class or interface is already an error where @Subscribe is declared, and one
             // that cannot cross is the mailbox's first problem: its channel is asked about once it can carry anything.
@@ -247,6 +249,9 @@ final class Channels {
             }
             declared(s, payload, describe(s) + " sends " + Mirrors.simple(Mirrors.element(payload)), null);
             sent.add(Topics.name(payload));
+            if (Topics.name(payload).equals(Framework.CLOSE_ANSWER)) {
+                answerers.add(s.getEnclosingElement().getEnclosingElement());
+            }
         }
         for (TypeElement component : graph.componentsSeen()) {
             AnnotationMirror hears = mirrors.find(component, Hears.class);
@@ -269,6 +274,9 @@ final class Channels {
                     declared(publisher, payload, "@Publishes on " + describe(publisher) + " lists "
                             + Mirrors.simple(Mirrors.element(payload)), null);
                     sent.add(Topics.name(payload));
+                    if (Topics.name(payload).equals(Framework.CLOSE_ANSWER)) {
+                        answerers.add(publisher instanceof TypeElement ? publisher : publisher.getEnclosingElement());
+                    }
                 }
             }
         }
@@ -279,38 +287,38 @@ final class Channels {
         }
         writes(destinations, heard);
         destinations(destinations, heard, jobs(jobs, heard, application), application);
-        closes(closeHearers, sent, application);
+        closes(closeHearers, answerers);
     }
-
-    /** Whether a part hears {@code CloseRequested}, so a window's close is asked of the application. After {@link #check}. */
-    boolean answersClose() {
-        return answersClose;
-    }
-
-    private boolean answersClose;
 
     /**
-     * The close gate: a window's close is one question, answered once. So at most one part hears
-     * {@code CloseRequested}, and, in an application, something sends {@code CloseAnswer} when one does: without it,
-     * every window would stay open for good.
+     * The parts a window's close is asked of, in the order they are asked: every part that hears
+     * {@code CloseRequested}, by qualified name. After {@link #check}.
      */
-    private void closes(Set<TypeElement> hearers, Set<String> sent, boolean application) {
-        answersClose = !hearers.isEmpty();
-        if (hearers.size() > 1) {
-            List<String> names = new ArrayList<>();
-            hearers.forEach(h -> names.add(Mirrors.simple(h)));
-            for (TypeElement h : hearers) {
-                error(h, Mirrors.simple(h) + " hears CloseRequested, and so do " + (names.size() - 1) + " other parts ("
-                        + String.join(", ", names) + "). A window's close is answered once: let one part hear it and"
-                        + " decide, and tell the others by a message of the application's own");
+    List<String> closeHearers() {
+        return closeHearers;
+    }
+
+    private List<String> closeHearers = List.of();
+
+    /**
+     * The close gate: a window's close is asked of every part that hears {@code CloseRequested}, in turn, and waits for
+     * each one's answer (regions.md, ruling 3). So every part that hears it sends {@code CloseAnswer} itself: one that
+     * did not would hold every window open for good, and one that left it to another part would have that part answer
+     * a turn that is not its own.
+     */
+    private void closes(Set<TypeElement> hearers, Set<Element> answerers) {
+        List<String> names = new ArrayList<>();
+        for (TypeElement h : hearers) {
+            names.add(h.getQualifiedName().toString());
+            if (!answerers.contains(h)) {
+                error(h, Mirrors.simple(h) + " hears CloseRequested, and does not send CloseAnswer. Every window's"
+                        + " close is asked of each part that hears it, in turn, and waits for that part's answer, so"
+                        + " with none no window ever closes: take a Sender<CloseAnswer>, or list CloseAnswer in"
+                        + " @Publishes if a ledger's step sends it");
             }
         }
-        if (application && answersClose && !sent.contains(Framework.CLOSE_ANSWER)) {
-            TypeElement h = hearers.iterator().next();
-            error(h, Mirrors.simple(h) + " hears CloseRequested, and nothing sends CloseAnswer. Every window's close"
-                    + " now waits for an answer, so with no answer no window ever closes: take a Sender<CloseAnswer>,"
-                    + " or list CloseAnswer in @Publishes if a ledger's step sends it");
-        }
+        Collections.sort(names);
+        closeHearers = List.copyOf(names);
     }
 
     /**

@@ -890,10 +890,16 @@ final class Generator {
                 && r.root().type().equals(Framework.COMPUTE_QUEUE)))) {
             src.append("\n    @Override\n    public boolean computeQueue() {\n        return true;\n    }\n");
         }
-        // A part hears CloseRequested, so every window's close is asked of it and waits for its CloseAnswer. Channels
-        // has made sure it is one part, and that something answers.
-        if (channels.answersClose()) {
-            src.append("\n    @Override\n    public boolean answersClose() {\n        return true;\n    }\n");
+        // Parts hear CloseRequested, so every window's close is asked of each in turn, in this order, and waits for each
+        // one's CloseAnswer. Channels has made sure every one of them answers.
+        if (!channels.closeHearers().isEmpty()) {
+            src.append("\n    @Override\n    public java.util.List<String> closeHearers() {\n        return java.util.List.of(");
+            String comma = "";
+            for (String h : channels.closeHearers()) {
+                src.append(comma).append(literal(h));
+                comma = ", ";
+            }
+            src.append(");\n    }\n");
         }
         // The mark, by name: the shell decodes it at WINDOW, beside this class, so the name is resolved exactly as
         // Declarations.icon found it. Registered for native-image here too, so no application writes that by hand --
@@ -1042,6 +1048,10 @@ final class Generator {
             StringBuilder keys = new StringBuilder();
             for (String k : m.keys()) {
                 keys.append(", ").append(literal(k));
+            }
+            // Each part is asked to close in its turn, by a request addressed to it: it hears only those.
+            if (Topics.name(m.payload()).equals(Framework.CLOSE_REQUESTED)) {
+                keys.append(", ").append(literal(b.component.getQualifiedName().toString()));
             }
             String topic = topic(app, m.method(), m.payload());
             String subscriber = field + "::" + Mirrors.simple(m.method());

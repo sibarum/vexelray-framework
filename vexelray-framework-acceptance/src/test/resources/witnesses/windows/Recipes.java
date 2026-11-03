@@ -12,9 +12,9 @@ import dev.vexelray.gui.widget.TitleBar;
 /**
  * The two-window witness's parts: the look, the main window's tree, a peer window and a satellite declared through
  * {@code Windows}, and what the launch asked for. Opening, closing and asking are messages, sent by the view and the
- * {@link Gate}; nothing here holds a window's handle past building its tree.
+ * {@link Gate} and the {@link Keeper}; nothing here holds a window's handle past building its tree.
  */
-@Configuration(components = {Counter.class, Gate.class})
+@Configuration(components = {Counter.class, Gate.class, Keeper.class})
 final class Recipes {
 
     @Provides

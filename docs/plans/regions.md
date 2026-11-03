@@ -182,3 +182,41 @@ changed. What it changed:
 Checked by the template's tests, the acceptance matrix (`none`, `examples`, and the default, whose `LaterWindowTest`
 and `ExamplesTest` run in its build), the generated wiring (`page(examples, All.of(laterExample))`), and
 `checks/later.txt` driven live, with the page shown on the later example's question.
+
+**Step 3, 2026-11-03:** closing is asked in turn. Every part that hears `CloseRequested` is asked, one at a time,
+in the order of its qualified name. A yes asks the next, the last yes closes the window, and the first no keeps the
+window open and asks no one after. What it changed:
+
+1. **A request names the part it asks.** `CloseRequested` gained `to`, the asked part's qualified name, and its topic
+   became a keyed edge (`Topic.edge(CloseRequested.class, CloseRequested::to)`). The wiring hands each part only the
+   requests addressed to it, so a part's code is the same whether it is asked alone or with others. There are two
+   ways the request reaches a part:
+   - **A `@Subscribe` mailbox** gets the part's name as its key, written by the generator.
+   - **An inbox that hears it by `@Hears`**, as the template's editor does, is narrowed when `Inboxes.of` makes it. The
+     editor's ledger step subscribes with no key, so this needed something new in atchung: `Inbox.only(topic, keys)`
+     (atchung, with a `TickTest`), which narrows every later keyless subscription to that topic.
+
+   The two-argument constructor stays, addressed to no one, for a test that hands the request straight to a part's
+   inbox (`EditorTest`).
+2. **Each turn has a ticket of its own**, so a late answer to an earlier turn answers nothing (`Closes`, tested in
+   `WindowsTest.eachHearerIsAskedInTurnAndTheFirstNoEndsTheRound`).
+3. **The processor's rule is per part.** `Wiring.answersClose` became `Wiring.closeHearers`, the ordered list. The
+   refusal of two hearers is gone. In its place, every hearer must send `CloseAnswer` itself, by a sender it takes or
+   by `@Publishes` on it or a method of its own. A hearer that left the answer to another part would have that part
+   answer a turn that is not its own. The check now runs in every compilation, not only the application's, since it
+   reads only the part's own declarations.
+4. **The windows witness has a second answerer**, `Keeper`, asked after `Gate`. The acceptance run checks two things:
+   - Gate's Cancel ends the round, with no second dialog.
+   - Gate's Close brings up Keeper's question ("Put the palette away?"), whose yes closes the palette.
+
+   The quit at the end of the run is asked of both.
+5. **Found: two parts that ask the person share one id space.** An `Answer` names only its question's id, and every
+   part that asks hears every answer, so `Keeper` counts from 2^40 to stay clear of `Gate`. A module that asks
+   questions would meet this; it is in [TODO.md](../TODO.md).
+6. **A test that publishes `CloseRequested` on a whole application's bus must address it.** The template's `ViewTest`
+   now names `Editor`. MainFrame and text-editor-vexel-demo have the old line in their `ViewTest`, and their quit
+   tests go unanswered until they take the same one-line change.
+
+Checked by the processor's tests (the order, and a second hearer that does not answer), `WindowsTest`, atchung's
+`TickTest`, and the acceptance run: the windows witness with two answerers, the generated project, whose editor is
+reached through its narrowed inbox, and the module matrix.

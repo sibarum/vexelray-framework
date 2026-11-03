@@ -104,13 +104,15 @@ public abstract class Wiring {
     }
 
     /**
-     * Whether a window's close is asked of the application as a {@link dev.vexelray.framework.core.CloseRequested},
-     * and waits for its {@link dev.vexelray.framework.core.CloseAnswer}. The generated wiring says yes exactly when a
-     * part hears {@code CloseRequested}; otherwise closing closes, which is what an application with nothing to lose
-     * wants without saying so.
+     * The parts a window's close is asked of, as a {@link dev.vexelray.framework.core.CloseRequested} each, in the
+     * order they are asked: their qualified names, sorted. Each waits for its
+     * {@link dev.vexelray.framework.core.CloseAnswer}, the next is asked only when the last let the window close, and
+     * the first that keeps it open ends the round. The generated wiring lists every part that hears
+     * {@code CloseRequested}; with none, closing closes, which is what an application with nothing to lose wants
+     * without saying so.
      */
-    public boolean answersClose() {
-        return false;
+    public java.util.List<String> closeHearers() {
+        return java.util.List.of();
     }
 
     /**

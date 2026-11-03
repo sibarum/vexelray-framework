@@ -254,6 +254,48 @@ final class WindowsTest {
         assertEquals(List.of("pressed again", "cancelled", "proceeded"), heard);
     }
 
+    /**
+     * regions.md ruling 3: each part that hears the question is asked in turn, by a request addressed to it under a
+     * ticket of its own. A yes asks the next, the last yes closes the window, and the first no keeps it open and asks
+     * no one after.
+     */
+    @Test
+    void eachHearerIsAskedInTurnAndTheFirstNoEndsTheRound() {
+        shell = VexelApplication.tree(answering(List.of("a.First", "b.Second"), s -> { }), new String[0]);
+        Window main = shell.windows().main();
+        List<CloseRequested> asked = new ArrayList<>();
+        shell.bus().subscribe(CloseRequested.TOPIC, asked::add);
+        List<String> heard = new ArrayList<>();
+
+        main.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
+        assertEquals(List.of("a.First"), asked.stream().map(CloseRequested::to).toList(), "one asked at a time");
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(0).ticket(), true));
+        VexelApplication.frame(shell);
+        assertEquals(List.of("a.First", "b.Second"), asked.stream().map(CloseRequested::to).toList());
+        assertNotEquals(asked.get(0).ticket(), asked.get(1).ticket(), "each turn has a ticket of its own");
+        assertTrue(heard.isEmpty(), "closed before the last part said yes");
+        // A second answer to the first turn's ticket is not the second part's.
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(0).ticket(), true));
+        VexelApplication.frame(shell);
+        assertTrue(heard.isEmpty(), "a late answer to an earlier turn decided the close");
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(1).ticket(), true));
+        VexelApplication.frame(shell);
+        assertEquals(List.of("proceeded"), heard);
+
+        // The first no keeps the window open, and no one after it is asked.
+        asked.clear();
+        main.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
+        shell.bus().publish(CloseAnswer.TOPIC, new CloseAnswer(asked.get(0).ticket(), false));
+        VexelApplication.frame(shell);
+        assertEquals(List.of("proceeded", "cancelled"), heard);
+        assertEquals(List.of("a.First"), asked.stream().map(CloseRequested::to).toList());
+
+        // And the window can be asked again: the refusal ended the round.
+        asked.clear();
+        main.requested(() -> heard.add("proceeded"), () -> heard.add("cancelled"));
+        assertEquals(List.of("a.First"), asked.stream().map(CloseRequested::to).toList());
+    }
+
     @Test
     void eachWindowsCloseIsAQuestionOfItsOwn() {
         shell = VexelApplication.tree(answering(s -> s.windows().named("tool", "Tool", 300, 200)), new String[0]);
@@ -274,6 +316,11 @@ final class WindowsTest {
 
     /** {@link #wiring}, with the default look, for an application with a part that hears {@code CloseRequested}. */
     private static Wiring answering(Consumer<Shell> tree) {
+        return answering(List.of("demo.Guard"), tree);
+    }
+
+    /** {@link #answering(Consumer)}, with {@code hearers} hearing {@code CloseRequested}, asked in that order. */
+    private static Wiring answering(List<String> hearers, Consumer<Shell> tree) {
         return new Wiring() {
             @Override
             public AppInfo info() {
@@ -281,8 +328,8 @@ final class WindowsTest {
             }
 
             @Override
-            public boolean answersClose() {
-                return true;
+            public List<String> closeHearers() {
+                return hearers;
             }
 
             @Override

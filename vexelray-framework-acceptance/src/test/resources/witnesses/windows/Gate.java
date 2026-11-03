@@ -26,6 +26,7 @@ record Question() {
 /**
  * The witness's questions, on the logic lane. It hears every window's close request, since a close is a question as
  * soon as any part hears one: the palette's is put to the person, and every other window's is answered yes at once.
+ * It is asked first, its name sorting before the {@link Keeper}'s, which is asked only once this says Close.
  * And it asks the witness's own question, counting on its default button.
  *
  * <p>In 0.1 the palette's window took an {@code onClose} callback and the question was a {@code Modal} whose buttons

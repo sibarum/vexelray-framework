@@ -265,7 +265,7 @@ class VexelProcessorTest {
                     public String busGraph() { return null; }
                     public Wiring again() { return null; }
                     public boolean computeQueue() { return false; }
-                    public boolean answersClose() { return false; }
+                    public java.util.List<String> closeHearers() { return java.util.List.of(); }
                     public String icon() { return null; }
                     public void config(Shell shell) {}
                     public void model(Shell shell) {}
@@ -576,13 +576,13 @@ class VexelProcessorTest {
                 }
                 """);
         assertEquals(List.of(), compiled.errors());
-        assertEquals(true, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).answersClose());
+        assertEquals(1, compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).closeHearers().size());
 
         Compiled plain = build("""
                 @VexelApp(name = "demo", title = "Demo")
                 public final class DemoApp {}
                 """);
-        assertEquals(false, plain.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).answersClose(),
+        assertEquals(List.of(), plain.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).closeHearers(),
                 "an application that hears no CloseRequested closes its windows when asked");
     }
 
@@ -594,12 +594,38 @@ class VexelProcessorTest {
                 """, """
                 @Component
                 public final class Guard { @Subscribe public void asked(dev.vexelray.framework.core.CloseRequested r) {} }
-                """), "Guard hears CloseRequested, and nothing sends CloseAnswer");
+                """), "Guard hears CloseRequested, and does not send CloseAnswer");
+    }
+
+    /**
+     * regions.md ruling 3: every part that hears {@code CloseRequested} is asked in turn, in the order of their
+     * qualified names and not of their declaration, and each must answer its own turn.
+     */
+    @Test
+    void everyPartThatHearsCloseRequestedIsAskedInTurnByName() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Component
+                public final class Zeta {
+                    public Zeta(sibarum.atchung.Sender<dev.vexelray.framework.core.CloseAnswer> answer) {}
+                    @Subscribe public void asked(dev.vexelray.framework.core.CloseRequested r) {}
+                }
+                """, """
+                @Component @Hears(dev.vexelray.framework.core.CloseRequested.class)
+                @dev.vexelray.framework.api.Publishes(dev.vexelray.framework.core.CloseAnswer.class)
+                public final class Alpha { public Alpha(sibarum.atchung.Inbox inbox) {} }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        List<String> hearers = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).closeHearers();
+        assertEquals(2, hearers.size(), hearers.toString());
+        assertTrue(hearers.get(0).endsWith("Alpha") && hearers.get(1).endsWith("Zeta"), hearers.toString());
     }
 
     @Test
-    void twoPartsHearingCloseRequestedIsAnError() {
-        List<String> errors = app("""
+    void aSecondHearerThatLeavesTheAnswerToTheFirstIsAnError() {
+        onlyError(app("""
                 @VexelApp(name = "demo", title = "Demo")
                 public final class DemoApp {}
                 """, """
@@ -611,10 +637,7 @@ class VexelProcessorTest {
                 """, """
                 @Component @Hears(dev.vexelray.framework.core.CloseRequested.class)
                 public final class Other { public Other(sibarum.atchung.Inbox inbox) {} }
-                """);
-        assertEquals(2, errors.size(), String.join("\n", errors));
-        assertTrue(errors.stream().allMatch(e -> e.contains("A window's close is answered once")),
-                String.join("\n", errors));
+                """), "Other hears CloseRequested, and does not send CloseAnswer");
     }
 
     // --- build identity -------------------------------------------------------------------------------------
@@ -3354,9 +3377,10 @@ class VexelProcessorTest {
             return (boolean) wiring.getClass().getSuperclass().getMethod("computeQueue").invoke(wiring);
         }
 
-        /** What the wiring answers {@code Wiring.answersClose}: whether a window's close is asked of the application. */
-        boolean answersClose() throws Exception {
-            return (boolean) wiring.getClass().getSuperclass().getMethod("answersClose").invoke(wiring);
+        /** What the wiring answers {@code Wiring.closeHearers}: the parts a window's close is asked of, in turn. */
+        @SuppressWarnings("unchecked")
+        List<String> closeHearers() throws Exception {
+            return (List<String>) wiring.getClass().getSuperclass().getMethod("closeHearers").invoke(wiring);
         }
 
         /** What the wiring answers {@code Wiring.busGraph}: the declared message graph, as text. */

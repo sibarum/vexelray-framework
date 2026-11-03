@@ -1,5 +1,6 @@
 package ${packageName};
 
+import ${packageName}.core.Editor;
 import ${packageName}.core.Messages;
 import ${packageName}.core.Messages.Caption;
 import ${packageName}.core.Messages.Go;
@@ -142,8 +143,9 @@ class ViewTest {
     }
 
     /**
-     * Ask what the framework asks when the main window's close button is pressed, and run {@code proceeded} or
-     * {@code cancelled} on the answer, as the framework does with the window's own two.
+     * Ask the editor what the framework asks it when the main window's close button is pressed, and run
+     * {@code proceeded} or {@code cancelled} on the answer, as the framework does with the window's own two. The
+     * request is addressed to the editor, as the framework addresses each part that hears it, in turn.
      */
     private void quit(Runnable proceeded, Runnable cancelled) {
         long ticket = tickets.incrementAndGet();
@@ -152,7 +154,7 @@ class ViewTest {
                 (a.proceed() ? proceeded : cancelled).run();
             }
         });
-        shell.bus().publish(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, ticket));
+        shell.bus().publish(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, ticket, Editor.class.getName()));
     }
 
     /** Far from the framework's own tickets, which start at 1, so its gate ignores these answers. */
