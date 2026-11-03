@@ -3,6 +3,8 @@ package dev.vexelray.framework.core;
 import dev.vexelray.framework.api.Stability;
 import sibarum.atchung.Atchung;
 import sibarum.atchung.Topic;
+import sibarum.probe.Lane;
+import sibarum.probe.Probe;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -74,7 +76,7 @@ public final class Timer implements AutoCloseable {
         if (thread == null) {
             return Scheduled.NONE;
         }
-        return new Scheduled(thread.schedule(() -> bus.publish(topic, message), delay.toNanos(), TimeUnit.NANOSECONDS));
+        return new Scheduled(thread.schedule(() -> fire(topic, message), delay.toNanos(), TimeUnit.NANOSECONDS));
     }
 
     /** Publish {@code message} on {@code topic} every {@code period}, the first one period from now, until cancelled. */
@@ -84,8 +86,20 @@ public final class Timer implements AutoCloseable {
             return Scheduled.NONE;
         }
         long nanos = period.toNanos();
-        return new Scheduled(thread.scheduleWithFixedDelay(() -> bus.publish(topic, message), nanos, nanos,
+        return new Scheduled(thread.scheduleWithFixedDelay(() -> fire(topic, message), nanos, nanos,
                 TimeUnit.NANOSECONDS));
+    }
+
+    /**
+     * Send {@code message}, saying so first: a {@code timer} row naming the topic, on this thread, so that what a
+     * timer set off can be told from what arrived from elsewhere (vexelray-inspector framework-notes FN-15). The name is
+     * the topic's own, so the row costs no string.
+     */
+    private <T> void fire(Topic<T> topic, T message) {
+        if (Probe.ON) {
+            Probe.mark(Lane.BUS, "timer", topic.name());
+        }
+        bus.publish(topic, message);
     }
 
     private static void check(Duration time, Topic<?> topic, Object message) {

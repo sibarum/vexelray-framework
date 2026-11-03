@@ -4,6 +4,9 @@ import dev.vexelray.framework.api.Stability;
 import sibarum.atchung.Atchung;
 import sibarum.atchung.Subscription;
 import sibarum.atchung.Topic;
+import sibarum.probe.Lane;
+import sibarum.probe.Probe;
+import sibarum.probe.Zone;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -65,8 +68,16 @@ public final class Jobs {
             return;   // a replay is told what each job answered, and when, by its recording
         }
         Closing closing = new Closing();
+        // Said once here, not on each request: a job's arrival as a tick's receive row says it, and its run as a zone
+        // named for it (vexelray-inspector framework-notes FN-15). The request's hops end at the tick it left, which
+        // an async subscriber is not handed, so a job's are 0, as a message from outside is.
+        String received = topic.name() + " to " + job;
+        String zone = "job " + job.substring(job.lastIndexOf('.') + 1);
         Subscription subscription = shell.bus().subscribeAsync(topic, request -> {
-            try {
+            if (Probe.ON) {
+                Probe.mark(Lane.BUS, "receive", received, 0);
+            }
+            try (Zone z = Probe.zone(Lane.BUS, zone)) {
                 run.accept(request);
             } catch (RuntimeException | Error e) {
                 if (closing.closed) {
