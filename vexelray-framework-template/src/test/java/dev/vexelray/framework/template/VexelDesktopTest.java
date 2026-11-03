@@ -340,26 +340,142 @@ class VexelDesktopTest {
                 .anyMatch(p -> p.contains("/src/test/")));
     }
 
+    // ---- modules ------------------------------------------------------------------------
+
     @Test
-    void turningTheExamplesOffLeavesThemAllOutAndTheEditorAsItIs() {
-        Blueprint with = blueprint(Map.of());
-        Blueprint without = blueprint(Map.of("examples", "no"));
-        assertTrue(with.paths().contains("EXAMPLES.md"), "the examples are on unless asked");
-        assertTrue(without.paths().stream().noneMatch(p -> p.contains("/examples/") || p.equals("EXAMPLES.md")
-                        || p.startsWith("checks/") || p.endsWith("ExamplesTest.java")),
-                "no example should be written; got " + without.paths());
-        List<String> editor = with.paths().stream().filter(without.paths()::contains).toList();
-        assertEquals(without.paths(), editor, "turning them off changes nothing else that is written");
+    void everyModuleIsTakenUnlessAsked() {
+        Blueprint all = blueprint(Map.of());
+        assertTrue(all.paths().contains("EXAMPLES.md"));
+        assertTrue(all.paths().stream().anyMatch(p -> p.endsWith("examples/later/Later.java")));
+        assertTrue(all.text("EXAMPLES.md").contains("| Do something later"), "later's row is gathered");
+        assertTrue(all.text("CLAUDE.md").contains("Look in `EXAMPLES.md` first"), "the examples' part is gathered");
     }
 
     @Test
-    void anExamplesTestNeedsBothTheTestsAndTheExamples() {
-        Map<String, String> noTests = new LinkedHashMap<>();
-        noTests.put("tests", "no");
-        Blueprint examplesOnly = blueprint(noTests);
-        assertTrue(examplesOnly.paths().stream().anyMatch(p -> p.endsWith("examples/later/Later.java")));
-        assertTrue(examplesOnly.paths().stream().noneMatch(p -> p.contains("/src/test/")),
-                "\"when tests when examples\" writes nothing with the tests off; got " + examplesOnly.paths());
+    void noneLeavesEveryModuleOutAndTheBaseAsItIs() {
+        Blueprint all = blueprint(Map.of());
+        Blueprint none = blueprint(Map.of(Template.MODULES, "none"));
+        assertTrue(none.paths().stream().noneMatch(p -> p.contains("/examples/") || p.equals("EXAMPLES.md")
+                        || p.startsWith("checks/") || p.endsWith("ExamplesTest.java")
+                        || p.endsWith("WindowTest.java")),
+                "no module should be written; got " + none.paths());
+        assertEquals(none.paths(), all.paths().stream().filter(none.paths()::contains).toList(),
+                "leaving the modules out changes nothing else that is written");
+        assertFalse(none.text("CLAUDE.md").contains("EXAMPLES.md"),
+                "the base's docs name no module it does not have");
+    }
+
+    @Test
+    void aModuleComesWithWhatItRequiresAndSaysSo() {
+        Blueprint later = blueprint(Map.of(Template.MODULES, "later"));
+        assertTrue(later.paths().stream().anyMatch(p -> p.endsWith("examples/Examples.java")),
+                "later requires examples; got " + later.paths());
+        assertTrue(later.notes().stream().anyMatch(n -> n.contains("later requires examples")), later.notes()::toString);
+    }
+
+    @Test
+    void theFrameAloneHasTheWindowAndNoExample() {
+        Blueprint frame = blueprint(Map.of(Template.MODULES, "examples"));
+        assertTrue(frame.paths().stream().anyMatch(p -> p.endsWith("examples/Examples.java")));
+        assertTrue(frame.paths().stream().noneMatch(p -> p.contains("/later/") || p.endsWith("LaterWindowTest.java")
+                || p.startsWith("checks/")), "got " + frame.paths());
+        assertFalse(frame.text("EXAMPLES.md").contains("Do something later"), "no row for an example it lacks");
+    }
+
+    @Test
+    void aModulesTestNeedsTheTestsToo() {
+        Blueprint noTests = blueprint(Map.of("tests", "no"));
+        assertTrue(noTests.paths().stream().anyMatch(p -> p.endsWith("examples/later/Later.java")));
+        assertTrue(noTests.paths().stream().noneMatch(p -> p.contains("/src/test/")),
+                "\"in later when tests\" writes nothing with the tests off; got " + noTests.paths());
+    }
+
+    @Test
+    void anUnknownModuleIsRefusedBeforeAnythingIsWritten() {
+        Answers answers = answers(Map.of(Template.MODULES, "examples latr"));
+        List<String> problems = Checks.problems(template(), answers);
+        assertTrue(problems.stream().anyMatch(p -> p.contains("no latr module") && p.contains("did you mean later")),
+                problems::toString);
+        assertThrows(TemplateError.class, () -> Scaffold.of(template(), answers, Catalogue.bundled()));
+    }
+
+    /**
+     * The base alone, each module alone with what it requires, and all of them: the sets a module that names only the
+     * base and what it requires can break, so these stand for every combination (rule 4 of the plan). Each is planned
+     * whole, with nothing left to substitute and no marker left unfilled; the acceptance run builds them.
+     */
+    @Test
+    void theBaseEachModuleAloneAndAllArePlannedWhole() {
+        assertEquals(List.of("none", "examples", "all"), template().matrix(),
+                "later requires examples and nothing else, so later alone is all");
+        for (String answer : template().matrix()) {
+            Blueprint blueprint = blueprint(Map.of(Template.MODULES, answer));
+            for (Blueprint.Entry entry : blueprint.entries()) {
+                String text = blueprint.text(entry.path());
+                if (text == null) continue;
+                assertFalse(text.contains("<!-- part:"), answer + ": " + entry.path() + " kept a marker");
+            }
+        }
+    }
+
+    /**
+     * Rule 2 of the plan, held: the base names no module, and a module names only the base and the modules it
+     * requires. Read in the sources of every module taken, by the classes each module's files declare and the
+     * packages only its files are in, so a reach across is found whichever way it is written. This is what lets the
+     * matrix above stand for every combination; it is the check that keeps the template cheap to keep.
+     */
+    @Test
+    void noFileNamesAModuleItDoesNotRequire() {
+        Template template = template();
+        Answers answers = answers(Map.of());
+        Blueprint all = Scaffold.of(template, answers, Catalogue.bundled());
+
+        Map<String, String> owner = new LinkedHashMap<>();
+        for (Template.Item item : template.items()) owner.put(answers.resolve(item.path()), item.module());
+        Map<String, Set<String>> classes = new LinkedHashMap<>();
+        Map<String, Set<String>> packages = new LinkedHashMap<>();
+        Map<String, String> packageOwner = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : owner.entrySet()) {
+            if (!e.getKey().endsWith(".java")) continue;
+            String pkg = packageOf(all.text(e.getKey()));
+            String was = packageOwner.putIfAbsent(pkg, e.getValue() == null ? "" : e.getValue());
+            if (was != null && !was.equals(e.getValue() == null ? "" : e.getValue())) packageOwner.put(pkg, "");
+            if (e.getValue() == null) continue;
+            String name = e.getKey().substring(e.getKey().lastIndexOf('/') + 1, e.getKey().length() - ".java".length());
+            classes.computeIfAbsent(e.getValue(), k -> new TreeSet<>()).add(name);
+        }
+        packageOwner.forEach((pkg, module) -> {
+            if (!module.isEmpty()) packages.computeIfAbsent(module, k -> new TreeSet<>()).add(pkg);
+        });
+
+        List<String> found = new java.util.ArrayList<>();
+        for (Map.Entry<String, String> e : owner.entrySet()) {
+            if (!e.getKey().endsWith(".java") || all.text(e.getKey()) == null) continue;
+            String text = all.text(e.getKey());
+            Set<String> allowed = new HashSet<>();
+            if (e.getValue() != null) allowed.addAll(template.choose(e.getValue()).names());
+            for (String module : template.moduleNames()) {
+                if (allowed.contains(module)) continue;
+                for (String name : classes.getOrDefault(module, Set.of())) {
+                    if (java.util.regex.Pattern.compile("\\b" + name + "\\b").matcher(text).find()) {
+                        found.add(e.getKey() + " (" + (e.getValue() == null ? "base" : e.getValue()) + ") names "
+                                + name + " (" + module + ")");
+                    }
+                }
+                for (String pkg : packages.getOrDefault(module, Set.of())) {
+                    if (text.contains(pkg + ".") || text.contains(pkg + ";")) {
+                        found.add(e.getKey() + " names the package " + pkg + " (" + module + ")");
+                    }
+                }
+            }
+        }
+        assertEquals(List.of(), found, "a file reaches a module it does not require, so leaving that module out "
+                + "breaks it: move the file into the module, or have its module require the other");
+    }
+
+    private static String packageOf(String source) {
+        var m = java.util.regex.Pattern.compile("(?m)^package\\s+([\\w.]+)\\s*;").matcher(source);
+        return m.find() ? m.group(1) : "";
     }
 
     @Test
@@ -482,6 +598,7 @@ class VexelDesktopTest {
         }
         Set<String> named = new TreeSet<>();
         for (Template.Item item : template().items()) named.add(item.source());
+        for (Template.Part part : template().parts()) named.add(part.source());
 
         Set<String> unlisted = new HashSet<>(onDisk);
         unlisted.removeAll(named);
@@ -522,6 +639,7 @@ class VexelDesktopTest {
         List<String> read = new java.util.ArrayList<>();
         read.add(root + "template.manifest");
         for (Template.Item item : template().items()) read.add(root + "files/" + item.source());
+        for (Template.Part part : template().parts()) read.add(root + "files/" + part.source());
         for (String resource : read) {
             Path path = Path.of(resource);
             assertTrue(globs.stream().anyMatch(g -> g.matches(path)),

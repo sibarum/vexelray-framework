@@ -15,8 +15,8 @@ example too, of everything it does; its rows point into it.
 
 | Question | Files | Test | Check |
 | --- | --- | --- | --- |
-| Do something later, or once the typing stops | `-core` `examples/later/`, `-gui` `examples/later/` | `LaterTest`, `ExamplesTest` | `checks/later.txt` |
-| A second window, opened by a chord and remembered | `-gui` `examples/` (`Examples`, `ExamplesWindow`, `ExamplesView`) | `ExamplesTest` | `checks/later.txt` opens it |
+<!-- part: rows -->
+| A second window, opened by a chord and remembered | `-gui` `examples/` (`Examples`, `ExamplesWindow`, `ExamplesView`) | `ExamplesTest` | any example's check opens it |
 
 ## Shown by the editor
 
@@ -37,6 +37,7 @@ example too, of everything it does; its rows point into it.
 
 Each example lives in its own folder in each module and is named nowhere else: its `@Configuration` adds its part and
 its piece of the Examples window. To take one out, delete its two `examples/<name>/` folders, `checks/<name>.txt`, its
-test in `-gui`'s `ExamplesTest` (which sits beside the generated wiring, so it cannot sit in the example's folder) and
-its row above. To take them all out, delete both `examples/` folders, `ExamplesTest`, `checks/` and this file. If
-anything was left behind, the build says so.
+window test in `-gui`'s top test package (`<Name>WindowTest`, which sits beside the generated wiring because the
+wiring is package-private) and its row above. To take them all out, delete both `examples/` folders, every
+`*WindowTest` and `ExamplesTest`, `checks/` and this file. If anything was left behind, the build says so. A project
+made without one never had it: the template asks which to include.

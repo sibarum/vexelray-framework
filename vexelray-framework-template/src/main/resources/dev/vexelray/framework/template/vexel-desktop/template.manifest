@@ -146,12 +146,29 @@ slot tests
     preset    yes
     help      unit tests for the editor, the jobs, the file policy, the Markdown spans, the navigator and the real tree headless
 
-slot examples
-    label     worked examples
-    kind      flag
+slot modules
+    label     modules
+    kind      text
     required  no
-    preset    yes
-    help      worked examples of what an application reaches for, in an Examples window (F1); delete any you do not want
+    preset    all
+    help      which modules to include: all, none, or their names (examples, later); one comes with those it requires
+
+# ---- the modules -----------------------------------------------------------------------
+#
+# A module is a set of whole files, taken or left when the project is made, and what it
+# adds to a file it shares, in place of a "<!-- part: name -->" line there. Nothing
+# inside a file depends on which were taken, and a module names only the base and the
+# modules it requires, so a module can break only the base or itself: VexelDesktopTest
+# holds both, and the base alone, each module alone and all of them are built
+# (docs/plans/template-modules.md). The editor is still the base; it becomes modules
+# later in that plan.
+
+module examples
+    about     an Examples window (F1) that the worked examples show in, and EXAMPLES.md, their index
+
+module later
+    about     do something later, or once the typing stops: a chain's NONE within a time
+    requires  examples
 
 # ---- worked out rather than asked for ------------------------------------------------
 
@@ -276,26 +293,30 @@ file ${artifactId}-gui/src/test/java/${packagePath}/LookTest.java          from 
 # plan. EXAMPLES.md indexes them, question to files, test and ottermate script. Each one is
 # a folder in each module and is named nowhere else: every @Configuration in -gui's sources
 # is read by the processor, so an example's own configuration adds its -core part and its
-# piece of the window, and deleting its folders takes it out. A test needs both flags.
+# piece of the window, and deleting its folders takes it out. Each example is a module,
+# and its row in EXAMPLES.md is a part.
 
-file EXAMPLES.md                                                            when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/Examples.java       from examples/Examples.java       when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesWindow.java from examples/ExamplesWindow.java when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesPage.java   from examples/ExamplesPage.java   when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesView.java   from examples/ExamplesView.java   when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/Example.java        from examples/Example.java        when examples
-file ${artifactId}-gui/src/test/java/${packagePath}/ExamplesTest.java            from examples/ExamplesTest.java   when tests when examples
+file EXAMPLES.md                                                                  in examples
+part CLAUDE.md how-to-work                                                        from examples/claude-how-to-work.md in examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/Examples.java       from examples/Examples.java       in examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesWindow.java from examples/ExamplesWindow.java in examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesPage.java   from examples/ExamplesPage.java   in examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/ExamplesView.java   from examples/ExamplesView.java   in examples
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/Example.java        from examples/Example.java        in examples
+file ${artifactId}-gui/src/test/java/${packagePath}/ExamplesTest.java            from examples/ExamplesTest.java   in examples when tests
 
 # Do something later, or once the typing stops: a chain's NONE within a time.
 
-file ${artifactId}-core/src/main/java/${packagePath}/core/examples/later/Later.java         from examples/Later.java         when examples
-file ${artifactId}-core/src/main/java/${packagePath}/core/examples/later/LaterMessages.java from examples/LaterMessages.java when examples
-file ${artifactId}-core/src/test/java/${packagePath}/core/examples/later/LaterTest.java     from examples/LaterTest.java     when tests when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterParts.java          from examples/LaterParts.java    when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterPanel.java          from examples/LaterPanel.java    when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterNodes.java          from examples/LaterNodes.java    when examples
-file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterView.java           from examples/LaterView.java     when examples
-file checks/later.txt                                                                       from examples/later.txt          when examples
+file ${artifactId}-core/src/main/java/${packagePath}/core/examples/later/Later.java         from examples/Later.java         in later
+file ${artifactId}-core/src/main/java/${packagePath}/core/examples/later/LaterMessages.java from examples/LaterMessages.java in later
+file ${artifactId}-core/src/test/java/${packagePath}/core/examples/later/LaterTest.java     from examples/LaterTest.java     in later when tests
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterParts.java          from examples/LaterParts.java    in later
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterPanel.java          from examples/LaterPanel.java    in later
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterNodes.java          from examples/LaterNodes.java    in later
+file ${artifactId}-gui/src/main/java/${packagePath}/examples/later/LaterView.java           from examples/LaterView.java     in later
+file ${artifactId}-gui/src/test/java/${packagePath}/LaterWindowTest.java                   from examples/LaterWindowTest.java in later when tests
+file checks/later.txt                                                                       from examples/later.txt          in later
+part EXAMPLES.md rows                                                                       from examples/later-row.md       in later
 
 # ---- what it will not build without ---------------------------------------------------
 #

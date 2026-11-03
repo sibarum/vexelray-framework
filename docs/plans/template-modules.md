@@ -178,3 +178,39 @@ says what the label means).
    empty window (ruling 2).
 5. Worked examples keep coming in as modules from slice 1 on: [template-examples.md](template-examples.md)'s slice 2
    (A4, A5, A6 with C6) is the second and third module to obey the rules, which is the evidence the rules hold.
+
+## Slice 1, as built
+
+Built 2026-11-02: modules in the manifest and the engine, the `modules` question, gathered docs, the reference check,
+the matrix in `VexelDesktopTest` and the acceptance run (`ModuleMatrixTest`), and the examples turned into the first
+two modules. The base is still the editor. What building it changed in the plan above:
+
+1. **A file says its module on its own line** (`file ... in later`), rather than sitting inside a `module` block. The
+   manifest's rule is that a line's first word is what it is and indentation is for reading, so a block would have
+   been the one place position mattered. A module's own keys are `about` and `requires`, not `summary` and `needs`,
+   because the top level has both.
+2. **A module comes with what it requires, and the generator says so** (`note: later requires examples, so it comes
+   too`), as *The shape* says. Rule 2's "refuses an answer that leaves one out" was the other reading, and was not
+   built: there is nothing to refuse once the requirement is taken. What is refused, before anything is written, is a
+   name that is not a module (with a "did you mean"), and `all` or `none` mixed with names.
+3. **The `examples` flag is gone.** The Examples window, its index and its chord are the `examples` module, and each
+   example is a module that requires it; `none` is the base alone. That is the "umbrella" of *The shape*, made of
+   `requires` rather than a second question.
+4. **Parts** are `part <file> <marker> from <source> in <module>`, filling a `<!-- part: marker -->` line. A marker no
+   part line names, and a part whose marker is not in its file, are refused whatever was chosen, so a misspelling
+   cannot hide behind a module that happened to be left out; a part may add to the base's files, its own module's, and
+   those of modules it requires, checked when the manifest is read. Two exist: later's row in `EXAMPLES.md`, and the
+   examples' "look in `EXAMPLES.md` first" in `CLAUDE.md`, which had said "if this project kept its worked examples".
+5. **The reference check found two reaches on its first runs.** `ExamplesTest`, the frame's test, also tested the
+   later example, so the frame could not be built without it: later's half is `LaterWindowTest` now, in later. Then the
+   rewritten `ExamplesTest`'s javadoc named `LaterWindowTest`. The check reads Java sources only, by the simple names
+   of the classes a module's files declare and the packages only its files are in; docs, scripts and poms are not
+   read, and a part is how a module speaks in a shared doc.
+6. **The matrix is `Template.matrix()`**, shared by the unit test and the acceptance run so the two cannot drift. With
+   later requiring examples, later alone is all, so the matrix is three sets: `none`, `examples`, `all`.
+   `ModuleMatrixTest` builds the first two; `all` is the default, which `GeneratedProjectTest` builds and drives.
+7. **Measured: a module set costs about 9 s.** On this machine, warm, with the stack installed: `none` (50 files,
+   19 tests) built in 8 s and `examples` (57 files, 21 tests) in 9 s, against 9 s for the default project's build in
+   `GeneratedProjectTest`; the two matrix builds added 18 s to an acceptance run of these two tests that took 49 s.
+   *What would stop this*'s worry about the matrix growing slow is a long way off: ten modules would add about a
+   minute and a half, and the nightly fallback stays unbuilt until a run says otherwise.

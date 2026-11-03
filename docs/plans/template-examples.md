@@ -121,7 +121,9 @@ editor's `Messages.java`, so deleting the folder takes them too.
 **One question when generating:** `examples`, a flag, default yes ("worked examples of what an application reaches
 for, in an Examples window; delete any you do not want"). Each `file` line of an example says `when examples`. A
 question per example can come later, if the same few keep being deleted. `VexelDesktopTest` and the acceptance run
-generate and build both ways, so the flag cannot quietly break.
+generate and build both ways, so the flag cannot quietly break. *Superseded 2026-11-02 by
+[template-modules.md](template-modules.md)'s slice 1: the flag is gone, the Examples window is the `examples` module,
+and each example is a module that requires it, chosen by the `modules` question.*
 
 ## What would stop this
 
