@@ -171,7 +171,9 @@ says what the label means).
    `VexelDesktopTest` and the acceptance run, and the examples turned into the first modules (they already obey the
    rules). The base is still the editor. Measured: the acceptance run's time per module.
 2. **Regions, in the framework** (ruling 5): argued in its docs, with gaps 2 and 3 (closing, a module's piece of the
-   session) written up beside it, and put to the author.
+   session) written up beside it, and put to the author. *Argued and ruled 2026-11-03 in [regions.md](regions.md):
+   `All<T>` and `Optional<T>` recipe parameters, closing asked in turn, the session a template convention. Its own
+   order of work (the processor, the Examples window, closing) comes before step 3.*
 3. **The navigator out**, the smallest piece with one edge into the editor (opening a file), and the regions' first
    witness.
 4. **Markdown out**, then **the session's keeping into the base** (ruling 1), then **the editor**, leaving the base an
