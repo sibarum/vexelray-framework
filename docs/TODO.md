@@ -1167,8 +1167,8 @@ sends that differ (`Replay`, `InputRecording`, held by `ReplayTest` in both mode
 
 - [x] **The fingerprint is paid on the tick.** Done 2026-11-03 (`d4b910b`): the tick keeps the send and a thread of the
       recording's own fingerprints it behind the tick; the same Inspector ticked p50 0.48 to 0.63 ms, p95 1.4 to
-      2.0 ms, heap 167 MB, against 0.46 to 0.52, 1.3 to 1.6 and 160 MB not recording. Before: Each send's `hashCode` is taken as it is sent, and a deep record is
-      walked whole: an Inspector replaying a 13.7 s recording ticked at p50 0.7 to 1.2 ms and p95 2.3 to 5.2 ms
+      2.0 ms, heap 167 MB, against 0.46 to 0.52, 1.3 to 1.6 and 160 MB not recording. Before: each send's `hashCode`
+      was taken as it was sent, and a deep record walked whole: an Inspector replaying a 13.7 s recording ticked at p50 0.7 to 1.2 ms and p95 2.3 to 5.2 ms
       recording, against 0.40 to 0.45 ms and 1.1 to 1.4 ms without, growing as its state grew. Messages are
       immutable, so the hash can be taken later: keep the reference on the tick and fingerprint it off the tick (or
       at the replay), which costs the references' memory until then.
