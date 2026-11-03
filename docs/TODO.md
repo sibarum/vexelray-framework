@@ -1165,7 +1165,9 @@ ROADMAP *Done means* 5 is built for the Inspector's R6 (`8145095`): a run launch
 tick takes in, and `replay` on the automation socket runs it again on a fresh set of the components and lists the
 sends that differ (`Replay`, `InputRecording`, held by `ReplayTest` in both modes). What it does not do yet:
 
-- [ ] **The fingerprint is paid on the tick.** Each send's `hashCode` is taken as it is sent, and a deep record is
+- [x] **The fingerprint is paid on the tick.** Done 2026-11-03 (`d4b910b`): the tick keeps the send and a thread of the
+      recording's own fingerprints it behind the tick; the same Inspector ticked p50 0.48 to 0.63 ms, p95 1.4 to
+      2.0 ms, heap 167 MB, against 0.46 to 0.52, 1.3 to 1.6 and 160 MB not recording. Before: Each send's `hashCode` is taken as it is sent, and a deep record is
       walked whole: an Inspector replaying a 13.7 s recording ticked at p50 0.7 to 1.2 ms and p95 2.3 to 5.2 ms
       recording, against 0.40 to 0.45 ms and 1.1 to 1.4 ms without, growing as its state grew. Messages are
       immutable, so the hash can be taken later: keep the reference on the tick and fingerprint it off the tick (or
@@ -1175,12 +1177,15 @@ sends that differ (`Replay`, `InputRecording`, held by `ReplayTest` in both mode
       or whether the processor should say which components a replay leaves out.
 - [ ] **A message whose type has no equality of its own** (an array, a class without `equals`) fingerprints by
       identity, so it shows as different every time. The processor already sees every payload type (fork 5); it could
-      refuse or warn on one that a replay cannot compare.
+      refuse or warn on one that a replay cannot compare. Proposed as R8's third slice and deferred (2026-11-03) while
+      another session had the processor open: a warning, not an error, so no application breaks.
 - [ ] **From launch only, in this process, while it holds everything.** At `InputRecording.LIMIT` messages either way
       the recording stops at its last whole tick and the replay says `full`. A recording on disk needs an encoding per
       message type, which is the processor's to generate if it is ever wanted.
-- [ ] **What a recorded send said is not kept**, only its fingerprint, so a difference shows what the replay sent and
-      not what the run did. Keeping the reference (the first item) would give both.
+- [x] **What a recorded send said is not kept.** Done 2026-11-03 (`d4b910b`): `--replayable=values` keeps the sends,
+      and a difference says what the run sent (`  was ...`) beside what the replay did (`  now ...`); about 40 MB more
+      on 13.7 s of a heavy run. A replay also runs on a thread of its own now (`c305588`), so the rows its components
+      write are told from the run's.
 
 ## Upstream
 
