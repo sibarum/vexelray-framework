@@ -1159,6 +1159,29 @@ it found and left:
       seemed to clear it were luck. Fixed in vexelray-gui's `Automation.settle`: a loop still owed while the
       timeline is busy goes on to wait for the timeline (`settleWaitsOutMotionThatKeepsTheLoopOwedPastItsBound`).
 
+### Found by building replay (2026-11-02)
+
+ROADMAP *Done means* 5 is built for the Inspector's R6 (`8145095`): a run launched `--replayable` keeps what its logic
+tick takes in, and `replay` on the automation socket runs it again on a fresh set of the components and lists the
+sends that differ (`Replay`, `InputRecording`, held by `ReplayTest` in both modes). What it does not do yet:
+
+- [ ] **The fingerprint is paid on the tick.** Each send's `hashCode` is taken as it is sent, and a deep record is
+      walked whole: an Inspector replaying a 13.7 s recording ticked at p50 0.7 to 1.2 ms and p95 2.3 to 5.2 ms
+      recording, against 0.40 to 0.45 ms and 1.1 to 1.4 ms without, growing as its state grew. Messages are
+      immutable, so the hash can be taken later: keep the reference on the tick and fingerprint it off the tick (or
+      at the replay), which costs the references' memory until then.
+- [ ] **Only CONFIG and MODEL are replayed.** A component built in TREE, because it takes the GUI, is not built again,
+      and a replay whose inboxes differ from the run's refuses. Decide whether such a component is replayable at all,
+      or whether the processor should say which components a replay leaves out.
+- [ ] **A message whose type has no equality of its own** (an array, a class without `equals`) fingerprints by
+      identity, so it shows as different every time. The processor already sees every payload type (fork 5); it could
+      refuse or warn on one that a replay cannot compare.
+- [ ] **From launch only, in this process, while it holds everything.** At `InputRecording.LIMIT` messages either way
+      the recording stops at its last whole tick and the replay says `full`. A recording on disk needs an encoding per
+      message type, which is the processor's to generate if it is ever wanted.
+- [ ] **What a recorded send said is not kept**, only its fingerprint, so a difference shows what the replay sent and
+      not what the run did. Keeping the reference (the first item) would give both.
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
