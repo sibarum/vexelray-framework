@@ -42,7 +42,23 @@ public final class Timer implements AutoCloseable {
     private final ScheduledThreadPoolExecutor thread;
 
     public Timer(Atchung bus) {
+        this(bus, false);
+    }
+
+    /**
+     * A timer that sends nothing and starts no thread: a replay's, which is told what the timer sent, and in which
+     * tick, by the recording it runs again (ROADMAP <i>Done means</i> 5). What is asked of it is accepted and dropped.
+     */
+    public static Timer silent(Atchung bus) {
+        return new Timer(bus, true);
+    }
+
+    private Timer(Atchung bus, boolean silent) {
         this.bus = Objects.requireNonNull(bus, "bus");
+        if (silent) {
+            this.thread = null;
+            return;
+        }
         this.thread = new ScheduledThreadPoolExecutor(1, r -> {
             Thread t = new Thread(r, "vexel-timer");
             t.setDaemon(true);
@@ -55,12 +71,18 @@ public final class Timer implements AutoCloseable {
     /** Publish {@code message} on {@code topic} once, {@code delay} from now. */
     public <T> Scheduled after(Duration delay, Topic<T> topic, T message) {
         check(delay, topic, message);
+        if (thread == null) {
+            return Scheduled.NONE;
+        }
         return new Scheduled(thread.schedule(() -> bus.publish(topic, message), delay.toNanos(), TimeUnit.NANOSECONDS));
     }
 
     /** Publish {@code message} on {@code topic} every {@code period}, the first one period from now, until cancelled. */
     public <T> Scheduled every(Duration period, Topic<T> topic, T message) {
         check(period, topic, message);
+        if (thread == null) {
+            return Scheduled.NONE;
+        }
         long nanos = period.toNanos();
         return new Scheduled(thread.scheduleWithFixedDelay(() -> bus.publish(topic, message), nanos, nanos,
                 TimeUnit.NANOSECONDS));
@@ -78,11 +100,16 @@ public final class Timer implements AutoCloseable {
     /** Send nothing more. Idempotent. */
     @Override
     public void close() {
-        thread.shutdownNow();
+        if (thread != null) {
+            thread.shutdownNow();
+        }
     }
 
     /** A message waiting to be sent, or sent every period. */
     public static final class Scheduled {
+
+        /** What a silent timer answers: nothing to cancel. */
+        static final Scheduled NONE = new Scheduled(null);
 
         private final ScheduledFuture<?> future;
 
@@ -92,7 +119,9 @@ public final class Timer implements AutoCloseable {
 
         /** Send it no more. A publish already under way finishes. Idempotent. */
         public void cancel() {
-            future.cancel(false);
+            if (future != null) {
+                future.cancel(false);
+            }
         }
     }
 }

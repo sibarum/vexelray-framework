@@ -263,6 +263,7 @@ class VexelProcessorTest {
                     public String appId() { return null; }
                     public java.util.List<String> formerNames() { return java.util.List.of(); }
                     public String busGraph() { return null; }
+                    public Wiring again() { return null; }
                     public boolean computeQueue() { return false; }
                     public boolean answersClose() { return false; }
                     public String icon() { return null; }

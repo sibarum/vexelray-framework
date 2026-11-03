@@ -75,7 +75,7 @@ public final class Shell {
     private final Disposer disposer = new Disposer();
     private final Atchung bus = Atchung.create();
     private final Senders senders = new Senders(bus);
-    private final Timer timer = new Timer(bus);
+    private final Timer timer;
     private final PointerLock pointerLock = new PointerLock();
     private final HeldDialogs dialogs = new HeldDialogs(bus);
     private final OwnAsks ownAsks = new OwnAsks(bus);
@@ -85,6 +85,15 @@ public final class Shell {
     private final boolean logicOnMain;
     /** The logic lane, made when the first component asks for an inbox; null when none does. */
     private Logic logic;
+    /**
+     * Whether this shell is a {@link Replay}'s: its components only, on a bus of their own, with no jobs, no sources
+     * and a silent timer, since the recording it runs says what each of those sent.
+     */
+    private final boolean replaying;
+    /** What the logic lane takes in and sends, from launch, in a run launched {@code --replayable}; else null. */
+    private final InputRecording recording;
+    /** A fresh wiring of this application, for a replay to build its components from; null when it has none. */
+    private Wiring again;
 
     private Appearance appearance = Appearance.DEFAULT;
     /** The application's own fonts, or null for the standard set. See {@link #fonts(FontSet)}. */
@@ -109,11 +118,23 @@ public final class Shell {
     }
 
     Shell(Launch launch, AppInfo info, Lanes lanes) {
+        this(launch, info, lanes, false);
+    }
+
+    private Shell(Launch launch, AppInfo info, Lanes lanes, boolean replaying) {
         this.launch = launch;
         this.info = info;
         this.lanes = lanes;
+        this.replaying = replaying;
+        this.timer = replaying ? Timer.silent(bus) : new Timer(bus);
+        this.recording = !replaying && replayable(launch) ? new InputRecording() : null;
         this.watchdog = new Watchdog(lanes, bus);
         this.logicOnMain = logicOnMain(launch);
+        if (replaying) {
+            // No backstop halt: a replay is closed by the run it is part of, which keeps its own.
+            disposer.register(lanes);
+            return;
+        }
         // First registration, so it is the last thing closed: the halt it arms is the backstop for the rest of the
         // teardown, and a backstop that closed early would be disarmed by the very shutdown it exists to bound.
         disposer.register(watchdog);
@@ -342,6 +363,66 @@ public final class Shell {
         return logicOnMain;
     }
 
+    /** The launch setting that keeps what the logic takes in, so the run can be replayed ({@link Replay}). */
+    static final String REPLAYABLE = "replayable";
+
+    /**
+     * Whether this launch keeps a recording: {@code --replayable}, or {@code VEXELRAY_REPLAYABLE} in the environment
+     * when the launch does not say, as a tool that launches the application asks for it.
+     */
+    static boolean replayable(Launch launch) {
+        String asked = launch.override(REPLAYABLE);
+        if (asked == null) {
+            asked = System.getenv("VEXELRAY_REPLAYABLE");
+        }
+        return asked != null && !asked.isBlank() && !asked.trim().equals("false") && !asked.trim().equals("0");
+    }
+
+    /** A shell for replaying {@code of}'s recording: the same launch, settings and build, and nothing running. */
+    static Shell replaying(Shell of) {
+        Shell s = new Shell(of.launch, of.info, new Lanes(), true);
+        s.build = of.build;
+        s.settings = of.settings;
+        return s;
+    }
+
+    /** Whether this is a replay's shell, whose jobs and sources are not run ({@link Jobs}, {@link Sources}). */
+    boolean replaying() {
+        return replaying;
+    }
+
+    /** What the logic lane has taken in and sent, or null in a run not launched {@code --replayable}. */
+    InputRecording recording() {
+        return recording;
+    }
+
+    void again(Wiring again) {
+        this.again = again;
+    }
+
+    /** A fresh wiring of this application, or null. */
+    Wiring again() {
+        return again;
+    }
+
+    /** The logic lane's inboxes, in the order the tick delivers them; empty when there is no logic lane. */
+    List<String> logicInboxes() {
+        return logic == null ? List.of() : logic.names();
+    }
+
+    /** The logic lane's tick, for a replay to run. */
+    sibarum.atchung.Tick logicTick() {
+        return logic().tick();
+    }
+
+    /**
+     * Run what the logic has taken in so far again, on a fresh set of this application's components, and say which
+     * sends differ: {@code replay}'s answer on the automation socket ({@link Replay}). Any thread but the logic's.
+     */
+    public String replay() {
+        return Replay.run(this);
+    }
+
     /**
      * The logic lane ({@link Logic}), made the first time a component asks for anything on it, in the mode the launch
      * chose: a thread of its own by default, the main thread with {@code --logic=main} (T1.7).
@@ -349,6 +430,9 @@ public final class Shell {
     private Logic logic() {
         if (logic == null) {
             logic = new Logic(bus, lanes, logicOnMain);
+            if (recording != null) {
+                logic.record(recording);
+            }
             logic.keepBoundsWith(timer);
             disposer.register(logic);
         }

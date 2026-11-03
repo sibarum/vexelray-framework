@@ -79,6 +79,8 @@ public final class Logic implements WakeSource, AutoCloseable {
     private final Lanes lanes;
     private final boolean onMain;
     private final Map<String, Inbox> inboxes = new HashMap<>();
+    /** The inboxes' names in the order they were made, which is the order the tick delivers them in. */
+    private final List<String> order = new ArrayList<>();
     /** The lane each inbox was made on, so one component asking for two is caught. */
     private final Map<String, String> laneOf = new HashMap<>();
     /** The declared lanes, in the order first asked for: lane {@code i + 1} of the tick is the {@code i}th. */
@@ -157,8 +159,24 @@ public final class Logic implements WakeSource, AutoCloseable {
                 : declaredLanes.computeIfAbsent(lane, l -> declaredLanes.size() + 1);
         in = tick.inbox(name, index);
         inboxes.put(name, in);
+        order.add(name);
         laneOf.put(name, lane);
         return in;
+    }
+
+    /** Tell {@code recorder} what every tick takes in and sends, from the first ({@code Shell.replayable}). */
+    void record(Tick.Recorder recorder) {
+        tick.record(recorder);
+    }
+
+    /** The tick, for a replay, which runs it itself and never {@linkplain #start starts} this lane. */
+    Tick tick() {
+        return tick;
+    }
+
+    /** Every inbox's name, in the order the tick delivers them. */
+    List<String> names() {
+        return List.copyOf(order);
     }
 
     /** Whether the ticks run on the main thread ({@code --logic=main}). */

@@ -125,6 +125,7 @@ public final class VexelApplication {
         // code that differs first runs, so its cause is said here, where the crash's reader will find it (StackCheck).
         StackCheck.report(shell.build(), VexelApplication.class.getClassLoader());
         shell.busGraph(wiring.busGraph());
+        shell.again(wiring.again());
         shell.arguments(java.util.Arrays.asList(argv));
         try (Disposer disposer = shell.disposer()) {
             build(wiring, shell, disposer, info, launch, windows);

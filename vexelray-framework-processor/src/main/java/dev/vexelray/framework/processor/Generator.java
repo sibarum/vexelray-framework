@@ -785,7 +785,9 @@ final class Generator {
             }
         }
         src.append(";\n\n    @Override\n    public String busGraph() {\n        return BUS_GRAPH;\n    }\n");
-        // A component takes the compute queue, so the device is made with one to lend it (T3.1). Graph has made sure
+        // Another of itself, for a replay to build the components again from (ROADMAP Done means 5).
+        src.append("\n    @Override\n    public ").append(Framework.WIRING).append(" again() {\n        return new ")
+                .append(name).append("();\n    }\n");        // A component takes the compute queue, so the device is made with one to lend it (T3.1). Graph has made sure
         // it is one component and no provider.
         if (order.stream().anyMatch(b -> b.args.stream().anyMatch(a -> a instanceof RootArg r
                 && r.root().type().equals(Framework.COMPUTE_QUEUE)))) {

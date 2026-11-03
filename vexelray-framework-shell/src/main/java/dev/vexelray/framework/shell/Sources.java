@@ -69,6 +69,9 @@ public final class Sources {
      */
     public static <Q, R> void run(Shell shell, String source, String thread, Topic<Q> request,
                                   BiFunction<Q, Closer, R> run, Topic<R> reply, Topic<?> stop) {
+        if (shell.replaying()) {
+            return;   // a replay is told what each run sent, and when, by its recording
+        }
         Runs<Q, R> runs = new Runs<>(shell.bus(), source, "vexel-source-" + thread, request, run, reply);
         runs.request = shell.bus().subscribe(request, runs::start);
         if (stop != null) {

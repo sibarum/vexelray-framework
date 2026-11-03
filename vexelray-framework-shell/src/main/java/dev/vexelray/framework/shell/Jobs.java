@@ -61,6 +61,9 @@ public final class Jobs {
     }
 
     private static <Q> void subscribe(Shell shell, String job, Topic<Q> topic, Consumer<Q> run) {
+        if (shell.replaying()) {
+            return;   // a replay is told what each job answered, and when, by its recording
+        }
         Closing closing = new Closing();
         Subscription subscription = shell.bus().subscribeAsync(topic, request -> {
             try {

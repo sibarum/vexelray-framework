@@ -84,6 +84,16 @@ public abstract class Wiring {
     }
 
     /**
+     * A fresh wiring of the same application, for a replay to build its components again from
+     * ({@link Shell#replay}; ROADMAP <i>Done means</i> 5): a new instance, holding nothing this one built. The
+     * generated wiring answers {@code new} of itself; {@code null}, the default, is a hand-written wiring, which a
+     * replay refuses.
+     */
+    public Wiring again() {
+        return null;
+    }
+
+    /**
      * Whether the device is made with a compute queue of its own, to be lent to one component
      * ({@link Shell#computeQueue}). Asked before the device exists, because a queue is taken when the device is made
      * and never after. The generated wiring says yes exactly when a component takes a {@code ComputeQueue}; every

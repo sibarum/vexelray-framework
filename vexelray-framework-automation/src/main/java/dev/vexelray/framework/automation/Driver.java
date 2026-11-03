@@ -293,6 +293,9 @@ public final class Driver implements AutoCloseable {
             if (shell.busGraph() != null) {
                 BusGraph.declare(shell.busGraph());
             }
+            // And its replay: what the logic took in, run again on fresh components, in a run launched --replayable
+            // (ROADMAP Done means 5). Declared in every run; one that keeps no recording says so when asked.
+            dev.vexelray.gui.automation.Replays.declare(shell::replay);
             // Named after @VexelApp, so the discovery file and hello say "calculator" rather than the main class,
             // and ottermate --app calculator finds it (vexelray-gui docs/plans/discovery.md).
             sockets = new Sockets(windows, shell.info().name(), shell.info().title(), System.out, available)
