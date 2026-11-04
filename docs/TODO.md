@@ -1194,6 +1194,35 @@ sends that differ (`Replay`, `InputRecording`, held by `ReplayTest` in both mode
       on 13.7 s of a heavy run. A replay also runs on a thread of its own now (`c305588`), so the rows its components
       write are told from the run's.
 
+### Found by restyling VexelRay IDE and bringing back its Run menu (2026-11-03)
+
+VexelRay IDE on v0.2 took back the October design (its `Look`, two cards on the page) and 0.1's Run menu, as the
+first application menu in a title bar (vexelray-gui `1930149`, `TitleBar.menu`) with a console of pseudo-terminal runs
+behind it, the first application `@Source @Destination` (`Runner`). The numbers are the IDE's v0.2 notes
+(`docs/framework-notes.md` in Spike/text-editor-vexel-demo), which started again at FN-1; "Vex FN-n" above is 0.1's.
+
+- [ ] **A theme cannot map a role without forwarding every decision** (IDE 0.2 FN-3). Thirteen methods to move four
+      colours, and a forward forgotten is silent. `Theme.map(UnaryOperator<Role>)`, kept beside `focusRing(...)` and
+      `icons(...)`. Additive.
+- [ ] **A fill fading to `Role.NONE` fades through black** (FN-4): `NONE` is transparent black, so motion passes
+      through dark, and the view tests call it a cut. Fade an alpha-0 end in the other end's colour.
+- [ ] **`TextField` and `TreeView` always bring their own well** (FN-5): corner, `WELL` fill and `LINE` border on the
+      widget's node, undone by hand wherever one sits flush in a card. A frame option on the widget.
+- [ ] **A menu line has no shortcut column** (FN-6). `MenuItem.shortcut`, drawn dim at the right, filled from a
+      declared chord where there is one.
+- [ ] **A menu cannot be walked from the keyboard** (FN-8): `ContextMenu` answers Escape only. Arrows, Enter,
+      submenus by Right/Left, and a menu opened by a key (`TitleBar.open`) starting on its first line. Without it a
+      title-bar menu's key is half a feature.
+- [ ] **A record state grows a field in every constructor call** (FN-10). The ledger pattern makes a step's state an
+      immutable record, and Java gives it no withers; the IDE's `State` has eleven fields and twelve `with…`s, so its
+      run chain borrowed `Closing` rather than add a map. The processor reads the state record already and could
+      generate the withers, or a chain could keep what it waits on with its run.
+- [ ] **A driven run writes the person's settings** (FN-11, an idea): a launch under `--automation` could default the
+      application's home to a scratch one, as a test's is.
+- [ ] **In vex-suite-common, not here** (FN-7, FN-9): `TerminalScreen.pseudoconsole()` needs the application to know
+      its platform, which the build's isolation check forbids, so `PtyPlatform` should answer it; and the terminal
+      draws a gap at every change of colour (`[ INFO ]` for Maven's `[INFO]`).
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
