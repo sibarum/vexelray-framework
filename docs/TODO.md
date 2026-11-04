@@ -1210,9 +1210,9 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
       widget's node, undone by hand wherever one sits flush in a card. A frame option on the widget.
 - [ ] **A menu line has no shortcut column** (FN-6). `MenuItem.shortcut`, drawn dim at the right, filled from a
       declared chord where there is one.
-- [ ] **A menu cannot be walked from the keyboard** (FN-8): `ContextMenu` answers Escape only. Arrows, Enter,
-      submenus by Right/Left, and a menu opened by a key (`TitleBar.open`) starting on its first line. Without it a
-      title-bar menu's key is half a feature.
+- [x] **A menu cannot be walked from the keyboard** (FN-8). Done 2026-11-04 (vexelray-gui `afd2dbb`): an open menu
+      takes Up, Down, Home, End, Enter, Right and Left beside Escape, and a menu dropped by a key (`TitleBar.open`)
+      starts on its first line (`ContextMenu.markFirst`). Held by `ContextMenuKeysTest`.
 - [ ] **A record state grows a field in every constructor call** (FN-10). The ledger pattern makes a step's state an
       immutable record, and Java gives it no withers; the IDE's `State` has eleven fields and twelve `with…`s, so its
       run chain borrowed `Closing` rather than add a map. The processor reads the state record already and could
