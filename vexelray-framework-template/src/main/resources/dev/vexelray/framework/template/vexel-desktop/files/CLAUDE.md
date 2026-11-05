@@ -25,7 +25,8 @@ changing anything, and `Messages.java` before adding a part.
   and a step is a static method `(state, message, out) → next state`, declared in `Editor`'s constructor and run on
   each message it hears (`.on(topic, step)`). A step sends through its `Out` and never touches the disk, waits,
   or reads anything but its state and its message: the processor refuses one that does, and says what to do instead.
-  A new decision is a new step; a new thing the editor is in the middle of is a field of `State`, not a field of
+  A new decision is a new step; a new thing the editor is in the middle of is a component of `State` (its
+  `@Withers` gives it a `with…` with nothing else to edit), not a field of
   `Editor`. Something that waits on the person or the disk is a chain (closing is the example): its step holds the
   run and a later step resumes it.
 - **`-core`'s `Core.java` lists its components and jobs.** The processor compiling `-gui` cannot see `-core`'s

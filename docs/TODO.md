@@ -1213,10 +1213,13 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
 - [x] **A menu cannot be walked from the keyboard** (FN-8). Done 2026-11-04 (vexelray-gui `afd2dbb`): an open menu
       takes Up, Down, Home, End, Enter, Right and Left beside Escape, and a menu dropped by a key (`TitleBar.open`)
       starts on its first line (`ContextMenu.markFirst`). Held by `ContextMenuKeysTest`.
-- [ ] **A record state grows a field in every constructor call** (FN-10). The ledger pattern makes a step's state an
-      immutable record, and Java gives it no withers; the IDE's `State` has eleven fields and twelve `with…`s, so its
-      run chain borrowed `Closing` rather than add a map. The processor reads the state record already and could
-      generate the withers, or a chain could keep what it waits on with its run.
+- [x] **A record state grows a field in every constructor call** (FN-10). Done 2026-11-04: `@Withers` on a record
+      (`-api`), and the processor writes `<Enclosing><Record>Withers` beside it, one default `with<Component>` per
+      component through the canonical constructor; the record implements it (`WithersTest`). **Ruled** by the author
+      2026-11-04, a mixin interface over a static helper class, because call sites stay `state.withDoc(d)` and the
+      hand-written withers of the same name simply go. The IDE's and the template's `Editor.State` use it. Not done:
+      the IDE's run chain still borrows `Closing`, which can now be its own component; Vexplore's `Explorer.State`,
+      MainFrame's and Phasearray's are still hand-written; and generic records are refused rather than handled.
 - [ ] **A driven run writes the person's settings** (FN-11, an idea): a launch under `--automation` could default the
       application's home to a scratch one, as a test's is.
 - [ ] **In vex-suite-common, not here** (FN-7, FN-9): `TerminalScreen.pseudoconsole()` needs the application to know

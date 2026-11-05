@@ -18,6 +18,7 @@ import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.api.VexelApp;
 import dev.vexelray.framework.api.View;
 import dev.vexelray.framework.api.Hears;
+import dev.vexelray.framework.api.Withers;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -73,6 +74,9 @@ import java.util.Set;
  *       frame's rules besides (T7.6).</li>
  * </ul>
  *
+ * <p>Beside the wiring it writes one thing more, wherever a record asks for it: a {@code @Withers} record's interface
+ * of withers ({@link RecordWithers}), in any module, with or without an application.
+ *
  * <p><b>Why checks came first.</b> {@code docs/threading.md} counted fourteen of its thirty-two rules as the
  * processor's, and four of them — T2.1, T2.2, T2.3, T3.7 — needed no generated code, only something reading the
  * declarations. Generation freezes what the annotations mean into every application; checking does not, so it
@@ -89,13 +93,14 @@ public final class VexelProcessor extends AbstractProcessor {
             VexelApp.class, Component.class, Configuration.class, Provides.class, Default.class,
             MainThread.class, Setting.class, BeforeFrame.class, OnMode.class, ConditionalOnType.class,
             Subscribe.class, Publishes.class, Job.class, Source.class, Destination.class, View.class, Hears.class,
-            Draw.class);
+            Draw.class, Withers.class);
 
     private Mirrors mirrors;
     private Declarations declarations;
     private Graph graph;
     private Channels channels;
     private Generator generator;
+    private RecordWithers withers;
     private TypeElement app;
     private Report report;
     private boolean checked;
@@ -114,6 +119,7 @@ public final class VexelProcessor extends AbstractProcessor {
                 report,
                 env.getFiler());
         this.report = report;
+        withers = new RecordWithers(report, env.getFiler());
         StepCheck.install(env, report);
     }
 
@@ -190,6 +196,10 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(Publishes.class)) {
             channels.publishes(e);
+        }
+        // Written in the round the record is seen, so javac compiles the interface with it (RecordWithers).
+        for (Element e : round.getElementsAnnotatedWith(Withers.class)) {
+            withers.write((TypeElement) e);
         }
         for (Element e : round.getRootElements()) {
             if (e instanceof TypeElement type) {
