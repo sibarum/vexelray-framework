@@ -1223,6 +1223,50 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
       its platform, which the build's isolation check forbids, so `PtyPlatform` should answer it; and the terminal
       draws a gap at every change of colour (`[ INFO ]` for Maven's `[INFO]`).
 
+### Found by rebuilding Vexplore on v0.2 (2026-10-30 to 2026-11-04)
+
+Vexplore rebuilt from the template on v0.2, milestone by milestone (its `docs/rebuild.md`, in Spike/vexplore on
+`v0.2`), through M6's Two Folders and M8's Orbit redesign. The numbers are its v0.2 notes (`docs/framework-notes.md`
+there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most are `vexelray-gui`'s.
+
+- [ ] **An application cannot bring its own faces into the text atlas** (FN-1): a pom setting the atlas build
+      reads, as the icon bake reads `src/main/icons`, with the charset beside it.
+- [ ] **A split's minimum holds against a drag, not against the window** (FN-2, vexelray-gui): the free pane's
+      minimum held at layout, the sized pane giving way down to its own.
+- [x] **A hidden node keeps the keyboard** (FN-3, vexelray-gui). Done 2026-11-04: a node hidden while it has the
+      keyboard hands it to the next focusable in Tab order before the next frame's keys, and `Gui.blur()` exists
+      (`FocusHandOnTest`). A *disabled* focused node still gives the keyboard to nothing (`dropDisabledFocus`), so the
+      two rules differ; worth making them one.
+- [ ] **Opening a file with the desktop is private to the shell** (FN-4): `Links` is package-private, so an
+      application calls `NativePlatform.open` itself. A framework job, `Open(target)` → `Opened(target, problem)`.
+- [x] **Keys typed straight after a focus-moving chord land where the keyboard was** (FN-5). Done 2026-11-04 with
+      no declaration: a chord that sends a message holds the rest of the frame's input for the next frame
+      (`InputDispatcher.holdRest`), by when a GUI-thread view has moved the keyboard. Not covered: a chord whose
+      hearer is on the logic lane and moves the keyboard only once an answer comes back, which can take longer.
+- [ ] **A status bar's slots overrun each other** (FN-6, vexelray-gui): the right side gets what the left leaves,
+      clipped.
+- [ ] **A chip flips itself before the model answers** (FN-7, vexelray-gui): a press published with the chip left as
+      it is, or a one-of-N chip group that lays out in lines.
+- [ ] **A table's growing column has no minimum** (FN-8, vexelray-gui): `Column.min(Length)`, the fixed columns
+      giving way past it. Two Folders cuts every name to four letters at 1440 px.
+- [ ] **Held Shift and Control have no topic** (FN-9): a state topic `Modifiers(Set<Modifier>)`, so a step can
+      suggest in the pause, and a drop can copy or move by the key held.
+- [ ] **A field cannot be filled once and then left to the person** (FN-10, vexelray-gui): `TextField.initial`.
+- [ ] **A list's row menu cannot grey or hide an action, as a tree's can** (FN-11, vexelray-gui).
+- [ ] **A list row has one mark** (FN-12, vexelray-gui): Vexplore keeps two more sets beside `marks` (the *new* tag,
+      and the comparison's six marks a row) in its own `Tags<K>`. Named sets, each with its look, told whole; and an
+      icon in a cell with a name a script can read, which today is borrowed from `role`.
+- [ ] **No gallery** (FN-13, to be written when M8's slice 6 meets it): a virtualised wrapping grid of cards, in
+      sections, with the list's selection, keyboard, menu, marks and drag.
+- [ ] **A button is one label, with nothing beside it** (FN-14, vexelray-gui): `Button.trailing(Node)` or a badge.
+- [ ] **A button cannot open a menu** (FN-15, vexelray-gui): `Button.menu(Menu)`, opened on a left click, Enter or
+      Space.
+- [x] **ottermate's one-step `drag` commits nothing** (M6 slice 2, vexelray-gui). Done 2026-11-04 (vexelray-gui
+      `5be706c`): `drag` settles after the release and clicks a latched carry down where it let go, moves carry real
+      time stamps, and a press waiting out its hold owes the loop frames (`DragHoldTest`).
+- [ ] **A source's sender cannot be a lambda in a test** (FN-16, atchung): a `Sender.of(Consumer)` that delivers at
+      once, with no bus, tick and inbox to collect what a source sends.
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
