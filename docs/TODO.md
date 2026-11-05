@@ -1201,11 +1201,17 @@ first application menu in a title bar (vexelray-gui `1930149`, `TitleBar.menu`) 
 behind it, the first application `@Source @Destination` (`Runner`). The numbers are the IDE's v0.2 notes
 (`docs/framework-notes.md` in Spike/text-editor-vexel-demo), which started again at FN-1; "Vex FN-n" above is 0.1's.
 
-- [ ] **A theme cannot map a role without forwarding every decision** (IDE 0.2 FN-3). Thirteen methods to move four
-      colours, and a forward forgotten is silent. `Theme.map(UnaryOperator<Role>)`, kept beside `focusRing(...)` and
-      `icons(...)`. Additive.
-- [ ] **A fill fading to `Role.NONE` fades through black** (FN-4): `NONE` is transparent black, so motion passes
-      through dark, and the view tests call it a cut. Fade an alpha-0 end in the other end's colour.
+- [x] **A theme cannot map a role without forwarding every decision** (IDE 0.2 FN-3). Done 2026-11-05 (vexelray-gui):
+      `Theme.map(Role, Role)` and `Theme.map(UnaryOperator<Role>)` keep every other decision, at rest and in every
+      pointer state. `focusRing(...)`, `icons(...)` and `map(...)` are now one package-private `DerivedTheme`, so a
+      decision added to `Theme` is forwarded in one place. The IDE's thirteen-method `Look.theme` is four `map`s
+      (`ThemeMapTest`).
+- [x] **A fill fading to `Role.NONE` fades through black** (FN-4). Done 2026-11-05 (vexelray-gui), and it was not a
+      fade through black: `Fades` already took a clear end in the other end's colour. A fill born clear, given a
+      colour and cleared again before the clock moved was told to fade from that colour at no alpha to transparent
+      black, two nothings, and `Cuts` compared them exactly and called the step a cut. `PaintMotion.same`: two
+      colours at no alpha look the same, to `Fades`, `Cuts` and the reconciler's report. The IDE's `TAB_REST` is
+      `Role.NONE` again (`CutsTest.clearedBeforeItCameUpIsNoCut`).
 - [ ] **`TextField` and `TreeView` always bring their own well** (FN-5): corner, `WELL` fill and `LINE` border on the
       widget's node, undone by hand wherever one sits flush in a card. A frame option on the widget.
 - [ ] **A menu line has no shortcut column** (FN-6). `MenuItem.shortcut`, drawn dim at the right, filled from a
