@@ -1228,6 +1228,13 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
       MainFrame's and Phasearray's are still hand-written; and generic records are refused rather than handled.
 - [ ] **A driven run writes the person's settings** (FN-11, an idea): a launch under `--automation` could default the
       application's home to a scratch one, as a test's is.
+- [ ] **A job's requests cannot coalesce** (FN-12). Checking Pontif as it is typed is a whole compile an edit, and
+      every request to a `@Job` runs, stale or not; the IDE's `Buffer` keeps one check in flight per document by hand.
+      A job whose request coalesces per key (latest wins, at most one running), `@Job(coalesce = ...)` or a request
+      type that says so, is what every compile-, lint- or index-as-you-type feature needs.
+- [ ] **An underline is drawn in the text's colour** (FN-13, vexelray-gui). `Span.underline` takes the span's `fg`,
+      so a red problem line recolours the token; the IDE marks a problem with an ink underline on a faint `DANGER`
+      ground instead. An underline colour on `Span`, and a wavy style.
 - [ ] **In vex-suite-common, not here** (FN-7, FN-9): `TerminalScreen.pseudoconsole()` needs the application to know
       its platform, which the build's isolation check forbids, so `PtyPlatform` should answer it; and the terminal
       draws a gap at every change of colour (`[ INFO ]` for Maven's `[INFO]`).
