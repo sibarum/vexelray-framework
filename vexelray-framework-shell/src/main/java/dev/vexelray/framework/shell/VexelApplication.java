@@ -251,6 +251,8 @@ public final class VexelApplication {
         shell.phase(Phase.CONFIG);
         adoptFormerHome(info.name(), wiring.formerNames());
         shell.settings(Settings.open(info.name()));
+        // The framework's own job, before the application's: an Open from any part is answered from the first tick.
+        Links.serve(shell);
         wiring.config(shell);
 
         // ---- MODEL: what the application knows, before there is anything to draw it with. ----------------

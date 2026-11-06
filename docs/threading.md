@@ -450,11 +450,11 @@ close gate `CloseRequested` and `CloseAnswer`, so `ApiWalkTest` finds none of th
 **T7.2 — No API an application can reach takes or returns a callback.** No public type in `-api`, `-core`,
 `-shell` or `vexelray-gui` that an application part can be handed has a parameter or a return of a functional
 interface, `Executor`, `CompletableFuture` or `Future`. A question is a request topic and its answer a reply
-topic: a close gate is `CloseRequested` and `CloseAnswer`, a file picker is `PickFile` and `Picked`, a confirm is
-`Ask` and `Answer`. *(phases 3 to 5. The walk is built, phase 4: `ApiWalkTest` walks every public framework
-type an application part can be handed, and requires that what takes or returns a function is exactly its list of
-what phase 5 owes, so a callback added later fails the build and one removed must come off the list. The widget
-library's half is vexelray-gui's walk)*
+topic: a close gate is `CloseRequested` and `CloseAnswer`, a file picker is `PickFile` and `Picked`, opening a file
+with the desktop is `Open` and `Opened`, a confirm is `Ask` and `Answer`. *(phases 3 to 5. The walk is built, phase 4:
+`ApiWalkTest` walks every public framework type an application part can be handed, and requires that what takes or
+returns a function is exactly its list of what phase 5 owes, so a callback added later fails the build and one removed
+must come off the list. The widget library's half is vexelray-gui's walk)*
 *Ruled 2026-10-27, what the rule is about:* **which thread runs the code.** A subscription is not a callback: its
 code runs on the subscriber's own thread, handed an immutable message, and answers by sending. What the rule forbids
 is code handed to the GUI that the GUI keeps and runs on its own thread, in the frame. So:

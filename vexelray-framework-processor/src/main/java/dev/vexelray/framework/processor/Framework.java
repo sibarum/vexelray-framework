@@ -187,7 +187,7 @@ final class Framework {
      */
     static final String SHELL_REFUSED = "the Shell is the framework's, and reaches everything it does: the frame"
             + " hooks, the disposer, every value in every phase. Take what is needed as a value of its own (Windows,"
-            + " Dialogs, Settings, Launch, the Gui), send a message (WindowCommand, Ask, PickFile), or hear one: a"
+            + " Dialogs, Settings, Launch, the Gui), send a message (WindowCommand, Ask, PickFile, Open), or hear one: a"
             + " recipe that took the Shell to be built last can hear WindowOpened for the main window instead";
 
     /** The root for a type, by qualified name, or {@code null}. */

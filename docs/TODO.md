@@ -1253,8 +1253,10 @@ there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most ar
       keyboard hands it to the next focusable in Tab order before the next frame's keys, and `Gui.blur()` exists
       (`FocusHandOnTest`). A *disabled* focused node still gives the keyboard to nothing (`dropDisabledFocus`), so the
       two rules differ; worth making them one.
-- [ ] **Opening a file with the desktop is private to the shell** (FN-4): `Links` is package-private, so an
-      application calls `NativePlatform.open` itself. A framework job, `Open(target)` → `Opened(target, problem)`.
+- [x] **Opening a file with the desktop is private to the shell** (FN-4). Done 2026-11-05: `Open(target)` →
+      `Opened(target, problem)` in `-core`, beside `PickFile`; the shell answers it on the job lane before the
+      application's wiring (`Links.serve`), so no application lists it, and the About window's links send it too.
+      Vexplore's `OpenFile` is gone (`LinksTest`).
 - [x] **Keys typed straight after a focus-moving chord land where the keyboard was** (FN-5). Done 2026-11-04 with
       no declaration: a chord that sends a message holds the rest of the frame's input for the next frame
       (`InputDispatcher.holdRest`), by when a GUI-thread view has moved the keyboard. Not covered: a chord whose

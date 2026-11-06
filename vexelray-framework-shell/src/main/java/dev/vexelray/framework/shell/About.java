@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.core.Open;
 import dev.vexelray.framework.core.WindowOpened;
 import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
@@ -198,11 +199,11 @@ final class About {
         String notices = notices(build.notices());
         IconButton licenses = tile(g, Icon.FILE, "Licenses", "Third-party licenses", "about-licenses")
                 .enabled(!notices.isEmpty());
-        g.mailbox(Button.PRESSED, licenses.address(), p -> Links.open(notices));
+        g.mailbox(Button.PRESSED, licenses.address(), p -> g.bus().publish(Open.TOPIC, new Open(notices)));
         String issues = build.frameworkIssues().orElse("");
         IconButton report = tile(g, Icon.CAUTION, "Issues", "Framework issues", "about-issues")
                 .enabled(!issues.isEmpty());
-        g.mailbox(Button.PRESSED, report.address(), p -> Links.open(issues));
+        g.mailbox(Button.PRESSED, report.address(), p -> g.bus().publish(Open.TOPIC, new Open(issues)));
         IconButton copy = tile(g, Icon.COPY, "Copy info", "Copy the version information, for a bug report",
                 "about-copy");
         // It says it did it in its own word, until the window is next opened: no line of its own that would be empty

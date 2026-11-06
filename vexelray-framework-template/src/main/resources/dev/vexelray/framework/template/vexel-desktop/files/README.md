@@ -101,7 +101,8 @@ keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and 
 front of a tab's name means unsaved changes; closing anything unsaved asks first, and so does quitting.
 
 There is no file dialog, by choice: the path bar is the whole of "open", and it works the same in a test as in use. The
-framework brings native pickers (a `PickFile` message, answered by `Picked`) for a project that wants them.
+framework brings native pickers (a `PickFile` message, answered by `Picked`) for a project that wants them, and hands
+a file to the desktop's own program with `Open`, answered by `Opened`.
 
 ## How it is put together
 
