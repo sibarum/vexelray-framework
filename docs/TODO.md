@@ -1310,7 +1310,6 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       readout `ottermate await` can read.
 - [ ] **The lockup names the `-gui` module, not the application** (FN-6, template): "mainframe-gui" under
       `exec:exec`, from `About.name` preferring the build's name.
-- [ ] **No key button seen in the title bar** (FN-7, not looked into).
 - [ ] **A widget's per-character edge fills a view's 64-slot mailbox** (FN-8, vexelray-gui and vex-suite-common): one
       `ottermate type` of 150 characters halted MainFrame on `TerminalScreen.Sent`. A frame's typing as one message,
       or a view draining a topic published on its own thread within the same frame, would need no capacity guess.
