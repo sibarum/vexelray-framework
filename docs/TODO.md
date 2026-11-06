@@ -1316,7 +1316,8 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       or a view draining a topic published on its own thread within the same frame, would need no capacity guess.
 - [ ] **A source that outruns a view halts the application** (FN-9): `type` of an 8 MB file in a tab filled the
       view's `Output` mailbox in ~250 ms. §11's "back-pressure is the source's" means every fast reader writes its own
-      flow control (MainFrame proposes a `Shown` per `Output`, two in flight). A sender told when its hearers have
+      flow control (MainFrame built a `Shown` per `Output`, two in flight; paced, vex-suite-common's "draws once
+      per feed" measured cheap: two feeds a frame, 1.5 ms frames). A sender told when its hearers have
       room, or a topic kind that appends to the unconsumed batch, would make it the framework's once.
 
 ## Upstream
