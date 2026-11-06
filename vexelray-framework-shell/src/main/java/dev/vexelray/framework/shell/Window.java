@@ -1,6 +1,7 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
+import dev.vexelray.framework.core.Modifiers;
 import dev.vexelray.framework.core.WindowClosed;
 import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.framework.core.WindowFullScreen;
@@ -16,6 +17,7 @@ import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
 import dev.vexelray.os.NativeWindow;
 import dev.vexelray.os.WindowConfig;
+import sibarum.tactroller.api.Modifier;
 
 /**
  * <b>One of this application's windows</b> — the main one, or a settings window, a viewer, a tool window by name —
@@ -98,6 +100,16 @@ public final class Window {
         // once (the About window's intro never played).
         Seams.of(gui).clock(Seams.of(shell.gui()).clock());
         WindowMotion.install(gui, shell.krono());
+        // What is held here, said to the application as a mode it can hear (Modifiers, Vexplore FN-9): on each change
+        // of the set, which the dispatcher commits on change only and clears when the window loses focus. Committed on
+        // the GUI thread; the bus carries it to each part on its own lane.
+        Seams.of(gui).modifiers().onCommit(v -> shell.bus().publish(Modifiers.TOPIC, held(key(), v.value())));
+    }
+
+    /** {@code held}, the dispatcher's set, as the message an application hears for window {@code window}. */
+    static Modifiers held(String window, java.util.Set<Modifier> held) {
+        return new Modifiers(window, held.contains(Modifier.SHIFT), held.contains(Modifier.CONTROL),
+                held.contains(Modifier.ALT), held.contains(Modifier.SUPER));
     }
 
     /** This window's undo and redo. See {@link #history()}. */
