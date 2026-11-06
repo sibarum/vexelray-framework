@@ -1224,8 +1224,11 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
       component through the canonical constructor; the record implements it (`WithersTest`). **Ruled** by the author
       2026-11-04, a mixin interface over a static helper class, because call sites stay `state.withDoc(d)` and the
       hand-written withers of the same name simply go. The IDE's and the template's `Editor.State` use it. Not done:
-      the IDE's run chain still borrows `Closing`, which can now be its own component; Vexplore's `Explorer.State`,
-      MainFrame's and Phasearray's are still hand-written; and generic records are refused rather than handled.
+      the IDE's run chain still borrows `Closing`, which can now be its own component; MainFrame's and Phasearray's
+      states are still hand-written (Vexplore's `Explorer.State` moved 2026-11-05, and 16 constructor calls went); and
+      generic records are refused rather than handled. Found moving Vexplore's: a hand-written wither whose parameter
+      erases as a generated one does (`withTo(Optional<Path>)` beside the component `Optional<Pane> to`) is javac's
+      name clash in the record, not the processor's; it could be refused with the fix said (rename it).
 - [ ] **A driven run writes the person's settings** (FN-11, an idea): a launch under `--automation` could default the
       application's home to a scratch one, as a test's is.
 - [ ] **A job's requests cannot coalesce** (FN-12). Checking Pontif as it is typed is a whole compile an edit, and
@@ -1274,8 +1277,14 @@ there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most ar
       it is, or a one-of-N chip group that lays out in lines.
 - [ ] **A table's growing column has no minimum** (FN-8, vexelray-gui): `Column.min(Length)`, the fixed columns
       giving way past it. Two Folders cuts every name to four letters at 1440 px.
-- [ ] **Held Shift and Control have no topic** (FN-9): a state topic `Modifiers(Set<Modifier>)`, so a step can
-      suggest in the pause, and a drop can copy or move by the key held.
+- [x] **Held Shift and Control have no topic** (FN-9). Done 2026-11-05: `Modifiers(window, shift, control, alt, meta)`
+      in `-core`, a state topic keyed by window, published by the shell's `Window` whenever the dispatcher's held set
+      changes, and released when the window loses focus (`ModifiersTest`). Booleans, not tactroller's `Modifier`, so an
+      application's `-core` can hear it. Vexplore's rail proposes ranges and rules from it again. Not done: a drop
+      copying or moving by the key held, which is the gesture's to carry at the release rather than a topic's to race.
+- [ ] **A table's sort is the widget's alone** (FN-17, vexelray-gui): `Table` sorts on a header click and tells no
+      one, so a part reasoning about the list's order (Shift's "down to the end of this run") reads the listing's
+      order while the person sees another. The table could say its order (`Table.SORTED`, a column and a direction).
 - [ ] **A field cannot be filled once and then left to the person** (FN-10, vexelray-gui): `TextField.initial`.
 - [ ] **A list's row menu cannot grey or hide an action, as a tree's can** (FN-11, vexelray-gui).
 - [ ] **A list row has one mark** (FN-12, vexelray-gui): Vexplore keeps two more sets beside `marks` (the *new* tag,
@@ -1318,6 +1327,11 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       flow control (MainFrame built a `Shown` per `Output`, two in flight; paced, vex-suite-common's "draws once
       per feed" measured cheap: two feeds a frame, 1.5 ms frames). A sender told when its hearers have
       room, or a topic kind that appends to the unconsumed batch, would make it the framework's once.
+- [ ] **`Tabs` has no place for an application's own nodes** (FN-10, vexelray-gui): no trailing slot after the
+      headers (a +, a status pill) and no in-place header edit; MainFrame floats them at the strip's right end.
+- [ ] **A header's double-click is not a declarable message** (FN-11, vexelray-gui): `Tabs.ACTIVATED`, as a list's
+      row has; MainFrame reads `gui.clicks()` through a hand-opened mailbox the processor cannot see.
+- [ ] **A menu line cannot show its chord** (FN-12, vexelray-gui): an item naming the key-map action it stands for.
 
 ## Upstream
 
