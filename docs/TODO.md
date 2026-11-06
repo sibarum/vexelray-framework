@@ -1235,6 +1235,13 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
 - [ ] **An underline is drawn in the text's colour** (FN-13, vexelray-gui). `Span.underline` takes the span's `fg`,
       so a red problem line recolours the token; the IDE marks a problem with an ink underline on a faint `DANGER`
       ground instead. An underline colour on `Span`, and a wavy style.
+- [ ] **A menu cannot be opened at the caret from a key** (FN-14, vexelray-gui). `ContextMenu.present` needs a
+      `ClickEvent`, and `TextField` does not say where its caret is on screen, so Ctrl+Enter on a name two modules
+      export names them on the status line instead of offering a choice. A menu anchored at a node and an offset,
+      opened by a chord: completion, quick fixes and choosers all need it.
+- [ ] **A field's change version counts caret moves** (FN-15, an idea, vexelray-gui). `TextField.Changed`'s version
+      moves on every commit, so it cannot name the text a job's answer is about; the IDE matched by it and dropped
+      answers whenever the caret moved. A text version beside the document's would be the thing to key on.
 - [ ] **In vex-suite-common, not here** (FN-7, FN-9): `TerminalScreen.pseudoconsole()` needs the application to know
       its platform, which the build's isolation check forbids, so `PtyPlatform` should answer it; and the terminal
       draws a gap at every change of colour (`[ INFO ]` for Maven's `[INFO]`).
@@ -1284,6 +1291,26 @@ there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most ar
       time stamps, and a press waiting out its hold owes the loop frames (`DragHoldTest`).
 - [ ] **A source's sender cannot be a lambda in a test** (FN-16, atchung): a `Sender.of(Consumer)` that delivers at
       once, with no bus, tick and inbox to collect what a source sends.
+
+### Found by rebuilding MainFrame on v0.2 (2026-11-05)
+
+MainFrame rebuilt from the template on v0.2 (its `docs/rebuild.md` and `docs/shape.md`, in Spike/mainframe on
+`v0.2`); M0 put a live shell in a tab through a `@Source @Destination`, the first application to use one. The numbers
+are its v0.2 notes (`docs/framework-notes.md` there).
+
+- [ ] **An application's own command-line grammar has nowhere to go** (FN-1; 0.1's FN-1 again): a value handed to
+      `VexelApplication.run` that the wiring provides, or `@VexelApp(arguments = ...)`, and its options in the usage.
+- [ ] **A widget's messages are keyed by its window, not by the widget** (FN-2, vexelray-gui): a part keyed per
+      widget (a destination per tab) cannot hear `TerminalScreen.SENT`/`FITTED`; the view forwards each with the tab's
+      id.
+- [ ] **A source's `open` has no door for a failure it expects** (FN-3): an `open` that may refuse with a reason,
+      which becomes the run's reply, so a mistyped program is not a connection that holds nothing.
+- [ ] **A source's sender cannot be a lambda in a test** (FN-4; Vexplore's FN-16 again, atchung).
+- [ ] **A terminal's text cannot be awaited by a script** (FN-5, vex-suite-common): the screen's visible text as a
+      readout `ottermate await` can read.
+- [ ] **The lockup names the `-gui` module, not the application** (FN-6, template): "mainframe-gui" under
+      `exec:exec`, from `About.name` preferring the build's name.
+- [ ] **No key button seen in the title bar** (FN-7, not looked into).
 
 ## Upstream
 
