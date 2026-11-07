@@ -1217,8 +1217,14 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
       nothing (`FramingTest`). The IDE's navigator trees and document field use it.
 - [x] **A menu line has no shortcut column** (FN-6). Done 2026-11-07 (vexelray-gui): `MenuItem.shortcut`,
       `MenuAction.shortcut` and `Menu.Builder.shortcut` say a chord at the line's right, dim, in `Shortcut.text`'s
-      spelling, and bind nothing (`MenuShortcutTest`). Not filled from a declared chord by itself: a menu line and the
-      chord that does the same rarely send the same message (a tab's line names the tab; the chord, the front one).
+      spelling, and bind nothing (`MenuShortcutTest`). A line can name a keymap command instead (`command(id)`), and says its chord as it
+      is when the menu opens, through `Seams.commands`, which `Keymap` fills on every window it is attached to: a
+      rebind is what the menu says (`KeymapTest`). The IDE and Vexplore moved onto the keymap 2026-11-07.
+- [ ] **An application that binds with `gui.shortcut` offers no key bindings, and nothing says so** (found moving the
+      IDE and Vexplore, 2026-11-07). Both were generated before the template moved to the keymap (`cea345c`) and went
+      without Key bindings… for a week unnoticed. A `` calling `gui.shortcut` for a window-wide chord could be told
+      to declare it on the keymap (a processor note, as `StepCheck` gives), keeping `gui.claim` on a node for chords
+      that mean something only there.
 - [x] **A menu cannot be walked from the keyboard** (FN-8). Done 2026-11-04 (vexelray-gui `afd2dbb`): an open menu
       takes Up, Down, Home, End, Enter, Right and Left beside Escape, and a menu dropped by a key (`TitleBar.open`)
       starts on its first line (`ContextMenu.markFirst`). Held by `ContextMenuKeysTest`.
