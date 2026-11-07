@@ -1215,8 +1215,10 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
 - [x] **`TextField` and `TreeView` always bring their own well** (FN-5). Done 2026-11-07 (vexelray-gui): `Framing.WELL`,
       the default, or `FLUSH`, which paints neither the fill nor the hairline and keeps their room, so switching moves
       nothing (`FramingTest`). The IDE's navigator trees and document field use it.
-- [ ] **A menu line has no shortcut column** (FN-6). `MenuItem.shortcut`, drawn dim at the right, filled from a
-      declared chord where there is one.
+- [x] **A menu line has no shortcut column** (FN-6). Done 2026-11-07 (vexelray-gui): `MenuItem.shortcut`,
+      `MenuAction.shortcut` and `Menu.Builder.shortcut` say a chord at the line's right, dim, in `Shortcut.text`'s
+      spelling, and bind nothing (`MenuShortcutTest`). Not filled from a declared chord by itself: a menu line and the
+      chord that does the same rarely send the same message (a tab's line names the tab; the chord, the front one).
 - [x] **A menu cannot be walked from the keyboard** (FN-8). Done 2026-11-04 (vexelray-gui `afd2dbb`): an open menu
       takes Up, Down, Home, End, Enter, Right and Left beside Escape, and a menu dropped by a key (`TitleBar.open`)
       starts on its first line (`ContextMenu.markFirst`). Held by `ContextMenuKeysTest`.
