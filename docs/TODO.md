@@ -1381,6 +1381,10 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 - [ ] **A script cannot wait for a window to open** (FN-24, automation): `window open` right after Ctrl+O fails while a
       job lists the workspaces, and the guide's cross-window `await open/open.list` was refused by the running server.
       `await window <name>`, and the cross-window target as the guide describes it.
+- [ ] **Nothing says how to try an app's installer locally** (FN-25, installer): the CLI that reads `installer.json`,
+      the local `--base-url` / `releases/<tag>/` / `serve.ps1` steps and `-Force` for a same-version snapshot are spread
+      over three repositories, and a `"comment"` key in the config fails generation. Accept a comment; have the template
+      write `installer.json`; or one `--local` command that generates, stages and serves it.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
