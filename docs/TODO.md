@@ -1368,6 +1368,9 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       checked only in a view test; `ottermate pick <path>`, answering the next picker of the run.
 - [ ] **A text field's larger text loses its descenders** (FN-20, vexelray-gui): `textSize(1.5rem)` cut "y" and
       "g" at the baseline whatever the field's height; 1.25rem is whole.
+- [ ] **In vex-suite-common: a terminal cannot say its program is waiting for input** (FN-21): `--insert-path`
+      guesses "prompt drawn" as 300 ms quiet after output, kept with `Timer` in the view. Shell integration's OSC 133
+      marks, parsed by `Terminal` and said as `TerminalScreen.PROMPTED`, would make it a fact.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
