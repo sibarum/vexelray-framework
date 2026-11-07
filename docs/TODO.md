@@ -1354,6 +1354,20 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       each scope their own Esc depend on the order they are built in; declare an action straight into its place.
 - [ ] **A headless tree runs the real jobs against the real home** (FN-15): MainFrame's `ViewTest` wrote the real
       settings file and started a real MainFrame; a test tree on a home of its own, and a way to stand a job in.
+- [ ] **A `Board` card has no place for a field and no key of its own** (FN-16, vexelray-gui): renaming a card in
+      place, and Delete on the focused card, cannot be declared; MainFrame's Workspaces window renames under the
+      cards and removes from the card's menu only. A face with an editing state, and a deck action that reaches the
+      focused card's item as `ListView.action` does a row's.
+- [ ] **A list says back a selection made in code as the person's** (FN-17, vexelray-gui): `selection().at(row)`
+      publishes `SELECTED` a frame later, like a click; MainFrame's view keeps the echoes it caused and drops them.
+      Say who selected, or publish nothing for code, as `TextField.text` records no undo.
+- [ ] **A field put away blocks the window's undo** (FN-18, vexelray-gui): its typing is in the window's history,
+      and `Gui.undo` refuses an entry whose target has left the tree, so every step behind it is out of reach.
+      Step past an entry whose target is gone, or say in `TextField`'s javadoc that a passing field wants its own.
+- [ ] **ottermate cannot answer a `PickFile`** (FN-19, vexelray-gui automation): every *Choose…*/*Add folder…* is
+      checked only in a view test; `ottermate pick <path>`, answering the next picker of the run.
+- [ ] **A text field's larger text loses its descenders** (FN-20, vexelray-gui): `textSize(1.5rem)` cut "y" and
+      "g" at the baseline whatever the field's height; 1.25rem is whole.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
