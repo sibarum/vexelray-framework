@@ -1223,9 +1223,12 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
 - [x] **An application that binds with `gui.shortcut` offers no key bindings, and nothing says so** (found moving the
       IDE and Vexplore, 2026-11-07). Done the same day, by the author's ruling, with no note: `Gui.shortcut` is gone, so
       a window-wide chord is a keymap action or does not compile. `gui.claim` on a node stays, for a chord that means
-      something only there (Esc in a dialog, `VISIBLE`). On the keymap: MainFrame, VexelRay IDE, Vexplore, Rasterware.
-      **Left broken on purpose, to fix one by one as each is next:** Phasearray, vex-4mat, vexelray-inspector,
-      vexelray-codec.
+      something only there (Esc in a dialog, `VISIBLE`). On the keymap: MainFrame, VexelRay IDE, Vexplore, Rasterware,
+      Phasearray (`40667f0`) and vexelray-inspector (`d43b7c4`). **Still broken, and for more than the keymap:**
+      vex-4mat (pre-v0.2: its `Editor` holds the close question with `out.hold()`, which atchung's 5 s bound now
+      fails, and its `Recipes` takes the `Shell`; the IDE's `3aeb9e3` and its v0.2 regeneration are the port) and
+      vexelray-codec's video-player demo (its library `VideoView` takes a `KronoGui`, which `bf4b02f` took from
+      applications, so the widget needs a timeline it may have; a keymap `PlayerView` is drafted).
 - [x] **A menu cannot be walked from the keyboard** (FN-8). Done 2026-11-04 (vexelray-gui `afd2dbb`): an open menu
       takes Up, Down, Home, End, Enter, Right and Left beside Escape, and a menu dropped by a key (`TitleBar.open`)
       starts on its first line (`ContextMenu.markFirst`). Held by `ContextMenuKeysTest`.
