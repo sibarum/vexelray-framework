@@ -5,6 +5,14 @@ your application needs a view it does not have: bars placed on a timeline, boxes
 board. This page is how to build one from plain nodes so that it lays out, takes clicks, can be reached by a script
 and does not jump. [Making it move](motion.md) is the companion page.
 
+> **Written for 0.1, and not yet brought to 0.2.** What it says about nodes, layout, floats, landmarks and roles still
+> holds. How the view is fed and how it answers a click does not. In 0.2 there is no model in `-gui` and no
+> `Ui.show`: a `@View` hears what the `-core` component decided and changes the nodes, and a click is a message the
+> view hears and passes on, never a lambda that writes a model. So read the code below for its nodes, and take its
+> wiring from the generated `View.java` and `Ui.java`, or from Vexplore and VexelRay Inspector on their `v0.2`
+> branches. The headless test belongs in `ViewTest`, not `EditorTest`. The Scheduler and Maistro named here are 0.1
+> applications.
+
 ## A widget or your own view
 
 | You want | Use |

@@ -12,6 +12,8 @@ looking for something, look in the table below first.
 | Install the stack | [Getting started §1–2](../getting-started.md#1-what-you-need): one script, `bootstrap.sh` |
 | Make a new project and run it | [Getting started §3–4](../getting-started.md#3-generate-a-project) |
 | Find my way around a generated project | [Getting started §5](../getting-started.md#5-find-your-way-around) |
+| Turn the generated editor into something that is not an editor | [Getting started: Turning it into your application](../getting-started.md#turning-it-into-your-application) |
+| See how something is done before doing it | The generated `EXAMPLES.md`, and F1 in the running application |
 | Add a part, a setting, or replace a default | [Getting started §5](../getting-started.md#adding-a-part), then [overview.md](../overview.md#phases) for the order parts are built in |
 | Work with a coding agent | [Building with an LLM](with-an-llm.md) |
 | Write code by hand | [Coding in VexelRay IDE](in-vex.md), or any other Java IDE |
@@ -34,7 +36,7 @@ looking for something, look in the table below first.
 - **Java 25**, compiled to a native executable with GraalVM. The window is drawn with Vulkan, so anything you can
   draw, you can put in it.
 - **Windows or Linux.** Windows is the most complete; Linux builds, runs and ships. macOS is a skeleton.
-- **Before v1.** This is 0.1.x, an experimental prerelease. Names still change between versions, and
+- **Before v1.** This is 0.2, an experimental prerelease. Names still change between versions, and
   [TODO.md](../TODO.md) is honest about what is missing. [What v1 means](../v1.md) says what will stop changing.
 - **Not on Maven Central.** You clone the stack and install it to your own Maven repository, once, with one
   script. It takes about half an hour, most of it the first build.
@@ -45,7 +47,7 @@ looking for something, look in the table below first.
 | --- | --- | --- |
 | 1 | Install the tools and build the stack | [Getting started §1–2](../getting-started.md#1-what-you-need) |
 | 2 | Generate a project from the template, and run it | [Getting started §3–4](../getting-started.md#3-generate-a-project) |
-| 3 | Learn your way around what was generated | [Getting started §5](../getting-started.md#5-find-your-way-around) |
+| 3 | Learn your way around what was generated, and decide what of the editor to keep | [Getting started §5](../getting-started.md#5-find-your-way-around), and its [Turning it into your application](../getting-started.md#turning-it-into-your-application) |
 | 4 | Turn it into your application: | |
 | | with a coding agent | **[Building with an LLM](with-an-llm.md)** |
 | | by hand, in VexelRay IDE | **[Coding in VexelRay IDE](in-vex.md)** |
@@ -62,17 +64,25 @@ wrote and for the small fixes that are quicker to make than to explain.
 The template, `vexel-desktop`, does not generate an empty window. It generates a small but complete text editor:
 tabs, a file navigator, Markdown in colour, a question before closing with unsaved work, and a session that comes
 back the next time. An editor is the smallest real application that reaches every part of the framework, so the
-project starts out showing you how each part is done. You keep its shape and replace what it does.
+project starts out showing you how each part is done. Beside it come the worked examples: `EXAMPLES.md` lists each
+question an application reaches for ("do something later", "a second window") with the files that answer it, their
+test and their `ottermate` check, and F1 opens them in the running application. An editor of some kind keeps the
+shape and replaces what it does; anything else takes the editor out first and keeps the rest
+([Getting started](../getting-started.md#turning-it-into-your-application) says what that leaves).
 
-[VexelRay IDE](../apps/text-editor.md), [Calculator](../apps/calculator.md), [MainFrame](../apps/mainframe.md) and Scheduler
-all started as this template. Their source is the best guide to what a generated project grows into:
+[VexelRay IDE](../apps/text-editor.md), [MainFrame](../apps/mainframe.md), [Vexplore](../apps/vexplore.md),
+[Rasterware](../apps/pix.md) and VexelRay Inspector were all generated from this template for 0.2. Their source is the
+best guide to what a generated project grows into, each on its `v0.2` branch:
 
 | Application | Read it for |
 | --- | --- |
-| [text-editor-vexel-demo](https://github.com/sibarum/text-editor-vexel-demo) | Grammars and highlighting off the GUI thread, the OS file dialogs, a second mode of the same panel |
-| [calculator-vexel-demo](https://github.com/sibarum/calculator-vexel-demo) | A computation engine behind a small window, and plots drawn on the canvas |
-| [mainframe](https://github.com/sibarum/mainframe) | A native process (ConPTY) behind the window, and workspaces |
-| `vexelray-scheduler` (not yet published) | A view of its own (lanes of bars placed on a timeline), and motion: nothing on screen changes in one frame |
+| [text-editor-vexel-demo](https://github.com/sibarum/text-editor-vexel-demo) | An editor that kept the template's shape: grammars and highlighting off the GUI thread, the OS file dialogs |
+| [mainframe](https://github.com/sibarum/mainframe) | The editor taken out first; a native process (ConPTY) behind the window, a settings window, workspaces. Its `docs/rebuild.md` is a whole rebuild planned as milestones |
+| [vexplore](https://github.com/sibarum/vexplore) | The editor taken out first; regions of its own, actions that can be undone, a dock |
+| [vexelray-inspector](https://github.com/sibarum/vexelray-inspector) | Panels on a timeline that can be rewound, fed from another running application |
+
+Calculator and Scheduler started from the 0.1 template and have not been brought to 0.2 yet, so read them for ideas,
+not for idioms.
 
 ## Where to ask
 

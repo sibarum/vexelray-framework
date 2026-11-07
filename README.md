@@ -10,7 +10,8 @@ framework wires the window, the input, the clock, the frame loop, the threads an
 install them, the technology, the design, and these documents.
 
 ```java
-@VexelApp(name = "notes", title = "Notes", width = 1180, height = 720)
+@VexelApp(name = "notes", title = "Notes", width = 1180, height = 720, icon = "/notes.ico",
+          starters = {AutomationStarter.class, Core.class})   // Core: -core's list of components and jobs
 final class NotesApp {
 }
 
@@ -18,13 +19,13 @@ final class NotesApp {
 final class Recipes {
 
     @Provides
-    Model model() {
-        return new Model();
+    Appearance look() {                              // no parameters: built first, before the Gui exists
+        return Appearance.of(Look.THEME, Length.rem(36), Length.rem(20));
     }
 
     @Provides
-    Ui ui(Gui gui, KronoGui clock, Model model) {   // built once the Gui and its clock exist
-        return new Ui(gui, clock, model);
+    Ui ui(Gui gui, TitleBar titleBar) {             // built once the Gui and its title bar exist
+        return new Ui(gui, new Motion(gui), titleBar);
     }
 }
 ```
@@ -37,7 +38,9 @@ public static void main(String[] args) {
 
 `NotesAppWiring` is not something you write. An annotation processor generates it while the project compiles: it
 works out what has to exist before what, builds each part once in that order, and refuses at compile time what
-would otherwise fail at startup or, worse, silently at runtime.
+would otherwise fail at startup or, worse, silently at runtime. The rest of an application is parts that talk only
+by messages: a `@Component` that decides (on the logic lane, never the main thread), a `@View` that shows what it
+decided, and a `@Job` for anything slow. The generated project has one of each to read.
 
 - **Java 25, Maven, GraalVM native-image.** An application compiles to a native binary with no reflection
   metadata of the framework's own, and starts as fast as a hand-written `main` would.
@@ -46,7 +49,7 @@ would otherwise fail at startup or, worse, silently at runtime.
 - **Never a frozen window.** Your code runs off the main thread by default. A part that hangs takes only its own
   thread with it; the window keeps painting and can always be closed.
 - **Sensible defaults.** Input, clipboard, window memory, dialogs, the theme, pacing and argument parsing are the
-  framework's. The theme, input, clipboard, dialogs and the liveness policy can each be replaced with a single
+  framework's. The theme, the fonts, input, clipboard, dialogs and the liveness policy can each be replaced with a single
   `@Provides` method; the rest are not replaceable yet.
 
 ## Get started
@@ -133,7 +136,7 @@ The fluid and rigid-body simulation demos are built on it too. The applications 
 
 ## Status
 
-**0.1.0 is an experimental prerelease, not v1.** It is tagged so that the applications above could be installed
+**0.2 is an experimental prerelease, not v1.** It is tagged so that the applications above can be installed
 and tried, not as a version to build on: nothing in it is stable, and the next version may change any of it without
 notice. Every module below is built and tested, and the applications run on it daily. What v1 still needs is for
 the remaining abstractions to be final, so that an application written against it will not need restructuring later; [docs/v1.md](docs/v1.md) is that bar and [docs/status.html](docs/status.html)

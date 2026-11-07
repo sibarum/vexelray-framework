@@ -24,9 +24,10 @@ the buttons and the title bar are drawn by the stack.
 
 Underneath those, four more repositories do one job each: `intrabuf` (the serialization the bus carries),
 `dxgi-bridge` (presentation on Windows), `imagelib-wrapper` (image decoding, which `vexelray-gui`'s build uses) and
-`vexelray-build` (the Maven plugin that stamps every build with its source). An application written from the
+`vexelray-build` (the Maven plugin that stamps every build with its source), and two more give the title bar's camera
+its video: `ffmpeg-wrapper` and `vexelray-codec`. An application written from the
 template depends on the framework and on a few `vexelray-gui` modules for its widgets; the rest arrives with them.
-[Getting started](getting-started.md#2-install-the-stack) installs all eleven, and [the repositories](repositories.md)
+[Getting started](getting-started.md#2-install-the-stack) installs all thirteen, and [the repositories](repositories.md)
 lists the optional ones too.
 
 ## What the framework owns, and what you write
@@ -44,10 +45,14 @@ What an application writes:
 - **One `@VexelApp` class**: its name (which is also its settings folder), title, size, icon, and the starters it
   pulls in.
 - **`@Configuration` classes of `@Provides` methods**: one per part of the application, each saying what it needs.
-- **Optionally, `@Component` classes**: parts that run on a thread of their own and receive messages.
+- **`@Component` classes**: the parts that decide, each with its own state and mailbox, on the logic lane. A
+  generated project keeps them in its `-core` module, beside a `Messages` file with every message, and lists them in
+  a `@Configuration` its `@VexelApp` names among its starters.
+- **A `@View`**: the part that shows what the components decided and tells them what the person did.
+- **`@Job` classes**: slow work, a request in and a reply out.
 
-Five of the framework's defaults are overridable, one at a time, by providing the same type yourself: the look
-(`Appearance`), the input backend, the clipboard, the liveness policy and the dialogs. When you do, the framework's
+Six of the framework's defaults are overridable, one at a time, by providing the same type yourself: the look
+(`Appearance`), the fonts, the input backend, the clipboard, the liveness policy and the dialogs. When you do, the framework's
 version is never built, so there is no precedence to reason about. The rest of the edge is the framework's alone
 for now.
 
@@ -110,7 +115,7 @@ phases, and every part is built in one:
 | `RUN` | The frame loop, and the shutdown in reverse order after it |
 
 **You never declare a phase.** A part's phase is the latest phase of anything it takes. A method taking a `Model`
-runs in `MODEL`; one taking a `Gui` runs in `TREE`, after the framework has configured the `Gui` in `GUI`; one taking the `Shell` runs last. Because the phase follows from
+runs in `MODEL`; one taking a `Gui` runs in `TREE`, after the framework has configured the `Gui` in `GUI`. No part takes the `Shell` (the processor refuses it): what has to wait for the window hears the framework's `WindowOpened` instead. Because the phase follows from
 the code, it cannot disagree with it.
 
 *More: [architecture.md](architecture.md#1-phases--construction-order-is-a-correctness-constraint-not-a-scheduling-detail).*
@@ -154,9 +159,13 @@ Vulkan, the window and presenting stay on the main thread. Everything else runs 
 | --- | --- |
 | **Main thread** | The window, the GPU, the frame loop. Never waits on another lane |
 | **Timeline** | Kronometer: animations and scheduled work, one at a time |
-| **Handler lane** | Event handlers: a click, a key, a submitted text field |
-| **Offload lane** | Slow work such as reading and writing files, bounded so it waits rather than grows |
-| **Component lanes** | Each `@Component`: a shared default lane, or one it names for itself |
+| **Logic lane** | Every `@Component`, one message at a time, so none needs a lock. Never the main thread |
+| **Declared lanes** | A component that names a `lane` for heavy work: a thread of its own, in the same rounds as the logic lane |
+| **Job lane** | Each `@Job`: slow work such as reading and writing files, a request in and a reply out, bounded so it waits rather than grows |
+| **A source's run, a destination's writer** | A thread per connection to something outside, such as a shell or a socket ([components.md](components.md) sections 11 and 12) |
+
+A `@View` is not on a lane: it runs on the main thread in each frame, holds the widgets, and only shows and tells. A
+click or a key is a message the view hears, not a handler run somewhere ([threading.md](threading.md) T1.1).
 
 A component is one part with its own state and mailbox. It does not hold references to other components; it receives
 messages through `@Subscribe` methods and sends them through the `Sender<T>` it takes for each message type. A channel

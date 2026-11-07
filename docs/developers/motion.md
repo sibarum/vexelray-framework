@@ -139,7 +139,7 @@ predates this, and a new application should not copy it.
 `Gui.zoomIn`, `zoomOut` and `resetZoom` glide: the framework sets `Gui.zoomGlide` for every window (`WindowMotion`),
 so a step closes half the distance to its target every half-life instead of laying the whole window out again
 between two frames, and a key pressed mid-glide steps from where the glide is heading, so three presses are three
-steps. The template's `Recipes.zoomShortcuts` binds them as they are. `Gui.zoom(float)` stays at once, for a restore
+steps. The template's `View.commands` binds them as they are, as the commands `view.zoom-in`, `view.zoom-out` and `view.zoom-reset`. `Gui.zoom(float)` stays at once, for a restore
 or a reset. With reduced motion on, a step lands at once.
 
 The Scheduler's `Recipes.shortcuts` glides the zoom itself, with a `Motion.Glide` driven from `gui.zoom().value()`.
@@ -183,8 +183,9 @@ Run with `ottermate --size` every time. The window remembers its last size, and 
 cannot be compared. Slow motion does not reach the framework's focus ring or wheel. They keep real time and show up
 in a slow burst as steps that are not there at full speed.
 
-There is no `ottermate` verb that steps frames or records them. A recorder is planned ([TODO.md](../TODO.md), *The
-camera records as well as photographs*). Until it lands, the burst is the check, and a person reads it.
+There is no `ottermate` verb that steps frames. To see the motion itself, `record out.mkv` ... `record stop` makes a video
+of the window from the frames it shows (the camera's *Record video to file…*; the automation reference has it).
+The burst is still the check a script can make, and a person reads it.
 
 ## Traps
 

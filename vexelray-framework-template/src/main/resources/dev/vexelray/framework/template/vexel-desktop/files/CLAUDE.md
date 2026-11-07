@@ -118,7 +118,11 @@ When a run fails, read `${artifactId}-gui/target/logs/${appName}.log` (`target-l
 - **One slice at a time**: a change from the model to the screen, with its test and its `ottermate` check. Not
   several features at once.
 <!-- part: how-to-work -->
-- **Copy a precedent.** The template's own files, and the applications generated from it (VexelRay IDE, Calculator,
-  MainFrame, Scheduler), have solved most problems once. Find how they did it before inventing a way. Scheduler
-  is the one to read for motion: it keeps its nodes and changes them, so nothing on screen changes in one frame.
+- **Copy a precedent.** The template's own files, and the applications generated from it (VexelRay IDE, MainFrame,
+  Vexplore, Rasterware, VexelRay Inspector), have solved most problems once. Find how they did it before inventing a
+  way. For motion, read the framework's `docs/developers/motion.md`: a view keeps its nodes and changes them, so
+  nothing on screen changes in one frame.
+- **Not an editor?** Take the template's editor out as a step of its own before adding anything, leaving the title
+  bar over an empty page with `mvn test` passing (the framework's `docs/getting-started.md`, *Turning it into your
+  application*).
 - **For anything that touches `Recipes.java`, `Messages.java`, a lane or the shape of `Doc`, propose the change before making it.**

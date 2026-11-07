@@ -22,8 +22,8 @@ import dev.vexelray.gui.widget.TitleBar;
  *
  * <h2>Where the rest comes from</h2>
  *
- * <p>Not every part is a recipe. The {@link View} is a {@code @Component}: a lane of its own, built from its one
- * constructor, reached by messages. The editor and the jobs that touch the disk are in {@code -core}, and reach the
+ * <p>Not every part is a recipe. The {@link View} is a {@code @View}: run on the GUI thread in each frame, built from
+ * its one constructor, reached by messages. The editor and the jobs that touch the disk are in {@code -core}, and reach the
  * wiring through {@code Core}, which {@code ${className}App} names among its starters beside {@code AutomationStarter},
  * the automation sockets.
  *
