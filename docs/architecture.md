@@ -245,7 +245,7 @@ screen names it, so a person clicking the camera could not find the picture. Cor
 
 **The key button is the framework's too, and earned rather than given.** The framework makes one `Keymap`
 (vexelray-gui's `-keymap`) on the main window's `Gui` at `GUI` and hands it to parts from `TREE`; an application
-declares its commands on it by id, label and default chords, each sending a message, in place of `gui.shortcut`.
+declares its commands on it by id, label and default chords, each sending a message: the one way it binds a window-wide chord, since `Gui.shortcut` went (2026-11-07).
 At `ATTACH`, if anything was declared, every framework bar gets `KeymapWindow`'s button after the
 application's own instruments, the declared windows' as well as the main one's, and the person's changes are read from and written to `keys.properties` in the
 application's home. Nothing declared, no button: keymap.md's rule that an application without rebindable

@@ -9,7 +9,8 @@ import sibarum.atchung.Topic;
  * says what happened with {@link WindowOpened} and {@link WindowClosed}.
  *
  * {@snippet :
- * gui.shortcut(Shortcut.of(Key.COMMA, Modifier.CONTROL), windows, WindowCommand.show("settings"));
+ * keys.action("window.settings", "Settings", Shortcut.of(Key.COMMA, Modifier.CONTROL))
+ *         .sends(windows, WindowCommand.show("settings"));
  * }
  *
  * <p><b>A message, so a send is declared.</b> A part that opens a window takes a {@code Sender<WindowCommand>}, and the

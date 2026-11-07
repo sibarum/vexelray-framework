@@ -1220,11 +1220,12 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
       spelling, and bind nothing (`MenuShortcutTest`). A line can name a keymap command instead (`command(id)`), and says its chord as it
       is when the menu opens, through `Seams.commands`, which `Keymap` fills on every window it is attached to: a
       rebind is what the menu says (`KeymapTest`). The IDE and Vexplore moved onto the keymap 2026-11-07.
-- [ ] **An application that binds with `gui.shortcut` offers no key bindings, and nothing says so** (found moving the
-      IDE and Vexplore, 2026-11-07). Both were generated before the template moved to the keymap (`cea345c`) and went
-      without Key bindings… for a week unnoticed. A `` calling `gui.shortcut` for a window-wide chord could be told
-      to declare it on the keymap (a processor note, as `StepCheck` gives), keeping `gui.claim` on a node for chords
-      that mean something only there.
+- [x] **An application that binds with `gui.shortcut` offers no key bindings, and nothing says so** (found moving the
+      IDE and Vexplore, 2026-11-07). Done the same day, by the author's ruling, with no note: `Gui.shortcut` is gone, so
+      a window-wide chord is a keymap action or does not compile. `gui.claim` on a node stays, for a chord that means
+      something only there (Esc in a dialog, `VISIBLE`). On the keymap: MainFrame, VexelRay IDE, Vexplore, Rasterware.
+      **Left broken on purpose, to fix one by one as each is next:** Phasearray, vex-4mat, vexelray-inspector,
+      vexelray-codec.
 - [x] **A menu cannot be walked from the keyboard** (FN-8). Done 2026-11-04 (vexelray-gui `afd2dbb`): an open menu
       takes Up, Down, Home, End, Enter, Right and Left beside Escape, and a menu dropped by a key (`TitleBar.open`)
       starts on its first line (`ContextMenu.markFirst`). Held by `ContextMenuKeysTest`.

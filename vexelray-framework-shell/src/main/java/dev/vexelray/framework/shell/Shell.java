@@ -906,8 +906,8 @@ public final class Shell {
 
     /**
      * The application's keyboard commands, by name, with chords the person can change: declare each one here
-     * ({@code keymap.action("file.save", "Save", chord).sends(sender, message)}) in place of a
-     * {@code gui.shortcut}. Exists from {@link Phase#GUI}, on the main window's {@code Gui}; a command meant from
+     * ({@code keymap.action("file.save", "Save", chord).sends(sender, message)}), the one way an
+     * application binds a window-wide chord. Exists from {@link Phase#GUI}, on the main window's {@code Gui}; a command meant from
      * another window too is claimed there with {@code keymap.attach(window.gui())}.
      *
      * <p><b>The framework owns the button that rebinds them</b>, as it owns the screenshot: once any action is
