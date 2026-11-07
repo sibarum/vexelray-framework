@@ -1212,8 +1212,9 @@ behind it, the first application `@Source @Destination` (`Runner`). The numbers 
       black, two nothings, and `Cuts` compared them exactly and called the step a cut. `PaintMotion.same`: two
       colours at no alpha look the same, to `Fades`, `Cuts` and the reconciler's report. The IDE's `TAB_REST` is
       `Role.NONE` again (`CutsTest.clearedBeforeItCameUpIsNoCut`).
-- [ ] **`TextField` and `TreeView` always bring their own well** (FN-5): corner, `WELL` fill and `LINE` border on the
-      widget's node, undone by hand wherever one sits flush in a card. A frame option on the widget.
+- [x] **`TextField` and `TreeView` always bring their own well** (FN-5). Done 2026-11-07 (vexelray-gui): `Framing.WELL`,
+      the default, or `FLUSH`, which paints neither the fill nor the hairline and keeps their room, so switching moves
+      nothing (`FramingTest`). The IDE's navigator trees and document field use it.
 - [ ] **A menu line has no shortcut column** (FN-6). `MenuItem.shortcut`, drawn dim at the right, filled from a
       declared chord where there is one.
 - [x] **A menu cannot be walked from the keyboard** (FN-8). Done 2026-11-04 (vexelray-gui `afd2dbb`): an open menu
@@ -1282,9 +1283,8 @@ there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most ar
       changes, and released when the window loses focus (`ModifiersTest`). Booleans, not tactroller's `Modifier`, so an
       application's `-core` can hear it. Vexplore's rail proposes ranges and rules from it again. Not done: a drop
       copying or moving by the key held, which is the gesture's to carry at the release rather than a topic's to race.
-- [ ] **A table's sort is the widget's alone** (FN-17, vexelray-gui): `Table` sorts on a header click and tells no
-      one, so a part reasoning about the list's order (Shift's "down to the end of this run") reads the listing's
-      order while the person sees another. The table could say its order (`Table.SORTED`, a column and a direction).
+- [x] **A table's sort is the widget's alone** (FN-17). No gap, 2026-11-07: `Table.SORTED` already says it; Vexplore's
+      view did not pass it on, and now does (`Ordered`).
 - [ ] **A field cannot be filled once and then left to the person** (FN-10, vexelray-gui): `TextField.initial`.
 - [ ] **A list's row menu cannot grey or hide an action, as a tree's can** (FN-11, vexelray-gui).
 - [ ] **A list row has one mark** (FN-12, vexelray-gui): Vexplore keeps two more sets beside `marks` (the *new* tag,
