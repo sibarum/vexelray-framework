@@ -1332,6 +1332,8 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 - [ ] **A header's double-click is not a declarable message** (FN-11, vexelray-gui): `Tabs.ACTIVATED`, as a list's
       row has; MainFrame reads `gui.clicks()` through a hand-opened mailbox the processor cannot see.
 - [ ] **A menu line cannot show its chord** (FN-12, vexelray-gui): an item naming the key-map action it stands for.
+- [ ] **The framework's key-bindings window cannot be opened by a `WindowCommand`** (FN-13): `KeymapWindow` registers
+      through `GuiApp.window`, not `Windows`, so `show("keymap")` from a menu or chord is ignored; declare it through `Windows`.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
