@@ -1293,8 +1293,9 @@ there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most ar
 - [x] **Held Shift and Control have no topic** (FN-9). Done 2026-11-05: `Modifiers(window, shift, control, alt, meta)`
       in `-core`, a state topic keyed by window, published by the shell's `Window` whenever the dispatcher's held set
       changes, and released when the window loses focus (`ModifiersTest`). Booleans, not tactroller's `Modifier`, so an
-      application's `-core` can hear it. Vexplore's rail proposes ranges and rules from it again. Not done: a drop
-      copying or moving by the key held, which is the gesture's to carry at the release rather than a topic's to race.
+      application's `-core` can hear it. Vexplore's rail proposes ranges and rules from it again. A drop copying or
+      moving by the key held is the gesture's, not the topic's: done 2026-11-07, `DropEffect.byKeys` (Control copies,
+      Shift moves), which `ListView.droppable` follows live, and `Landed.effect` says what the drop became.
 - [x] **A table's sort is the widget's alone** (FN-17). No gap, 2026-11-07: `Table.SORTED` already says it; Vexplore's
       view did not pass it on, and now does (`Ordered`).
 - [ ] **A field cannot be filled once and then left to the person** (FN-10, vexelray-gui): `TextField.initial`.
