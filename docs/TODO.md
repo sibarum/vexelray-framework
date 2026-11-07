@@ -1333,6 +1333,18 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       row has; MainFrame reads `gui.clicks()` through a hand-opened mailbox the processor cannot see.
 - [ ] **A menu line cannot show its chord** (FN-12, vexelray-gui): an item naming the key-map action it stands for.
 
+### Found by bringing PhaseArray onto v0.2 (2026-11-06)
+
+PhaseArray (Spike/phasearray on `v0.2`), generated from the template and turned into a sound design tool. Its
+tests broke when it moved onto the current stack; the numbers are its `docs/framework-notes.md`.
+
+- [ ] **A tick with no alarm is refused only when a timed bound is first armed** (FN-5, atchung): `bus.tick(null)`
+      compiles and builds, and `Waits.arm` throws at the first message to an inbox with a time bound. Refuse the
+      bound when the inbox is made, or make the alarm an argument of `bus.tick`.
+- [ ] **`CloseRequested`'s two-argument form can be published, and fails as a bare NPE** (FN-6): `to` is null and
+      the edge keyed by it throws an NPE that names neither the record nor the field. Rename the inbox-only form so
+      it reads as such, or refuse a null edge key on publish with a message naming `to`.
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
