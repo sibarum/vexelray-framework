@@ -1304,7 +1304,9 @@ there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most ar
       icon in a cell with a name a script can read, which today is borrowed from `role`.
 - [ ] **No gallery** (FN-13, to be written when M8's slice 6 meets it): a virtualised wrapping grid of cards, in
       sections, with the list's selection, keyboard, menu, marks and drag.
-- [ ] **A button is one label, with nothing beside it** (FN-14, vexelray-gui): `Button.trailing(Node)` or a badge.
+- [x] **A button is one label, with nothing beside it** (FN-14, vexelray-gui). Done 2026-11-07 (vexelray-gui `48403054`): a `Button` is a row
+      holding its words and `badge(String)`, both its own, so nothing outside styles a button's text
+      (`ButtonBadgeTest`). Vexplore's rail pills carry their counts in it.
 - [x] **A button cannot open a menu** (FN-15, vexelray-gui). Done 2026-11-07 (vexelray-gui `e93bd84d`):
       `Button.menu(Menu)` and `IconButton.menu(Menu)` drop a declared menu from the button on a left click, Enter or
       Space, as the title bar's menus do (`ContextMenu.drop`, shared). Vexplore's Open with uses it (`MenuButtonTest`).
