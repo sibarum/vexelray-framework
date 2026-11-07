@@ -1346,6 +1346,10 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 - [ ] **A menu line cannot show its chord** (FN-12, vexelray-gui): an item naming the key-map action it stands for.
 - [ ] **The framework's key-bindings window cannot be opened by a `WindowCommand`** (FN-13): `KeymapWindow` registers
       through `GuiApp.window`, not `Windows`, so `show("keymap")` from a menu or chord is ignored; declare it through `Windows`.
+- [ ] **A key-map action can only be declared application-wide, then moved** (FN-14, vexelray-gui): two views that
+      each scope their own Esc depend on the order they are built in; declare an action straight into its place.
+- [ ] **A headless tree runs the real jobs against the real home** (FN-15): MainFrame's `ViewTest` wrote the real
+      settings file and started a real MainFrame; a test tree on a home of its own, and a way to stand a job in.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
