@@ -1305,8 +1305,9 @@ there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most ar
 - [ ] **No gallery** (FN-13, to be written when M8's slice 6 meets it): a virtualised wrapping grid of cards, in
       sections, with the list's selection, keyboard, menu, marks and drag.
 - [ ] **A button is one label, with nothing beside it** (FN-14, vexelray-gui): `Button.trailing(Node)` or a badge.
-- [ ] **A button cannot open a menu** (FN-15, vexelray-gui): `Button.menu(Menu)`, opened on a left click, Enter or
-      Space.
+- [x] **A button cannot open a menu** (FN-15, vexelray-gui). Done 2026-11-07 (vexelray-gui `e93bd84d`):
+      `Button.menu(Menu)` and `IconButton.menu(Menu)` drop a declared menu from the button on a left click, Enter or
+      Space, as the title bar's menus do (`ContextMenu.drop`, shared). Vexplore's Open with uses it (`MenuButtonTest`).
 - [x] **ottermate's one-step `drag` commits nothing** (M6 slice 2, vexelray-gui). Done 2026-11-04 (vexelray-gui
       `5be706c`): `drag` settles after the release and clicks a latched carry down where it let go, moves carry real
       time stamps, and a press waiting out its hold owes the loop frames (`DragHoldTest`).
