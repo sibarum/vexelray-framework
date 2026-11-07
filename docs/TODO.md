@@ -1310,8 +1310,9 @@ there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most ar
 - [x] **ottermate's one-step `drag` commits nothing** (M6 slice 2, vexelray-gui). Done 2026-11-04 (vexelray-gui
       `5be706c`): `drag` settles after the release and clicks a latched carry down where it let go, moves carry real
       time stamps, and a press waiting out its hold owes the loop frames (`DragHoldTest`).
-- [ ] **A source's sender cannot be a lambda in a test** (FN-16, atchung): a `Sender.of(Consumer)` that delivers at
-      once, with no bus, tick and inbox to collect what a source sends.
+- [x] **A source's sender cannot be a lambda in a test** (FN-16, atchung). Done 2026-11-07: `Sender.collecting(topic,
+      list)` keeps each send in the list at once, with no bus (`CollectingSenderTest`). A list, not a `Consumer`: a
+      sender made from a function would be a callback, which T7.2 keeps out of what a part is handed.
 
 ### Found by rebuilding MainFrame on v0.2 (2026-11-05)
 
