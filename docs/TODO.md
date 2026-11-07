@@ -1372,6 +1372,9 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 - [ ] **In vex-suite-common: a terminal cannot say its program is waiting for input** (FN-21): `--insert-path`
       guesses "prompt drawn" as 300 ms quiet after output, kept with `Timer` in the view. Shell integration's OSC 133
       marks, parsed by `Terminal` and said as `TerminalScreen.PROMPTED`, would make it a fact.
+- [ ] **In vex-suite-common: the Windows pseudoconsole carries no native-image metadata** (FN-22): a native MainFrame
+      stopped on its first tab (`MissingForeignRegistrationError`, `CreatePipe`). `-pty-linux` ships its downcalls;
+      `-pty-windows` should ship ConPty's too, with a native-image test that opens one. MainFrame registers them meanwhile.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
