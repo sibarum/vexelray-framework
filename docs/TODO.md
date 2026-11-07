@@ -1375,6 +1375,12 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 - [ ] **In vex-suite-common: the Windows pseudoconsole carries no native-image metadata** (FN-22): a native MainFrame
       stopped on its first tab (`MissingForeignRegistrationError`, `CreatePipe`). `-pty-linux` ships its downcalls;
       `-pty-windows` should ship ConPty's too, with a native-image test that opens one. MainFrame registers them meanwhile.
+- [ ] **A script cannot wait for a tab, or find one** (FN-23, automation and vexelray-gui): the tab bar's name is blank,
+      `find` missed a header `tree` showed, and answers `ok` when nothing matches. Name the bar by its headers, and let
+      `find` (or an `expect`) fail on no match.
+- [ ] **A script cannot wait for a window to open** (FN-24, automation): `window open` right after Ctrl+O fails while a
+      job lists the workspaces, and the guide's cross-window `await open/open.list` was refused by the running server.
+      `await window <name>`, and the cross-window target as the guide describes it.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
