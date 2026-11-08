@@ -70,6 +70,35 @@ Each one is usable when done, and each has a witness.
 
 Order: 1, then 2, then 3, 4 and 5 in any order. 3 is the biggest and the most visible; 5 is the smallest.
 
+## Slice 1, as built
+
+Built 2026-11-07 in `Spike/vexelray` (v0.2, 0.2.0-SNAPSHOT) and `Spike/vexelray-fields` (7a8e62b).
+
+- **The shadelets.** `CoreShadelets.SDG_STENCIL` (source) and `SDG_PAINT` (painter) are added at the end of their
+  roles in the core set, and `CoreLooks.Primitive.SDG` is their look. That look is at a fixed offset in every table
+  (`CoreLooks.lookOffset`), so `Canvas.sdg` writes a layer's record with no look table set. Each layer carries 19
+  floats in its own record: the stencil's rectangle, its channel, msdf or not, and pixels per value; then the paint's
+  map from stencil to paint coordinates, its rectangle, and sampled or not. The vertex keeps the stencil UV. The
+  colour is the solid paint, with its role resolved by the caller's `Canvas.Roles`, or white for a sampled one; its
+  alpha carries the opacity.
+- **One page per run, by re-packing, not by an encoder rule.** `Assembly` keeps colour on pages of its own, so every
+  textured layer (gradients, traced textures) has its stencil and paint on two pages. So
+  `SdgPages.colocated(Sdg)` (canvas, pure Java) copies each such pair side by side onto a new page when a drawing is
+  loaded. Any file draws, and drawings that need no copy are returned as they are. `Canvas.sdg` skips, and says once,
+  a layer that is still split. The plan above said such a file would draw at a run per layer: it cannot, since a run
+  binds one image. Teaching `Assembly` to co-locate would make the copy unnecessary; it is not needed for anything
+  to draw.
+- **sRGB, settled.** The window swapchain is `B8G8R8A8_UNORM` in the sRGB colour space, and the pipeline blends
+  `SRC_ALPHA, ONE_MINUS_SRC_ALPHA`. So the GPU blends stored values, as spec §2 says, and neither the spec nor the
+  target changes. Pages must be uploaded UNORM.
+- **The witness.** `vexelray-shadelets` `SdgRenderTest` draws the badge (SVG: MSDF fills, an SDF stroke, a gradient)
+  and its traced raster on the GPU, fitted and magnified 8×, and compares each pixel with `SdgRender`. Fitted, the
+  worst is 2/255. Magnified, the worst is 5, with 47 of 36,864 pixels past 3: the GPU weighs texels in fixed point.
+  The bound is ≤ 1% past 3 and none past 8. A role is checked too.
+- **The version.** The core repo is 0.2.0-SNAPSHOT on v0.2, but nothing points at it yet. The v0.2 clones still pin
+  `vexelray.version` 0.1.3-SNAPSHOT (gui, codec, framework and its template, the apps, `build/src`). Moving them is
+  slice 2's first step, done together, since the template's generated poms and `bootstrap.sh` name it too.
+
 ## Rulings wanted
 
 **Ruled 2026-11-07: all five accepted as recommended.** The core renderer is cloned to `Spike/vexelray` on `v0.2`;
