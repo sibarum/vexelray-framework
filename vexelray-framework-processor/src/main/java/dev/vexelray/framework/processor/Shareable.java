@@ -35,6 +35,8 @@ import java.util.Set;
  *   <li>in a payload or a view's drawn state, a vexelray-gui {@code Feed}: a handle to the one memory a producer and
  *       the GUI thread share (threading.md T7.3, frame-contract.md D), which is how pixels reach the screen without
  *       crossing the bus themselves.</li>
+ *   <li>in the same places, a vexelray-gui {@code ImageSdg}: an SDG drawing and its pages, the same handle for a
+ *       drawing that a {@code Feed} is for a raster, built once by a job and only read after (see {@link #SDG}).</li>
  * </ul>
  * <b>What is refused, and why it is not a limitation of the check:</b> an array (mutable), an interface that is not
  * sealed (its implementations are unknown), any other generic type, a class with a mutable field, and an inner
@@ -94,7 +96,7 @@ final class Shareable {
 
     /**
      * What the walk accepts beyond the deeply immutable: collections on trust (a payload's), nodes as handles (a view's
-     * drawn state), and feeds as handles (a payload, and a view's drawn state).
+     * drawn state), and feeds and SDG drawings as handles (a payload, and a view's drawn state).
      */
     private record Rules(boolean collections, boolean nodes, boolean feeds) {
         static final Rules STATE = new Rules(false, false, false);
@@ -112,6 +114,15 @@ final class Shareable {
      */
     static final String FEED = "dev.vexelray.gui.core.Feed";
 
+    /**
+     * vexelray-gui's SDG drawing: its layers, its stencil and paint pages as {@code Pixels}, and a look's values, all
+     * arrays, so not provably immutable. It is accepted where a {@link #FEED} is, as the same kind of handle: what a job
+     * hands the GUI thread to upload and draw (the pages go up through {@code DeviceImages} as any pixels do), built once
+     * and never changed after, which is its maker's part and the type's documented contract, not something this check
+     * can see. Ruled 2026-11-08, when Rasterware's {@code ReadPicture} first answered with a drawing.
+     */
+    static final String SDG = "dev.vexelray.gui.core.ImageSdg";
+
     private static String why(TypeMirror type, String path, Set<String> visiting, Rules rules) {
         if (type.getKind().isPrimitive()) {
             return null;
@@ -126,7 +137,7 @@ final class Shareable {
         TypeElement element = (TypeElement) declared.asElement();
         String name = element.getQualifiedName().toString();
         if (VALUES.contains(name) || element.getKind() == ElementKind.ENUM || rules.nodes() && name.equals(NODE)
-                || rules.feeds() && name.equals(FEED)) {
+                || rules.feeds() && (name.equals(FEED) || name.equals(SDG))) {
             return null;
         }
         if (!declared.getTypeArguments().isEmpty()) {

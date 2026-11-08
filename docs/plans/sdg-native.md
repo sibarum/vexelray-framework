@@ -184,12 +184,13 @@ Built 2026-11-07, on vexelray-fields 746eee5 (the format's XML `.sdg` and compil
   reference at its size, that a broken file is a reason, and that an SVG is never taken for a drawing.
   `SdgCaptureTest` (harness) draws a drawing placed in a picture in a real window: worst 2/255 against the
   reference. The export holds it as a tagged image.
-- **Rasterware does not show it natively yet.** Seen live: Rasterware opens `badge.sdg` ("SDG drawing · 5 layers"),
-  but it draws the poster. It has its own view: `ReadPicture` turns a `Picture` into a `Feed` in the `Pictured`
-  message, and `Ui` names the feed on `@picture`, sized by the poster's pixels. The fix touches Rasterware's
-  `Messages.java`, which its CLAUDE.md asks to be proposed first: `Pictured` gains `Optional<ImageSdg> drawing`;
-  `ReadPicture` sizes a drawing as an SVG decoded at `SIDE`; `View`/`Ui` name the drawing on the layer in place
-  of the feed. Vexplore's previews, mainframe and the suite's `PictureViewer` (which does use `ImageView`) were not
+- **Rasterware draws it natively** (ruled and built 2026-11-08). Its own view never used `ImageView`: `ReadPicture`
+  turned a `Picture` into a `Feed` in the `Pictured` message, sized by the poster's pixels, so `badge.sdg` drew soft.
+  `Pictured` now carries `Optional<ImageSdg> drawing`; `ReadPicture` sizes a drawing as an SVG decoded at `SIDE`; `Ui`
+  names the drawing on the layer in place of the feed. The reply was refused by the processor at first (T2.4: an
+  `ImageSdg` holds arrays), so `Shareable` names `ImageSdg` beside `Feed` as a handle (Rasterware FN-21, framework
+  TODO). Seen live: it fills the window as an SVG does, and at 160% the sun's edge is one pixel wide.
+  Vexplore's previews, mainframe and the suite's `PictureViewer` (which does use `ImageView`) were not
   checked live.
 
 ## Rulings wanted

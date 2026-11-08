@@ -1133,6 +1133,10 @@ it found and left:
       messages that each say how many make the set, and the editor collects them, because two mailboxes are in no
       order with each other. It works and it is checked, and it is ceremony every application with a set will write
       again. The generated copier (build order, step 3) would let a `List` of records cross. Additive.
+- [ ] **An SDG drawing crosses on trust** (`-processor`, `Shareable.SDG`, T2.4; Rasterware FN-21). `ImageSdg` holds
+      arrays (page sizes, a look's values, the pages' `Pixels`), so it was refused as a job's reply; ruled 2026-11-08
+      to cross as a handle beside `Feed`, trusted to be built once and never changed. The copier, or pages that are
+      feeds, would take the trust away. Additive.
 - [ ] **A per-item set meets the FAIL bound.** One message per tab, into a mailbox of the default capacity 64, halts the
       application at the sixty-fifth tab (ruling 5). The template raises those mailboxes to 4096; nothing tells an
       application it needs to. A set message, once lists can cross, removes the case.

@@ -357,6 +357,11 @@ class VexelProcessorTest {
                     public int due(long stamp) { return shown; }
                 }
                 """),
+            Map.entry("dev.vexelray.gui.core.ImageSdg", """
+                package dev.vexelray.gui.core;
+                public record ImageSdg(int[] pageWidths, float[] instance) {
+                }
+                """),
             Map.entry("dev.vexelray.gui.core.spi.Asked", """
                 package dev.vexelray.gui.core.spi;
                 public interface Asked {
@@ -2213,6 +2218,25 @@ class VexelProcessorTest {
                     public static final sibarum.atchung.Topic<Pictured> T = sibarum.atchung.Topic.edge(Pictured.class);
                 }
                 """, sink("Pictured")));
+    }
+
+    /** An SDG drawing crosses as a feed does: a handle a job built and the GUI thread only reads, though it holds arrays. */
+    @Test
+    void anSdgDrawingMayCrossInAPayloadThoughItHoldsArrays() {
+        assertEquals(List.of(), app("""
+                public record Pictured(java.nio.file.Path path, java.util.Optional<dev.vexelray.gui.core.ImageSdg> drawing) {
+                    public static final sibarum.atchung.Topic<Pictured> T = sibarum.atchung.Topic.edge(Pictured.class);
+                }
+                """, sink("Pictured")));
+    }
+
+    @Test
+    void aRecordLikeAnSdgDrawingIsNotOne() {
+        onlyError(app("""
+                public record ImageSdg(int[] pageWidths) {}
+                """, """
+                public record Pictured(ImageSdg drawing) {}
+                """, sink("Pictured")), "Pictured.drawing -> ImageSdg.pageWidths: int[] is an array");
     }
 
     @Test
