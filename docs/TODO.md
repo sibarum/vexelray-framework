@@ -1389,6 +1389,9 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       module's pom, a generated app keeps it at the root, so the bar says the module's name (`mainframe-gui`,
       `vexplore-gui`) and the app id never meets the installer's Linux `appId`. Look up to the root, or have the template
       set `vexelray.installer.config`.
+- [ ] **A bar's title looks like one more menu** (FN-27, widgets): drawn in `Role.DIM` at the menus' size right
+      after them, so a person clicks it; the title node is private, so an app cannot restyle it. Set it apart by default
+      (a fainter role, a divider), or let an app style it.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
