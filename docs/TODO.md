@@ -1392,10 +1392,12 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 - [ ] **A bar's title looks like one more menu** (FN-27, widgets): drawn in `Role.DIM` at the menus' size right
       after them, so a person clicks it; the title node is private, so an app cannot restyle it. Set it apart by default
       (a fainter role, a divider), or let an app style it.
-- [ ] **A wordmark never hears that the app menu is open** (MainFrame FN-28, widgets): `TitleBar.Wordmark.ink` gets
+- [x] **A wordmark never hears that the app menu is open** (MainFrame FN-28, widgets): `TitleBar.Wordmark.ink` gets
       `INK` at rest and the accent while hovered or pressed, and nothing when the lockup's menu opens; the lockup drops
       back to rest as the pointer moves into the menu. Keep the lockup lit while its menu is open and tell the
       wordmark (an open state or a call beside `ink`), so a logo can look one way on hover and another when open.
+      **Done 2026-11-07** (vexelray-gui): `ContextMenu` tells its opener when it closes; the lockup and the bar's menus
+      stay lit while theirs is open; `Wordmark.state(pointer, open)`, whose default inks the accent while open.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
