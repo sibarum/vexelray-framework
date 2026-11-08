@@ -63,25 +63,17 @@ Everything else cuts unless you make it move. The rest of this page is how.
 ## The three instruments
 
 **Colour: `Fades`.** Already attached, nothing to call. A change mid-fade starts from the colour being drawn, so
-it never jumps. To change its timing (to slow it down for checking, say), attach your own. One source per tree,
-and the last call wins:
-
-```java
-gui.paintMotion(Fades.on(krono, Dur.ms(140), Ease.LINEAR));
-```
+it never jumps.
 
 **Layout moves: `Transitions`.** Already attached, over the whole window. A `Transitions` is a `LayoutMotion`: when
 layout puts a node somewhere new, it draws the node at the old place and decays the difference to zero. A node moved
-again mid-slide continues from where it is drawn. To time a tree differently, attach your own, which replaces the
-framework's. Enrolment is per node: `follow` (one node), `followChildren` (a container's direct children) or
-`followSubtree` (everything under a root, at any depth); the nearest enrolment wins, and `Dur.ZERO` enrols a node
-that moves at once.
+again mid-slide continues from where it is drawn.
 
-```java
-Transitions moves = Transitions.on(krono);
-gui.motion(moves);                                       // one LayoutMotion per tree, last call wins
-moves.followSubtree(gui.root(), Dur.ms(200), Ease.OUT_CUBIC);
-```
+Both are the framework's, attached by `WindowMotion` with the timings in the table above, and in 0.2 an application
+cannot attach its own. `Fades.on` and `Transitions.on` take a `KronoGui`, and no application part is handed one:
+it runs code on the GUI thread over time, which is the host's (the processor's `Framework` roots say so, and
+threading.md's T7.2 is the rule). So a window's colour fades and slides keep the framework's tempo. What a view
+can time is a widget's own motion, below.
 
 A new `floatAt` percentage is a move, and so is a node appended to another parent. In the Scheduler, a visit given
 to another clinician is the same bar appended to another lane, and it slides there (`Schedule.Page.update`). The
@@ -169,9 +161,11 @@ that, and never take the watch out. What follows is for looking at a transition 
 That proves where things end up. It does not prove how they got there. A transition is over in a fifth of a
 second, too quick for a screenshot to catch in the middle. What works today is the Scheduler's way:
 
-1. **A slow-motion switch.** `Motion` reads `-Dscheduler.slowmo` once, at start, and multiplies every duration it
-   makes by it, including the `Fades` it attaches itself. Give your `Motion` the same, under your own property
-   name. The template's pom passes `app.jvmArgs` through:
+1. **A slow-motion switch.** The Scheduler's `Motion` (a 0.1 application) reads `-Dscheduler.slowmo` once, at
+   start, and multiplies every duration it makes by it. Give the template's `Motion` the same, under your own
+   property name, and it slows every `Timing` it states. In 0.2 that is the widgets' own motion only: the window's
+   fades and slides are the framework's, timed by `WindowMotion`, and nothing slows them yet. The template's pom
+   passes `app.jvmArgs` through:
    `mvn compile exec:exec -Dautomation=0 "-Dapp.jvmArgs=-Dmyapp.slowmo=12"`.
 2. **A burst of shots.** In a script, the change (a `click`, a `key`) followed by several `shot`s with no `settle`
    between them. How far apart they land depends on how long each `shot` takes, so slow things down enough that
