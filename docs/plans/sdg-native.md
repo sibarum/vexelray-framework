@@ -125,6 +125,41 @@ Built 2026-11-07.
   vexelray-fields (XML and intrabuf), so slice 4 (images) takes that up once it lands. For now an application reads
   an `Sdg` with `SdgFile` and calls `ImageSdg.of`.
 
+## Slice 3, as built
+
+Built 2026-11-07. The author chose the larger scope when asked: give SDG layers effects first, then move every icon.
+
+- **Effects on an SDG layer.** `SDG_STENCIL` honours an offset: it moves the read by `uvPerPx`, two more
+  per-instance floats. `Canvas.sdg` takes a `Look` (plus the other parts' per-instance values) for the drawing's
+  back-most layer. The look's source must be `sdgStencil` and its fill `sdgPaint`; the canvas finds where the paint's
+  values go with the new `LookTable.instanceAt`, and grows the quad by the look's reach. `vexelray-shadelets`
+  `SdgEffectsRenderTest` draws one SDF in the icon grid's layout, as a field and as an SDG layer, plain, with glow,
+  shadow, weight, outline and all four. The worst pixel is 1/255, and the test holds it to none past 2.
+- **Texels on the GPU only.** `SdgDrawing` (canvas) is a drawing's layers and its pages' sizes, with no texels. An
+  icon's drawing points into the atlas that is already uploaded, without reading it. `Canvas.sdg(Sdg, …)` still
+  takes a whole `Sdg`.
+- **The GUI.** `ImageSdg` now holds an `SdgDrawing` and adds three things:
+  - a `tint`, the colour of paints in the role `tint`, faded by paint motion as a field's tint was;
+  - a `look`, and its per-instance values.
+
+  It also gains `ofField`/`ofFields`, the drawing of a field or of a layered icon's fields over their atlas cells,
+  and `sdgLook`, which turns a field's look into a layer's.
+- **The icons.** By default, `IconSource.sdg(px, tint)` and `LayeredIcon.sdg(px, dark)` are drawings over their
+  atlas cells, so the suite's set, every application's baked set and the file-icon families draw as SDG with nothing
+  regenerated. `IconView` draws one node (`Node.sdg`); a layered icon no longer floats a node per layer.
+- **The witness.** `vexelray-gui-harness` `IconSdgCaptureTest` draws each icon twice in one window: as the field it
+  was, and by `IconView` as SDG. The cases are small and large, plain and with glow and shadow, and three layered
+  file-icon families stacked as `IconView` used to draw them. Inside each cell, every pair matches to 2/255.
+  Outside the cells, the old path drew 11 faint pixels in two small icons: a field's quad runs 2 px past its cell
+  (its AA pad) and samples the next atlas cell. An SDG layer reads nothing past its rectangle, as the spec says, so
+  those pixels are gone.
+- **What ruling 4 came to.** What was replaced is how icons are drawn: the field path and the stacked layer nodes.
+  The atlases themselves are SDG pages now, still baked by the plugin, still one texture for every icon. Baking
+  `.sdg` files instead would only add a copy of the same texels. `LayeredIcon` stays as the source of a layered
+  icon's layers and colour rows; its stacked-node drawing is gone. `ArtPair` and `Condense` are slice 5's.
+- Widget tests that told one mark from another by its field's region (`TableTest`, `TreeCheckTest`) now read the
+  node's SDG stencil (witnesses-are-made-to-break).
+
 ## Rulings wanted
 
 **Ruled 2026-11-07: all five accepted as recommended.** The core renderer is cloned to `Spike/vexelray` on `v0.2`;
