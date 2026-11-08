@@ -7,6 +7,7 @@ import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.ImageField;
 import dev.vexelray.gui.core.ImageRegion;
+import dev.vexelray.gui.core.ImageSdg;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.Timing;
 import dev.vexelray.gui.core.Tween;
@@ -14,6 +15,7 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.layout.NodeLayout;
 import dev.vexelray.gui.core.layout.Rect;
+import dev.vexelray.fields.sdg.SdgFile;
 import dev.vexelray.gui.icons.ArtPair;
 import dev.vexelray.shadelets.CondenseStyle;
 import dev.vexelray.shadelets.CondenseStyleLayout;
@@ -35,7 +37,8 @@ import java.util.Map;
  * it lands a front spreads across the page. Behind it each mark grows out of its distance field from the middle to its
  * edge, with a hot rim on the moving cut and rings closing in round it; the orb, now a light on the page, glints along
  * the marks' bevels; then the field gives way to the art itself and the clock stops, so the window at rest draws
- * nothing. Every word arrives as the front passes it. 2.8 seconds, and each time the window is opened.
+ * nothing. At rest each mark is its drawing, {@code <name>.sdgb} beside its pair, drawn as SDG and so sharp at any
+ * display scale; a mark with no drawing rests on its pair's colour square. Every word arrives as the front passes it. 2.8 seconds, and each time the window is opened.
  *
  * <p>The marks are art pairs ({@link ArtPair}) drawn by {@code Condense.CONDENSE} over {@code Condense.MTSDF}; the orb
  * is {@code Condense.ORB} on a circle's field. All three are in {@link FrameworkShader}. Every value they read is
@@ -142,8 +145,8 @@ final class AboutIntro {
         for (Node n : page.arrivals()) {
             n.opacity(0f);
         }
-        page.mark().field(null).image((SampledImage) null);
-        page.signature().field(null);
+        page.mark().field(null).sdg(null).image((SampledImage) null);
+        page.signature().field(null).sdg(null);
         orb.visible(false);
     }
 
@@ -344,10 +347,11 @@ final class AboutIntro {
      * box has. A size goes to the device the first time it is drawn at, on the main thread: one atlas is a few
      * milliseconds there, every size of both marks was a quarter of a second.
      */
-    private record Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases, Map<Integer, SampledImage> uploaded) {
+    private record Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases, Map<Integer, SampledImage> uploaded,
+                       ImageSdg drawing) {
 
-        Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases) {
-            this(pair, Map.copyOf(atlases), new HashMap<>());
+        Art(ArtPair pair, Map<Integer, ArtPair.Atlas> atlases, ImageSdg drawing) {
+            this(pair, Map.copyOf(atlases), new HashMap<>(), drawing);
         }
 
         /** The size for {@code px} on the device. Main thread. */
@@ -360,6 +364,13 @@ final class AboutIntro {
 
         /** This frame of the mark; a size not on the device yet is sent for, and the mark waits a frame for it. */
         void draw(GuiApp app, Node node, Rect box, Timeline tl, float unit, float t) {
+            if (t >= END && drawing != null) {
+                // Settled: the drawing itself, sharp at whatever size the window is drawn at, where the pair's colour
+                // square is one of four sizes, scaled.
+                node.field(null).sdg(drawing);
+                return;
+            }
+            node.sdg(null);
             int size = pair.sizeFor(box.w());
             SampledImage texture = uploaded.get(size);
             if (texture == null) {
@@ -411,9 +422,22 @@ final class AboutIntro {
             for (int size : pair.sizes()) {
                 atlases.put(size, pair.atlas(size));
             }
-            return new Art(pair, atlases);
+            return new Art(pair, atlases, drawing(anchor, name, what));
         } catch (IOException | RuntimeException e) {
             Diagnostics.dropped("About.art", what + " condensing", e.toString());
+            return null;
+        }
+    }
+
+    /**
+     * The mark's drawing, {@code <name>.sdgb} beside {@code anchor}, as the pair goal makes it beside the pair; null if
+     * there is none (the settled mark is then the pair's colour), or, said once, if it does not read.
+     */
+    private static ImageSdg drawing(Class<?> anchor, String name, String what) {
+        try (java.io.InputStream in = anchor.getResourceAsStream(name + ".sdgb")) {
+            return in == null ? null : ImageSdg.of(SdgFile.read(in.readAllBytes()));
+        } catch (IOException | RuntimeException e) {
+            Diagnostics.dropped("About.art", what + " drawn settled", e + "; its colour square is shown instead");
             return null;
         }
     }

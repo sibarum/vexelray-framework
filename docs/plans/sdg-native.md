@@ -193,6 +193,36 @@ Built 2026-11-07, on vexelray-fields 746eee5 (the format's XML `.sdg` and compil
   Vexplore's previews, mainframe and the suite's `PictureViewer` (which does use `ImageView`) were not
   checked live.
 
+## Slice 5, as built
+
+Built 2026-11-08, on top of vexelray-fields' conversions ([`conversions.md`](../../../vexelray-fields/docs/conversions.md),
+its numbers in [`benchmarks.md`](../../../vexelray-fields/docs/benchmarks.md)), which the author asked for first: every
+kind of field converts to every kind an effect wants, each conversion names its hops, and every one is benchmarked.
+
+- **Marks are conversions of one drawing, made at build time.** The icon plugin's `pair` goal reads the SVG, makes it an
+  SDG (SVG → SDG) and writes it, `<name>.sdgb`; converts it into the art pair About condenses ((SDG → Mask → Shape →
+  MTSDF) beside (SDG → Raster sizes) → Art pair, the exact, traced route); and, with `<icon>`, into the `.ico` (SDG →
+  Raster sizes → Icon), with any hand-drawn small sizes as `<small>` drawings. The build log names each route. The
+  plugin's own `ArtPair`, which rendered through imagelib, is gone. An icon whose drawing composites (a group's
+  opacity, a clip: the suite's background and file-type icons) is no SDG, and is drawn straight from the SVG instead
+  (SVG → Raster sizes → Icon). The runtime never rasterises (ruling 5).
+- **About rests on the drawing.** The opening still condenses each mark from its art pair; once settled, each mark is
+  its `.sdgb` drawn as SDG (`AboutIntro.Art.drawing`), and a mark with none rests on the pair's colour square as before.
+  Seen live in Rasterware, settled, at density 1, 2 and 4: both marks right and sharp. Density 4 is the most the
+  application allows and the pair's largest colour square is 416 px, so the shot cannot tell the SDG from the square.
+- **The processor registers a mark's `.sdgb` and art pair for native-image** beside its icon and its variants
+  (`pix.sdgb`, `pix.pair`, `pix-*.vxpx`), so no application lists them by hand.
+- **Rasterware is the witness.** Its splash draws `/pix.sdgb` (sharp at density 3, seen live). Its pom makes all five
+  of its icons from `src/main/rc`'s drawings (`pix.ico`, the hidden windows' `pix-background.ico` with its 16 and 24 px
+  drawings, and the three file types'), on the class path and in `target/generated-rc`, where `rc.exe /i` finds
+  `pix.ico` for the executable; `installer.json` names them there, and no `.ico` is committed. Old and new side by
+  side, every size, match.
+- **The other applications** (MainFrame, PhaseArray, VexelRay IDE, Vexplore) get the `.sdgb` and the traced art pair
+  from the same goal with no change of theirs, and so rest on their drawings in About. Their `.ico` files are still the
+  committed ones (TODO).
+- `@VexelApp(icon)` still names the `.ico`, and the drawing is found beside it by name, as the art pair always was:
+  no API change was needed for it.
+
 ## Rulings wanted
 
 **Ruled 2026-11-07: all five accepted as recommended.** The core renderer is cloned to `Spike/vexelray` on `v0.2`;

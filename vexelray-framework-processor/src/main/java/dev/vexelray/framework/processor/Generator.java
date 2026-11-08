@@ -905,7 +905,9 @@ final class Generator {
         // Declarations.icon found it. Registered for native-image here too, so no application writes that by hand --
         // and its window and background variants with it (pix-window.ico and pix-background.ico beside pix.ico, see
         // the shell's Mark.window and Mark.background), which the shell looks for and is not obliged to find: a glob
-        // that matches nothing registers nothing.
+        // that matches nothing registers nothing. The same for what the icon plugin's pair goal makes beside it from the
+        // same drawing: the mark as an SDG ({@code pix.sdgb}), which About and a splash draw, and its art pair
+        // ({@code pix.pair} and {@code pix-104.vxpx} and so on), which About condenses.
         List<String> former = mirrors.strings(vexelApp, "formerNames");
         if (!former.isEmpty()) {
             src.append("\n    @Override\n    public java.util.List<String> formerNames() {\n        return java.util.List.of(");
@@ -920,9 +922,10 @@ final class Generator {
                     .append(";\n    }\n");
             String path = Declarations.iconPath(app, icon);
             int dot = path.lastIndexOf('.');
-            nativeResource(app, qualified, dot <= path.lastIndexOf('/') + 1 ? List.of(path)
-                    : List.of(path, path.substring(0, dot) + "-window" + path.substring(dot),
-                            path.substring(0, dot) + "-background" + path.substring(dot)));
+            String stem = dot <= path.lastIndexOf('/') + 1 ? null : path.substring(0, dot);
+            nativeResource(app, qualified, stem == null ? List.of(path)
+                    : List.of(path, stem + "-window" + path.substring(dot), stem + "-background" + path.substring(dot),
+                            stem + ".sdgb", stem + ".pair", stem + "-*.vxpx"));
         }
 
         // What was built, readable by whoever holds the wiring: a test, or a capture that has just called

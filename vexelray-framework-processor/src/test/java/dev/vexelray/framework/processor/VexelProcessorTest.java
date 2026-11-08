@@ -762,6 +762,8 @@ class VexelProcessorTest {
         assertTrue(metadata.contains("\"glob\": \"app/demo.ico\""), metadata);
         assertTrue(metadata.contains("\"glob\": \"app/demo-window.ico\""), "and the other windows' variant: " + metadata);
         assertTrue(metadata.contains("\"glob\": \"app/demo-background.ico\""), "and the hidden one's: " + metadata);
+        assertTrue(metadata.contains("\"glob\": \"app/demo.sdgb\""), "and the drawing's: " + metadata);
+        assertTrue(metadata.contains("\"glob\": \"app/demo-*.vxpx\""), "and the art pair's: " + metadata);
     }
 
     @Test
