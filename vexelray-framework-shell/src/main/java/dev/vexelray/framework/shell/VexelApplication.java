@@ -422,14 +422,19 @@ public final class VexelApplication {
         // Wearing the same instruments as the main bar, the key button among them: a person rebinds from whichever window
         // they are in, and the editor it opens is the one window however many bars it is clicked on.
         shell.windows().claim(app, memory, shell.clipboard(), shell.windowMark(), chrome);
-        // Every bar's lockup says whose window it is: the mark, then the name as a logo. In the theme's type unless the
-        // application gave its own logo while building its tree, which is identity and so the application's to give.
+        // A window that stands on its own says whose it is in its lockup: the mark, then the name as a logo. In the
+        // theme's type unless the application gave its own logo while building its tree, which is identity and so the
+        // application's to give. A satellite (About, settings) wears the mark alone, which is its app menu, and its
+        // title after it: it belongs to the main window, which already says the name, and the name before a title
+        // like "About <name>" said it twice.
         if (chrome.drawsOwnFrame()) {
             String name = About.name(info, shell.build());
             List<TitleBar> bars = new ArrayList<>();
             bars.add(shell.titleBar());
             for (Window w : shell.windows().declared()) {
-                bars.add(w.titleBar());
+                if (!w.satellite()) {
+                    bars.add(w.titleBar());
+                }
             }
             for (TitleBar bar : bars) {
                 if (bar.wordmark() == null) {

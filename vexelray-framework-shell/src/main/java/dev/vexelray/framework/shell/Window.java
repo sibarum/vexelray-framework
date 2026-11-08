@@ -133,6 +133,11 @@ public final class Window {
         return declared.key();
     }
 
+    /** Whether this window belongs to the main one ({@link NamedWindow#satellite()}) rather than standing beside it. */
+    boolean satellite() {
+        return declared.owned();
+    }
+
     /** The tree shown in this window, live whether or not the window is open. Build into its {@code root()}. */
     public Gui gui() {
         return gui;
