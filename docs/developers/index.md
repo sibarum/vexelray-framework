@@ -36,7 +36,9 @@ looking for something, look in the table below first.
 - **Java 25**, compiled to a native executable with GraalVM. The window is drawn with Vulkan, so anything you can
   draw, you can put in it.
 - **Windows or Linux.** Windows is the most complete; Linux builds, runs and ships. macOS is a skeleton.
-- **Before v1.** This is 0.2, an experimental prerelease. Names still change between versions, and
+- **Before v1.** This is 0.2, an experimental prerelease, built from the stack's `v0.2` branches. It is not
+  released yet: the applications the [one-line installer](https://sibarum.github.io/) installs, VexelRay IDE among
+  them, are 0.1.2, and they work on a 0.2 project all the same. Names still change between versions, and
   [TODO.md](../TODO.md) is honest about what is missing. [What v1 means](../v1.md) says what will stop changing.
 - **Not on Maven Central.** You clone the stack and install it to your own Maven repository, once, with one
   script. It takes about half an hour, most of it the first build.

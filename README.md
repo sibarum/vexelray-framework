@@ -137,9 +137,9 @@ The fluid and rigid-body simulation demos are built on it too. The applications 
 
 ## Status
 
-**0.2 is an experimental prerelease, not v1.** It is tagged so that the applications above can be installed
-and tried, not as a version to build on: nothing in it is stable, and the next version may change any of it without
-notice. Every module below is built and tested, and the applications run on it daily. What v1 still needs is for
+**0.2 is in development on the `v0.2` branches, and is not released.** The applications the one-line installer
+installs are still 0.1.2, built on 0.1. 0.2 is an experimental prerelease, not v1: nothing in it is stable, and the
+next version may change any of it without notice. Every module below is built and tested, and the applications run on it daily. What v1 still needs is for
 the remaining abstractions to be final, so that an application written against it will not need restructuring later; [docs/v1.md](docs/v1.md) is that bar and [docs/status.html](docs/status.html)
 is where each surface stands.
 
