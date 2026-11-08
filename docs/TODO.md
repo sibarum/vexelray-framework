@@ -1385,6 +1385,10 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       the local `--base-url` / `releases/<tag>/` / `serve.ps1` steps and `-Force` for a same-version snapshot are spread
       over three repositories, and a `"comment"` key in the config fails generation. Accept a comment; have the template
       write `installer.json`; or one `--local` command that generates, stages and serves it.
+- [ ] **The build bill never finds an app's own `installer.json`** (FN-26, build): `identify` looks beside the gui
+      module's pom, a generated app keeps it at the root, so the bar says the module's name (`mainframe-gui`,
+      `vexplore-gui`) and the app id never meets the installer's Linux `appId`. Look up to the root, or have the template
+      set `vexelray.installer.config`.
 
 ### Found by bringing PhaseArray onto v0.2 (2026-11-06)
 
