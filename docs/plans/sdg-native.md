@@ -160,6 +160,38 @@ Built 2026-11-07. The author chose the larger scope when asked: give SDG layers 
 - Widget tests that told one mark from another by its field's region (`TableTest`, `TreeCheckTest`) now read the
   node's SDG stencil (witnesses-are-made-to-break).
 
+## Slice 4, as built
+
+Built 2026-11-07, on vexelray-fields 746eee5 (the format's XML `.sdg` and compiled `.sdgb`, by another session).
+
+- **Pictures.** codec-image's `Pictures` opens `.sdg` and `.sdgb` by the compiled signature, an `<sdg>` root, or the
+  name, from a file (an XML drawing's pages beside it are read) or from bytes in hand. Both forms are listed with
+  the other picture extensions. `Sdgs.decode` makes a `Picture` per size asked, as any image, so caches, thumbnails
+  and filmstrips take it unchanged. The sheet is a poster drawn by `SdgRender` (at most 1024 px,
+  `-Dcodec.sdg.poster`), and `Picture.drawing` carries the drawing itself, one `ImageSdg` for every size. The
+  identity reads "SDG drawing · 5 layers · 100 × 100".
+- **ImageView** (codec-image) puts the drawing itself on its plate, sharp at every zoom. It falls back to the poster
+  only while the pose mirrors it, since a layer cannot be read mirrored, and it refuses a zoomed "detail" part,
+  which would only cover the drawing.
+- **Picture.Sink** has a fifth operation, `drawing`, and `Picture.Drawing` and `Sketch.drawing` go with it.
+  `CanvasSink` draws it natively, and the tree renderer hands it the theme's roles. `SvgSink` embeds it as a PNG
+  drawn by `SdgRender` at twice the box, so an export never has a blank where the drawing was. The mark carries
+  the drawing with its texels and the page handles to draw it with, so `ImageSdg` now keeps its `source`.
+- **.vxa.** `Asset` minor 1 has `drawings`, each a `Drawing(name, sdgb)`: the compiled file's bytes, so the asset
+  carries a drawing whole without copying its schema. Older files open with none; the golden 1.0 file checks it.
+  The test's future schema moved to minor 2.
+- **The witnesses.** `SdgPicturesTest` (codec-image) checks both forms and bytes in hand, that each poster is the
+  reference at its size, that a broken file is a reason, and that an SVG is never taken for a drawing.
+  `SdgCaptureTest` (harness) draws a drawing placed in a picture in a real window: worst 2/255 against the
+  reference. The export holds it as a tagged image.
+- **Rasterware does not show it natively yet.** Seen live: Rasterware opens `badge.sdg` ("SDG drawing · 5 layers"),
+  but it draws the poster. It has its own view: `ReadPicture` turns a `Picture` into a `Feed` in the `Pictured`
+  message, and `Ui` names the feed on `@picture`, sized by the poster's pixels. The fix touches Rasterware's
+  `Messages.java`, which its CLAUDE.md asks to be proposed first: `Pictured` gains `Optional<ImageSdg> drawing`;
+  `ReadPicture` sizes a drawing as an SVG decoded at `SIDE`; `View`/`Ui` name the drawing on the layer in place
+  of the feed. Vexplore's previews, mainframe and the suite's `PictureViewer` (which does use `ImageView`) were not
+  checked live.
+
 ## Rulings wanted
 
 **Ruled 2026-11-07: all five accepted as recommended.** The core renderer is cloned to `Spike/vexelray` on `v0.2`;
