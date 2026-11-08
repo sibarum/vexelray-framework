@@ -1419,10 +1419,11 @@ tests broke when it moved onto the current stack; the numbers are its `docs/fram
       the edge keyed by it throws an NPE that names neither the record nor the field. Rename the inbox-only form so
       it reads as such, or refuse a null edge key on publish with a message naming `to`.
 
-### Found by Rasterware's Trace and Convert panels (2026-11-08)
+### Found by Rasterware's Trace, Convert and Layers panels (2026-11-08)
 
 Rasterware (Spike/Pix on `v0.2`) traces a picture into an SDG drawing beside it and compares the two across a line
-(its `docs/trace.md`), and writes it in another format (`docs/convert.md`). The numbers are its `docs/framework-notes.md`.
+(its `docs/trace.md`), writes it in another format (`docs/convert.md`) and peels a drawing's layers
+(`docs/layers.md`). The numbers are its `docs/framework-notes.md`.
 
 - [ ] **The tracer has no corner fitting** (FN-22, `vexelray-fields-sdg` `Trace`): the Trace board's Corners control
       cannot be offered. A corner fit as a `Trace.Options` field, with its bench case.
@@ -1437,6 +1438,12 @@ Rasterware (Spike/Pix on `v0.2`) traces a picture into an SDG drawing beside it 
       not JPEG, WebP, GIF or SVG. An `encode` beside imagelib's `decode`; an SDG → SVG conversion.
 - [ ] **Hiding a focused button moves the focus ring to the first control** (FN-27, `vexelray-gui-core`): the ring
       shows on a control nobody touched. Focus from a hidden node goes to its opener or nowhere; the ring follows keys.
+- [ ] **No turn and no perspective in `Drawn`** (FN-28, `vexelray-gui-core`, canvas): the Layers board's 3D peel is
+      drawn flat. `Drawn.turn`, then a perspective transform drawn as a quad.
+- [ ] **No look that draws an SDG layer's distance** (FN-29, `vexelray-canvas` looks): the board's *Show distance
+      fields* is left out. A `Look` that paints distance as bands.
+- [ ] **The processor crashes on a stale sibling module** (FN-30, `-processor`): an NPE naming nothing, where it could
+      name the class a `@Configuration` lists and say to build the module it is in first.
 
 ## Upstream
 
