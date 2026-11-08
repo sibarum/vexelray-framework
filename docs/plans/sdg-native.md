@@ -99,6 +99,32 @@ Built 2026-11-07 in `Spike/vexelray` (v0.2, 0.2.0-SNAPSHOT) and `Spike/vexelray-
   `vexelray.version` 0.1.3-SNAPSHOT (gui, codec, framework and its template, the apps, `build/src`). Moving them is
   slice 2's first step, done together, since the template's generated poms and `bootstrap.sh` name it too.
 
+## Slice 2, as built
+
+Built 2026-11-07.
+
+- **The version move.** The v0.2 clones build against vexelray 0.2.0-SNAPSHOT, each in a commit of its own:
+  mainframe, phasearray, Pix, text-editor-vexel-demo, vex-suite-common, vexelray-codec (and its video-player demo),
+  vexelray-framework (and the template's preset), vexelray-gui, vexelray-inspector, vexplore, and pontif-framework's
+  anybox. vex-4mat is on `develop` and was left alone. `build/src` is a build's staging copy and was not touched.
+  `GitHub/vexelray` has no v0.2 branch yet. Until `Spike/vexelray`'s v0.2 is pushed (two hops, as the others), a
+  fresh `bootstrap.sh` from GitHub would install core 0.1.3 under clones that pin 0.2.0.
+- **The node.** `Node.sdg(ImageSdg)` (prop `SDG`, not layout-affecting) draws the drawing fitted into the box, its
+  aspect kept, over the image and the field and under the border. `ImageSdg.of(Sdg)` colocates the drawing and wraps
+  each page as `Pixels`, so `DeviceImages` uploads it once per device, UNORM, as it does the icon atlas. Hold one
+  `ImageSdg` per drawing: identity is what uploads.
+- **Roles.** `SdgRoles` names every framework `Role` in lower case (`ink`, `accent`, `danger`, `panel`, ...), and
+  adds `foreground` (ink), `muted` (dim) and `background` (page). `TreeRenderer` resolves each named paint against
+  the frame's drawn theme, keeping the authored alpha, so a theme swap recolours it with everything else. A name not
+  in the list draws as authored.
+- **The witness.** `vexelray-gui-harness` `SdgCaptureTest` draws the badge in a background window with a real
+  `GuiApp` and compares the capture with `SdgRender` over the page: 0 pixels past 3, worst 2/255. A star in
+  `foreground` is the dark theme's ink, and after a swap the light theme's. The full vexelray-gui suite (3,283 tests)
+  and the framework's build and tests are green on core 0.2.0.
+- **Not yet:** loading a `.sdg`/`.sdgb` file into an `ImageSdg` in one call. The file API is being reworked in
+  vexelray-fields (XML and intrabuf), so slice 4 (images) takes that up once it lands. For now an application reads
+  an `Sdg` with `SdgFile` and calls `ImageSdg.of`.
+
 ## Rulings wanted
 
 **Ruled 2026-11-07: all five accepted as recommended.** The core renderer is cloned to `Spike/vexelray` on `v0.2`;
