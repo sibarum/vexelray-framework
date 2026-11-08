@@ -1419,10 +1419,10 @@ tests broke when it moved onto the current stack; the numbers are its `docs/fram
       the edge keyed by it throws an NPE that names neither the record nor the field. Rename the inbox-only form so
       it reads as such, or refuse a null edge key on publish with a message naming `to`.
 
-### Found by Rasterware's Trace panel (2026-11-08)
+### Found by Rasterware's Trace and Convert panels (2026-11-08)
 
 Rasterware (Spike/Pix on `v0.2`) traces a picture into an SDG drawing beside it and compares the two across a line
-(its `docs/trace.md`). The numbers are its `docs/framework-notes.md`.
+(its `docs/trace.md`), and writes it in another format (`docs/convert.md`). The numbers are its `docs/framework-notes.md`.
 
 - [ ] **The tracer has no corner fitting** (FN-22, `vexelray-fields-sdg` `Trace`): the Trace board's Corners control
       cannot be offered. A corner fit as a `Trace.Options` field, with its bench case.
@@ -1433,6 +1433,10 @@ Rasterware (Spike/Pix on `v0.2`) traces a picture into an SDG drawing beside it 
       a dead track. Share a given width among the options, or keep its own width.
 - [ ] **No way to draw one node with another's transform** (FN-25, `vexelray-gui-core` `Drawn`): a compare repeats the
       picture's scale and offset by hand. A `Drawn.follow(node, leader)`.
+- [ ] **No image encoder in the stack** (FN-26, imagelib, `vexelray-fields-convert`): Convert can write PNG and SDG and
+      not JPEG, WebP, GIF or SVG. An `encode` beside imagelib's `decode`; an SDG → SVG conversion.
+- [ ] **Hiding a focused button moves the focus ring to the first control** (FN-27, `vexelray-gui-core`): the ring
+      shows on a control nobody touched. Focus from a hidden node goes to its opener or nowhere; the ring follows keys.
 
 ## Upstream
 
