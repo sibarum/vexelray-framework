@@ -25,14 +25,15 @@ mkdir vexelray && cd vexelray
 ```
 
 ```bash
-git clone https://github.com/sibarum/vexelray-framework.git
+git clone --branch v0.2 https://github.com/sibarum/vexelray-framework.git
 ```
 
 ```bash
 ./vexelray-framework/bootstrap.sh
 ```
 
-It checks for the tools above, clones the other twelve repositories beside `vexelray-framework`, builds
+It checks for the tools above, clones the other twelve repositories beside `vexelray-framework` (each on its `v0.2`
+branch if it has one, and on `develop` if not: 0.2 needs both), builds
 `imagelib-wrapper`'s native library and `ffmpeg-wrapper`'s video encoder for your OS, and runs `mvn install` in
 each, **in dependency order**. Each
 build's output goes to `vexelray-framework/target/bootstrap/`, and the first failure stops it and names its log.

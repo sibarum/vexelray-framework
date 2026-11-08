@@ -58,7 +58,8 @@ decided, and a `@Job` for anything slow. The generated project has one of each t
 It takes you from an empty folder to a published application, and every other page links from it.
 
 On Windows (from Git Bash) or Linux, with JDK 25, Maven and a Rust toolchain, this clones the stack's other
-repositories beside this one and installs all of them to your local Maven repository, in dependency order:
+repositories beside this one (on their `v0.2` branch, or `develop` where they have none) and installs all of them to
+your local Maven repository, in dependency order:
 
 ```bash
 ./bootstrap.sh
