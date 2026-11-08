@@ -1,15 +1,12 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
-import dev.vexelray.gui.core.input.InputTopics;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Theme;
 import dev.vexelray.os.Decorations;
 import org.junit.jupiter.api.Test;
 import sibarum.atchung.Atchung;
-import sibarum.tactroller.api.InputEvent;
-import sibarum.tactroller.api.Key;
-import sibarum.tactroller.api.Modifier;
 
 import java.util.List;
 
@@ -139,7 +136,7 @@ final class AppearanceTest {
             for (int i = 0; i < 20; i++) {
                 second.zoomIn();
             }
-            assertEquals(1.5f, second.zoom().value(), 0.001f, "the second window got the same bounds");
+            assertEquals(1.5f, Seams.of(second).zoom().value(), 0.001f, "the second window got the same bounds");
         }
     }
 
@@ -161,85 +158,7 @@ final class AppearanceTest {
             for (int i = 0; i < 20; i++) {
                 drawer.zoomIn();
             }
-            assertEquals(1.5f, drawer.zoom().value(), 0.001f, "and it still agrees about the bounds");
-        }
-    }
-
-    // ---- the zoom chords ---------------------------------------------------------------------------------
-
-    /** A headless tree whose key commands run on the thread that dispatches them. */
-    private static Gui keyed() {
-        return new Gui(Atchung.create(), Runnable::run);
-    }
-
-    /** Ctrl+{@code key}, pressed and released, and a frame for the dispatcher to see it in. */
-    private static void ctrl(Gui gui, Key key) {
-        gui.bus().publish(InputTopics.INPUT, new InputEvent.KeyPressed(Key.LEFT_CONTROL, 0));
-        gui.bus().publish(InputTopics.INPUT, new InputEvent.KeyPressed(key, 0));
-        gui.frame(100f, 100f, AppearanceTest::noText);
-        gui.bus().publish(InputTopics.INPUT, new InputEvent.KeyReleased(key, 0));
-        gui.bus().publish(InputTopics.INPUT, new InputEvent.KeyReleased(Key.LEFT_CONTROL, 0));
-        gui.frame(100f, 100f, AppearanceTest::noText);
-    }
-
-    /**
-     * A window with a zoom range and no chords cannot zoom, which is what every window after the main one
-     * was while the chords were left to the application: it bound them on the one {@code Gui} it was given.
-     */
-    @Test
-    void aWindowTheAppearanceIsAppliedToZoomsOnTheChordsWithNoBindingOfItsOwn() {
-        try (Gui second = keyed()) {
-            Appearance.of(Theme.DARK).applyTo(second);
-
-            ctrl(second, Key.EQUAL);
-            assertEquals(1.25f, second.zoom().value(), 0.001f, "Ctrl+= zoomed in by one step");
-            ctrl(second, Key.MINUS);
-            ctrl(second, Key.MINUS);
-            assertEquals(0.8f, second.zoom().value(), 0.001f, "Ctrl+- zoomed out by one step each");
-            ctrl(second, Key.DIGIT_0);
-            assertEquals(1f, second.zoom().value(), 0.001f, "Ctrl+0 reset it");
-        }
-    }
-
-    /** The narrow half carries the chords too, so a window with a look of its own can still zoom. */
-    @Test
-    void aWindowWithItsOwnLookGetsTheChordsWithTheRange() {
-        try (Gui drawer = keyed()) {
-            drawer.theme(Theme.LIGHT);
-            Appearance.DEFAULT.zoom().applyTo(drawer);
-
-            ctrl(drawer, Key.NUMPAD_ADD);
-            assertEquals(1.25f, drawer.zoom().value(), 0.001f);
-        }
-    }
-
-    /** The exit {@code CalculatorWiring}'s ruling asked for: an application that zooms on other chords. */
-    @Test
-    void anApplicationCanTurnTheChordsOff() {
-        Appearance off = Appearance.of(Theme.DARK).zoomKeys(false);
-        assertFalse(off.zoom().chords());
-        assertTrue(Appearance.DEFAULT.zoom().chords(), "on unless the application says otherwise");
-        assertFalse(off.zoom(0.25f, 4f, 1.1f).zoom().chords(), "narrowing the range keeps the answer");
-
-        try (Gui gui = keyed()) {
-            off.applyTo(gui);
-            ctrl(gui, Key.EQUAL);
-            assertEquals(1f, gui.zoom().value(), 0.001f, "nothing bound, so nothing zoomed");
-        }
-    }
-
-    /**
-     * Applications that still bind the chords by hand must not break: a chord bound again replaces the
-     * earlier binding, so one press is one step and not two.
-     */
-    @Test
-    void bindingTheChordsAgainOnTopOfTheFrameworksIsHarmless() {
-        try (Gui gui = keyed()) {
-            Appearance.DEFAULT.applyTo(gui);
-            gui.shortcut(Key.EQUAL, gui::zoomIn, Modifier.CONTROL);
-
-            ctrl(gui, Key.EQUAL);
-            assertEquals(1.25f, gui.zoom().value(), 0.001f, "one press, one step");
+            assertEquals(1.5f, Seams.of(drawer).zoom().value(), 0.001f, "and it still agrees about the bounds");
         }
     }
 
@@ -253,7 +172,7 @@ final class AppearanceTest {
         try (Gui second = gui()) {
             Appearance.of(Theme.LIGHT, Length.rem(46), Length.rem(30)).applyTo(second);
 
-            second.frame(300f, 150f, AppearanceTest::noText);
+            Seams.of(second).frame(300f, 150f, AppearanceTest::noText);
             assertEquals(300f, second.root().layout().rect().w(), 0.5f,
                     "a floor of 46em would have laid this out on 736pt and cropped it");
             assertEquals(150f, second.root().layout().rect().h(), 0.5f);

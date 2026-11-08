@@ -33,11 +33,21 @@ final class Logs {
         Map<String, String> settings = new HashMap<>();
         // Either socket alone is a driven run too: diagnostics asked for at launch is the one run that most needs
         // the probe this mode arms, since nothing can arm it later.
+        boolean named = false;
         for (String key : new String[] {"automation", "automation.control", "automation.diagnostics"}) {
             String automation = launch.override(key);
             if (automation != null) {
                 settings.put(key, automation);
             }
+            String property = System.getProperty(key);
+            named |= automation != null || (property != null && !property.isBlank());
+        }
+        // And the agent's environment, read as the automation module's Driver reads it: only when the launch named no
+        // socket. Before this, VEXELRAY_AUTOMATION opened both sockets in a run whose probe was off, and the Inspector
+        // attached to a run with nothing to stream.
+        String environment = System.getenv("VEXELRAY_AUTOMATION");
+        if (!named && environment != null && !environment.isBlank()) {
+            settings.put("automation", environment.trim());
         }
         String level = launch.override("log");
         if (level != null) {

@@ -128,5 +128,10 @@ public final class Generate {
             String preset = presets.get(s.name());
             out.println("  --" + s.name() + (preset == null ? "" : "  (" + preset + ")"));
         });
+        if (template.modules().isEmpty()) return;
+        out.println();
+        out.println("modules, for --" + Template.MODULES + " (all, none, or names; one comes with what it requires):");
+        template.modules().forEach(m -> out.println("  " + m.name() + "  " + m.about()
+                + (m.requires().isEmpty() ? "" : "  (requires " + String.join(", ", m.requires()) + ")")));
     }
 }

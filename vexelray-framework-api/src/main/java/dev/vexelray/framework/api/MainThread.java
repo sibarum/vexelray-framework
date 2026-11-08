@@ -8,6 +8,11 @@ import java.lang.annotation.Target;
 /**
  * This value may only be touched on the main thread.
  *
+ * <p><b>Refused in an application since 0.2</b> (T7.1, ROADMAP fork 4): no application code runs on the main thread,
+ * so no part of an application is the main thread's, and {@code vexelray-framework-processor} reports this annotation
+ * wherever it finds it. The framework's own main-thread values are marked in its table instead, and a part taking one
+ * is refused (T2.2), a view excepted. What follows is the rule it carried in 0.1.
+ *
  * <p>The constraint is not the framework's invention. {@code vexelray-gui/CLAUDE.md} states it as a fact about
  * the stack — <i>"Vulkan, the window and present stay on the main thread"</i> — and lists it under constraints
  * that are <i>not visible in the code</i>. That is the problem this annotation exists to fix: it was true,

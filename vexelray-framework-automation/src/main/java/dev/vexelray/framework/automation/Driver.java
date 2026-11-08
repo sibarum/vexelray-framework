@@ -12,8 +12,10 @@ import dev.vexelray.gui.automation.Windows;
 import dev.vexelray.framework.shell.Relaunch;
 import dev.vexelray.gui.automation.window.AutomationButton;
 import dev.vexelray.gui.core.WindowInstrument;
+import dev.vexelray.gui.icons.Icon;
 import dev.vexelray.gui.core.app.LoopCounters;
 import dev.vexelray.gui.inspector.link.InspectorLink;
+import dev.vexelray.gui.krono.KronoGui;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -271,18 +273,29 @@ public final class Driver implements AutoCloseable {
             LoopCounters counters = Objects.requireNonNull(shell.app(), "the GuiApp the recorder stamps frames from");
             // The clock goes with the Gui, so settle waits out a transition as well as the frame loop, with the
             // reasons, so a settle that never goes quiet says which loop is running. The sampled form, because the
-            // sockets answer on threads of their own.
-            Windows windows = new Windows(shell.windows()::views,
-                    Timeline.of(shell.krono()::quiescentAtLastTick, shell.krono()::whyBusyAtLastTick), counters);
+            // sockets answer on threads of their own. And what the application owes: a job not finished, a message
+            // for the logic lane not delivered, so a capture after a request waits for its answer to land (ROADMAP
+            // phase 5); before, a tree listed by a job was photographed before the listing arrived.
+            KronoGui krono = shell.krono();
+            Windows windows = new Windows(shell.windows()::views, Timeline.of(
+                    () -> shell.owesNothing() && krono.quiescentAtLastTick(),
+                    () -> {
+                        List<String> why = new ArrayList<>(shell.owed());
+                        why.addAll(krono.whyBusyAtLastTick());
+                        return why;
+                    }), counters);
             // What this build is, exactly, before any socket writes its discovery file: the coordinates and commit
             // (plus any uncommitted change) the generated wiring baked in, and the stack's (vexelray-build/README.md).
             Discovery.build(shell.build().facts());
-            // And what it declares on its bus: the graph the processor wrote into the wiring, for the Inspector's bus
-            // circuit and the socket's bus graph (vexelray-inspector docs/bus-circuit.md). A hand-written wiring has
+            // And what it declares on its bus: the graph the processor wrote into the wiring, for the Inspector's graph
+            // and the socket's bus graph (vexelray-inspector docs/bus-graph.md). A hand-written wiring has
             // none, and declares nothing, so bus graph says so.
             if (shell.busGraph() != null) {
                 BusGraph.declare(shell.busGraph());
             }
+            // And its replay: what the logic took in, run again on fresh components, in a run launched --replayable
+            // (ROADMAP Done means 5). Declared in every run; one that keeps no recording says so when asked.
+            dev.vexelray.gui.automation.Replays.declare(shell::replay);
             // Named after @VexelApp, so the discovery file and hello say "calculator" rather than the main class,
             // and ottermate --app calculator finds it (vexelray-gui docs/plans/discovery.md).
             sockets = new Sockets(windows, shell.info().name(), shell.info().title(), System.out, available)
@@ -325,12 +338,12 @@ public final class Driver implements AutoCloseable {
         List<WindowInstrument> tools = new ArrayList<>(shell.titleBar().instruments());
         if (debugRun()) {
             tools.add(AutomationButton.instrument(shell.gui(), sockets, menu -> {
-                menu.item(OPEN_INSPECTOR, this::openInspector);
-                menu.item(RESTART_NORMALLY, this::restartNormally);
+                menu.item(Icon.SEARCH, OPEN_INSPECTOR, this::openInspector);
+                menu.item(Icon.REFRESH, RESTART_NORMALLY, this::restartNormally);
             }));
         } else {
             tools.add(WindowInstrument.automation("Restart in debug mode, to inspect or drive this application",
-                    menu -> menu.item(RESTART_IN_DEBUG_MODE, this::restartInDebugMode)));
+                    menu -> menu.item(Icon.AUTOMATION, RESTART_IN_DEBUG_MODE, this::restartInDebugMode)));
         }
         shell.titleBar().instruments(List.copyOf(tools));
     }
@@ -367,44 +380,23 @@ public final class Driver implements AutoCloseable {
     /** {@link #INSPECTOR_PROPERTY} from the environment, read after the property. */
     public static final String INSPECTOR_ENVIRONMENT = "VEXELRAY_INSPECTOR";
 
-    /**
-     * The probe a restart into a debug run arms, when nobody chose one: the driven run's lanes and the bus, so the
-     * Inspector's bus circuit has rows (vexelray-inspector FN-4), traced into the file the run's mode would use.
-     */
-    static final String DEBUG_LANES = "frame,input,layout,app,bus";
-
-    /** Set in a restart into a debug run, so the restart out of it knows which probe settings were its own. */
-    static final String DEBUG_RESTART_ENVIRONMENT = "VEXELRAY_DEBUG_RESTART";
-
     private static final List<String> PROBE_ENVIRONMENT = List.of("PROBE", "PROBE_FORMAT", "PROBE_OUT");
 
     /** The settings that make a run a debug run, wherever the launch gave them. */
     private static final String[] DEBUG_KEYS = {SETTING, Sockets.CONTROL_SETTING, Sockets.DIAGNOSTICS_SETTING, INSPECTOR};
 
-    /** Quit, and start again with both sockets on one free port and the Inspector attached. */
+    /**
+     * Quit, and start again with both sockets on one free port and the Inspector attached. The diagnostics socket is
+     * all the probe needs to be told: a launch that asks for it records every lane, traced, whatever probe settings
+     * this run had (atchung's {@code LogConfig.inspected}), so nothing about the probe is passed on here.
+     */
     void restartInDebugMode() {
-        Relaunch how = shell.relaunch().drop(DEBUG_KEYS).set(SETTING, "0").set(INSPECTOR, "true")
-                .environment(DEBUG_RESTART_ENVIRONMENT, "1");
-        if (System.getenv("PROBE") == null && System.getProperty("probe") == null) {
-            how = how.environment("PROBE", DEBUG_LANES).environment("PROBE_FORMAT", "csv");
-            java.nio.file.Path trace = sibarum.probe.Logging.config().probeFile();
-            if (trace != null) {
-                how = how.environment("PROBE_OUT", trace.toString());
-            }
-        }
-        restart(how);
+        restart(shell.relaunch().drop(DEBUG_KEYS).set(SETTING, "0").set(INSPECTOR, "true"));
     }
 
-    /** Quit, and start again with no socket, and none of the probe settings the restart into this run added. */
+    /** Quit, and start again with no socket. */
     void restartNormally() {
-        Relaunch how = shell.relaunch().drop(DEBUG_KEYS).environment(ENVIRONMENT, null)
-                .environment(DEBUG_RESTART_ENVIRONMENT, null);
-        if (System.getenv(DEBUG_RESTART_ENVIRONMENT) != null) {
-            for (String name : PROBE_ENVIRONMENT) {
-                how = how.environment(name, null);
-            }
-        }
-        restart(how);
+        restart(shell.relaunch().drop(DEBUG_KEYS).environment(ENVIRONMENT, null));
     }
 
     private void restart(Relaunch how) {
@@ -429,7 +421,6 @@ public final class Driver implements AutoCloseable {
         for (String name : PROBE_ENVIRONMENT) {
             pb.environment().remove(name);
         }
-        pb.environment().remove(DEBUG_RESTART_ENVIRONMENT);
         try {
             Process p = pb.start();
             LOG.info("the Inspector: pid {}, {}", p.pid(), argv);

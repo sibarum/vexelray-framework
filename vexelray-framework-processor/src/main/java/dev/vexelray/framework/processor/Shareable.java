@@ -30,13 +30,24 @@ import java.util.Set;
  *   <li>a {@code final} class whose fields, and every superclass's, are all {@code final} and shareable;</li>
  *   <li>a {@code sealed} interface or class whose every permitted subtype is shareable (and, for a class, whose
  *       own fields are);</li>
- *   <li>{@code Optional} of a shareable type.</li>
+ *   <li>{@code Optional} of a shareable type;</li>
+ *   <li>in a payload only ({@link #crossing}), a {@code List}, {@code Set} or {@code Map} of shareable types;</li>
+ *   <li>in a payload or a view's drawn state, a vexelray-gui {@code Feed}: a handle to the one memory a producer and
+ *       the GUI thread share (threading.md T7.3, frame-contract.md D), which is how pixels reach the screen without
+ *       crossing the bus themselves.</li>
+ *   <li>in the same places, a vexelray-gui {@code ImageSdg}: an SDG drawing and its pages, the same handle for a
+ *       drawing that a {@code Feed} is for a raster, built once by a job and only read after (see {@link #SDG}).</li>
  * </ul>
  * <b>What is refused, and why it is not a limitation of the check:</b> an array (mutable), an interface that is not
- * sealed (its implementations are unknown), any other generic type (a {@code List<String>} might hold an
- * {@code ArrayList} its sender still holds, and the type cannot say), a class with a mutable field, and an inner
- * class (it holds the instance that made it, through a field the declaration does not show). That
- * includes every collection. A payload that needs one wants the copier.
+ * sealed (its implementations are unknown), any other generic type, a class with a mutable field, and an inner
+ * class (it holds the instance that made it, through a field the declaration does not show). A collection is refused
+ * outside a payload: as a job's field it is state the job made and can change.
+ *
+ * <p><b>Why a collection in a payload is accepted on trust.</b> {@code List<String>} might be an {@code ArrayList} its
+ * sender still holds, and the type cannot say. Refusing it made the template send "close these five tabs" as five
+ * messages with a count, a protocol written around the checker rather than the problem (ROADMAP fork 6, ruled
+ * 2026-10-26 and built 2026-10-28). Unmodifiable is the sender's part, kept by building it with {@code List.copyOf};
+ * a record that copies in its compact constructor keeps it for every sender.
  */
 final class Shareable {
 
@@ -47,18 +58,72 @@ final class Shareable {
             "java.time.Instant", "java.time.Duration", "java.time.LocalDate", "java.time.LocalTime",
             "java.time.LocalDateTime", "java.time.ZonedDateTime", "java.time.OffsetDateTime");
 
+    /** What a payload may hold when what each holds is shareable: {@link #crossing}. */
+    private static final Set<String> COLLECTIONS = Set.of("java.util.List", "java.util.Set", "java.util.Map");
+
     private Shareable() {
     }
 
     /**
      * Why a value of this type cannot cross a lane as itself, as a path from the payload to the first thing that
-     * stops it, or {@code null} when it can.
+     * stops it, or {@code null} when it can. For state that stays, a job's field: a collection there is refused,
+     * because it is one the holder made and can change.
      */
     static String why(TypeMirror type) {
-        return why(type, "", new HashSet<>());
+        return why(type, "", new HashSet<>(), Rules.STATE);
     }
 
-    private static String why(TypeMirror type, String path, Set<String> visiting) {
+    /**
+     * Why a payload of this type cannot cross, as {@link #why(TypeMirror)}, except that a {@code List}, {@code Set} or
+     * {@code Map} inside it is accepted when what it holds is shareable (ruling 6, ROADMAP fork 6). The type cannot
+     * show that the collection itself is unmodifiable, so that part is the sender's: build it with {@code List.of} or
+     * {@code List.copyOf}, as a record does in its compact constructor. That is rule 4 of {@code docs/plans/chains.md}:
+     * the check refuses what is certainly wrong, and a collection of shareable values is not.
+     */
+    static String crossing(TypeMirror type) {
+        return why(type, "", new HashSet<>(), Rules.PAYLOAD);
+    }
+
+    /**
+     * Why a view's state, the one its {@code @Draw} method is asked with, is not deeply immutable; as {@link #crossing},
+     * except that a vexelray-gui {@code Node} in it is a <b>handle</b>, accepted: the nodes the told half made and the
+     * asked half addresses through its {@code Drawn} (frame-contract.md B). It never crosses a lane, and the step check
+     * refuses calling anything on it in the asked half, so all the asked half can do with one is name it.
+     */
+    static String drawnState(TypeMirror type) {
+        return why(type, "", new HashSet<>(), Rules.DRAWN);
+    }
+
+    /**
+     * What the walk accepts beyond the deeply immutable: collections on trust (a payload's), nodes as handles (a view's
+     * drawn state), and feeds and SDG drawings as handles (a payload, and a view's drawn state).
+     */
+    private record Rules(boolean collections, boolean nodes, boolean feeds) {
+        static final Rules STATE = new Rules(false, false, false);
+        static final Rules PAYLOAD = new Rules(true, false, true);
+        static final Rules DRAWN = new Rules(true, true, true);
+    }
+
+    /** vexelray-gui's node, a final class: what a view's state may hold as a handle. */
+    static final String NODE = "dev.vexelray.gui.core.Node";
+
+    /**
+     * vexelray-gui's feed: a ring of slots a producer hands pictures into and the GUI thread shows. Mutable by design,
+     * and the mutation is the seam T7.3 allows; what crosses is the handle, and the pixels stay where they were written.
+     * Not a job's field: a job answers with the feed it wrote, and keeps nothing.
+     */
+    static final String FEED = "dev.vexelray.gui.core.Feed";
+
+    /**
+     * vexelray-gui's SDG drawing: its layers, its stencil and paint pages as {@code Pixels}, and a look's values, all
+     * arrays, so not provably immutable. It is accepted where a {@link #FEED} is, as the same kind of handle: what a job
+     * hands the GUI thread to upload and draw (the pages go up through {@code DeviceImages} as any pixels do), built once
+     * and never changed after, which is its maker's part and the type's documented contract, not something this check
+     * can see. Ruled 2026-11-08, when Rasterware's {@code ReadPicture} first answered with a drawing.
+     */
+    static final String SDG = "dev.vexelray.gui.core.ImageSdg";
+
+    private static String why(TypeMirror type, String path, Set<String> visiting, Rules rules) {
         if (type.getKind().isPrimitive()) {
             return null;
         }
@@ -71,12 +136,22 @@ final class Shareable {
         DeclaredType declared = (DeclaredType) type;
         TypeElement element = (TypeElement) declared.asElement();
         String name = element.getQualifiedName().toString();
-        if (VALUES.contains(name) || element.getKind() == ElementKind.ENUM) {
+        if (VALUES.contains(name) || element.getKind() == ElementKind.ENUM || rules.nodes() && name.equals(NODE)
+                || rules.feeds() && (name.equals(FEED) || name.equals(SDG))) {
             return null;
         }
         if (!declared.getTypeArguments().isEmpty()) {
             if (name.equals("java.util.Optional")) {
-                return why(declared.getTypeArguments().get(0), path, visiting);
+                return why(declared.getTypeArguments().get(0), path, visiting, rules);
+            }
+            if (rules.collections() && COLLECTIONS.contains(name)) {
+                for (TypeMirror held : declared.getTypeArguments()) {
+                    String why = why(held, join(path, Mirrors.simple(element) + " of " + held), visiting, rules);
+                    if (why != null) {
+                        return why;
+                    }
+                }
+                return null;
             }
             return at(path, type + " has type arguments, and what they hold cannot be proven immutable from the"
                     + " type: a " + Mirrors.simple(element) + " may be a mutable one its sender still holds");
@@ -85,18 +160,18 @@ final class Shareable {
             return null; // a recursive type: the first visit decides it
         }
         try {
-            return structure(element, path, visiting);
+            return structure(element, path, visiting, rules);
         } finally {
             visiting.remove(name);
         }
     }
 
-    private static String structure(TypeElement element, String path, Set<String> visiting) {
+    private static String structure(TypeElement element, String path, Set<String> visiting, Rules rules) {
         String simple = Mirrors.simple(element);
         switch (element.getKind()) {
             case RECORD -> {
                 for (RecordComponentElement c : element.getRecordComponents()) {
-                    String why = why(c.asType(), join(path, simple + "." + c.getSimpleName()), visiting);
+                    String why = why(c.asType(), join(path, simple + "." + c.getSimpleName()), visiting, rules);
                     if (why != null) {
                         return why;
                     }
@@ -108,7 +183,7 @@ final class Shareable {
                     return at(path, simple + " is an interface that is not sealed, so what implements it is unknown");
                 }
                 for (TypeMirror permitted : element.getPermittedSubclasses()) {
-                    String why = why(permitted, join(path, simple), visiting);
+                    String why = why(permitted, join(path, simple), visiting, rules);
                     if (why != null) {
                         return why;
                     }
@@ -117,12 +192,12 @@ final class Shareable {
             }
             case CLASS -> {
                 if (element.getModifiers().contains(Modifier.SEALED)) {
-                    String why = fields(element, path, visiting);
+                    String why = fields(element, path, visiting, rules);
                     if (why != null) {
                         return why;
                     }
                     for (TypeMirror permitted : element.getPermittedSubclasses()) {
-                        why = why(permitted, join(path, simple), visiting);
+                        why = why(permitted, join(path, simple), visiting, rules);
                         if (why != null) {
                             return why;
                         }
@@ -132,7 +207,7 @@ final class Shareable {
                 if (!element.getModifiers().contains(Modifier.FINAL)) {
                     return at(path, simple + " is neither final nor sealed, so a subclass could add mutable state");
                 }
-                return fields(element, path, visiting);
+                return fields(element, path, visiting, rules);
             }
             default -> {
                 return at(path, simple + " is " + element.getKind().toString().toLowerCase().replace('_', ' ')
@@ -147,7 +222,7 @@ final class Shareable {
      * it is what it holds. A class that holds its enclosing instance is refused at any level, because that
      * reference is a field javac never shows.
      */
-    private static String fields(TypeElement element, String path, Set<String> visiting) {
+    private static String fields(TypeElement element, String path, Set<String> visiting, Rules rules) {
         for (TypeElement at = element; at != null; at = superclass(at)) {
             String simple = Mirrors.simple(at);
             if (holdsItsMaker(at)) {
@@ -162,7 +237,7 @@ final class Shareable {
                 if (!f.getModifiers().contains(Modifier.FINAL)) {
                     return at(where, "is not final, so it can change after the value has been sent");
                 }
-                String why = why(f.asType(), where, visiting);
+                String why = why(f.asType(), where, visiting, rules);
                 if (why != null) {
                     return why;
                 }

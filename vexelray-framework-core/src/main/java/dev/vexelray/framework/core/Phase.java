@@ -132,10 +132,10 @@ public enum Phase {
      * the one the text-editor port found the framework's own documentation getting wrong.
      *
      * <ul>
-     *   <li><b>The close gate.</b> A window's gate ({@code Window.onClose}) is armed by here at the latest — it
-     *       may be set in any phase, and is read when a close arrives — and the framework installs no gate of its
-     *       own: the default has to be that closing closes. A framework that interposed here
-     *       would be deciding, for every application, that quitting is a question.</li>
+     *   <li><b>The close gate.</b> A window's close is asked of the application ({@link CloseRequested}) only
+     *       when a part hears it, which the processor reads from declarations, so nothing has to be armed here; the
+     *       framework asks nothing of its own: the default has to be that closing closes. A framework that
+     *       interposed here would be deciding, for every application, that quitting is a question.</li>
      *   <li><b>The automation socket.</b> Bound by {@code vexelray-framework-automation}'s {@code Driver}, built
      *       here by {@code AutomationStarter} only in an application that names that starter in its
      *       {@code @VexelApp} (a generated project's debug edition does, its release edition does not), and only

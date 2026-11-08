@@ -25,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import dev.vexelray.framework.acceptance.Support.Driver;
 
@@ -113,9 +115,11 @@ class GeneratedProjectTest {
 
         blueprint = Scaffold.of(template, answers, Catalogue.bundled());
         assertEquals(List.of(), Checks.malformedXml(blueprint));
-        String main = "src/main/java/dev/vexelray/acceptance/vexelacceptance/";
-        for (String path : List.of("pom.xml", main + "VexelAcceptance.java", main + "Recipes.java",
-                main + "Ui.java", main + "Model.java")) {
+        String gui = ARTIFACT + "-gui/src/main/java/dev/vexelray/acceptance/vexelacceptance/";
+        String core = ARTIFACT + "-core/src/main/java/dev/vexelray/acceptance/vexelacceptance/core/";
+        for (String path : List.of("pom.xml", ARTIFACT + "-core/pom.xml", ARTIFACT + "-gui/pom.xml",
+                gui + "VexelAcceptance.java", gui + "Recipes.java", gui + "View.java", gui + "Ui.java",
+                core + "Editor.java", core + "Messages.java", core + "Core.java")) {
             assertNotNull(blueprint.entry(path), "expected " + path + " in " + blueprint.paths());
         }
     }
@@ -156,15 +160,22 @@ class GeneratedProjectTest {
         assertEquals(0, build.exitValue(), () -> "the generated project did not build\n" + tail(log));
         // The wiring the application runs on is the processor's, not a file the template wrote: the tree carries
         // no Wiring of its own, and this is where javac put the generated one.
-        Path wiring = project.resolve(Support.BUILD_DIRECTORY
+        Path gui = project.resolve(ARTIFACT + "-gui");
+        Path wiring = gui.resolve(Support.BUILD_DIRECTORY
                 + "/generated-sources/annotations/dev/vexelray/acceptance/vexelacceptance/VexelAcceptanceAppWiring.java");
         assertTrue(Files.isRegularFile(wiring), "the processor did not generate the wiring at " + wiring);
         assertTrue(blueprint.paths().stream().noneMatch(p -> p.endsWith("Wiring.java")),
                 "the template should not ship a hand-written wiring beside the generated one");
+        // -core's parts are class files to the processor compiling -gui; Core, named as a starter, is how they are built.
+        String generated = Files.readString(wiring);
+        assertTrue(generated.contains("new dev.vexelray.acceptance.vexelacceptance.core.Editor("),
+                "the editor from -core is not built:\n" + generated);
+        assertTrue(generated.contains("Jobs.reply(shell, \"dev.vexelray.acceptance.vexelacceptance.core.ReadFile\""),
+                "the jobs from -core are not subscribed:\n" + generated);
         // The mark: on the class path where @VexelApp(icon) names it, and registered for native-image by the processor.
-        assertTrue(Files.isRegularFile(project.resolve(Support.BUILD_DIRECTORY + "/classes/" + ARTIFACT + ".ico")),
+        assertTrue(Files.isRegularFile(gui.resolve(Support.BUILD_DIRECTORY + "/classes/" + ARTIFACT + ".ico")),
                 "the pom did not put the icon on the class path");
-        String metadata = Files.readString(project.resolve(Support.BUILD_DIRECTORY + "/classes/META-INF/native-image/"
+        String metadata = Files.readString(gui.resolve(Support.BUILD_DIRECTORY + "/classes/META-INF/native-image/"
                 + "dev.vexelray.framework.generated/dev.vexelray.acceptance.vexelacceptance.VexelAcceptanceAppWiring/"
                 + "reachability-metadata.json"));
         assertTrue(metadata.contains("\"" + ARTIFACT + ".ico\""), metadata);
@@ -269,22 +280,44 @@ class GeneratedProjectTest {
             assertTrue(driver.ok("size").contains("dpi=2"));
             driver.ok("dpi 1");
 
-            // The About window, from the mark on the title bar, as a person opens it: at the size it opens, zoomed,
+            // The About window, from the app menu the lockup opens, as a person opens it: at the size it opens, zoomed,
             // and narrower than it opens. It shipped once with a sideways scrollbar nobody asked for, and the layout
             // now says so in the log (vexelray-gui docs/reference/scrolling.md §5), which is read below with the rest.
             driver.ok("click titlebar-mark");
             driver.ok("settle");
-            assertTrue(driver.ok("windows").contains(" about "), "the mark did not open the About window\n" + tail(log));
+            String menu = driver.ok("tree");
+            Matcher aboutLine = Pattern.compile("@(menu\\.about-[a-z0-9-]+)").matcher(menu);
+            assertTrue(aboutLine.find(), "the lockup's menu does not open with About\n" + menu);
+            driver.ok("click " + aboutLine.group(1));
+            driver.ok("settle");
+            assertTrue(driver.ok("windows").contains(" about "), "About in the menu did not open the window\n"
+                    + tail(log));
             driver.ok("window about");
             driver.ok("settle");
             String about = driver.ok("tree");
             assertTrue(about.contains("about-name") && about.contains("about-version"), about);
+            assertTrue(about.contains("@titlebar-mark"), "the lockup is on every bar, About's too\n" + about);
             driver.ok("zoom 2");
             driver.ok("settle");
             driver.ok("resize 260x480");
             driver.ok("settle");
             driver.ok("shot " + root.resolve("about.png"));
             driver.ok("zoom 1");
+            driver.ok("window main");
+
+            // Key bindings, a line of the app menu: the framework's, there because the view declared its commands on the
+            // framework's keymap, and opening the editor that lists them under the labels the view gave them.
+            driver.ok("click titlebar-mark");
+            driver.ok("settle");
+            driver.ok("click menu.key-bindings");
+            driver.ok("settle");
+            assertTrue(driver.ok("windows").contains(" keymap "), "Key bindings did not open the editor\n"
+                    + tail(log));
+            driver.ok("window keymap");
+            driver.ok("settle");
+            String keys = driver.ok("tree");
+            assertTrue(keys.contains("Save") && keys.contains("Next tab") && keys.contains("Ctrl+S"), keys);
+            driver.ok("shot " + root.resolve("keymap.png"));
             driver.ok("window main");
 
             // Being driven is what makes a run loud: the mode is AUTOMATION, so DEBUG on the console and TRACE in a

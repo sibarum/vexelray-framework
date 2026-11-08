@@ -1,21 +1,26 @@
 package ${packageName};
 
-/** Every name the witness's driver writes down. The template's, and one per thing a component can change. */
+/** Every name the witness's driver writes down: a button's is also its name on the bus, in its tree. */
 final class Landmarks {
 
     static final String CARD = "card";
     static final String COUNT = "count";
     static final String NOTE = "note";
+    /** Bumps the counter, a component on the logic lane. */
     static final String COUNT_BUTTON = "button.count";
     static final String RESET_BUTTON = "button.reset";
 
-    /** Sends a job to the worker lane; its result is {@link #RESULT}. */
+    /** Counted by the view itself, in its frame: the window responding, whatever the lanes are doing. */
+    static final String TAP_BUTTON = "button.tap";
+    static final String TAPS = "taps";
+
+    /** Sends a job to the worker lane; its answer is {@link #RESULT}. */
     static final String WORK_BUTTON = "button.work";
-    /** Asks the default lane to echo; the answer is {@link #ECHO}. */
+    /** Asks the logic lane to echo; the answer is {@link #ECHO}. */
     static final String ECHO_BUTTON = "button.echo";
-    /** Wedges a component on the default lane, which every other default-lane component shares. */
+    /** Wedges a component on the logic lane. */
     static final String WEDGE_DEFAULT_BUTTON = "button.wedge.default";
-    /** Wedges a component on a lane of its own, which nothing else shares. */
+    /** Wedges a component on a declared lane. */
     static final String WEDGE_ISOLATED_BUTTON = "button.wedge.isolated";
 
     /** Opens the tool window, a second window that closes while the application runs on. */

@@ -19,11 +19,23 @@ final class Framework {
     static final String WIRING = "dev.vexelray.framework.shell.Wiring";
     static final String APP_INFO = "dev.vexelray.framework.shell.AppInfo";
     static final String BUILD_INFO = "dev.vexelray.framework.shell.BuildInfo";
-    static final String PLACEMENT = "dev.vexelray.framework.shell.Placement";
-    /** What generated code calls to place a component and register its mailboxes; see {@code Placements}. */
-    static final String PLACEMENTS = "dev.vexelray.framework.shell.Placements";
     /** What generated code calls to report a {@code @Provides} method that returned null; see {@code Absences}. */
     static final String ABSENCES = "dev.vexelray.framework.shell.Absences";
+    /** What the generated wiring calls to subscribe a {@code @Job} to its topic on the offload lane. */
+    static final String JOBS = "dev.vexelray.framework.shell.Jobs";
+    /** What the generated wiring calls to put a {@code @Source} on its topics, and to make its senders. */
+    static final String SOURCES = "dev.vexelray.framework.shell.Sources";
+    /** What the generated wiring calls to put a {@code @Destination} on its topics, a connection per key. */
+    static final String DESTINATIONS = "dev.vexelray.framework.shell.Destinations";
+    /** A component's inbox on the logic lane: a component takes one in its constructor, and nothing else may. */
+    static final String INBOX = "sibarum.atchung.Inbox";
+    /** What the generated wiring calls to put a component on the logic lane: its inbox, mailboxes and senders. */
+    static final String INBOXES = "dev.vexelray.framework.shell.Inboxes";
+    /** What the generated wiring calls to give a {@code @View} its mailboxes on the GUI thread; see {@code Views}. */
+    static final String VIEWS = "dev.vexelray.framework.shell.Views";
+    /** What a {@code @Draw} method is asked for and sets its nodes through: vexelray-gui's, named and not imported. */
+    static final String FRAME = "dev.vexelray.gui.core.Frame";
+    static final String DRAWN = "dev.vexelray.gui.core.Drawn";
     static final String APPEARANCE ="dev.vexelray.framework.shell.Appearance";
     static final String INPUT = "dev.vexelray.framework.shell.InputBackend";
     static final String CLIPBOARD = "dev.vexelray.framework.shell.ClipboardBackend";
@@ -37,6 +49,12 @@ final class Framework {
      * ({@code Wiring.computeQueue}) exactly when a component does.
      */
     static final String COMPUTE_QUEUE = "dev.vexelray.gui.core.app.ComputeQueue";
+    /**
+     * The framework's question before a window closes, and its answer. A window's close is asked of each part that hears
+     * the first, in turn ({@code Wiring.closeHearers}), and {@link Channels} requires each of them to send the second.
+     */
+    static final String CLOSE_REQUESTED = "dev.vexelray.framework.core.CloseRequested";
+    static final String CLOSE_ANSWER = "dev.vexelray.framework.core.CloseAnswer";
 
     /**
      * A value the framework owns and hands out through a {@code Shell} accessor, from the phase that accessor
@@ -61,15 +79,18 @@ final class Framework {
     /**
      * The roots. <b>The shell itself is an {@link Phase#ATTACH} value</b>: it reaches everything, so a provider
      * taking it could touch anything, and the only phase where everything exists is the last one.
+     *
+     * <p><b>Not here, since 0.2</b> ({@link #REFUSED}): the bus, {@code Senders}, the lanes, the frame hooks and the
+     * disposer. A part sends by taking a {@code Sender<T>} per topic, which the wiring builds (T4.5); what runs where,
+     * and what runs in a frame, is the framework's (T2.5, T7.1); and a part that holds a resource is closed by being
+     * {@code AutoCloseable}. The shell still reaches them, and leaves an application's reach in phase 5.
      */
     static final List<Root> ROOTS = List.of(
             new Root(SHELL, "", Phase.ATTACH, false),
             new Root("dev.vexelray.framework.core.Launch", "launch", Phase.CONFIG, false),
             new Root(APP_INFO, "info", Phase.CONFIG, false),
-            new Root("sibarum.atchung.Atchung", "bus", Phase.CONFIG, false),
-            new Root("dev.vexelray.framework.core.Lanes", "lanes", Phase.CONFIG, false),
-            new Root("dev.vexelray.framework.core.FrameHooks", "hooks", Phase.CONFIG, false),
-            new Root("dev.vexelray.framework.core.Disposer", "disposer", Phase.CONFIG, false),
+            // Hands no code to anyone: it publishes, and a subscriber hears it on its own lane (T7.2).
+            new Root("dev.vexelray.framework.core.Timer", "timer", Phase.CONFIG, false),
             new Root("dev.vexelray.framework.shell.PointerLock", "pointerLock", Phase.CONFIG, false),
             // From the first phase and not the main thread's: what it hands out holds a question until there is a
             // window to ask it in, and asks whichever dialogs end up answering.
@@ -77,15 +98,18 @@ final class Framework {
             new Root("dev.vexelray.gui.core.app.Settings", "settings", Phase.CONFIG, false),
             // The Gui is configured in GUI -- the look, the clock, the minimum size, the zoom range -- and handed to
             // the application at TREE, so a part that takes it is built after all of that by ordering, not by care.
-            // The other three move with it because each reaches the Gui: KronoGui.gui(), Window.gui() through
-            // Windows.main(), and the title bar is a widget on it. Left in GUI, any of them would be a way to the
-            // Gui one phase early, and GUI would still hold widget-building parts.
+            // The other two move with it because each reaches the Gui: Window.gui() through Windows.main(), and the
+            // title bar is a widget on it. Left in GUI, either would be a way to the Gui one phase early, and GUI would
+            // still hold widget-building parts. KronoGui is not here at all: it runs code on the GUI thread over time,
+            // so it is the host's, and a view states a tempo (vexelray-gui's Timing) that the tree's clock runs (T7.2).
             new Root("dev.vexelray.gui.core.Gui", "gui", Phase.TREE, false),
-            new Root("dev.vexelray.gui.krono.KronoGui", "krono", Phase.TREE, false),
             new Root("dev.vexelray.gui.widget.TitleBar", "titleBar", Phase.TREE, false),
             // Not the main thread's, though a window is: every command on a Window only posts, and the framework
             // claims the window itself, so a recipe holding one is not coloured by a GuiApp it never took.
             new Root("dev.vexelray.framework.shell.Windows", "windows", Phase.TREE, false),
+            // With the Gui for the same reason: it claims its chords on it. Its button is the framework's, at ATTACH,
+            // and shown only when something was declared on it by the end of TREE.
+            new Root("dev.vexelray.gui.keymap.Keymap", "keymap", Phase.TREE, false),
             // "Vulkan, the window and present stay on the main thread" -- vexelray-gui/CLAUDE.md.
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),
             // The exception to it, and the only one: a queue nothing on the main thread submits to.
@@ -133,6 +157,38 @@ final class Framework {
         }
         return null;
     }
+
+    /**
+     * What an application part may not take, by qualified name, and why: the framework's own machinery for sending,
+     * running and closing, which 0.1 handed out and 0.2 keeps (ROADMAP phase 4). {@code java.util.concurrent}'s
+     * executors are refused beside these, by {@code Graph}, since no table lists every one.
+     */
+    static final java.util.Map<String, String> REFUSED = java.util.Map.of(
+            "sibarum.atchung.Atchung", "T4.5: the raw bus is not handed to an application part, because a send"
+                    + " through it is one no declaration shows. Take a Sender<T> for each topic it sends on, and the"
+                    + " wiring builds it",
+            "dev.vexelray.framework.shell.Senders", "T4.5: Senders hands out a sender for any topic, which no"
+                    + " declaration shows. Take a Sender<T> for each topic it sends on, and the wiring builds it",
+            "dev.vexelray.framework.core.Lanes", "T2.5: the lanes are the framework's. Work that blocks is a @Job,"
+                    + " a component that needs a core declares @Component(lane = ...), and nothing else picks a thread",
+            "dev.vexelray.framework.core.FrameHooks", "T7.1: no application code runs in the frame. Work over time"
+                    + " belongs to a @Component hearing a Timer, and what changes on screen to a view",
+            "dev.vexelray.framework.core.Disposer", "the disposer runs code at shutdown that nothing declares. A"
+                    + " part that holds a resource implements AutoCloseable, and the wiring closes it");
+
+    /** The framework's own packages: a starter there (the automation driver, the host's) may still take the shell. */
+    static final String OWN = "dev.vexelray.framework.";
+
+    /**
+     * Why an application part may not take the {@link #SHELL}, though the framework's own starters may (ROADMAP
+     * phase 5). It reaches everything: the frame hooks, the disposer, the wake source, the windows' commands, the
+     * restart, every value in every phase, so a part holding it could run code anywhere and send anything with nothing
+     * declared. What a part needs from it is a root of its own, or a message.
+     */
+    static final String SHELL_REFUSED = "the Shell is the framework's, and reaches everything it does: the frame"
+            + " hooks, the disposer, every value in every phase. Take what is needed as a value of its own (Windows,"
+            + " Dialogs, Settings, Launch, the Gui), send a message (WindowCommand, Ask, PickFile, Open), or hear one: a"
+            + " recipe that took the Shell to be built last can hear WindowOpened for the main window instead";
 
     /** The root for a type, by qualified name, or {@code null}. */
     static Root root(String qualifiedName) {

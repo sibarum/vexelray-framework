@@ -74,13 +74,22 @@ public abstract class Wiring {
     }
 
     /**
-     * The message graph the application declares, as the bus-graph text (vexelray-inspector
-     * {@code docs/bus-circuit.md}, version 1): its components, its other publishers, every {@code @Subscribe} mailbox
-     * and every {@code @Publishes} topic. The generated wiring answers a constant, possibly with nothing in it but its
-     * header; {@code null}, the default, is a hand-written wiring, which declares no graph at all. The automation
+     * The message graph the application declares, as the bus-graph text (vexelray-inspector {@code docs/bus-graph.md},
+     * version 2): its parts and their lanes, every way each hears a topic, what each sends, and each topic's kind. The
+     * generated wiring answers a constant, possibly with nothing in it but its header; {@code null}, the default, is a hand-written wiring, which declares no graph at all. The automation
      * module hands it to the Inspector's {@code bus graph}.
      */
     public String busGraph() {
+        return null;
+    }
+
+    /**
+     * A fresh wiring of the same application, for a replay to build its components again from
+     * ({@link Shell#replay}; ROADMAP <i>Done means</i> 5): a new instance, holding nothing this one built. The
+     * generated wiring answers {@code new} of itself; {@code null}, the default, is a hand-written wiring, which a
+     * replay refuses.
+     */
+    public Wiring again() {
         return null;
     }
 
@@ -92,6 +101,18 @@ public abstract class Wiring {
      */
     public boolean computeQueue() {
         return false;
+    }
+
+    /**
+     * The parts a window's close is asked of, as a {@link dev.vexelray.framework.core.CloseRequested} each, in the
+     * order they are asked: their qualified names, sorted. Each waits for its
+     * {@link dev.vexelray.framework.core.CloseAnswer}, the next is asked only when the last let the window close, and
+     * the first that keeps it open ends the round. The generated wiring lists every part that hears
+     * {@code CloseRequested}; with none, closing closes, which is what an application with nothing to lose wants
+     * without saying so.
+     */
+    public java.util.List<String> closeHearers() {
+        return java.util.List.of();
     }
 
     /**

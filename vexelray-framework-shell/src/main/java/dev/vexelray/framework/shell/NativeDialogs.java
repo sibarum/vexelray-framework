@@ -1,18 +1,20 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.core.PickFile;
+import dev.vexelray.framework.core.Picked;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.nfd.FileDialog;
 import dev.vexelray.gui.nfd.Nfd;
 import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Modals;
+import sibarum.atchung.Sender;
 import sibarum.probe.Log;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 
 /**
  * The framework's {@link Dialogs}: {@link Modals} for a question, NFD's native pickers for the rest, all parented to
@@ -20,7 +22,9 @@ import java.util.function.Consumer;
  *
  * <p>Where a picker runs is {@code FileDialog}'s decision, not this class's: on Windows it is NFD's own dialog thread,
  * so the window keeps drawing behind it, and on macOS AppKit insists on the main thread, so the request is posted to
- * the frame loop. Either way the answer comes back on the handler lane, where an application's handlers run.
+ * the frame loop. Either way the answer is a {@link Picked} sent from wherever the picker finished, and nothing else
+ * runs there: whoever asked hears it on its own lane, as it hears every message. That is why there is no thread of
+ * this class's own any more: it ran the application's callback until phase 5, and a publish needs no thread.
  *
  * <p>This is the text editor's {@code NativeDialogs}, moved here: it was written once and then needed by Vexplore's
  * folder chooser and Pix's opener, each of which took the {@code GuiApp} to reach it.
@@ -31,12 +35,10 @@ final class NativeDialogs implements Dialogs, AutoCloseable {
 
     private final GuiApp app;
     private final Modals modals;
-    private final Executor answers;
 
-    NativeDialogs(GuiApp app, Modals modals, Executor answers) {
+    NativeDialogs(GuiApp app, Modals modals) {
         this.app = app;
         this.modals = modals;
-        this.answers = answers;
     }
 
     @Override
@@ -45,33 +47,47 @@ final class NativeDialogs implements Dialogs, AutoCloseable {
     }
 
     @Override
-    public void openFile(Path start, List<FileDialog.Filter> filters, Consumer<Path> picked, Runnable cancelled) {
-        answer(FileDialog.openAsync(app::post, app.windowHandle(), filters, start), picked, cancelled);
-    }
-
-    @Override
-    public void openFolder(Path start, Consumer<Path> picked, Runnable cancelled) {
-        answer(FileDialog.pickFolderAsync(app::post, app.windowHandle(), start), picked, cancelled);
-    }
-
-    @Override
-    public void saveFile(Path start, String name, List<FileDialog.Filter> filters, Consumer<Path> picked,
-                         Runnable cancelled) {
-        answer(FileDialog.saveAsync(app::post, app.windowHandle(), filters, start, name), picked, cancelled);
-    }
-
-    private void answer(CompletableFuture<Optional<Path>> dialog, Consumer<Path> picked, Runnable cancelled) {
-        dialog.whenCompleteAsync((answer, failure) -> {
+    public void pick(PickFile request, Sender<Picked> answer) {
+        request.to(pickers).whenComplete((path, failure) -> {
             if (failure != null) {
-                // A dialog that cannot be shown is a cancel, so whoever asked is not left waiting.
+                // A picker that cannot be shown is a cancel, so whoever asked is not left waiting.
                 LOG.warn("a file dialog could not be shown", failure);
-                cancelled.run();
-            } else if (answer.isPresent()) {
-                picked.accept(answer.get());
+                answer.send(Picked.cancelled(request.id()));
             } else {
-                cancelled.run();
+                answer.send(path.map(p -> new Picked(request.id(), p.toString()))
+                        .orElseGet(() -> Picked.cancelled(request.id())));
             }
-        }, answers);
+        });
+    }
+
+    /** NFD's picker for each kind of request, parented to the main window. */
+    private final PickFile.Sink<CompletableFuture<Optional<Path>>> pickers = new PickFile.Sink<>() {
+        @Override
+        public CompletableFuture<Optional<Path>> open(PickFile p) {
+            return FileDialog.openAsync(app::post, app.windowHandle(), filters(p.filters()), start(p));
+        }
+
+        @Override
+        public CompletableFuture<Optional<Path>> folder(PickFile p) {
+            return FileDialog.pickFolderAsync(app::post, app.windowHandle(), start(p));
+        }
+
+        @Override
+        public CompletableFuture<Optional<Path>> save(PickFile p) {
+            return FileDialog.saveAsync(app::post, app.windowHandle(), filters(p.filters()), start(p), p.name());
+        }
+    };
+
+    private static Path start(PickFile p) {
+        return p.start().isEmpty() ? null : Path.of(p.start());
+    }
+
+    private static List<FileDialog.Filter> filters(List<PickFile.Filter> filters) {
+        List<FileDialog.Filter> out = new ArrayList<>(filters.size());
+        for (PickFile.Filter f : filters) {
+            out.add(new FileDialog.Filter(f.description(), f.extensions()));
+        }
+        return out;
     }
 
     /**

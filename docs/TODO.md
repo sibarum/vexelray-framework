@@ -259,9 +259,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         each name to a local, a field or `this`, and runs `Shareable` on what it finds; and the heaviest piece in the
         processor, which has never run outside the annotation rounds), or leaving T2.5 as a rule the reader keeps. A
         syntactic check without attribution is not an option: it cannot tell a captured local from a class name.
-        **Not decided; a third option is proposed** ([components.md](components.md), section 10, 2026-10-18): slow
-        work as a declared `@Job` whose result is published on a reply topic, so there is no lambda to capture with
-        and the check reads declarations only. To rule on: adopt it, and failure's shape.
+        **Ruled and built 2026-10-26: the third option** ([components.md](components.md), section 10): slow work as a
+        declared `@Job` whose result is published on a reply topic, so there is no lambda to capture with and the
+        check reads declarations only. The template's disk work is four jobs. **Still to do before v1, and breaking:**
+        withdraw `Lanes.offload()` and `Gui.offload()` from application parts (the *what `Shell` hands over* decision,
+        per accessor), since until then a lambda handed to either is unchecked. The template's `Buffer` still uses
+        `gui.async` for its Markdown spans, which is CPU work on the view's own data and wants an answer of its own
+        (a job taking the text and answering the spans needs `List<Span>` to cross, which the copier would allow).
       - **Before v1, with the component model.** **Done 2026-10-02:** the copier's check half (a `@Subscribe` payload must be deeply immutable) and the blocking-cycle
         check (T4.4). **Additive, not built:** the generated copier. **Done 2026-10-19:** the graph exposed as data (the wiring's
         `BUS_GRAPH`, vexelray-inspector `docs/bus-circuit.md`).
@@ -333,19 +337,19 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       narrower accessor, and not the `GuiApp`.
 
       **Ruled 2026-10-11: `app()` stays, as the device and not the windows.** Reason: the same census found every
-      remaining use of `GuiApp` is the device or a dialog — Pix's and Vexplore's textures, the fluid and rigid
-      simulators' viewports and compute, and the dialogs of the text editor, Vexplore and Pix — and none is window
+      remaining use of `GuiApp` is the device or a dialog — Rasterware's and Vexplore's textures, the fluid and rigid
+      simulators' viewports and compute, and the dialogs of the text editor, Vexplore and Rasterware — and none is window
       management, which is all `Windows` now covers. The device is the main thread's by rule, so a recipe taking it
       is `@MainThread` correctly, and a narrower type for it would be the same boundary under another name. The
       dialogs are the `Window` seam entry's own bullet and move off it there. They have (`Dialogs`, the same day),
-      and so has the one window-management use the census missed (Pix's viewer closing the main window, now
+      and so has the one window-management use the census missed (Rasterware's viewer closing the main window, now
       `windows.main().close()`), so what is left behind the `GuiApp` is the device and nothing else: textures,
       viewports and compute.
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and for a while left one generated counter-style
       application validating everything. (Since then the template writes a text editor, and VexelRay IDE, the calculator,
-      Vexplore, Pix and the simulation demos are generated from it; their findings are below. Most are
+      Vexplore, Rasterware and the simulation demos are generated from it; their findings are below. Most are
       one-window-plus-dialogs desktop applications; the calculator's settings and Vexplore's viewer are each one
       second window, and W1 is the one with several.) *One component is not a census* applies to the framework itself.
       Wants two or three generated applications that differ where it matters — several windows on one
@@ -440,7 +444,7 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       - **`Dialogs`**, a root from `CONFIG`: a `Modal`, and NFD's open, folder and save pickers, parented to the
         main window and answered on the handler lane. A question asked before there is a window is held and asked
         once there is; a `@Provides Dialogs` (or `shell.dialogs(...)` by `WINDOW`) replaces the framework's, which
-        is how a test answers. The text editor's `NativeDialogs`, Vexplore's `Chooser` and Pix's `Opener` were
+        is how a test answers. The text editor's `NativeDialogs`, Vexplore's `Chooser` and Rasterware's `Opener` were
         three copies of one class, each taking the `GuiApp`, and are gone (Vex FN-6's dialog half, FN-7).
         `Modals` stays a static, for MainFrame, which is hand-wired.
       - **`Window.onClose(CloseGate)`**, a close gate on any window, the main one included: two callbacks rather
@@ -521,6 +525,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `@Subscribe` is the one way, `Shell.place`, `Placement`'s constructor, `start` and `subscribe` are package-private,
       and `Placement.superseded()` is deleted. What is left of the sweep is the list above, and it binds the siblings
       `Shell` exposes.
+
+- [ ] **Two parts that ask the person share one id space.** An `Answer` names only its `Ask`'s id, and every part that
+      asks hears every answer, so two parts counting from 1 each act on the other's answers. Found when the windows
+      witness gained a second close answerer ([regions.md](plans/regions.md), step 3's *As built*), whose `Keeper`
+      counts from 2^40 to stay clear of `Gate`. Modules make this common, since each module asks its own questions.
+      It blocks v1 because the fix changes how an `Ask` is made, for example the framework issuing the id or keying
+      `Answer` by the asking part as `CloseRequested` is now, and every application that asks would change with it.
 
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
@@ -629,7 +640,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         holds `Recorder` and `WindowVideoRecorder`. The template and every generated application depend on it, so
         every camera records. `bootstrap.sh` now installs ffmpeg-wrapper (building the encoder, which on Windows needs
         MSYS2) and vexelray-codec. A native image finds the encoder only in an `ffmpeg-record` folder beside its
-        executable, so every native build (the template's too) stages one there as Pix stages `ffmpeg`
+        executable, so every native build (the template's too) stages one there as Rasterware stages `ffmpeg`
         (`ffmpeg-record-beside`, `ffmpeg-record-zip`, and `ffmpeg-record-tar` in `native-linux`), every
         `installer.json` installs it as `<id>-ffmpeg-record`, and `vexelray-dist/notices/notices.py` points every
         app's notices at FFmpeg's and SVT-AV1's licences and patent licence in that folder. Checked on the
@@ -700,6 +711,9 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         never held across a dialog. Other windows may pick a change up from a `WatchService` or on focus;
         optional. Shared settings want a home shared across applications, where `AppHome` today is per
         application (`~/.{name}`), e.g. `~/.vexelray/`.
+      - **Since 2026-11-01** keybindings are already split out: the framework's keymap keeps them in
+        `keys.properties` beside the settings, written on each rebind. Two instances still each write their own
+        whole map, so the last rebind wins; the lock-and-merge above would cover it with the rest.
 
       **Why after v1:** `Settings`' accessors and `save()` keep their signatures, the lock and merge are inside
       them, and the ephemeral switch is a new option with a default. The *`Window` seam* did not move it:
@@ -829,7 +843,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       on two library classes until a host wants one.
 
 - [ ] **`shell.wake(gui::onWork)` is redundant, and the framework should probably stop making the call.**
-      `GuiApp.wireAllWakes` already does `gui.onWork(this::postWake)` for **every** tree it presents,
+      `GuiApp.wireAllWakes` already does `Seams.of(gui).onWork(this::postWake)` for **every** tree it presents,
       re-checked each iteration, and says why: *"an application has more trees than it has main
       windows"*, so left to the application it is *"a line to repeat per window, correct on the window
       under test and missing on the one being used."* The framework's single call is the weaker version
@@ -863,7 +877,7 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       `PointerLockTest` drives the threshold, the focus rule, the modes and the teardown against
       `PointerLock.Device`, which is the seam the previous entry turns down in general and which was
       worth it here because the thing behind it is a state machine rather than a one-line report. What
-      is still taken on faith is `gui.onPointerLock(this::want)` — that the framework subscribes at
+      is still taken on faith is `Seams.of(gui).onPointerLock(this::want)` — that the framework subscribes at
       all. Asserting it needs the dispatcher to fire the sink, which needs a press hit-tested against a
       laid-out tree, which is `vexelray-gui-harness` rather than a unit test. `WakeSeamsTest` already
       runs a real `GuiApp`, so the pattern exists; the missing part is a node that declares
@@ -1002,13 +1016,13 @@ blocks v1, and one thing worked better than expected: the processor's compile er
       only from `WINDOW`, and a part taking `GuiApp` is itself `@MainThread` and pulls everything that takes it into
       the window's phase, so a headless capture can no longer build the tree. The way through is the README's
       clipboard shape: a tree-phase object, plus a `@MainThread @Provides AutoCloseable` that binds it to the device
-      and un-binds on close (Vexplore's and Pix's `windowBinding`). It is right and roundabout; a provider that runs
+      and un-binds on close (Vexplore's and Rasterware's `windowBinding`). It is right and roundabout; a provider that runs
       *when the window exists* and returns nothing the container needs to hold would say it in one line. Narrower
       than it was: the folder dialog it was found with (Vexplore's `Chooser`) is the framework's `Dialogs` since
       2026-10-11, which hold a question until there is a window, so only the device is left late-bound.
       **Narrower again, 2026-10-24:** a `@Provides` may return `void` now, so a `@MainThread` recipe that binds a
       tree-phase part to the device is one method with no marker. What is left is an effect that has to be undone at
-      close: it still returns an `AutoCloseable`, and two of those are two providers of one type, which Pix had to merge
+      close: it still returns an `AutoCloseable`, and two of those are two providers of one type, which Rasterware had to merge
       into one.
 
 - [ ] **`settle` does not wait for the handler and offload lanes.** The rest of this entry landed in
@@ -1106,6 +1120,330 @@ applications back together found*. What is left, by shape:
       cannot be named (Inspector FN-13); and the socket answers before the main window is listed (MainFrame FN-2).
       The rule they share: anything a person can click is reachable by name when it is built, not by a workaround in
       the script.
+
+### Found by splitting the template into -core and -gui (2026-10-26)
+
+The template became a parent with a `-core` controller (an `Editor` component and four disk jobs) and a `-gui` view (a
+`View` component and the window), talking by messages and nothing else, at the user's direction: message passing is the
+primary protocol between an application's parts, and friction with it is to be raised rather than worked around. What
+it took is in components.md section 10 (`@Job`, and a configuration listing its module's components and jobs). What
+it found and left:
+
+- [ ] **A message cannot carry a list** (`-processor`, the copier, T2.4). Closing five tabs is five `Closing`
+      messages that each say how many make the set, and the editor collects them, because two mailboxes are in no
+      order with each other. It works and it is checked, and it is ceremony every application with a set will write
+      again. The generated copier (build order, step 3) would let a `List` of records cross. Additive.
+- [ ] **Four applications still commit their icons** (MainFrame, PhaseArray, VexelRay IDE, Vexplore; SDG plan, slice 5).
+      Rasterware makes every `.ico` from its drawings at build time (the icon plugin's `pair` goal, `<icon>` and
+      `<small>`), and `rc.exe /i target/generated-rc` links it; the others still carry hand-made ones, and the template
+      still generates projects that do. Move each, and the template, as Rasterware's pom does. Additive.
+- [ ] **An SDG drawing crosses on trust** (`-processor`, `Shareable.SDG`, T2.4; Rasterware FN-21). `ImageSdg` holds
+      arrays (page sizes, a look's values, the pages' `Pixels`), so it was refused as a job's reply; ruled 2026-11-08
+      to cross as a handle beside `Feed`, trusted to be built once and never changed. The copier, or pages that are
+      feeds, would take the trust away. Additive.
+- [ ] **A per-item set meets the FAIL bound.** One message per tab, into a mailbox of the default capacity 64, halts the
+      application at the sixty-fifth tab (ruling 5). The template raises those mailboxes to 4096; nothing tells an
+      application it needs to. A set message, once lists can cross, removes the case.
+- [ ] **A component left off its module's list is built by nobody, silently** (`-processor`). `-core`'s `Core` lists its
+      parts because the processor compiling `-gui` cannot see them; forget one and there is no error. The processor
+      compiling `-core` could warn about a `@Component` or `@Job` no configuration in its own module lists, since that
+      compilation sees both. Additive.
+- [x] **The close gate is a callback** (`-shell`, `Window.onClose`). Done 2026-10-29 (ROADMAP phase 5): the
+      framework keeps `proceed` and `cancel` under a ticket on the main thread, publishes `CloseRequested(window,
+      ticket)` and hears `CloseAnswer(ticket, proceed)`, and asks only when a part hears the question. `CloseGate`,
+      `Window.onClose` and the template's `QuitGate` are gone. A `Modal`'s buttons are still the view's to turn into
+      an `Answer`: that is phase 5's dialogs.
+- [ ] **The tree's data source reads the disk on the view's side** (`vexelray-gui`, `TreeView.Source`). `FolderSource`
+      lists a folder when the tree asks, synchronously, on the tree's worker; it cannot be a job, because the source is
+      pulled rather than answered. An asynchronous source (ask for children, be handed them later) would let it be.
+- [ ] **The editor writes the session to `Settings` on its own lane.** A small file, and so far harmless, but it is disk
+      work on a component lane, which is what jobs are for; a job cannot take it while the session is a list of files.
+- [x] **A job's request topic is not in the bus graph.** Done 2026-11-02: version 2 of the text (vexelray-inspector
+      `docs/bus-graph.md`) has a `hears ... by=request` line for it, and lines for an inbox's `@Hears`, a source's start
+      and stop, a destination's, each part's real lane, and each topic's kind.
+
+### Found by putting the keymap in the framework (2026-11-01)
+
+- [x] **The key button was on the main window's bar only.** Done 2026-11-01: every framework bar carries it now.
+      What kept it off About's was not the button. `settle` straight after About opened raced the window's
+      2.8-second intro against the loop's 2-second bound. Each step of the intro's tween owes the next frame, so the
+      loop is owed for as long as the motion runs, and `settle` refused before it reached the timeline's wait, which
+      is the one meant for motion. It passed only when the `settle` before it, on the main window, happened to sit
+      through most of the intro. That `settle` waited about 2.3 s in some runs and about 0.2 s in others, with or
+      without the button. Without the button it still failed 4 runs in 5 once measured, so the two passes that
+      seemed to clear it were luck. Fixed in vexelray-gui's `Automation.settle`: a loop still owed while the
+      timeline is busy goes on to wait for the timeline (`settleWaitsOutMotionThatKeepsTheLoopOwedPastItsBound`).
+
+### Found by building replay (2026-11-02)
+
+ROADMAP *Done means* 5 is built for the Inspector's R6 (`8145095`): a run launched `--replayable` keeps what its logic
+tick takes in, and `replay` on the automation socket runs it again on a fresh set of the components and lists the
+sends that differ (`Replay`, `InputRecording`, held by `ReplayTest` in both modes). What it does not do yet:
+
+- [x] **The fingerprint is paid on the tick.** Done 2026-11-03 (`d4b910b`): the tick keeps the send and a thread of the
+      recording's own fingerprints it behind the tick; the same Inspector ticked p50 0.48 to 0.63 ms, p95 1.4 to
+      2.0 ms, heap 167 MB, against 0.46 to 0.52, 1.3 to 1.6 and 160 MB not recording. Before: each send's `hashCode`
+      was taken as it was sent, and a deep record walked whole: an Inspector replaying a 13.7 s recording ticked at p50 0.7 to 1.2 ms and p95 2.3 to 5.2 ms
+      recording, against 0.40 to 0.45 ms and 1.1 to 1.4 ms without, growing as its state grew. Messages are
+      immutable, so the hash can be taken later: keep the reference on the tick and fingerprint it off the tick (or
+      at the replay), which costs the references' memory until then.
+- [ ] **Only CONFIG and MODEL are replayed.** A component built in TREE, because it takes the GUI, is not built again,
+      and a replay whose inboxes differ from the run's refuses. Decide whether such a component is replayable at all,
+      or whether the processor should say which components a replay leaves out.
+- [ ] **A message whose type has no equality of its own** (an array, a class without `equals`) fingerprints by
+      identity, so it shows as different every time. The processor already sees every payload type (fork 5); it could
+      refuse or warn on one that a replay cannot compare. Proposed as R8's third slice and deferred (2026-11-03) while
+      another session had the processor open: a warning, not an error, so no application breaks.
+- [ ] **From launch only, in this process, while it holds everything.** At `InputRecording.LIMIT` messages either way
+      the recording stops at its last whole tick and the replay says `full`. A recording on disk needs an encoding per
+      message type, which is the processor's to generate if it is ever wanted.
+- [x] **What a recorded send said is not kept.** Done 2026-11-03 (`d4b910b`): `--replayable=values` keeps the sends,
+      and a difference says what the run sent (`  was ...`) beside what the replay did (`  now ...`); about 40 MB more
+      on 13.7 s of a heavy run. A replay also runs on a thread of its own now (`c305588`), so the rows its components
+      write are told from the run's.
+
+### Found by restyling VexelRay IDE and bringing back its Run menu (2026-11-03)
+
+VexelRay IDE on v0.2 took back the October design (its `Look`, two cards on the page) and 0.1's Run menu, as the
+first application menu in a title bar (vexelray-gui `1930149`, `TitleBar.menu`) with a console of pseudo-terminal runs
+behind it, the first application `@Source @Destination` (`Runner`). The numbers are the IDE's v0.2 notes
+(`docs/framework-notes.md` in Spike/text-editor-vexel-demo), which started again at FN-1; "Vex FN-n" above is 0.1's.
+
+- [x] **A theme cannot map a role without forwarding every decision** (IDE 0.2 FN-3). Done 2026-11-05 (vexelray-gui):
+      `Theme.map(Role, Role)` and `Theme.map(UnaryOperator<Role>)` keep every other decision, at rest and in every
+      pointer state. `focusRing(...)`, `icons(...)` and `map(...)` are now one package-private `DerivedTheme`, so a
+      decision added to `Theme` is forwarded in one place. The IDE's thirteen-method `Look.theme` is four `map`s
+      (`ThemeMapTest`).
+- [x] **A fill fading to `Role.NONE` fades through black** (FN-4). Done 2026-11-05 (vexelray-gui), and it was not a
+      fade through black: `Fades` already took a clear end in the other end's colour. A fill born clear, given a
+      colour and cleared again before the clock moved was told to fade from that colour at no alpha to transparent
+      black, two nothings, and `Cuts` compared them exactly and called the step a cut. `PaintMotion.same`: two
+      colours at no alpha look the same, to `Fades`, `Cuts` and the reconciler's report. The IDE's `TAB_REST` is
+      `Role.NONE` again (`CutsTest.clearedBeforeItCameUpIsNoCut`).
+- [x] **`TextField` and `TreeView` always bring their own well** (FN-5). Done 2026-11-07 (vexelray-gui): `Framing.WELL`,
+      the default, or `FLUSH`, which paints neither the fill nor the hairline and keeps their room, so switching moves
+      nothing (`FramingTest`). The IDE's navigator trees and document field use it.
+- [x] **A menu line has no shortcut column** (FN-6). Done 2026-11-07 (vexelray-gui): `MenuItem.shortcut`,
+      `MenuAction.shortcut` and `Menu.Builder.shortcut` say a chord at the line's right, dim, in `Shortcut.text`'s
+      spelling, and bind nothing (`MenuShortcutTest`). A line can name a keymap command instead (`command(id)`), and says its chord as it
+      is when the menu opens, through `Seams.commands`, which `Keymap` fills on every window it is attached to: a
+      rebind is what the menu says (`KeymapTest`). The IDE and Vexplore moved onto the keymap 2026-11-07.
+- [x] **An application that binds with `gui.shortcut` offers no key bindings, and nothing says so** (found moving the
+      IDE and Vexplore, 2026-11-07). Done the same day, by the author's ruling, with no note: `Gui.shortcut` is gone, so
+      a window-wide chord is a keymap action or does not compile. `gui.claim` on a node stays, for a chord that means
+      something only there (Esc in a dialog, `VISIBLE`). On the keymap: MainFrame, VexelRay IDE, Vexplore, Rasterware,
+      Phasearray (`40667f0`) and vexelray-inspector (`d43b7c4`). **Still broken, and for more than the keymap:**
+      vex-4mat (pre-v0.2: its `Editor` holds the close question with `out.hold()`, which atchung's 5 s bound now
+      fails, and its `Recipes` takes the `Shell`; the IDE's `3aeb9e3` and its v0.2 regeneration are the port) and
+      vexelray-codec's video-player demo (its library `VideoView` takes a `KronoGui`, which `bf4b02f` took from
+      applications, so the widget needs a timeline it may have; a keymap `PlayerView` is drafted).
+- [x] **A menu cannot be walked from the keyboard** (FN-8). Done 2026-11-04 (vexelray-gui `afd2dbb`): an open menu
+      takes Up, Down, Home, End, Enter, Right and Left beside Escape, and a menu dropped by a key (`TitleBar.open`)
+      starts on its first line (`ContextMenu.markFirst`). Held by `ContextMenuKeysTest`.
+- [x] **A record state grows a field in every constructor call** (FN-10). Done 2026-11-04: `@Withers` on a record
+      (`-api`), and the processor writes `<Enclosing><Record>Withers` beside it, one default `with<Component>` per
+      component through the canonical constructor; the record implements it (`WithersTest`). **Ruled** by the author
+      2026-11-04, a mixin interface over a static helper class, because call sites stay `state.withDoc(d)` and the
+      hand-written withers of the same name simply go. The IDE's and the template's `Editor.State` use it. Not done:
+      the IDE's run chain still borrows `Closing`, which can now be its own component; MainFrame's and Phasearray's
+      states are still hand-written (Vexplore's `Explorer.State` moved 2026-11-05, and 16 constructor calls went); and
+      generic records are refused rather than handled. Found moving Vexplore's: a hand-written wither whose parameter
+      erases as a generated one does (`withTo(Optional<Path>)` beside the component `Optional<Pane> to`) is javac's
+      name clash in the record, not the processor's; it could be refused with the fix said (rename it).
+- [ ] **A driven run writes the person's settings** (FN-11, an idea): a launch under `--automation` could default the
+      application's home to a scratch one, as a test's is.
+- [ ] **A job's requests cannot coalesce** (FN-12). Checking Pontif as it is typed is a whole compile an edit, and
+      every request to a `@Job` runs, stale or not; the IDE's `Buffer` keeps one check in flight per document by hand.
+      A job whose request coalesces per key (latest wins, at most one running), `@Job(coalesce = ...)` or a request
+      type that says so, is what every compile-, lint- or index-as-you-type feature needs.
+- [ ] **An underline is drawn in the text's colour** (FN-13, vexelray-gui). `Span.underline` takes the span's `fg`,
+      so a red problem line recolours the token; the IDE marks a problem with an ink underline on a faint `DANGER`
+      ground instead. An underline colour on `Span`, and a wavy style.
+- [ ] **A menu cannot be opened at the caret from a key** (FN-14, vexelray-gui). `ContextMenu.present` needs a
+      `ClickEvent`, and `TextField` does not say where its caret is on screen, so Ctrl+Enter on a name two modules
+      export names them on the status line instead of offering a choice. A menu anchored at a node and an offset,
+      opened by a chord: completion, quick fixes and choosers all need it.
+- [ ] **A field's change version counts caret moves** (FN-15, an idea, vexelray-gui). `TextField.Changed`'s version
+      moves on every commit, so it cannot name the text a job's answer is about; the IDE matched by it and dropped
+      answers whenever the caret moved. A text version beside the document's would be the thing to key on.
+- [ ] **In vex-suite-common, not here** (FN-7, FN-9): `TerminalScreen.pseudoconsole()` needs the application to know
+      its platform, which the build's isolation check forbids, so `PtyPlatform` should answer it; and the terminal
+      draws a gap at every change of colour (`[ INFO ]` for Maven's `[INFO]`).
+
+### Found by rebuilding Vexplore on v0.2 (2026-10-30 to 2026-11-04)
+
+Vexplore rebuilt from the template on v0.2, milestone by milestone (its `docs/rebuild.md`, in Spike/vexplore on
+`v0.2`), through M6's Two Folders and M8's Orbit redesign. The numbers are its v0.2 notes (`docs/framework-notes.md`
+there), which started again at FN-1; "Found by Vexplore" above is 0.1's. Most are `vexelray-gui`'s.
+
+- [ ] **An application cannot bring its own faces into the text atlas** (FN-1): a pom setting the atlas build
+      reads, as the icon bake reads `src/main/icons`, with the charset beside it.
+- [ ] **A split's minimum holds against a drag, not against the window** (FN-2, vexelray-gui): the free pane's
+      minimum held at layout, the sized pane giving way down to its own.
+- [x] **A hidden node keeps the keyboard** (FN-3, vexelray-gui). Done 2026-11-04: a node hidden while it has the
+      keyboard hands it to the next focusable in Tab order before the next frame's keys, and `Gui.blur()` exists
+      (`FocusHandOnTest`). A *disabled* focused node still gives the keyboard to nothing (`dropDisabledFocus`), so the
+      two rules differ; worth making them one.
+- [x] **Opening a file with the desktop is private to the shell** (FN-4). Done 2026-11-05: `Open(target)` →
+      `Opened(target, problem)` in `-core`, beside `PickFile`; the shell answers it on the job lane before the
+      application's wiring (`Links.serve`), so no application lists it, and the About window's links send it too.
+      Vexplore's `OpenFile` is gone (`LinksTest`).
+- [x] **Keys typed straight after a focus-moving chord land where the keyboard was** (FN-5). Done 2026-11-04 with
+      no declaration: a chord that sends a message holds the rest of the frame's input for the next frame
+      (`InputDispatcher.holdRest`), by when a GUI-thread view has moved the keyboard. Not covered: a chord whose
+      hearer is on the logic lane and moves the keyboard only once an answer comes back, which can take longer.
+- [ ] **A status bar's slots overrun each other** (FN-6, vexelray-gui): the right side gets what the left leaves,
+      clipped.
+- [ ] **A chip flips itself before the model answers** (FN-7, vexelray-gui): a press published with the chip left as
+      it is, or a one-of-N chip group that lays out in lines.
+- [ ] **A table's growing column has no minimum** (FN-8, vexelray-gui): `Column.min(Length)`, the fixed columns
+      giving way past it. Two Folders cuts every name to four letters at 1440 px.
+- [x] **Held Shift and Control have no topic** (FN-9). Done 2026-11-05: `Modifiers(window, shift, control, alt, meta)`
+      in `-core`, a state topic keyed by window, published by the shell's `Window` whenever the dispatcher's held set
+      changes, and released when the window loses focus (`ModifiersTest`). Booleans, not tactroller's `Modifier`, so an
+      application's `-core` can hear it. Vexplore's rail proposes ranges and rules from it again. A drop copying or
+      moving by the key held is the gesture's, not the topic's: done 2026-11-07, `DropEffect.byKeys` (Control copies,
+      Shift moves), which `ListView.droppable` follows live, and `Landed.effect` says what the drop became.
+- [x] **A table's sort is the widget's alone** (FN-17). No gap, 2026-11-07: `Table.SORTED` already says it; Vexplore's
+      view did not pass it on, and now does (`Ordered`).
+- [ ] **A field cannot be filled once and then left to the person** (FN-10, vexelray-gui): `TextField.initial`.
+- [ ] **A list's row menu cannot grey or hide an action, as a tree's can** (FN-11, vexelray-gui).
+- [ ] **A list row has one mark** (FN-12, vexelray-gui): Vexplore keeps two more sets beside `marks` (the *new* tag,
+      and the comparison's six marks a row) in its own `Tags<K>`. Named sets, each with its look, told whole; and an
+      icon in a cell with a name a script can read, which today is borrowed from `role`.
+- [ ] **No gallery** (FN-13, to be written when M8's slice 6 meets it): a virtualised wrapping grid of cards, in
+      sections, with the list's selection, keyboard, menu, marks and drag.
+- [x] **A button is one label, with nothing beside it** (FN-14, vexelray-gui). Done 2026-11-07 (vexelray-gui `48403054`): a `Button` is a row
+      holding its words and `badge(String)`, both its own, so nothing outside styles a button's text
+      (`ButtonBadgeTest`). Vexplore's rail pills carry their counts in it.
+- [x] **A button cannot open a menu** (FN-15, vexelray-gui). Done 2026-11-07 (vexelray-gui `e93bd84d`):
+      `Button.menu(Menu)` and `IconButton.menu(Menu)` drop a declared menu from the button on a left click, Enter or
+      Space, as the title bar's menus do (`ContextMenu.drop`, shared). Vexplore's Open with uses it (`MenuButtonTest`).
+- [x] **ottermate's one-step `drag` commits nothing** (M6 slice 2, vexelray-gui). Done 2026-11-04 (vexelray-gui
+      `5be706c`): `drag` settles after the release and clicks a latched carry down where it let go, moves carry real
+      time stamps, and a press waiting out its hold owes the loop frames (`DragHoldTest`).
+- [x] **A source's sender cannot be a lambda in a test** (FN-16, atchung). Done 2026-11-07: `Sender.collecting(topic,
+      list)` keeps each send in the list at once, with no bus (`CollectingSenderTest`). A list, not a `Consumer`: a
+      sender made from a function would be a callback, which T7.2 keeps out of what a part is handed.
+
+### Found by rebuilding MainFrame on v0.2 (2026-11-05)
+
+MainFrame rebuilt from the template on v0.2 (its `docs/rebuild.md` and `docs/shape.md`, in Spike/mainframe on
+`v0.2`); M0 put a live shell in a tab through a `@Source @Destination`, the first application to use one. The numbers
+are its v0.2 notes (`docs/framework-notes.md` there).
+
+- [ ] **An application's own command-line grammar has nowhere to go** (FN-1; 0.1's FN-1 again): a value handed to
+      `VexelApplication.run` that the wiring provides, or `@VexelApp(arguments = ...)`, and its options in the usage.
+- [ ] **A widget's messages are keyed by its window, not by the widget** (FN-2, vexelray-gui): a part keyed per
+      widget (a destination per tab) cannot hear `TerminalScreen.SENT`/`FITTED`; the view forwards each with the tab's
+      id.
+- [ ] **A source's `open` has no door for a failure it expects** (FN-3): an `open` that may refuse with a reason,
+      which becomes the run's reply, so a mistyped program is not a connection that holds nothing.
+- [ ] **A source's sender cannot be a lambda in a test** (FN-4; Vexplore's FN-16 again, atchung).
+- [ ] **A terminal's text cannot be awaited by a script** (FN-5, vex-suite-common): the screen's visible text as a
+      readout `ottermate await` can read.
+- [ ] **The lockup names the `-gui` module, not the application** (FN-6, template): "mainframe-gui" under
+      `exec:exec`, from `About.name` preferring the build's name.
+- [ ] **A widget's per-character edge fills a view's 64-slot mailbox** (FN-8, vexelray-gui and vex-suite-common): one
+      `ottermate type` of 150 characters halted MainFrame on `TerminalScreen.Sent`. A frame's typing as one message,
+      or a view draining a topic published on its own thread within the same frame, would need no capacity guess.
+- [ ] **A source that outruns a view halts the application** (FN-9): `type` of an 8 MB file in a tab filled the
+      view's `Output` mailbox in ~250 ms. §11's "back-pressure is the source's" means every fast reader writes its own
+      flow control (MainFrame built a `Shown` per `Output`, two in flight; paced, vex-suite-common's "draws once
+      per feed" measured cheap: two feeds a frame, 1.5 ms frames). A sender told when its hearers have
+      room, or a topic kind that appends to the unconsumed batch, would make it the framework's once.
+- [ ] **`Tabs` has no place for an application's own nodes** (FN-10, vexelray-gui): no trailing slot after the
+      headers (a +, a status pill) and no in-place header edit; MainFrame floats them at the strip's right end.
+- [ ] **A header's double-click is not a declarable message** (FN-11, vexelray-gui): `Tabs.ACTIVATED`, as a list's
+      row has; MainFrame reads `gui.clicks()` through a hand-opened mailbox the processor cannot see.
+- [ ] **A menu line cannot show its chord** (FN-12, vexelray-gui): an item naming the key-map action it stands for.
+- [ ] **The framework's key-bindings window cannot be opened by a `WindowCommand`** (FN-13): `KeymapWindow` registers
+      through `GuiApp.window`, not `Windows`, so `show("keymap")` from a menu or chord is ignored; declare it through `Windows`.
+- [ ] **A key-map action can only be declared application-wide, then moved** (FN-14, vexelray-gui): two views that
+      each scope their own Esc depend on the order they are built in; declare an action straight into its place.
+- [ ] **A headless tree runs the real jobs against the real home** (FN-15): MainFrame's `ViewTest` wrote the real
+      settings file and started a real MainFrame; a test tree on a home of its own, and a way to stand a job in.
+- [ ] **A `Board` card has no place for a field and no key of its own** (FN-16, vexelray-gui): renaming a card in
+      place, and Delete on the focused card, cannot be declared; MainFrame's Workspaces window renames under the
+      cards and removes from the card's menu only. A face with an editing state, and a deck action that reaches the
+      focused card's item as `ListView.action` does a row's.
+- [ ] **A list says back a selection made in code as the person's** (FN-17, vexelray-gui): `selection().at(row)`
+      publishes `SELECTED` a frame later, like a click; MainFrame's view keeps the echoes it caused and drops them.
+      Say who selected, or publish nothing for code, as `TextField.text` records no undo.
+- [ ] **A field put away blocks the window's undo** (FN-18, vexelray-gui): its typing is in the window's history,
+      and `Gui.undo` refuses an entry whose target has left the tree, so every step behind it is out of reach.
+      Step past an entry whose target is gone, or say in `TextField`'s javadoc that a passing field wants its own.
+- [ ] **ottermate cannot answer a `PickFile`** (FN-19, vexelray-gui automation): every *Choose…*/*Add folder…* is
+      checked only in a view test; `ottermate pick <path>`, answering the next picker of the run.
+- [ ] **A text field's larger text loses its descenders** (FN-20, vexelray-gui): `textSize(1.5rem)` cut "y" and
+      "g" at the baseline whatever the field's height; 1.25rem is whole.
+- [ ] **In vex-suite-common: a terminal cannot say its program is waiting for input** (FN-21): `--insert-path`
+      guesses "prompt drawn" as 300 ms quiet after output, kept with `Timer` in the view. Shell integration's OSC 133
+      marks, parsed by `Terminal` and said as `TerminalScreen.PROMPTED`, would make it a fact.
+- [ ] **In vex-suite-common: the Windows pseudoconsole carries no native-image metadata** (FN-22): a native MainFrame
+      stopped on its first tab (`MissingForeignRegistrationError`, `CreatePipe`). `-pty-linux` ships its downcalls;
+      `-pty-windows` should ship ConPty's too, with a native-image test that opens one. MainFrame registers them meanwhile.
+- [ ] **A script cannot wait for a tab, or find one** (FN-23, automation and vexelray-gui): the tab bar's name is blank,
+      `find` missed a header `tree` showed, and answers `ok` when nothing matches. Name the bar by its headers, and let
+      `find` (or an `expect`) fail on no match.
+- [ ] **A script cannot wait for a window to open** (FN-24, automation): `window open` right after Ctrl+O fails while a
+      job lists the workspaces, and the guide's cross-window `await open/open.list` was refused by the running server.
+      `await window <name>`, and the cross-window target as the guide describes it.
+- [ ] **Nothing says how to try an app's installer locally** (FN-25, installer): the CLI that reads `installer.json`,
+      the local `--base-url` / `releases/<tag>/` / `serve.ps1` steps and `-Force` for a same-version snapshot are spread
+      over three repositories, and a `"comment"` key in the config fails generation. Accept a comment; have the template
+      write `installer.json`; or one `--local` command that generates, stages and serves it.
+- [ ] **The build bill never finds an app's own `installer.json`** (FN-26, build): `identify` looks beside the gui
+      module's pom, a generated app keeps it at the root, so the bar says the module's name (`mainframe-gui`,
+      `vexplore-gui`) and the app id never meets the installer's Linux `appId`. Look up to the root, or have the template
+      set `vexelray.installer.config`.
+- [ ] **A bar's title looks like one more menu** (FN-27, widgets): drawn in `Role.DIM` at the menus' size right
+      after them, so a person clicks it; the title node is private, so an app cannot restyle it. Set it apart by default
+      (a fainter role, a divider), or let an app style it.
+- [x] **A wordmark never hears that the app menu is open** (MainFrame FN-28, widgets): `TitleBar.Wordmark.ink` gets
+      `INK` at rest and the accent while hovered or pressed, and nothing when the lockup's menu opens; the lockup drops
+      back to rest as the pointer moves into the menu. Keep the lockup lit while its menu is open and tell the
+      wordmark (an open state or a call beside `ink`), so a logo can look one way on hover and another when open.
+      **Done 2026-11-07** (vexelray-gui): `ContextMenu` tells its opener when it closes; the lockup and the bar's menus
+      stay lit while theirs is open; `Wordmark.state(pointer, open)`, whose default inks the accent while open.
+
+### Found by bringing PhaseArray onto v0.2 (2026-11-06)
+
+PhaseArray (Spike/phasearray on `v0.2`), generated from the template and turned into a sound design tool. Its
+tests broke when it moved onto the current stack; the numbers are its `docs/framework-notes.md`.
+
+- [ ] **A tick with no alarm is refused only when a timed bound is first armed** (FN-5, atchung): `bus.tick(null)`
+      compiles and builds, and `Waits.arm` throws at the first message to an inbox with a time bound. Refuse the
+      bound when the inbox is made, or make the alarm an argument of `bus.tick`.
+- [ ] **`CloseRequested`'s two-argument form can be published, and fails as a bare NPE** (FN-6): `to` is null and
+      the edge keyed by it throws an NPE that names neither the record nor the field. Rename the inbox-only form so
+      it reads as such, or refuse a null edge key on publish with a message naming `to`.
+
+### Found by Rasterware's Trace, Convert and Layers panels (2026-11-08)
+
+Rasterware (Spike/Pix on `v0.2`) traces a picture into an SDG drawing beside it and compares the two across a line
+(its `docs/trace.md`), writes it in another format (`docs/convert.md`) and peels a drawing's layers
+(`docs/layers.md`). The numbers are its `docs/framework-notes.md`.
+
+- [ ] **The tracer has no corner fitting** (FN-22, `vexelray-fields-sdg` `Trace`): the Trace board's Corners control
+      cannot be offered. A corner fit as a `Trace.Options` field, with its bench case.
+- [ ] **A node's reported box includes its drawn offset, and an overflowing child is not centred** (FN-23,
+      `vexelray-gui-core`): a view that measures a node it moves chases itself every frame. Report the layout box apart
+      from the drawn one; centre an overflowing child as CSS does.
+- [ ] **A stretched `Segment` packs its options at its start** (FN-24, `vexelray-gui-widget`): the rest of its width is
+      a dead track. Share a given width among the options, or keep its own width.
+- [ ] **No way to draw one node with another's transform** (FN-25, `vexelray-gui-core` `Drawn`): a compare repeats the
+      picture's scale and offset by hand. A `Drawn.follow(node, leader)`.
+- [ ] **No image encoder in the stack** (FN-26, imagelib, `vexelray-fields-convert`): Convert can write PNG and SDG and
+      not JPEG, WebP, GIF or SVG. An `encode` beside imagelib's `decode`; an SDG → SVG conversion.
+- [ ] **Hiding a focused button moves the focus ring to the first control** (FN-27, `vexelray-gui-core`): the ring
+      shows on a control nobody touched. Focus from a hidden node goes to its opener or nowhere; the ring follows keys.
+- [ ] **No turn and no perspective in `Drawn`** (FN-28, `vexelray-gui-core`, canvas): the Layers board's 3D peel is
+      drawn flat. `Drawn.turn`, then a perspective transform drawn as a quad.
+- [ ] **No look that draws an SDG layer's distance** (FN-29, `vexelray-canvas` looks): the board's *Show distance
+      fields* is left out. A `Look` that paints distance as bands.
+- [ ] **The processor crashes on a stale sibling module** (FN-30, `-processor`): an NPE naming nothing, where it could
+      name the class a `@Configuration` lists and say to build the module it is in first.
 
 ## Upstream
 

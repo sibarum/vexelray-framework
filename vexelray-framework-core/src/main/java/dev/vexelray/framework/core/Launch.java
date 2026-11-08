@@ -84,7 +84,7 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
      */
     public static final Set<String> FRAMEWORK_KEYS = Set.of("profile", "automation", "automation.control",
             "automation.diagnostics", "automation.available", "automation.inspector", "recorder", "log",
-            "restart.after");
+            "restart.after", "logic", "replayable");
 
     /**
      * {@code --restart.after=<pid>}: this launch is a restart of process {@code pid}, and waits for it to have exited

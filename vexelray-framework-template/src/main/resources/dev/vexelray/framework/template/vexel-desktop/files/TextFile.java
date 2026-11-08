@@ -1,4 +1,4 @@
-package ${packageName}.text;
+package ${packageName}.core;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -13,12 +13,11 @@ import java.util.List;
 /**
  * Everything that can go wrong between bytes on disk and text in a field, decided before the field is touched.
  *
- * <h2>Why this is in a package of its own</h2>
+ * <h2>Why this is in {@code -core}</h2>
  *
- * <p>It is policy over bytes: no {@code Gui}, no window, no thread. Code like that goes in a sub-package with public
- * types so it can be tested in milliseconds and grown without dragging the view along — the generated classes one
- * package up are package-private because a tree is only ever wired by its own {@code Recipes}, and this is not
- * part of the tree.
+ * <p>It is policy over bytes: no {@code Gui}, no window, no thread. Code like that goes in the {@code -core} module,
+ * where it is tested in milliseconds and grown without dragging the view along. The jobs call it on the offload lane
+ * ({@link ReadFile}, {@link WriteFile}); nothing in the view does.
  *
  * <h2>The policy</h2>
  *

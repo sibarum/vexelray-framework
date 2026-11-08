@@ -8,21 +8,24 @@ import dev.vexelray.framework.core.Lanes;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Pacing;
 import dev.vexelray.framework.core.Phase;
+import dev.vexelray.framework.core.Stalled;
+import dev.vexelray.framework.core.Timer;
 import dev.vexelray.framework.core.WakeSource;
 import dev.vexelray.framework.core.Watchdog;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.ComputeQueue;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
+import dev.vexelray.gui.keymap.Keymap;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
 import dev.vexelray.text.FontSet;
 import sibarum.atchung.Atchung;
+import sibarum.atchung.Inbox;
 import sibarum.probe.Log;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,18 +68,32 @@ public final class Shell {
     private String busGraph;
     /** What main was handed, as the OS holds it; set by {@link VexelApplication} before any phase runs. */
     private List<String> arguments = List.of();
-    /** The restart a closed main window starts, once the loop has ended; null for none. See {@link #restart}. */
-    private volatile Relaunch restarting;
+    /** The restart a closed main window starts, once the loop has ended; null for none. Main thread. */
+    private Relaunch restarting;
     private final FrameHooks hooks = new FrameHooks();
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
     private final Atchung bus = Atchung.create();
+    private final Senders senders = new Senders(bus);
+    private final Timer timer;
     private final PointerLock pointerLock = new PointerLock();
-    private final HeldDialogs dialogs = new HeldDialogs();
+    private final HeldDialogs dialogs = new HeldDialogs(bus);
+    private final OwnAsks ownAsks = new OwnAsks(bus);
     private final Lanes lanes;
     private final Watchdog watchdog;
-    /** Components placed but not yet started. See {@link #place} for why those are two different moments. */
-    private final List<Placement> placements = new ArrayList<>();
+    /** Where the ticks run, read from the launch when the shell is made, so a bad value fails before anything is built. */
+    private final boolean logicOnMain;
+    /** The logic lane, made when the first component asks for an inbox; null when none does. */
+    private Logic logic;
+    /**
+     * Whether this shell is a {@link Replay}'s: its components only, on a bus of their own, with no jobs, no sources
+     * and a silent timer, since the recording it runs says what each of those sent.
+     */
+    private final boolean replaying;
+    /** What the logic lane takes in and sends, from launch, in a run launched {@code --replayable}; else null. */
+    private final InputRecording recording;
+    /** A fresh wiring of this application, for a replay to build its components from; null when it has none. */
+    private Wiring again;
 
     private Appearance appearance = Appearance.DEFAULT;
     /** The application's own fonts, or null for the standard set. See {@link #fonts(FontSet)}. */
@@ -84,9 +101,11 @@ public final class Shell {
     private Settings settings;
     private Gui gui;
     private KronoGui krono;
+    private Closes closes;
     private GuiApp app;
     private TitleBar titleBar;
     private Windows windows;
+    private Keymap keymap;
     private Icon windowMark;
     private InputBackend input;
     private ClipboardBackend clipboard;
@@ -99,17 +118,38 @@ public final class Shell {
     }
 
     Shell(Launch launch, AppInfo info, Lanes lanes) {
+        this(launch, info, lanes, false);
+    }
+
+    private Shell(Launch launch, AppInfo info, Lanes lanes, boolean replaying) {
         this.launch = launch;
         this.info = info;
         this.lanes = lanes;
-        this.watchdog = new Watchdog(lanes);
+        this.replaying = replaying;
+        this.timer = replaying ? Timer.silent(bus) : new Timer(bus);
+        this.recording = !replaying && replayable(launch) ? new InputRecording(keepsValues(launch)) : null;
+        this.watchdog = new Watchdog(lanes, bus);
+        this.logicOnMain = logicOnMain(launch);
+        if (replaying) {
+            // No backstop halt: a replay is closed by the run it is part of, which keeps its own.
+            disposer.register(lanes);
+            return;
+        }
         // First registration, so it is the last thing closed: the halt it arms is the backstop for the rest of the
         // teardown, and a backstop that closed early would be disarmed by the very shutdown it exists to bound.
         disposer.register(watchdog);
         // Second, so the lanes are the last of the rest: a lane outlives every tree presented on it, and the
         // whole point of the container owning the threads is that a window closing does not take them.
         disposer.register(lanes);
+        if (recording != null) {
+            // On a thread of the lanes, closed before them.
+            recording.start(lanes);
+            disposer.register(recording);
+        }
         disposer.beforeClose(() -> watchdog.haltAfter(liveness.closeBound().toNanos()));
+        // When shutdown begins, before any placement closes: a beat sent into a closing component is one it cannot
+        // answer.
+        disposer.beforeClose(timer::close);
     }
 
     // ---- always available -------------------------------------------------------------------------------
@@ -169,8 +209,11 @@ public final class Shell {
         how.unavailable().ifPresent(why -> {
             throw new IllegalStateException("cannot restart: " + why);
         });
+        // On the main thread, where a window is commanded: this is called from anywhere, the automation socket
+        // among them.
         Window main = windows().main();
-        main.close(() -> restarting = how, () -> LOG.info("restart cancelled: the window stayed open"));
+        app().post(() -> main.close(() -> restarting = how,
+                () -> LOG.info("restart cancelled: the window stayed open")));
     }
 
     /** Start the restart a closed main window asked for, if any. After the loop has ended. */
@@ -220,58 +263,253 @@ public final class Shell {
     }
 
     /**
-     * <b>The application's threads</b> — the handler lane, the offload lane, and the component threads.
-     *
-     * <p>The second of the two things the concurrency model needed, and the one that was not true until the
-     * pool upstream stopped being a field initializer. {@code Gui} used to build a {@code newCachedThreadPool}
-     * whatever it was handed, so passing an executor redirected input handlers and left the pool standing: an
-     * application's thread count was a property of how many trees it happened to hold rather than of anything
-     * it decided, and placement could not be decided in the wiring because there was nothing to decide it
-     * <em>with</em>.
-     *
-     * <p><b>Available in every phase</b>, for the same reason the bus is: a lane is what the phases are built
-     * on rather than something one of them builds. A component placed in {@link Phase#MODEL}, before there is
-     * a {@code Gui} at all, is exactly the case this is heading for.
-     *
-     * <p><b>Owned rather than accepted</b>, again like the bus. An application that already has an executor it
-     * means to share is a real case and would want the other arrangement; the seam to add when somebody has
-     * one is an overload of {@code run}, not a change here.
-     *
-     * <p>Closed last, after every tree presented on it — registered with the {@link #disposer()} before
-     * anything else exists, which is what makes that ordering structural rather than remembered.
+     * Time as a message source: a message on a topic after a delay or every period ({@link Timer}). <b>Available in
+     * every phase</b>, like the bus it publishes on, so a component in {@link Phase#MODEL} can take it. Closed when
+     * shutdown begins, before any component is.
      */
-    public Lanes lanes() {
-        return lanes;
+    public Timer timer() {
+        return timer;
     }
 
     /**
-     * A component's thread, mailboxes and wake, registered for start and shutdown. <b>Not public</b>: the
-     * generated wiring reaches it through {@link Placements}, and an application does not call it, because
-     * placement is decided on the declaration ({@code @Component(lane = ...)}) where the processor can check it
-     * and never at a later moment in a method body (T1.3, and {@code docs/components.md}, ruling 2).
-     *
-     * <p>Returns a {@link Placement} with nothing running on it: it is given its mailboxes, and the framework
-     * starts it once every component is constructed. Start order is distinct from construction order because a
-     * mailbox must not pump before its publishers exist, and that is a rule the container keeps rather than one
-     * a wiring is trusted to remember.
-     *
-     * <p><b>Available in every phase</b>, like the bus and the lanes it is built from, so a component in
-     * {@link Phase#MODEL}, two phases before there is a {@code Gui}, can be placed.
-     *
-     * <p><b>The wake comes with it, and there is nothing to call.</b> Every placement is registered as a
-     * {@code WakeSource} when it starts, and wakes the loop itself after any drain that delivered something.
-     * A wake an application has to remember is a window which is responsive except for the interactions that
-     * happened to arrive that way, a bug this stack has already paid for twice.
-     *
-     * <p>Closed in reverse placement order at shutdown, drain then stop, before the lanes themselves go.
-     *
-     * @param name what the component is called — on its thread and in whatever reports on it later
+     * A sender for any topic, for what a gesture declares it sends: a view's shortcut, menu item or dialog button.
+     * Every phase, like the bus. See {@link Senders}.
      */
-    Placement place(String name) {
-        Placement placement = new Placement(name, bus, lanes);
-        placements.add(placement);
-        disposer.register(placement);
-        return placement;
+    public Senders senders() {
+        return senders;
+    }
+
+    /**
+     * <b>The application's threads</b>: the logic lane's, the declared lanes', and the job lane.
+     *
+     * <p><b>Not public</b>, since 0.2: what runs where is the framework's to decide, from the declarations, and a lane
+     * handed to an application is a thread it could run anything on (T2.5, T7.2). Closed last, after every tree
+     * presented on it: registered with the {@link #disposer()} before anything else exists, which is what makes that
+     * ordering structural rather than remembered.
+     */
+    Lanes lanes() {
+        return lanes;
+    }
+
+    /** Jobs handed to the job lane and not yet finished: the requests waiting for a thread among them. */
+    private final java.util.concurrent.atomic.AtomicInteger jobsOwed = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * The job lane, counting what it owes: a job counts from the moment it is handed over until it has finished, and
+     * so until after its reply is published. With {@link Logic#quiet}, which counts that reply's arrival before the job
+     * stops counting, there is no instant at which an answer under way is owed by nobody.
+     */
+    java.util.concurrent.Executor jobLane() {
+        java.util.concurrent.Executor jobs = lanes.jobs();
+        return work -> {
+            jobsOwed.incrementAndGet();
+            try {
+                jobs.execute(() -> {
+                    try {
+                        work.run();
+                    } finally {
+                        jobsOwed.decrementAndGet();
+                    }
+                });
+            } catch (RuntimeException | Error e) {
+                jobsOwed.decrementAndGet();
+                throw e;
+            }
+        };
+    }
+
+    /**
+     * <b>Whether the application owes nothing</b>: no job is in flight and every message for the logic lane has been
+     * delivered. What the automation driver's {@code settle} waits for besides the clock and the frame loop, so a
+     * capture after a request waits for its answer to land (ROADMAP phase 5). Any thread.
+     */
+    public boolean owesNothing() {
+        Logic l = logic;
+        return jobsOwed.get() == 0 && (l == null || l.quiet());
+    }
+
+    /** What {@link #owesNothing} is waiting on, one line per reason; empty when nothing is owed. Any thread. */
+    public List<String> owed() {
+        List<String> why = new java.util.ArrayList<>();
+        int jobs = jobsOwed.get();
+        if (jobs > 0) {
+            why.add(jobs + (jobs == 1 ? " job" : " jobs") + " on the job lane not finished");
+        }
+        Logic l = logic;
+        long messages = l == null ? 0 : l.undelivered();
+        if (messages > 0) {
+            why.add(messages + (messages == 1 ? " message" : " messages") + " for the logic lane not delivered");
+        }
+        return why;
+    }
+
+    /** The launch setting choosing where the ticks run ({@code docs/threading.md} T1.7). */
+    static final String LOGIC = "logic";
+
+    /**
+     * Whether {@code --logic} asks for the ticks on the main thread: {@code main}, or {@code thread}, the default.
+     *
+     * @throws IllegalArgumentException for any other value, which is a launch the application cannot honour
+     */
+    static boolean logicOnMain(Launch launch) {
+        String where = launch.override(LOGIC);
+        if (where == null || where.equals("thread")) {
+            return false;
+        }
+        if (where.equals("main")) {
+            return true;
+        }
+        throw new IllegalArgumentException("--" + LOGIC + "=" + where + ": the logic runs on a thread of its own"
+                + " (thread) or on the main thread (main)");
+    }
+
+    /** Whether the logic's ticks run on the main thread ({@code --logic=main}, T1.7). */
+    boolean logicOnMain() {
+        return logicOnMain;
+    }
+
+    /** The launch setting that keeps what the logic takes in, so the run can be replayed ({@link Replay}). */
+    static final String REPLAYABLE = "replayable";
+
+    /**
+     * Whether this launch keeps a recording: {@code --replayable}, or {@code VEXELRAY_REPLAYABLE} in the environment
+     * when the launch does not say, as a tool that launches the application asks for it.
+     */
+    static boolean replayable(Launch launch) {
+        String asked = replayableAsked(launch);
+        return !asked.isEmpty() && !asked.equals("false") && !asked.equals("0");
+    }
+
+    /** What a recording keeps of each send besides its fingerprint: the send itself, with {@code --replayable=values}. */
+    static final String VALUES = "values";
+
+    /** Whether this launch keeps each send too, so a replay can say what the run sent where it differs. */
+    static boolean keepsValues(Launch launch) {
+        return replayableAsked(launch).equals(VALUES);
+    }
+
+    private static String replayableAsked(Launch launch) {
+        String asked = launch.override(REPLAYABLE);
+        if (asked == null) {
+            asked = System.getenv("VEXELRAY_REPLAYABLE");
+        }
+        return asked == null ? "" : asked.trim();
+    }
+
+    /** A shell for replaying {@code of}'s recording: the same launch, settings and build, and nothing running. */
+    static Shell replaying(Shell of) {
+        Shell s = new Shell(of.launch, of.info, new Lanes(), true);
+        s.build = of.build;
+        s.settings = of.settings;
+        return s;
+    }
+
+    /** Whether this is a replay's shell, whose jobs and sources are not run ({@link Jobs}, {@link Sources}). */
+    boolean replaying() {
+        return replaying;
+    }
+
+    /** What the logic lane has taken in and sent, or null in a run not launched {@code --replayable}. */
+    InputRecording recording() {
+        return recording;
+    }
+
+    void again(Wiring again) {
+        this.again = again;
+    }
+
+    /** A fresh wiring of this application, or null. */
+    Wiring again() {
+        return again;
+    }
+
+    /** The logic lane's inboxes, in the order the tick delivers them; empty when there is no logic lane. */
+    List<String> logicInboxes() {
+        return logic == null ? List.of() : logic.names();
+    }
+
+    /** The logic lane's tick, for a replay to run. */
+    sibarum.atchung.Tick logicTick() {
+        return logic().tick();
+    }
+
+    /** The lane a replay runs on: its thread, {@code vexel-component-replay}, writes the replay's rows, not the run's. */
+    static final String REPLAY_LANE = "replay";
+
+    /**
+     * Run what the logic has taken in so far again, on a fresh set of this application's components, and say which
+     * sends differ: {@code replay}'s answer on the automation socket ({@link Replay}). Any thread but the logic's; the
+     * replay itself runs on a thread of its own, so that the rows its components write are told from the run's by
+     * their thread, and this one waits for it.
+     */
+    public String replay() {
+        String[] answer = {"err replay: it ended without an answer"};
+        Thread replaying = lanes.thread(REPLAY_LANE, () -> answer[0] = Replay.run(this));
+        try {
+            replaying.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "err replay: interrupted while it ran";
+        }
+        return answer[0];
+    }
+
+    /**
+     * The logic lane ({@link Logic}), made the first time a component asks for anything on it, in the mode the launch
+     * chose: a thread of its own by default, the main thread with {@code --logic=main} (T1.7).
+     */
+    private Logic logic() {
+        if (logic == null) {
+            logic = new Logic(bus, lanes, logicOnMain);
+            if (recording != null) {
+                logic.record(recording);
+            }
+            logic.keepBoundsWith(timer);
+            disposer.register(logic);
+        }
+        return logic;
+    }
+
+    /**
+     * A component's inbox on the logic lane ({@link Logic}), on {@code lane}, made the first time its name is asked
+     * for. <b>Not public</b>: the generated wiring reaches it through {@link Inboxes}, for every component, whether it
+     * takes its {@code Inbox} or declares {@code @Subscribe} methods. Placement is decided on the declaration
+     * ({@code @Component(lane = ...)}), where the processor can check it, and never in a method body (T1.3). The lane
+     * is made with the first inbox, started with the components, and closed at shutdown before the lanes go.
+     */
+    Inbox inbox(String name, String lane) {
+        return logic().inbox(name, lane);
+    }
+
+    /** As {@link #inbox(String, String)}, on the logic lane's own share. */
+    Inbox inbox(String name) {
+        return inbox(name, dev.vexelray.framework.api.Component.DEFAULT_LANE);
+    }
+
+    /**
+     * As {@link #inbox(String, String)}, for a component that declared what it hears ({@code @Hears}): when the lane
+     * starts, the inbox must be subscribed to exactly those topics and its ledgers' own, or the application does not
+     * start.
+     */
+    Inbox inbox(String name, String lane, List<String> hears) {
+        Inbox in = inbox(name, lane);
+        logic.declare(name, hears);
+        return in;
+    }
+
+    /** As {@link #inbox(String, String, List)}, on the logic lane's own share. */
+    Inbox inbox(String name, List<String> hears) {
+        return inbox(name, dev.vexelray.framework.api.Component.DEFAULT_LANE, hears);
+    }
+
+    /**
+     * In single-thread mode, run the logic's tick on this thread, the main thread, if anything is waiting for one: what
+     * a frame calls. Nothing in the default mode, where the logic lane's own thread runs every tick.
+     */
+    void runLogicOnMain() {
+        if (logic != null) {
+            logic.runOnMain();
+        }
     }
 
     /**
@@ -305,12 +543,13 @@ public final class Shell {
     }
 
     /**
-     * <b>The questions this application asks the person using it</b>: a {@code Modal}, and the native pickers for a
-     * file or a folder. See {@link Dialogs}.
+     * <b>What shows this application's dialogs</b>, for a view asking with a {@code Modal} of its own. A question
+     * that is only words is an {@code Ask} message, and a picker a {@code PickFile}, which need no part to take this.
+     * See {@link Dialogs}.
      *
      * <p><b>Available in every phase</b>, like the bus, and safe from any thread: a question asked before there is a
-     * window is held and asked once there is. The same value throughout, whoever ends up answering — the
-     * application's own, if it handed some back through {@link #dialogs(Dialogs)}, or the framework's from
+     * window is held and asked once there is, in the main window's frame. The same value throughout, whoever ends up
+     * answering — the application's own, if it handed some back through {@link #dialogs(Dialogs)}, or the framework's from
      * {@link Phase#ATTACH}.
      */
     public Dialogs dialogs() {
@@ -338,6 +577,11 @@ public final class Shell {
         }
         this.dialogs.target(dialogs);
         return this;
+    }
+
+    /** The framework's own questions, asked as any part asks. Main thread. See {@link OwnAsks}. */
+    OwnAsks ownAsks() {
+        return ownAsks;
     }
 
     /** Whether the application handed its own dialogs back, and so whether the framework's are wanted. */
@@ -661,6 +905,23 @@ public final class Shell {
     }
 
     /**
+     * The application's keyboard commands, by name, with chords the person can change: declare each one here
+     * ({@code keymap.action("file.save", "Save", chord).sends(sender, message)}), the one way an
+     * application binds a window-wide chord. Exists from {@link Phase#GUI}, on the main window's {@code Gui}; a command meant from
+     * another window too is claimed there with {@code keymap.attach(window.gui())}.
+     *
+     * <p><b>The framework owns the button that rebinds them</b>, as it owns the screenshot: once any action is
+     * declared by the end of {@code TREE}, every framework title bar shows the key button, which opens the editor in a
+     * window of its own (vexelray-gui's {@code KeymapWindow}). An application that declares none shows none, because
+     * it has nothing for the editor to list. What the person changed is kept in {@code keys.properties} in the
+     * application's home, from {@code ATTACH}; a headless tree ({@code VexelApplication.tree}) neither reads nor
+     * writes it, so a test sees the defaults.
+     */
+    public Keymap keymap() {
+        return require(Phase.GUI, "the keymap", keymap);
+    }
+
+    /**
      * The GPU device, and the main-thread boundary. Exists from {@link Phase#WINDOW}; anything reached through this
      * must be touched on the main thread only.
      *
@@ -750,23 +1011,23 @@ public final class Shell {
     }
 
     /**
-     * Start every placed component, each with its wake already connected.
+     * Start the components: the logic lane, with its wake already connected.
      *
      * <p>Called once, after the wiring's {@code ATTACH} has returned and before the loop begins — so every
-     * publisher a component might hear from exists, and every component's own thread starts at the same known
-     * moment rather than wherever its constructor happened to sit.
+     * publisher a component might hear from exists, and the first tick runs at a known moment rather than wherever
+     * a constructor happened to sit.
      *
-     * <p>The wake is connected <em>before</em> the thread starts, because a component whose first drain
-     * publishes something would otherwise announce it into a wake that is still a no-op. There is no wake in a
-     * headless {@code tree} run, where there is no loop to nudge; a placement with none simply does not nudge
-     * one, which is the same shape as the accessor that refuses before its phase.
+     * <p>The wake is connected <em>before</em> the lane starts, because a component whose first delivery publishes
+     * something would otherwise announce it into a wake that is still a no-op. There is no wake in a headless
+     * {@code tree} run, where there is no loop to nudge; the lane then simply does not nudge one, which is the same
+     * shape as the accessor that refuses before its phase.
      */
     void startComponents() {
-        for (Placement placement : placements) {
+        if (logic != null) {
             if (app != null) {
-                placement.onWake(app::postWake);
+                logic.onWake(app::postWake);
             }
-            placement.start();
+            logic.start();
         }
         startWatchdog();
     }
@@ -794,8 +1055,11 @@ public final class Shell {
                 return lanes.interruptLane(lane);
             }
         };
-        watchdog.start(policy.stallThreshold().toNanos(), stall -> policy.onStall(
-                new LivenessPolicy.Stall(stall.lane(), Duration.ofNanos(stall.nanos())), context));
+        // Heard directly on the bus, so on the watchdog's thread: the policy must run while the lanes are wedged,
+        // which a mailbox on one of them would not. A part hears the same report in its mailbox, on its own lane.
+        bus.subscribe(Stalled.TOPIC, stall -> policy.onStall(
+                new LivenessPolicy.Stall(stall.lane(), stall.stalledFor()), context));
+        watchdog.start(policy.stallThreshold().toNanos());
     }
 
     void settings(Settings settings) {
@@ -804,10 +1068,21 @@ public final class Shell {
 
     void gui(Gui gui) {
         this.gui = gui;
+        // Every question is heard in the main window's frame from here: an Ask, a PickFile, a Modal asked directly.
+        dialogs.install(gui);
     }
 
     void krono(KronoGui krono) {
         this.krono = krono;
+    }
+
+    void closes(Closes closes) {
+        this.closes = closes;
+    }
+
+    /** Every window's close gate. Set at {@code GUI}, before the first {@link Window} is made. */
+    Closes closes() {
+        return closes;
     }
 
     void titleBar(TitleBar titleBar) {
@@ -816,6 +1091,10 @@ public final class Shell {
 
     void windows(Windows windows) {
         this.windows = windows;
+    }
+
+    void keymap(Keymap keymap) {
+        this.keymap = keymap;
     }
 
     void app(GuiApp app) {

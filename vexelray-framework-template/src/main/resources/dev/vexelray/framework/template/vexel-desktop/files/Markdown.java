@@ -1,4 +1,4 @@
-package ${packageName}.text;
+package ${packageName}.core;
 
 import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.text.Span;

@@ -7,7 +7,7 @@
     <parent>
         <groupId>dev.vexelray.framework</groupId>
         <artifactId>vexelray-framework</artifactId>
-        <version>0.1.3-SNAPSHOT</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>vexelray-framework-core</artifactId>
@@ -23,6 +23,11 @@
         <dependency>
             <groupId>dev.vexelray.framework</groupId>
             <artifactId>vexelray-framework-api</artifactId>
+        </dependency>
+        <!-- The bus, which is itself JDK-only: the Timer names a Topic (architecture.md, "-api and -core"). -->
+        <dependency>
+            <groupId>sibarum.atchung</groupId>
+            <artifactId>atchung-core</artifactId>
         </dependency>
     </dependencies>
 </project>

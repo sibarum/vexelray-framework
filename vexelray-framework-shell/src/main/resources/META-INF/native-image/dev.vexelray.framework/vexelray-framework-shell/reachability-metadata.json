@@ -11,6 +11,9 @@
     },
     {
       "glob": "dev/vexelray/framework/shell/vexelray-logo-*.vxpx"
+    },
+    {
+      "glob": "dev/vexelray/framework/shell/vexelray-logo.sdgb"
     }
   ]
 }

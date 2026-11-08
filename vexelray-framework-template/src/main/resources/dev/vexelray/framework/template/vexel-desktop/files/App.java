@@ -14,10 +14,12 @@ import dev.vexelray.framework.shell.VexelApplication;
  * its wakes and its pacing, installing the dialogs, parsing the command line and closing everything in the right
  * order are all done for you.
  *
- * <p>What this application builds — a text editor with tabs and a file navigator — is in {@link Recipes}, one
- * method per part. {@code ${className}AppWiring}, which builds those parts in order, is generated from them and from
- * the {@code @VexelApp} on {@code ${className}App} while the project compiles — so the facts below are stated once,
- * here, and the wiring reads them.
+ * <p>What this application builds — a text editor with tabs and a file navigator — is in two modules. This one,
+ * {@code -gui}, is the view: {@link Recipes}, one method per part, and the {@link View}, which shows what the editor
+ * decides. {@code -core} is the controller: the editor, which decides, and the jobs that touch the disk. They talk by
+ * messages and nothing else ({@code Messages}, in {@code -core}). {@code ${className}AppWiring}, which builds all of it
+ * in order, is generated from them and from the {@code @VexelApp} on {@code ${className}App} while this module
+ * compiles — so the facts below are stated once, here, and the wiring reads them.
  *
  * <pre>
  * ${className}                     the editor, on the folder it was last showing (or the working directory)
@@ -30,8 +32,9 @@ import dev.vexelray.framework.shell.VexelApplication;
  * window. Needs {@code --enable-native-access=ALL-UNNAMED}.
  *
  * <p><b>{@code ${className}App} declares the application.</b> Its {@code starters} is everything configuring this
- * application beyond {@link Recipes}, listed rather than discovered: {@code AutomationStarter}, the automation
- * sockets, in every build, the release one included — off until the launch or the title bar's plug switches them on.
+ * application beyond this module, listed rather than discovered: {@code Core}, which lists {@code -core}'s parts, and
+ * {@code AutomationStarter}, the automation sockets, in every build, the release one included — off until the launch
+ * or the title bar's plug switches them on.
  */
 public final class ${className} {
 
@@ -46,11 +49,11 @@ public final class ${className} {
     static final int H = ${height};
 
     /**
-     * The mark, from the class path's root: {@code src/main/rc/${artifactId}.ico}, which the pom also puts there and
+     * The mark, from the class path's root: {@code src/main/rc/${icon}.ico}, which the pom also puts there and
      * the executable links. It starts as the framework's own; replace the file, and the window, its taskbar button
      * and the {@code .exe} all change together.
      */
-    static final String ICON = "/${artifactId}.ico";
+    static final String ICON = "/${icon}.ico";
 
     /**
      * The smallest this UI is still coherent at, in root ems — a floor, not the design size: a navigator and a

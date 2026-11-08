@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -173,9 +174,17 @@ final class Support {
      */
     record Project(Path dir, String main, String packageName, String className, String appClass) {
 
+        /**
+         * The module the application is in, {@code <artifact>-gui}: where its build output goes, and the working
+         * directory of the JVM {@code exec:exec} forks. {@code dir} is the parent, where Maven is run.
+         */
+        Path gui() {
+            return dir.resolve(main.substring(0, main.indexOf("/src/main/java")));
+        }
+
         /** Where javac put the wiring the processor generated. */
         Path wiring() {
-            return dir.resolve(BUILD_DIRECTORY + "/generated-sources/annotations/" + packageName.replace('.', '/')
+            return gui().resolve(BUILD_DIRECTORY + "/generated-sources/annotations/" + packageName.replace('.', '/')
                     + "/" + appClass + "Wiring.java");
         }
     }
@@ -200,7 +209,7 @@ final class Support {
     static final String SHARED_DIR = "/witnesses/shared";
 
     /** The counter every witness is built on: its state, and the type scale its views use. */
-    static final List<String> SHARED = List.of("Doc", "Model", "Type");
+    static final List<String> SHARED = List.of("Doc", "Counter", "Type");
 
     /**
      * The builder's {@code vexel-desktop} tree, written under {@code root}, with its application swapped for the
@@ -230,7 +239,8 @@ final class Support {
         String recipes = blueprint.paths().stream().filter(p -> p.endsWith("/Recipes.java")).findFirst()
                 .orElseThrow(() -> new AssertionError("no Recipes.java in " + blueprint.paths()));
         String main = recipes.substring(0, recipes.lastIndexOf('/'));
-        String packageName = main.substring("src/main/java/".length()).replace('/', '.');
+        String packageName = main.substring(main.indexOf("src/main/java/") + "src/main/java/".length())
+                .replace('/', '.');
         // The entry class is the one whose main runs the wiring; the @VexelApp class sits beside it, and its name is
         // what the processor names the wiring after.
         String className = blueprint.paths().stream()
@@ -243,7 +253,9 @@ final class Support {
                 .findFirst().orElseThrow(() -> new AssertionError("no @VexelApp class in " + blueprint.paths()));
         // A witness is a counter on real lanes, not an editor, so the editor the builder wrote is taken out and the
         // witness's own application put in. What is kept of the builder's is what every application on it shares:
-        // the entry class and its @VexelApp declaration, the look, the pom and the build. The counter's state model lives in /witnesses/shared,
+        // the entry class and its @VexelApp declaration, the look, the poms and the build. The -core module still
+        // builds, but the declaration stops naming its Core as a starter, so its editor and jobs are not wired: a
+        // witness counts its own lanes and placements, and an idle editor would be one it never asked for. The counter's state model lives in /witnesses/shared,
         // the one every witness drives, and each witness then overlays its own view and recipes.
         Set<String> kept = Set.of(className + ".java", appClass + ".java", "Look.java", "LookTest.java");
         for (String tree : List.of(main, main.replace("src/main/java", "src/test/java"))) {
@@ -265,6 +277,12 @@ final class Support {
                 }
             }
         }
+        Path declaration = dir.resolve(main).resolve(appClass + ".java");
+        String declared = Files.readString(declaration, StandardCharsets.UTF_8);
+        String unwired = declared.replace("starters = {AutomationStarter.class, Core.class}",
+                "starters = AutomationStarter.class");
+        assertNotEquals(declared, unwired, "the template's starters changed; the witness can no longer unwire -core");
+        Files.writeString(declaration, unwired, StandardCharsets.UTF_8);
         List<String> sources = new ArrayList<>();
         for (String name : SHARED) {
             sources.add(SHARED_DIR + "/" + name);

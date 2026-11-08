@@ -204,7 +204,7 @@ application holds. Today that is one expression:
 
 ```java
 app.pacing(() -> Math.min(krono.kron().sleepTimeout().nanos(), memory.nanosUntilSettle()));
-gui.onWork(app::postWake);
+Seams.of(gui).onWork(app::postWake);
 krono.kron().onWork(app::postWake);
 ```
 
@@ -243,6 +243,17 @@ dialog parented to the clicked window, rather than core's, which files a timesta
 directory. A desktop application's working directory is wherever it was launched from, and nothing on
 screen names it, so a person clicking the camera could not find the picture. Core's stays for a script.
 
+**The key button is the framework's too, and earned rather than given.** The framework makes one `Keymap`
+(vexelray-gui's `-keymap`) on the main window's `Gui` at `GUI` and hands it to parts from `TREE`; an application
+declares its commands on it by id, label and default chords, each sending a message: the one way it binds a window-wide chord, since `Gui.shortcut` went (2026-11-07).
+At `ATTACH`, if anything was declared, every framework bar gets `KeymapWindow`'s button after the
+application's own instruments, the declared windows' as well as the main one's, and the person's changes are read from and written to `keys.properties` in the
+application's home. Nothing declared, no button: keymap.md's rule that an application without rebindable
+commands has nothing for it to open. A store of its own because a `Settings` writes back everything it holds,
+and two over one file would race. A headless tree never reaches `ATTACH`, so a test sees the defaults and writes
+nothing. An action declared after `TREE` still works but cannot add the button retroactively; declare at
+construction, as the template's `View` does.
+
 Two knobs an application will want are **not yet expressible**, and neither gap is the framework's to
 close:
 
@@ -264,6 +275,101 @@ text editor binds the clipboard to *every* window in a loop, and remembers each 
 
 *The reasoning is here; the rules it produces are in [threading.md](threading.md), stated normatively and
 each carrying whether anything enforces it yet.*
+
+### The message model (0.2)
+
+*Decided 2026-10-26. The subsections after this one are 0.1's reasoning; what they say about one thread per
+component, handler lanes and the `APP` door is superseded where this section says so, and kept because most of
+the rest (static placement, platform threads, the timeline's baton, the liveness layers) still holds.*
+
+The model below was always the intent, in the author's words: every part of an application, GUI elements
+included, has a mailbox and its own state, subscribes to the streams it wants, and is drained once per frame,
+with the last update in the frame winning. 0.1 drifted from it in three layers, and fixing the code without the
+other two would have regressed:
+
+- **The rulings themselves allowed the drift.** threading.md made a multi-threaded handler pool one of five
+  official lanes (T1.1), gave results a door onto the main thread (T5.1, `FrameStage.APP`), and drained each
+  component continuously on its own thread, so two mailboxes were never in order with each other.
+- **Upstream invited it.** `vexelray-gui` ran every click and key handler on a worker pool and accepted widget
+  writes "from any thread", so an application's natural shape was a callback that wrote widgets from a worker.
+- **The processor allowed it.** A mutable provided value could be shared by every lane, `@Publishes` was
+  optional, and a lambda handed to an executor captured anything.
+
+The result was an API that answered in callbacks "from any thread", windows and dialogs guarded by locks, and a
+template whose every part was a callback on a pool thread. The template's first move to messages, in October
+2026, found the model's missing pieces from the application's side: it had to keep the close gate's callbacks
+under a ticket because a callback cannot cross a lane, and send "close these tabs" as one message per tab with a
+batch id and a count, because a payload could not hold a list and two mailboxes had no common order.
+
+**What 0.2 rules, and why** (threading.md §0 has the table):
+
+1. **State or edge, per topic.** atchung already had both halves (`Backpressure`'s sample and edge, `Fold`'s keyed
+   cell), as a choice each subscriber made. Making it the topic's property means every subscriber agrees, and the
+   author's "last update in the frame wins" is exactly the state kind.
+2. **One logic lane by default.** What made 0.1 multi-threaded by default was not a decision but the absence of
+   one: a handler pool and a thread per lane. With one lane no two components run at once, nothing needs a lock,
+   and a run can be replayed. Parallelism is a lane a component declares.
+3. **The tick, with a deadline that is the framework's.** A tick drains in rounds until nothing is queued or its
+   deadline arrives, and carries the rest over in order. The deadline is set by the framework and need not match
+   the display's frames, because logic should not run at a rate set by whichever display it is on, and a headless
+   run has no frames at all.
+4. **The main thread runs no application code**, with one deliberate exception that the framework chooses:
+   single-thread mode, for CPU-constrained headless machines, runs the same ticks on the main thread. The two
+   halves are one idea. Because a component only ever reads its mailbox, it cannot tell which thread drained it,
+   so moving the tick costs the application nothing. That is also the test (T1.7).
+5. **Sends declared by construction.** A typed sender per topic is a constructor parameter. This is the house
+   pattern (*an object that is the rule*), and it is what finally makes the message graph the processor checks
+   the whole graph.
+6. **Immutable collections may cross**, tentatively: refusing all of them made applications design protocols
+   around the checker.
+
+**Ruled 2026-10-29: what runs on the GUI thread is one contract, not a list of exceptions.** Ruling 4 had gathered
+two exceptions by then, drawing (T7.1) and presentation (T7.4), and porting the codec's video player was about to
+add a third, for code that picks which decoded frame is due each frame. The author's objection: drawing,
+presentation and pacing are one thing and should follow one API. What they share is that a part on the GUI thread
+is either **told** something (a message arrives, and it changes its state and builds what it shows) or **asked**
+something (a frame is being drawn, and it says what to show at the time that frame will appear). The framework
+already had both halves, privately: `PaintMotion` and `LayoutMotion` in vexelray-gui are each told what changed and
+asked what to draw. So the rule becomes one exception, a part's declared halves (T7.6), and three reasons decide it
+against a list:
+
+- **A list of exceptions grows by one per use.** Each new kind of moving thing (video, a simulation's field, a
+  kinetic scroll) would argue its own door, with its own checks or none. One contract has one check.
+- **The told half is already ruled safe.** A declared step on a part's own state is not a callback (T7.2, the
+  step exception). The asked half is the same kind of thing: a static function declared on the part's state,
+  capturing nothing, checked at compile time, with the extra conditions a frame needs (no allocation, a budget).
+- **It puts the checks where drawing had none.** Drawing and presentation were held by convention and T7.2's API
+  walk. Under one contract the processor checks both halves of every part, and the framework times every asked half.
+
+What it costs is a design obligation rather than a runtime one: anything that allocates is built in the told half,
+on a message, and the asked half only chooses among what was built ("told builds, asked chooses"). A video's
+frames come in through a feed, a ring of stamped slots a producer writes off the GUI thread (T7.3 names it). The
+design and its order of work are vexelray-gui's `docs/plans/frame-contract.md`.
+
+**Ruled 2026-10-30: a source is a kind of part, and its thread a lane.** The lanes were a closed list (T1.1), and
+blocking was a job's alone (T5.8), because a job finishes. Something that reads from outside for as long as it is
+connected never finishes, so it had nowhere to go. The Inspector, the first application written for 0.2 from
+nothing, needs three of them; its 0.1 form made three threads by hand, outside anything the wiring could name or the
+framework could check. The author's ruling: it is the right shape, and netcode and much else will need it, so it is
+the framework's. Three reasons decide the shape against the alternative, a loop of short jobs each waiting a bounded
+time:
+
+- **A connection is one thing, and the wiring should be able to name it.** A loop of jobs makes it a chain of
+  requests, each one the caller has to remember to send again, which is the shape T5.3's note warns about: a rule held
+  by an API you must remember to call is not held.
+- **The job lane is bounded so that work waits behind work** (T1.5). A run that blocks for an hour inside it would
+  hold one of its threads for good, so a source cannot be a job on that lane, and gets a thread per run instead.
+- **It adds no new kind of code.** A source is a job that may send while it runs: final fields, declared sends, a
+  `run` that returns why it ended. Every check a job gets, a source gets, and the processor needs only one more: that
+  a source hears nothing but its request.
+
+What it costs: one thread per running source, outside the tick, which T1.1 now lists, and a second place that may
+block (T5.8). The shape and its open questions are [components.md section 11](components.md).
+
+**What it costs, and where that is priced.** One tick of latency between an input and a logic-driven response
+(T5.4), measured in phase 7 before it is accepted; widget-local responses stay inside the widget and cost nothing
+(T3.9). One wedged component now stops every component on the logic lane, though not the window (T6.5). And in
+single-thread mode the liveness guarantee's first part does not hold, which is what choosing that mode means.
 
 The intended shape of a VexelRay application is **one component, one thread, one mailbox**, and it is
 the most load-bearing constraint in this design that has never been written down. It is why
@@ -616,6 +722,14 @@ in service of a slot nobody can fill. So the processor holds the rule for types 
 this build** and exempts a type that arrives as a class file. That is a clean distinction only because the
 build is always a clean one — a module's own types are all source in the compilation that checks them, so
 a class file is always somebody else's.
+
+**Until an application is two modules, which the template has been since 2026-10-26.** Its `-core` is a class file to
+the processor compiling `-gui`, so for the interface rule `-core`'s public classes are "somebody else's", which only
+makes the rule more lenient there; it is still held in `-core`'s own compilation. What it broke was worse: a
+`@Component` in `-core` was never constructed, and nothing said so, because the processor finds components among the
+round's sources. The answer is the starters' answer: `-core`'s `@Configuration(components = ..., jobs = ...)` lists
+them, `-gui` names that configuration as a starter, and the processor reads the listed classes' mailboxes and sends off
+their class files. A component left off the list is still built by nobody, silently; see TODO.md.
 
 **And public ones, not package-private ones.** Generating the template's wiring found the second edge. Its
 `Model` and `Ui` are the application's own concrete classes, and neither a component nor a value, so the rule
@@ -1003,15 +1117,7 @@ processor, not a description of today.
 
 Three things looked like framework candidates and are not, recorded here so they are not re-proposed:
 
-- **The zoom chords**, since taken after all (2026-10-28). Every application bound the same six, on its
-  main window only, so every window it opened later had a range and no chords to move within it. The
-  text editor's Run… window is what made that plain. `Appearance.ZoomRange.applyTo` now binds
-  `ZoomKeys` wherever it applies the range, on by default, and `Appearance.zoomKeys(false)` is the
-  ruling's exit for an application that zooms on chords of its own. A chord bound again replaces the
-  earlier binding, so an application that still binds them by hand is unaffected. What follows is the
-  reasoning as it stood before that.
-
-  The zoom chords, but *not* the zoom range, and the split is the point. `CalculatorWiring` has
+- **The zoom chords** — but *not* the zoom range, and the split is the point. `CalculatorWiring` has
   ruled on the chords: *"which chord zooms, or whether zooming exists at all, is not something a
   framework should be choosing."* The drift there is real and visible (the calculator binds the numpad
   chords, the editor does not) but it is drift between two applications' decisions rather than between
@@ -1022,6 +1128,11 @@ Three things looked like framework candidates and are not, recorded here so they
   chose; the framework had already owned the other half, that the zoom is *remembered*. Owning both is
   what makes them agree, because the remembered factor is restored through `Gui.zoom`, which clamps to
   the range.
+
+  0.1.3 took the chords after all (2026-10-28: `Appearance.ZoomRange` bound `ZoomKeys` on every window,
+  because windows opened later had a range and no chords). 0.2 did not take that commit when v0.2 was
+  merged into develop: in 0.2 an application's windows zoom on the `view.zoom-*` commands of its own
+  keymap, and `ZoomKeys` binds the chords only on windows the framework opens for it.
 
   Taking it turned up the clipboard's problem in a second guise. The framework dresses the one `Gui`
   it built, and the editor calls `zoomShortcuts` on three — so a range set only on the main window
@@ -1340,7 +1451,7 @@ a dialog (see the `Shell` surface ruling in TODO.md), and the dialogs went next.
 folder and save pickers. What a part is handed is the same value in every phase, and it holds a question until
 something can answer it — the framework's own from `ATTACH` (`Modals` and NFD, parented to the main window), or the
 application's, handed back through a `@Provides Dialogs`, which is how a test answers in a headless run. It replaced
-three copies of one class, the text editor's `NativeDialogs`, Vexplore's `Chooser` and Pix's `Opener`, each of which took
+three copies of one class, the text editor's `NativeDialogs`, Vexplore's `Chooser` and Rasterware's `Opener`, each of which took
 the `GuiApp` for a window handle it only passed along, and the `ask` fields the text editor and the template had grown
 so a test could answer (Vex FN-6). W1's fourth launch asks from `TREE`, before there is a window: the question comes
 up in a window of its own once there is one, Enter takes its default button and the count moves, and a second one,
@@ -1352,7 +1463,7 @@ callbacks, `proceed` and `cancel`, rather than gui-core's `CloseRequest`, which 
 the template and the text editor had each kept a `guardClose(Runnable, Runnable)` beneath the real gate so a test could
 call it (Vex FN-6's other half), and now that is the gate. `Shell.onClose` is deleted. W1's palette has a gate that
 asks through `Dialogs` before it closes: its own Close button brings the question up as a fourth window, Escape keeps
-the palette, and Enter lets it go. One window-management use of the `GuiApp` was left on the stack — Pix's viewer
+the palette, and Enter lets it go. One window-management use of the `GuiApp` was left on the stack — Rasterware's viewer
 closed the main window through `app.controls()` — and it is `windows.main().close()` now, so a close gate would be
 asked there too. Since then, the only uses of `GuiApp` left on the stack are the device.
 
@@ -1457,6 +1568,9 @@ kept in brackets where they differ.
 **Which changes an earlier claim.** The ceiling was written up as a bug whose fix was a wake object, on the
 reading that a wake storm would run the loop flat out. It would not. What the numbers leave open is the intent: a
 ceiling that worked would hold a 144 Hz display to 60, which is the opposite of the goal the design states.
+*Ruled 2026-10-29, when 0.2's pacing measurements showed the ceiling now holding animation (ROADMAP phase 7): the
+60 Hz cap stays, animation included. An animation runs at about 57 frames a second on this 144 Hz display, and a
+click's result through the logic lane arrives one 60 Hz frame later, 17.5 ms.*
 
 **The click path, and a theory that was wrong.** The first suspect for felt input latency was Tactroller's 125 Hz
 polling thread, which samples the pointer and keys with `GetCursorPos` and `GetAsyncKeyState` and would add up to
@@ -1704,7 +1818,8 @@ framework's About drags by its mark as before.
 ```
 vexelray-framework                    parent (pom)
 ├─ vexelray-framework-api        the vocabulary: annotations only, JDK-only          [built]
-├─ vexelray-framework-core       phases, launch, frame stages, pacing, disposal      [built]
+├─ vexelray-framework-core       phases, launch, frame stages, pacing, disposal,
+│                                  lanes, the timer; the JDK and atchung-core only     [built]
 ├─ vexelray-framework-shell      the absorbed edge: input, clipboard, memory, loop,
 │                                and the window chrome                              [built]
 ├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
@@ -1745,8 +1860,11 @@ applications were deleted on purpose, because a witness that must be hand-mainta
 change to the thing it witnesses, and the template's `vexel-desktop` tree is the same artefact without
 the tax: a `Wiring` per phase, written out longhand, regenerated rather than maintained.
 
-`-api` and `-core` are **JDK-only**, and not as an agnosticism goal — it is simply where the
-dependency edges fall. A phase enum and a topological sort do not need a Vulkan device. The payoff is
+`-api` is **JDK-only** and `-core` takes the JDK and `atchung-core` alone, and not as an agnosticism
+goal — it is simply where the dependency edges fall. A phase enum and a topological sort do not need a
+Vulkan device. The bus came into `-core` with `Timer` (2026-10-28): a timer that sends a message names a
+`Topic`, an application's own `-core` module has to be able to take one, and that module reaches the
+framework's `-core` but never `-shell`. Atchung is JDK-only itself, so the reason for the rule holds. The payoff is
 that every decision the container makes is testable headlessly, on a machine with no GPU, and cannot
 drift out of agreement with a driver.
 

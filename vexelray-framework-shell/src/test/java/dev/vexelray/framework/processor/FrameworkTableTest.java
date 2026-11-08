@@ -3,7 +3,7 @@ package dev.vexelray.framework.processor;
 import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.framework.shell.AppInfo;
-import dev.vexelray.framework.shell.Placements;
+import dev.vexelray.framework.shell.Inboxes;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.Wiring;
 import org.junit.jupiter.api.Test;
@@ -89,28 +89,6 @@ class FrameworkTableTest {
         return shell;
     }
 
-    /**
-     * The generated wiring maps {@code Overflow} to atchung's {@code Backpressure} by name, so the two have to
-     * agree constant for constant, and the api's edge/blocks flags have to say what atchung's docs say.
-     */
-    @Test
-    void overflowIsBackpressureByName() {
-        java.util.Set<String> overflow = new java.util.TreeSet<>();
-        for (dev.vexelray.framework.api.Overflow o : dev.vexelray.framework.api.Overflow.values()) {
-            overflow.add(o.name());
-            sibarum.atchung.Backpressure.valueOf(o.name());
-        }
-        java.util.Set<String> backpressure = new java.util.TreeSet<>();
-        for (sibarum.atchung.Backpressure b : sibarum.atchung.Backpressure.values()) {
-            backpressure.add(b.name());
-        }
-        assertEquals(backpressure, overflow);
-        assertTrue(dev.vexelray.framework.api.Overflow.BLOCK.blocks());
-        assertTrue(dev.vexelray.framework.api.Overflow.FAIL.edge());
-        assertTrue(dev.vexelray.framework.api.Overflow.BLOCK.edge());
-        assertTrue(!dev.vexelray.framework.api.Overflow.COALESCE_LATEST.edge());
-    }
-
     @Test
     void everyConstructionPhaseIsAWiringMethodTakingTheShell() throws Exception {
         for (Phase phase : Phase.values()) {
@@ -127,14 +105,20 @@ class FrameworkTableTest {
         assertEquals(Shell.class.getName(), Framework.SHELL);
         assertEquals(Wiring.class.getName(), Framework.WIRING);
         assertEquals(dev.vexelray.framework.shell.AppInfo.class.getName(), Framework.APP_INFO);
-        assertEquals(dev.vexelray.framework.shell.Placement.class.getName(), Framework.PLACEMENT);
-        assertEquals(dev.vexelray.framework.shell.Placements.class.getName(), Framework.PLACEMENTS);
+        assertEquals(dev.vexelray.framework.shell.Inboxes.class.getName(), Framework.INBOXES);
+        assertEquals(dev.vexelray.framework.shell.Views.class.getName(), Framework.VIEWS);
         assertEquals(dev.vexelray.framework.shell.Appearance.class.getName(), Framework.APPEARANCE);
         assertEquals(dev.vexelray.framework.shell.InputBackend.class.getName(), Framework.INPUT);
         assertEquals(dev.vexelray.framework.shell.ClipboardBackend.class.getName(), Framework.CLIPBOARD);
         assertEquals(dev.vexelray.framework.shell.LivenessPolicy.class.getName(), Framework.LIVENESS);
-        assertEquals(Framework.PLACEMENT, Placements.class.getMethod("of", Shell.class, String.class)
-                .getReturnType().getName());
+        assertEquals(Framework.INBOX, Inboxes.class.getMethod("of", Shell.class, String.class, String.class,
+                sibarum.atchung.Topic[].class).getReturnType().getName());
+        Inboxes.class.getMethod("mailbox", Shell.class, String.class, String.class, String.class,
+                sibarum.atchung.Topic.class, sibarum.atchung.Subscriber.class, int.class, String[].class);
+        assertEquals(Channels.SENDER, Inboxes.class.getMethod("sender", Shell.class, String.class, String.class,
+                sibarum.atchung.Topic.class).getReturnType().getName());
+        dev.vexelray.framework.shell.Views.class.getMethod("mailbox", dev.vexelray.gui.core.Gui.class, String.class,
+                sibarum.atchung.Topic.class, sibarum.atchung.Subscriber.class, int.class, String[].class);
         assertEquals(dev.vexelray.framework.shell.Absences.class.getName(), Framework.ABSENCES);
         for (String report : new String[]{"provided", "handedBack"}) {
             dev.vexelray.framework.shell.Absences.class.getMethod(report, String.class, String.class, String[].class);

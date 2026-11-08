@@ -9,6 +9,8 @@ whatever you are actually building.
 
 ## Run it
 
+From this folder, the parent of the two modules:
+
 ```
 mvn compile exec:exec
 ```
@@ -21,7 +23,7 @@ the navigator shows the working directory.
 mvn compile exec:exec "-Dapp.args=C:/notes"               # open a folder (or files) named on the command line
 mvn compile exec:exec -Dapp.args=120                      # 120 frames and quit
 mvn compile exec:exec -Dautomation=0                      # a driving socket on a free port (see Taking a screenshot)
-mvn test                                                  # the model, the file policy, Markdown, the real tree headless
+mvn test                                                  # the editor, the jobs, Markdown, the real tree headless
 ```
 
 ## A native executable
@@ -30,8 +32,8 @@ Two builds, made with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and Vi
 development with C++" workload):
 
 ```
-native-build.cmd -Pnative-release package -DskipTests   # target/${artifactId}.exe        what ships: no console
-native-build.cmd -Pnative package -DskipTests           # target/${artifactId}-debug.exe  a console: prints the automation port line
+native-build.cmd -Pnative-release package -DskipTests   # ${artifactId}-gui/target/${artifactId}.exe        what ships: no console
+native-build.cmd -Pnative package -DskipTests           # ${artifactId}-gui/target/${artifactId}-debug.exe  a console: prints the automation port line
 ```
 
 Both carry the automation sockets, off until asked for ([Automation](#automation)), so ottermate can drive either.
@@ -39,7 +41,7 @@ Both carry the automation sockets, off until asked for ([Automation](#automation
 On Linux there is one build, with no console subsystem or icon step to choose, and plain `mvn`:
 
 ```
-mvn -Pnative-linux package -DskipTests                  # target-linux/${artifactId}
+mvn -Pnative-linux package -DskipTests                  # ${artifactId}-gui/target-linux/${artifactId}
 ```
 
 `native-build.cmd` is `mvn` inside a Visual Studio developer environment: native-image needs the MSVC `link.exe` and
@@ -48,7 +50,7 @@ own `link.exe` comes first. The script finds `vcvars64.bat` with `vswhere`, load
 arguments it was given (`./native-build.cmd ...` from Git Bash). Plain `mvn` works too from a developer prompt; from
 anywhere else the icon step stops and says to use the script.
 
-This program's own native-image metadata is `src/main/resources/META-INF/native-image/.../reachability-metadata.json`,
+This program's own native-image metadata is `${artifactId}-gui/src/main/resources/META-INF/native-image/.../reachability-metadata.json`,
 and it is short because almost nothing is this program's: the libraries register their own, and the processor
 registers the icon. If a native run fails on something the JVM run did not (a `Missing...RegistrationError`), run it
 on a JVM under `-agentlib:native-image-agent=config-output-dir=...`, do the thing that failed, and add
@@ -56,15 +58,15 @@ only the entries that name this program.
 
 ## The icon
 
-`src/main/rc/${artifactId}.ico` is the application's mark, and it is one file read three ways: the window and its
+`${artifactId}-gui/src/main/rc/${icon}.ico` is the application's mark, and it is one file read three ways: the window and its
 taskbar button wear it (`@VexelApp(icon = ${className}.ICON)`; the pom puts it on the class path), and so does the
 title bar the framework draws; the `.exe` links it (`src/main/rc/${artifactId}.rc`), and so Explorer, a shortcut and a
-pinned button show it too. It starts as the framework's "new app" mark, whose source is `${artifactId}.svg` beside it.
+pinned button show it too. It starts as the framework's "new app" mark, whose source is `${icon}.svg` beside it.
 
 A second window — a viewer, a settings window — wears the window mark, on the taskbar and in its title bar, with
 nothing to write: declare it in a recipe with `windows.named(...)`, and the framework builds its tree and claims it
 wearing `shell.windowMark()`. That mark is this same one unless
-a `${artifactId}-window.ico` sits beside it, which is then found by name and registered for the native image with
+a `${icon}-window.ico` sits beside it, which is then found by name and registered for the native image with
 the mark. The VexelRay suite's applications ship one: a band of the application's colour over its glyph, so a
 second window reads as its own and is still told apart from the main one.
 
@@ -89,28 +91,48 @@ groups the button with other Java programs, and pinning it pins Java. The native
 | Ctrl+Z / Ctrl+Y | undo / redo |
 | Ctrl+= / Ctrl+- / Ctrl+0 | zoom |
 
+Those are the defaults. The keyboard button in the title bar lists every command and lets you give each one other
+keys; what you change is kept in `keys.properties` in the application's home folder. Find, undo and redo belong to
+the text field and are not on the list. A new command goes in `View.commands`, under an id that stays the same once
+it has shipped, because the id is what someone's changes are stored under.
+
 Selecting a file in the navigator opens it — a click, or walking the tree with the arrow keys, which keep the
 keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and Reveal in navigator. A bullet in
 front of a tab's name means unsaved changes; closing anything unsaved asks first, and so does quitting.
 
 There is no file dialog, by choice: the path bar is the whole of "open", and it works the same in a test as in use. The
-framework brings native pickers (`Dialogs.openFile`, `openFolder`, `saveFile`) for a project that wants them.
+framework brings native pickers (a `PickFile` message, answered by `Picked`) for a project that wants them, and hands
+a file to the desktop's own program with `Open`, answered by `Opened`.
 
 ## How it is put together
 
-Read these in this order.
+Two modules under this folder, split where the dependency edge falls, and four kinds of part that never hold each
+other: **components** (logic, reached only by messages: the editor runs on the framework's logic lane), **views**
+(presentation, run on the GUI thread in each frame, `@View`), **jobs** (slow work on the offload lane, a request in
+and a reply out), and **recipes** (a part built once and handed to whoever takes it). The parts talk by messages, and every message is in one file. Read these in this order.
+
+**`${artifactId}-core`, the controller.** It builds against no widget, so its tests need no window.
 
 | File | What belongs in it |
 | --- | --- |
-| `Recipes.java` | **what this application builds.** One `@Provides` method per part; `${className}AppWiring`, which builds them in order, is generated from it while the project compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. New parts go here. |
-| `Doc.java`, `Model.java` | the shape of the session — which files, which in front, which unsaved, which folder — as one immutable value, changed only by functions of the current value, committed through atchung's `State`. |
-| `Ui.java` | the window. Holds no state; `show(Doc)` writes everything derived from the session. |
+| `Messages.java` | **every message the parts send each other**, grouped by who sends it to whom, each record beside its topic. A record crosses as itself, so it holds only immutable values; a list it holds is copied in its constructor. |
+| `Editor.java` | **the controller**: every decision (what a typed path names, whether a file is already open, when closing needs a question, what the status line says, what comes back next time) as a declared step on one immutable state, held by a ledger. Each message it hears runs one step; closing is a chain of them that waits on the person and the disk without anything waiting on a thread. It needs no lock, because only its steps change its state and they run one at a time. |
+| `Doc.java` | the shape of the session (which files, which in front, which unsaved, which folder) as one immutable value, part of the editor's state. |
+| `ReadFile.java`, `WriteFile.java`, `FindPath.java`, `CreateFile.java`, `ReadSession.java`, `WriteSession.java`, `ListFolder.java`, `MarkText.java` | the jobs: every touch of the disk, on the offload lane. What can go wrong is part of the reply. |
+| `TextFile.java`, `Markdown.java` | the policy between bytes and text, and Markdown as spans: pure functions. |
+| `Core.java` | the list of this module's component and jobs. The processor compiling `-gui` sees only `-gui`'s sources, so this list, named among `${className}App`'s starters, is how the wiring hears of them. A new component or job goes on it. |
+
+**`${artifactId}-gui`, the view and the framework integration.**
+
+| File | What belongs in it |
+| --- | --- |
+| `Recipes.java` | **what this module builds.** One `@Provides` method per part; `${className}AppWiring`, which builds them and the components and jobs in order, is generated while it compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. |
+| `View.java` | **the view**, a `@View`: run on the GUI thread in each frame, hearing the editor, its jobs and the widgets as messages; the editor's messages shown (`AddTab` is a tab) and the person's gestures told (`Open`, `Close`, `Save`). It decides nothing. |
+| `Intent.java` | what a key chord asks of the view: the message the gesture was declared to send. |
+| `Ui.java` | the window. Holds no state; it shows what the view hands it. |
 | `Workspace.java`, `Buffer.java` | the tab bar and one `Buffer` per tab: a `TextField`, its spans, its save bookkeeping. |
-| `Navigator.java`, `FolderSource.java` | the path bar and the file tree, over the disk, read lazily off the frame loop. |
-| `Actions.java` | every command, the questions some of them ask, and the close gate. |
-| `Session.java` | what comes back next time, in the framework's one settings store. |
+| `Navigator.java` | the path bar and the file tree. The tree asks for each level by message, and the view asks `ListFolder`, so the disk is read off the frame. |
 | `Motion.java` | the one tempo every widget moves at, on the framework's clock. |
-| `text/TextFile.java`, `text/Markdown.java` | **code with no `Gui` in it**, in a sub-package with public types: the policy between bytes and text, and Markdown as spans. Testable in milliseconds; this is where a real application's non-GUI code goes. |
 
 `${className}.java` is the entry point and the constants, and nothing else. The application edge — input, the
 clipboard, window memory, the clock, the frame loop with its wakes and its pacing, the dialogs, the command line and
@@ -131,24 +153,31 @@ constraints structural instead of remembered:
 | `WINDOW` | the device and the window handle. Main-thread from here on |
 | `ATTACH` | anything that needed the handle: chrome controls, the close gate, the driving socket |
 
-Open `target/generated-sources/annotations/.../${className}AppWiring.java` after a build to see which part landed where.
+Open `${artifactId}-gui/target/generated-sources/annotations/.../${className}AppWiring.java` after a build to see which part landed where.
 
 ### Threading, in one paragraph
 
-The GUI loop runs on the main thread, which owns Vulkan, the window and present. Every handler — a click, a key, a
-submitted path — runs on the handler lane, and every read and write of a file runs on the offload lane, so a slow
-disk is never a frozen window (the lanes are named in the framework's `docs/threading.md`). They meet at `Model`,
-whose compare-and-set puts concurrent changes in an order. A listener registered with `Model.onChange` fires on the
-committing thread; writing a node's props from there is correct, because a prop written off the GUI thread is applied
-by the next drain. Two rules keep it deadlock-free, and both are written on `Workspace`: nothing commits to the model
-while holding the workspace's lock, and nothing a model listener reaches takes it. Nothing inside the frame loop
-reads the model.
+The GUI loop runs on the main thread, which owns Vulkan, the window and present, and nothing of this application's
+runs there but the view, which is presentation and nothing else (threading.md, T7.4). The editor runs on the
+framework's logic lane and the view on the GUI thread, in each frame's widget tick; each handles one message at a
+time and owns its state outright, so there is no lock anywhere in the application. The editor's state is changed only
+by its declared steps, which the processor reads: a step that touches the disk, waits or reaches outside itself does
+not compile. A widget says what it did as a message, which the view hears in the frame the input arrived, and a key
+chord or a menu item is declared with the message it sends, so nothing of the application's runs at the click. Every
+read and write of a file is a job on the offload lane, so a slow disk is a slow reply and never a frozen window (the
+lanes are named in the framework's `docs/threading.md`).
+
+Two things follow from messages, and both are written where they bite. **One sender's messages to one receiver keep
+their order**: so the view says a tab went unsaved before it asks to close it, and the editor already knows when the
+`Close` arrives. **Jobs are in no order at all**: so the restored session asks for one file at a time. The processor
+checks every message it can see: a mailbox's payload is deeply immutable, a topic carries one type, and no cycle of
+sends can block.
 
 ### Spans
 
-`Markdown.spans` is a pure function from text to `Span`s — foreground, background, underline — and `Buffer` runs it
-on the offload lane (`gui.async`) after each edit and hands the result to the field. The text is never changed; the field draws the
-colours and moves each span with its text as you type. A `.txt` file gets none.
+`Markdown.spans` is a pure function from text to `Span`s (foreground, background, underline). After each edit
+the view asks `MarkText` for them on the offload lane, and applies the answer only if the field still says the text it
+was computed for. The text is never changed; the field draws the colours and moves each span with its text as you type. A `.txt` file gets none.
 
 ### Motion
 
@@ -163,7 +192,8 @@ happened at least once. If the build cannot resolve them, that is why.
 
 | what | why it is here |
 | --- | --- |
-| `vexelray-framework-shell`, `-automation`, `-processor` | the application edge, the driving socket, and the processor that writes the wiring |
+| `vexelray-framework-api`, `vexelray-gui-core` | all `-core` builds against: the framework's annotations, and the values (a span, a colour, the settings store) and the bus that are safe from any thread |
+| `vexelray-framework-shell`, `-automation`, `-processor` | the application edge, the driving socket, and the processor that checks both modules and writes the wiring |
 | `vexelray-gui-widget` | the widgets: `Tabs`, `TreeView`, `TextField`, `SplitPane`, `StatusBar`, `Cues` |
 | `vexelray-gui-krono` | the clock: every transition and cue |
 | `vexelray-gui-automation` | driving the running app the way a person does — a debugging instrument |
@@ -181,6 +211,8 @@ log, the Inspector). Both are in every build, the release one too, and both star
   a free one).
 - **Switched on at launch**, for an agent that means to: `--automation=0` (both, on a free port),
   `--automation.control=<port>`, `--automation.diagnostics=<port>`, or `VEXELRAY_AUTOMATION=0` in the environment.
+  **The diagnostics socket is all the Inspector needs**: a run that opens it at launch records everything the
+  Inspector reads, whatever `-Dprobe` says, so there is nothing else to set.
 - **Not there at all**: `--automation.available=none` (or `control`, or `diagnostics`), or
   `VEXELRAY_AUTOMATION_AVAILABLE` in the environment. A socket that is not available cannot be switched on by
   anything, and with neither available the plug is gone.
@@ -225,11 +257,11 @@ The framework configures logging for you, before anything else runs, and the def
 | Run | Console | File |
 | --- | --- | --- |
 | a test | warnings | none |
-| from your checkout (`mvn exec:exec`) | info | `target/logs/${appName}.log`, debug |
+| from your checkout (`mvn exec:exec`) | info | `${artifactId}-gui/target/logs/${appName}.log`, debug |
 | driven by `ottermate` or `-Dautomation` | debug | `…/${appName}.log`, **trace**, with a probe trace beside it |
 | a native image | warnings | `~/.${appName}/logs/${appName}.log`, info |
 
-Write to it with a logger, not `System.out` — `Actions` does, as `${appName}.files`:
+Write to it with a logger, not `System.out` — the jobs do, as `${appName}.files`:
 
 ```java
 private static final Log LOG = Log.of("${appName}.files");   // sibarum.probe.Log

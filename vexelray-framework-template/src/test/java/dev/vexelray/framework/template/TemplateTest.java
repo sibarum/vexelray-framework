@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -319,5 +320,152 @@ class TemplateTest {
         answers.put("pkg", "dev.new.app");
         answers.put("cls", "9Lives");
         assertEquals(2, Checks.problems(template, Answers.of(answers)).size());
+    }
+
+    // ---- modules ------------------------------------------------------------------------
+
+    private static final String MODULAR = """
+            template m
+            slot name
+            slot modules
+                required  no
+                preset    all
+
+            module frame
+                about     the window the others show in
+            module later
+                about     do it later
+                requires  frame
+
+            file INDEX.md
+            file Frame.java  in frame
+            file Later.java  in later
+            part INDEX.md rows  from later-row.md  in later
+            """;
+
+    private static Template modular() { return Manifest.read(MODULAR, "test"); }
+
+    @Test
+    void modulesAreReadWithWhatTheyRequire() {
+        Template template = modular();
+        assertEquals(List.of("frame", "later"), template.moduleNames());
+        assertEquals(List.of("frame"), template.module("later").requires());
+        assertEquals("later", template.items().get(2).module());
+        assertNull(template.items().getFirst().module(), "a file in no module is the base's");
+        assertEquals("rows", template.parts().getFirst().marker());
+    }
+
+    @Test
+    void anAnswerTakesAllNoneOrNamesAndWhatTheyRequire() {
+        Template template = modular();
+        assertEquals(List.of("frame", "later"), template.choose("all").names());
+        assertEquals(List.of(), template.choose("none").names());
+        assertEquals(List.of(), template.choose("").names());
+        Template.Choice later = template.choose("later");
+        assertEquals(List.of("frame", "later"), later.names(), "in the manifest's order");
+        assertEquals(List.of("later requires frame, so it comes too"), later.notes());
+        assertEquals(List.of("frame"), template.choose("frame, frame").names());
+        assertFalse(template.choose("all later").problems().isEmpty(), "all stands alone");
+        assertTrue(template.choose("latter").problems().getFirst().contains("did you mean later"));
+    }
+
+    @Test
+    void aModuleThatRequiresOneThatIsNotThereIsRefused() {
+        TemplateError e = assertThrows(TemplateError.class,
+                () -> Manifest.read(MODULAR.replace("requires  frame", "requires  fram"), "test"));
+        assertTrue(e.getMessage().contains("fram"), e.getMessage());
+    }
+
+    @Test
+    void modulesThatRequireEachOtherAreRefused() {
+        TemplateError e = assertThrows(TemplateError.class, () -> Manifest.read(
+                MODULAR.replace("about     the window the others show in",
+                        "about     the window\n    requires  later"), "test"));
+        assertTrue(e.getMessage().contains("requires itself"), e.getMessage());
+    }
+
+    @Test
+    void aTemplateWithModulesHasToAskWhich() {
+        TemplateError e = assertThrows(TemplateError.class, () -> Manifest.read(
+                MODULAR.replace("slot modules\n    required  no\n    preset    all\n", ""), "test"));
+        assertTrue(e.getMessage().contains("does not ask which"), e.getMessage());
+    }
+
+    @Test
+    void aFileInAModuleThatIsNotDeclaredIsRefused() {
+        TemplateError e = assertThrows(TemplateError.class,
+                () -> Manifest.read(MODULAR + "file Other.java in other\n", "test"));
+        assertTrue(e.getMessage().contains("no such module"), e.getMessage());
+    }
+
+    @Test
+    void aPartIntoAModuleItDoesNotRequireIsRefused() {
+        TemplateError e = assertThrows(TemplateError.class, () -> Manifest.read(
+                MODULAR + "part Later.java notes from frame-notes.md in frame\n", "test"));
+        assertTrue(e.getMessage().contains("does not require it"), e.getMessage());
+    }
+
+    @Test
+    void aPartNeedsAModuleAndASource() {
+        assertThrows(TemplateError.class, () -> Manifest.read(MODULAR + "part INDEX.md rows from x.md\n", "test"));
+        assertThrows(TemplateError.class, () -> Manifest.read(MODULAR + "part INDEX.md rows in later\n", "test"));
+    }
+
+    @Test
+    void aModuleKeyBeforeAnyModuleIsRefused() {
+        TemplateError e = assertThrows(TemplateError.class,
+                () -> Manifest.read("template t\nslot name\nabout oops\nfile a\n", "test"));
+        assertTrue(e.getMessage().contains("no module has been opened"), e.getMessage());
+    }
+
+    /** A template on disk, so a test can say what its files hold. */
+    private static Catalogue onDisk(Path temp, Map<String, String> files) throws IOException {
+        Path folder = Files.createDirectories(temp.resolve("m"));
+        Files.writeString(folder.resolve(Catalogue.MANIFEST), MODULAR);
+        for (Map.Entry<String, String> file : files.entrySet()) {
+            Path path = folder.resolve("files").resolve(file.getKey());
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, file.getValue());
+        }
+        return Catalogue.including(temp);
+    }
+
+    private static Map<String, String> modularFiles(String index) {
+        Map<String, String> files = new LinkedHashMap<>();
+        files.put("INDEX.md", index);
+        files.put("Frame.java", "class Frame {}\n");
+        files.put("Later.java", "class Later {}\n");
+        files.put("later-row.md", "| later | ${name} |\n");
+        return files;
+    }
+
+    private static Blueprint modularBlueprint(Catalogue catalogue, String modules) {
+        Map<String, String> answers = new LinkedHashMap<>();
+        answers.put("name", "demo");
+        answers.put("modules", modules);
+        return Scaffold.of(catalogue.get("m"), Answers.of(answers), catalogue);
+    }
+
+    @Test
+    void aPartFillsItsMarkerOrTheMarkerGoes(@TempDir Path temp) throws IOException {
+        Catalogue catalogue = onDisk(temp, modularFiles("# Index\r\n| a | b |\r\n<!-- part: rows -->\r\nend\r\n"));
+        Blueprint all = modularBlueprint(catalogue, "all");
+        assertEquals("# Index\r\n| a | b |\r\n| later | demo |\r\nend\r\n", all.text("INDEX.md"),
+                "substituted, and in the file's own line endings");
+        Blueprint none = modularBlueprint(catalogue, "none");
+        assertEquals("# Index\r\n| a | b |\r\nend\r\n", none.text("INDEX.md"));
+        assertEquals(List.of("INDEX.md"), none.paths());
+        assertTrue(none.notes().stream().anyMatch(n -> n.contains("later module was not chosen")), none.notes()::toString);
+    }
+
+    @Test
+    void aPartWithNoMarkerAndAMarkerWithNoPartAreBothRefused(@TempDir Path temp) throws IOException {
+        Catalogue noMarker = onDisk(temp.resolve("a"), modularFiles("# Index\n"));
+        TemplateError e = assertThrows(TemplateError.class, () -> modularBlueprint(noMarker, "none"));
+        assertTrue(e.getMessage().contains("has no <!-- part: rows --> line"), e.getMessage());
+
+        Catalogue stray = onDisk(temp.resolve("b"), modularFiles("<!-- part: rows -->\n<!-- part: rowz -->\n"));
+        e = assertThrows(TemplateError.class, () -> modularBlueprint(stray, "all"));
+        assertTrue(e.getMessage().contains("rowz"), e.getMessage());
     }
 }

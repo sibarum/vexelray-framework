@@ -1,5 +1,8 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.core.Open;
+import dev.vexelray.framework.core.WindowOpened;
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.app.GuiApp;
@@ -10,6 +13,8 @@ import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.icons.Icon;
+import dev.vexelray.gui.scroll.Scrollbars;
+import dev.vexelray.gui.widget.Button;
 import dev.vexelray.gui.widget.IconButton;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.gui.widget.Tooltip;
@@ -123,10 +128,15 @@ final class About {
         TitleBar bar = window.titleBar();
         g.root().background(Role.PAGE).children(bar.node(), page.body(), page.foot());
         // Esc puts it away, as it does a dialog: there is nothing on it to lose.
-        g.claim(g.root(), Shortcut.of(Key.ESCAPE), ClaimScope.VISIBLE, window::close);
+        Seams.of(g).claim(g.root(), Shortcut.of(Key.ESCAPE), ClaimScope.VISIBLE, window::close);
 
-        AboutIntro intro = new AboutIntro(g, shell.krono(), page, anchor, icon);
-        window.onOpened(intro::play);
+        AboutIntro intro = new AboutIntro(g, shell, page, anchor, icon);
+        // Played each time the window opens, heard in the main window's frame like every other window's news.
+        shell.gui().mailbox(WindowOpened.TOPIC, opened -> {
+            if (opened.window().equals(KEY)) {
+                intro.play();
+            }
+        }, 16);
         return new About(window, intro);
     }
 
@@ -188,17 +198,19 @@ final class About {
 
         String notices = notices(build.notices());
         IconButton licenses = tile(g, Icon.FILE, "Licenses", "Third-party licenses", "about-licenses")
-                .enabled(!notices.isEmpty()).onPress(() -> Links.open(notices));
+                .enabled(!notices.isEmpty());
+        g.mailbox(Button.PRESSED, licenses.address(), p -> g.bus().publish(Open.TOPIC, new Open(notices)));
         String issues = build.frameworkIssues().orElse("");
         IconButton report = tile(g, Icon.CAUTION, "Issues", "Framework issues", "about-issues")
-                .enabled(!issues.isEmpty()).onPress(() -> Links.open(issues));
+                .enabled(!issues.isEmpty());
+        g.mailbox(Button.PRESSED, report.address(), p -> g.bus().publish(Open.TOPIC, new Open(issues)));
         IconButton copy = tile(g, Icon.COPY, "Copy info", "Copy the version information, for a bug report",
                 "about-copy");
         // It says it did it in its own word, until the window is next opened: no line of its own that would be empty
         // the rest of the time.
-        copy.onPress(() -> {
+        g.mailbox(Button.PRESSED, copy.address(), p -> {
             g.clipboard().set(summary(name, build));
-            copy.name("Copied");
+            copy.label("Copied");
         });
         Node tiles = g.row().role("about-actions").gap(Length.rem(0.75f)).justify(Justify.CENTER)
                 .padding(Length.rem(0.3f), Length.ZERO)
@@ -229,9 +241,10 @@ final class About {
                 .children(signature, words);
         arrivals.add(words);
 
-        Node body = g.column().role("about-page").width(Length.FILL).height(Length.grow(1f))
-                .alignItems(AlignItems.CENTER).scroll(false, true).children(hero);
-        return new Page(body, foot, mark, signature, List.copyOf(arrivals), () -> copy.name("Copy info"));
+        // The page scrolls in a Scroller with a bar beside it, for a window made shorter than the page.
+        Node body = Scrollbars.vertical(g, g.column().width(Length.FILL).alignItems(AlignItems.CENTER).children(hero))
+                .node().role("about-page").width(Length.FILL).height(Length.grow(1f));
+        return new Page(body, foot, mark, signature, List.copyOf(arrivals), () -> copy.label("Copy info"));
     }
 
     /**

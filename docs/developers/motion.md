@@ -1,7 +1,8 @@
 # Making it move
 
 **Nothing on screen changes in one frame.** A colour fades, a moved node slides, an arriving node comes up from
-nothing, a leaving one goes down to nothing before it is removed, and changed words dip out and come back. This
+nothing, a leaving one goes down to nothing before it is removed, changed words and images crossfade, and anything
+clickable lifts under the pointer and shows a press. This
 page says which of those the framework does for you, which you write, and how to check them. It assumes you have
 read [Building a custom view](custom-view.md), and above all its rule: keep the nodes and change them. A node that
 is rebuilt cannot be animated, because the node that would move is not the one on screen.
@@ -17,9 +18,15 @@ README's *Motion* section is the short version of this page.
 | A cut-off name revealed (a tree row, a table cell) | `WindowMotion` sets `Unclip`'s motion | 150 ms, in-out cubic |
 | A node that layout moved: a row pushed down, a card reordered | `WindowMotion` attaches `Transitions`, enrolled over the whole tree | 180 ms, out cubic |
 | A node added, and a node removed | `WindowMotion` attaches `Presence` as the enter and exit motion, over the whole tree | 140 ms, out cubic, rising 0.35 em |
+| A node shown with `visible(true)` or hidden with `visible(false)` | The same `Presence`: hidden, it keeps its place and fades, then is hidden for real; hidden as the sibling beside it is shown, it is swapped (below) | 140 ms |
+| An opacity written to a node | `Fades`, as a fourth channel (`PaintMotion.Channel.OPACITY`) | 120 ms, linear |
+| A label's words replaced | `Fades` (`Channel.REPLACED`): the old words fade out under the new, and the box's size change slides | 120 ms, linear |
+| An image replaced (`Node.image`) | `Fades` (`Channel.REPLACED`): the new comes up over the old, which goes in the second half and is held until then | 120 ms |
+| An icon recoloured (`IconView.tint`) | `Fades`, on the text colour channel | 120 ms, linear |
+| The pointer over, or pressing, anything with a click handler painted in a `Role` | The framework shades it (`Role.at(state)`) unless it hears `NodeEvent.STATE` itself, as every widget does | 120 ms |
 | The focus ring moving to another control | `TactrollerInputBackend.pointerFeel`: `gui.focusFade` | 120 ms |
 | The mouse wheel | `TactrollerInputBackend.pointerFeel`: `gui.scrollGlide` | 45 ms half-life |
-| A shelf widget's own motion: `Tabs.slide`, `TreeView.motion`, `Cues` | Only when handed a `Ramp`. The template's `Motion.java` makes them from `KronoGui` | 160 ms, 240 ms for a cue |
+| A shelf widget's own motion: `Tabs.slide`, `TreeView.motion`, `Cues` | Only when handed a `Timing`, run on the tree's clock that `KronoGui` installs. The template's `Motion.java` says the tempi | 160 ms, 240 ms for a cue |
 
 Since 2026-10-24 moves, arrivals and departures are on by default in every window the framework builds, the main one
 and every named one alike. Three things are deliberately not motion, so a whole window can be enrolled without
@@ -27,16 +34,25 @@ seasickness: a resize or a zoom (the window moving under the user's hand), a nod
 by someone else's ramp (followed, not chased, after its first two frames), and the children of a container that says
 `childMotion(false)`. `ListView` (and so `Table` and `Select`) says it, because its rows are a view the user scrolls,
 and so do `TreeView` and `Board`, which move their own rows. Say it on a container of yours that animates its
-children itself, or whose children track something drawn. A node whose colour is data rather than state (a cell
-coloured by its value) says `paintCuts(true)`, and a colour an application ramps by hand, frame by frame, is followed
-rather than faded behind. A node shown again with `visible(true)` appears where it is; it does not slide from where
-it was hidden.
+children itself, or whose children track something drawn. A node whose look is data rather than state (a cell
+coloured by its value), or that the application animates itself (a picture it throws, a thumbnail sliding with a
+step), says `paintCuts(true)`: its colours, opacity, words, image and visibility then change at once. A look an
+application ramps by hand, frame by frame, is followed rather than faded behind, and so are words or an image replaced
+again while the last were still crossfading (a counter, a meter). A node shown again with `visible(true)` fades up
+where it is; it does not slide from where it was hidden.
 
 **A panel rebuilt whole is a replacement.** Removing everything a container holds and appending new nodes is the
 commonest way to redraw one, and the framework treats it as a replacement: the old children are lifted out of the
 flow and fade out where they stood, in half the time, and the new ones take their places and fade in after. No
 doubling, and no two pages seen through each other. A container that keeps any child is edited, not replaced: a
 removed row keeps its place while it fades, and then the gap closes.
+
+**One view shown in place of another is a swap.** Hiding a node as you show the sibling beside it (a hint that gives
+way to the tabs, the files that give way to a picker, a source that gives way to its formatted view) is the same
+replacement on a smaller scale, though the container keeps everything else: the shown one takes the whole place at
+once, and the hidden one fades out over it where it stood, then is hidden for real. Beside means next to it with
+nothing visible between; a hide and a show further apart are two edits. So keep both views and flip `visible`, rather
+than removing one and appending the other.
 
 **What default motion still asks of you: keep the nodes and change them.** A row that is rebuilt cannot slide to its
 new place, because the node that would move is not the one on screen. Draw a list with `Node.keyed` and it keeps,
@@ -47,39 +63,32 @@ Everything else cuts unless you make it move. The rest of this page is how.
 ## The three instruments
 
 **Colour: `Fades`.** Already attached, nothing to call. A change mid-fade starts from the colour being drawn, so
-it never jumps. To change its timing (to slow it down for checking, say), attach your own. One source per tree,
-and the last call wins:
-
-```java
-gui.paintMotion(Fades.on(krono, Dur.ms(140), Ease.LINEAR));
-```
+it never jumps.
 
 **Layout moves: `Transitions`.** Already attached, over the whole window. A `Transitions` is a `LayoutMotion`: when
 layout puts a node somewhere new, it draws the node at the old place and decays the difference to zero. A node moved
-again mid-slide continues from where it is drawn. To time a tree differently, attach your own, which replaces the
-framework's. Enrolment is per node: `follow` (one node), `followChildren` (a container's direct children) or
-`followSubtree` (everything under a root, at any depth); the nearest enrolment wins, and `Dur.ZERO` enrols a node
-that moves at once.
+again mid-slide continues from where it is drawn.
 
-```java
-Transitions moves = Transitions.on(krono);
-gui.motion(moves);                                       // one LayoutMotion per tree, last call wins
-moves.followSubtree(gui.root(), Dur.ms(200), Ease.OUT_CUBIC);
-```
+Both are the framework's, attached by `WindowMotion` with the timings in the table above, and in 0.2 an application
+cannot attach its own. `Fades.on` and `Transitions.on` take a `KronoGui`, and no application part is handed one:
+it runs code on the GUI thread over time, which is the host's (the processor's `Framework` roots say so, and
+threading.md's T7.2 is the rule). So a window's colour fades and slides keep the framework's tempo. What a view
+can time is a widget's own motion, below.
 
 A new `floatAt` percentage is a move, and so is a node appended to another parent. In the Scheduler, a visit given
 to another clinician is the same bar appended to another lane, and it slides there (`Schedule.Page.update`). The
 displaced position is also where the node is hit, so what the pointer clicks is what is drawn.
 
-**Anything else: `KronoGui.ramp`.**
+**A widget's own motion: a `Timing`.**
 
 ```java
-krono.ramp(Dur.ms(140), Ease.OUT_CUBIC, p -> node.opacity((float) p), () -> { });
+tree.motion(Timing.millis(140, Timing.Curve.OUT_CUBIC));
 ```
 
-`ramp(Dur over, Ease ease, DoubleConsumer progress, Runnable done)` calls `progress` once a frame from 0 to 1, then
-`done` once. Both ends are delivered exactly, and `done` runs the frame after the one that drew 1. It is safe to
-call from a handler, because it goes through `onTimeline`. The template's `Recipes.ui` already takes a `KronoGui`.
+A view states a tempo, a duration and a curve, and the widget runs it on the tree's clock, which `KronoGui`
+installs when the framework attaches it. A view is not given `KronoGui` (since 0.2): it runs code on the GUI thread
+over time, which is the host's (vexelray-framework's threading.md, T7.2). Motion that is not a widget's own is the
+window's defaults above: a node that moved, arrived or left, or changed colour, animates with no code at all.
 
 Drive the visual properties, never the layout ones. `opacity`, `translate` (in ems), `rotate` and `scale` move
 nothing and measure nothing, so they are cheap every frame. A size changed every frame moves everything after it
@@ -111,28 +120,23 @@ squeezed and grow a scrollbar for a frame (the Scheduler's FN-5).
 
 ## Text
 
-`Fades` blends a text colour, not the text. Changed words are drawn in one frame. The Scheduler's `Motion.Label`
-dips the node's opacity out, swaps the words, and brings it back. It can be interrupted. It is used for the day's
-name, the status line and button labels:
-
-```java
-Motion.Label count = motion.label(status.slot(Landmarks.STATUS_COUNT),
-        s -> status.text(Landmarks.STATUS_COUNT, s));
-count.set(n + " visits");          // the first set is at once; later ones dip
-```
-
-`TitleBar.title` is the one label this cannot reach, because the framework draws it. So keep in the title only
-words that do not change as the user works.
+Done for you, since 2026-11-01. A label's words replaced on screen crossfade: the old words fade out where they were
+in the box while the new fade in, and the box's change of size is a layout move, which slides. Nothing to call. A
+field's words are the user's and change at once; so do words replaced again before the last were all the way up,
+which is a readout being driven. The title bar's title is a label like any other. The Scheduler's `Motion.Label`
+predates this, and a new application should not copy it.
 
 ## Zoom
 
-`Gui.zoomIn` and `zoomOut` multiply the zoom by the step at once, which lays the whole window out again between two
-frames. The framework's default chords (`Appearance.ZoomRange`, through `ZoomKeys`) bind them as they are. To
-glide, bind the same chords again to drive `Gui.zoom(float)` instead (a chord bound again replaces the default),
-as the Scheduler's `Recipes.shortcuts` does. It uses a `Motion.Glide` from `gui.zoom().value()`. Each key resets the
-glide to the framework's value while it is at rest (the framework restores last run's zoom and clamps every value
-to `Appearance.ZoomRange`), then glides to its target times or divided by 1.25. A key pressed mid-glide steps from
-where the glide is heading, so three presses are three steps.
+`Gui.zoomIn`, `zoomOut` and `resetZoom` glide: the framework sets `Gui.zoomGlide` for every window (`WindowMotion`),
+so a step closes half the distance to its target every half-life instead of laying the whole window out again
+between two frames, and a key pressed mid-glide steps from where the glide is heading, so three presses are three
+steps. The template's `View.commands` binds them as they are, as the commands `view.zoom-in`, `view.zoom-out` and `view.zoom-reset`. `Gui.zoom(float)` stays at once, for a restore
+or a reset. With reduced motion on, a step lands at once.
+
+The Scheduler's `Recipes.shortcuts` glides the zoom itself, with a `Motion.Glide` driven from `gui.zoom().value()`.
+That was written before the framework glided, and the zoom's `State` has left `Gui` for the widget library's
+`Seams` in 0.2 (vexelray-gui's T7.2 walk), so it binds `zoomIn` and `zoomOut` when it moves to 0.2.
 
 ## Scrolling
 
@@ -147,13 +151,21 @@ to scroll at the sizes you design for. Turn scrolling off and clip
 
 ## Checking it
 
+**The cut watch fails a test on anything that changed in one frame.** `Cuts.watch(gui)` sees, frame by frame, a
+colour, an opacity, words or an image given anew and drawn at once, and a node appearing whole or gone without leaving.
+The template's `ViewTest` watches every test with it and fails on a cut, naming the node and what changed. A cut
+there means a node was rebuilt where it should have been changed, or something stepped round the framework: fix
+that, and never take the watch out. What follows is for looking at a transition itself.
+
 `settle` waits for the frame loop and then for the clock to go quiet, so a `shot` after it is the window at rest.
 That proves where things end up. It does not prove how they got there. A transition is over in a fifth of a
 second, too quick for a screenshot to catch in the middle. What works today is the Scheduler's way:
 
-1. **A slow-motion switch.** `Motion` reads `-Dscheduler.slowmo` once, at start, and multiplies every duration it
-   makes by it, including the `Fades` it attaches itself. Give your `Motion` the same, under your own property
-   name. The template's pom passes `app.jvmArgs` through:
+1. **A slow-motion switch.** The Scheduler's `Motion` (a 0.1 application) reads `-Dscheduler.slowmo` once, at
+   start, and multiplies every duration it makes by it. Give the template's `Motion` the same, under your own
+   property name, and it slows every `Timing` it states. In 0.2 that is the widgets' own motion only: the window's
+   fades and slides are the framework's, timed by `WindowMotion`, and nothing slows them yet. The template's pom
+   passes `app.jvmArgs` through:
    `mvn compile exec:exec -Dautomation=0 "-Dapp.jvmArgs=-Dmyapp.slowmo=12"`.
 2. **A burst of shots.** In a script, the change (a `click`, a `key`) followed by several `shot`s with no `settle`
    between them. How far apart they land depends on how long each `shot` takes, so slow things down enough that
@@ -165,8 +177,9 @@ Run with `ottermate --size` every time. The window remembers its last size, and 
 cannot be compared. Slow motion does not reach the framework's focus ring or wheel. They keep real time and show up
 in a slow burst as steps that are not there at full speed.
 
-There is no `ottermate` verb that steps frames or records them. A recorder is planned ([TODO.md](../TODO.md), *The
-camera records as well as photographs*). Until it lands, the burst is the check, and a person reads it.
+There is no `ottermate` verb that steps frames. To see the motion itself, `record out.mkv` ... `record stop` makes a video
+of the window from the frames it shows (the camera's *Record video to file…*; the automation reference has it).
+The burst is still the check a script can make, and a person reads it.
 
 ## Traps
 
@@ -182,7 +195,6 @@ camera records as well as photographs*). Until it lands, the burst is the check,
 | The page wobbles at the start of something growing | A size animated frame by frame: the first two frames are chased | Take the full size at once, fade it in, let the rest slide |
 | A scrollbar flickers in mid-animation | Scrolling is on by default; something overflowed for a frame | `scroll(false, false).clip(true)` on that box |
 | An outgoing page is squeezed during a crossfade | A float is clamped inside its parent | The stage region fills its parent and has no padding |
-| Words change in one frame | `Fades` does not cover text | A `Label`: dip out, swap, dip in |
 | The view jumps to show something | `scrollIntoView` (and navigation) scroll at once | Do not reveal by scrolling |
 | Zoom keys re-lay the window in one frame | `zoomIn`/`zoomOut` step | Glide `Gui.zoom(float)` |
 | A slow-motion burst shows a step at full speed it does not have | The framework's ring and wheel are not slowed | Ignore those two; read your own transitions |

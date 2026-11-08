@@ -12,16 +12,16 @@ environment the linker and the icon step need:
 ./native-build.cmd -Pnative-release package -DskipTests
 ```
 
-That writes `target/my-app.exe`, the build you ship: it has no console window, and its automation sockets are off
+That writes `my-app-gui/target/my-app.exe`, the build you ship: it has no console window, and its automation sockets are off
 until the launch asks for them, or the title bar's plug restarts it in debug mode with them on. On Linux,
-`mvn -Pnative-linux package -DskipTests` writes `target-linux/my-app`.
+`mvn -Pnative-linux package -DskipTests` writes `my-app-gui/target-linux/my-app`.
 [Getting started §6](../getting-started.md#6-build-a-native-executable) explains the two builds, and the
 generated README explains what to do when the native executable fails at something the JVM run did not.
 
 Before you publish, run the release executable yourself on a clean folder. A native image only contains what was
 reachable when it was built, so a code path you only ever tried under `mvn exec:exec` has not really been tested.
 
-Replace the icon first: `src/main/rc/my-app.ico` is the framework's placeholder mark.
+Replace the icon first: `my-app-gui/src/main/rc/my-app.ico` is the framework's placeholder mark.
 
 ## 2. A one-line installer
 
@@ -46,17 +46,24 @@ Describe your application in an `installer.json` at the root of your project:
     "binaries": [
       {
         "name": "my-app",
-        "source": "target/my-app.exe",
-        "icon": "src/main/rc/my-app.ico",
+        "source": "my-app-gui/target/my-app.exe",
+        "icon": "my-app-gui/src/main/rc/my-app.ico",
         "addToPath": true,
         "shortcuts": { "desktop": true, "startMenu": true, "label": "My App" }
+      },
+      {
+        "name": "my-app-ffmpeg-record",
+        "source": "my-app-gui/target/my-app-ffmpeg-record-windows-x86_64.zip",
+        "dir": "ffmpeg-record"
       }
     ]
   }
 }
 ```
 
-Generate the installer, and publish the executable as a GitHub release. Publishing needs a token in `GITHUB_TOKEN`
+The second entry is the title bar camera's video encoder, which the release build zips beside the executable and
+the camera needs to record video. Generate the installer, and publish the executable
+as a GitHub release. Publishing needs a token in `GITHUB_TOKEN`
 with permission to write to `you/my-app`:
 
 ```bash
@@ -80,7 +87,7 @@ jars instead of executables are all options; the [installer's README](https://gi
 lists them, and `"fileAssociations"` in [VexelRay IDE's installer.json](https://github.com/sibarum/text-editor-vexel-demo/blob/main/installer.json)
 is a worked example.
 
-For Linux, add a `linux` section beside `windows`, naming the `target-linux/my-app` executable. The same run then
+For Linux, add a `linux` section beside `windows`, naming the `my-app-gui/target-linux/my-app` executable. The same run then
 also writes `install.sh`, `uninstall.sh` and `update.sh`; the installer's README shows the section.
 
 ## 3. Telling people

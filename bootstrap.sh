@@ -3,19 +3,23 @@
 # project generated from the template builds. The one script for this: every guide that used to list the order
 # by hand points here instead, because five hand-written copies of the order had drifted apart.
 #
-#   git clone https://github.com/sibarum/vexelray-framework.git
+#   git clone --branch v0.2 https://github.com/sibarum/vexelray-framework.git
 #   ./vexelray-framework/bootstrap.sh                 # clone what is missing beside it, build, install
 #   ./vexelray-framework/bootstrap.sh --from vexelray # reinstall vexelray and everything after it (after a pull)
 #   ./vexelray-framework/bootstrap.sh --tests         # run each repository's tests as it goes
 #   ./vexelray-framework/bootstrap.sh --check         # only say what is missing; build nothing
 #
-# Windows (from Git Bash) or Linux. The repositories are cloned beside this one, on their default branch.
-# Each build's output goes to <this folder>/target/bootstrap/<repo>.log, and the first failure stops the run and
-# names its log. The order is the dependency order of the poms: each repository needs the ones before it.
+# Windows (from Git Bash) or Linux. The repositories are cloned beside this one, each on the first branch in
+# BRANCHES that it has: 0.2 is on v0.2 in the repositories it changed, and the rest build it from develop. A
+# repository already cloned is left on whatever branch it is on, and the run says so when that is not the one it
+# would have cloned. Each build's output goes to <this folder>/target/bootstrap/<repo>.log, and the first failure
+# stops the run and names its log. The order is the dependency order of the poms: each repository needs the ones
+# before it.
 set -euo pipefail
 
 STACK=(vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper
        vexelray-gui ffmpeg-wrapper vexelray-framework vexelray-codec)
+BRANCHES=(v0.2 develop)
 ORIGIN=https://github.com/sibarum
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -28,7 +32,7 @@ while [ $# -gt 0 ]; do
         --from) from=${2:?--from needs a repository name}; shift 2 ;;
         --tests) tests=1; shift ;;
         --check) check=1; shift ;;
-        -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $1 (--help lists them)" >&2; exit 2 ;;
     esac
 done
@@ -69,11 +73,27 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 
 # ---- clone what is missing ----------------------------------------------------------------------------------------
+# The first of BRANCHES that a repository has on its origin.
+branch_of() {
+    local heads b
+    heads=$(git ls-remote --heads "$1") || { echo "cannot reach $1" >&2; return 1; }
+    for b in "${BRANCHES[@]}"; do
+        if grep -q "refs/heads/$b\$" <<<"$heads"; then echo "$b"; return 0; fi
+    done
+    echo "$1 has none of the branches ${BRANCHES[*]}" >&2
+    return 1
+}
+
 for r in "${STACK[@]}"; do
-    [ -d "$root/$r/.git" ] && continue
-    if [ $check = 1 ]; then echo "not cloned: $root/$r"; continue; fi
-    echo "[$r] clone"
-    git clone -q "$ORIGIN/$r.git" "$root/$r"
+    want=$(branch_of "$ORIGIN/$r.git")
+    if [ -d "$root/$r/.git" ]; then
+        have=$(git -C "$root/$r" branch --show-current)
+        [ "$have" = "$want" ] || echo "[$r] on ${have:-a detached HEAD}, not $want: left as it is"
+        continue
+    fi
+    if [ $check = 1 ]; then echo "not cloned: $root/$r ($want)"; continue; fi
+    echo "[$r] clone ($want)"
+    git clone -q --branch "$want" "$ORIGIN/$r.git" "$root/$r"
 done
 [ $check = 1 ] && { echo "checked: the stack goes in $root"; exit 0; }
 

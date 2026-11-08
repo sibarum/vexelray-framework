@@ -1,7 +1,9 @@
 package dev.vexelray.framework.core;
 
 import dev.vexelray.framework.api.Stability;
+import sibarum.atchung.Atchung;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -15,8 +17,8 @@ import java.util.function.IntConsumer;
  * A thread that belongs to no lane, and so cannot be wedged by one: it notices a lane that has stopped draining,
  * and it ends the process when an orderly stop does not.
  *
- * <p><b>Two jobs, and the second is the reason it exists.</b> Noticing is best-effort — a report, and whatever
- * the application's policy does with it. Ending the process is not: {@link #haltAfter} calls
+ * <p><b>Two jobs, and the second is the reason it exists.</b> Noticing is best-effort — a report, published as a
+ * {@link Stalled} message, and whatever the application's policy does with it. Ending the process is not: {@link #haltAfter} calls
  * {@code Runtime.halt}, which the operating system finishes whatever any thread is doing. It is {@code halt} and
  * not {@code System.exit} because {@code exit} runs shutdown hooks, and a wedged thread can be holding what a
  * hook needs. This is the layer that depends on nothing cooperating, which is why the layers above it may be
@@ -50,6 +52,7 @@ public final class Watchdog implements AutoCloseable {
     private static final long MIN_PERIOD_NANOS = TimeUnit.MILLISECONDS.toNanos(5);
 
     private final Lanes lanes;
+    private final Atchung bus;
     private final IntConsumer halter;
     private final Consumer<String> report;
     private final Object lock = new Object();
@@ -62,38 +65,42 @@ public final class Watchdog implements AutoCloseable {
     private long haltBound;
     private boolean armed;
 
-    public Watchdog(Lanes lanes) {
-        this(lanes, status -> Runtime.getRuntime().halt(status));
+    /** Watching {@code lanes}, and reporting on {@code bus}. */
+    public Watchdog(Lanes lanes, Atchung bus) {
+        this(lanes, bus, status -> Runtime.getRuntime().halt(status));
     }
 
     /** With the halt supplied — the one thing a test cannot let happen. */
-    Watchdog(Lanes lanes, IntConsumer halter) {
-        this(lanes, halter, text -> {
+    Watchdog(Lanes lanes, Atchung bus, IntConsumer halter) {
+        this(lanes, bus, halter, text -> {
             System.err.print(text);
             System.err.flush();
         });
     }
 
     /** With the halt and where its report goes supplied. */
-    Watchdog(Lanes lanes, IntConsumer halter, Consumer<String> report) {
+    Watchdog(Lanes lanes, Atchung bus, IntConsumer halter, Consumer<String> report) {
         this.lanes = lanes;
+        this.bus = bus;
         this.halter = halter;
         this.report = report;
     }
 
     /**
-     * Start watching: any lane inside one delivery for {@code thresholdNanos} is handed to {@code onStall}, once
-     * per delivery. The lane recovering and stalling again is a second report; still stalled is not.
+     * Start watching: any lane inside one delivery for {@code thresholdNanos} is published as a {@link Stalled},
+     * once per delivery. The lane recovering and stalling again is a second report; still stalled is not.
      *
-     * <p>{@code onStall} runs on the watchdog's thread. It may block, but a blocked one delays the next check
-     * and the halt deadline with it, so a policy that waits should say so by arming {@link #haltAfter} first.
+     * <p>The publish is on the watchdog's thread, so a subscriber registered directly on the bus (the shell's
+     * policy) runs there, and a mailbox is staged there and heard on its own lane. A direct subscriber may block, but
+     * a blocked one delays the next check and the halt deadline with it, so a policy that waits should say so by
+     * arming {@link #haltAfter} first.
      */
-    public synchronized Watchdog start(long thresholdNanos, Consumer<Lanes.Stall> onStall) {
+    public synchronized Watchdog start(long thresholdNanos) {
         if (thread != null) {
             return this;
         }
         long period = Math.max(MIN_PERIOD_NANOS, Math.min(thresholdNanos / 4, MAX_PERIOD_NANOS));
-        thread = new Thread(() -> watch(thresholdNanos, period, onStall), "vexel-watchdog");
+        thread = new Thread(() -> watch(thresholdNanos, period), "vexel-watchdog");
         thread.setDaemon(true);
         thread.start();
         return this;
@@ -141,7 +148,7 @@ public final class Watchdog implements AutoCloseable {
         }
     }
 
-    private void watch(long thresholdNanos, long periodNanos, Consumer<Lanes.Stall> onStall) {
+    private void watch(long thresholdNanos, long periodNanos) {
         long nextCheck = System.nanoTime() + periodNanos;
         while (true) {
             synchronized (lock) {
@@ -173,7 +180,7 @@ public final class Watchdog implements AutoCloseable {
                 }
             }
             if (System.nanoTime() - nextCheck >= 0) {
-                check(thresholdNanos, onStall);
+                check(thresholdNanos);
                 nextCheck = System.nanoTime() + periodNanos;
             }
         }
@@ -216,7 +223,7 @@ public final class Watchdog implements AutoCloseable {
         return out.toString();
     }
 
-    private void check(long thresholdNanos, Consumer<Lanes.Stall> onStall) {
+    private void check(long thresholdNanos) {
         for (Lanes.Stall stall : lanes.stalled(thresholdNanos)) {
             Long seen = reported.get(stall.lane());
             if (seen != null && seen == stall.delivery()) {
@@ -224,10 +231,10 @@ public final class Watchdog implements AutoCloseable {
             }
             reported.put(stall.lane(), stall.delivery());
             try {
-                onStall.accept(stall);
+                bus.publish(Stalled.TOPIC, new Stalled(stall.lane(), Duration.ofNanos(stall.nanos())));
             } catch (RuntimeException e) {
-                // A policy that throws must not take the watchdog with it: it is the one thread that cannot
-                // be allowed to stop, and the halt deadline is on it.
+                // A policy that throws, or a full mailbox, must not take the watchdog with it: it is the one thread
+                // that cannot be allowed to stop, and the halt deadline is on it.
                 e.printStackTrace();
             }
         }

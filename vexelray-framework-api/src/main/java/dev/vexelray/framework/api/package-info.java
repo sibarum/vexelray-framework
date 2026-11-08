@@ -6,8 +6,8 @@
  * <p><b>The annotations in this package are checked, and an application's wiring is generated from them.</b>
  * {@code vexelray-framework-processor} reads them while an application compiles. First it turns every rule a
  * declaration can decide into a compile error: the colour rule's main-thread and lane halves (T2.1–T2.3), a
- * provider holding a component (T3.7), two providers for one type in one mode, and the shape of each
- * annotation's use. Then, where the compilation has a {@link VexelApp}, it writes that application's
+ * provider holding a component (T3.7), two providers for one type in one mode (unless a recipe takes that type as
+ * {@link All}, every provider of it), and the shape of each annotation's use. Then, where the compilation has a {@link VexelApp}, it writes that application's
  * {@code Wiring}: constructor and provider calls in the phase each part's parameters put it in, a frame-stage
  * array, a startup branch per run mode, and a reverse-order close. The project builder's {@code vexel-desktop}
  * template is written this way, and {@code -Pacceptance} builds and drives one.

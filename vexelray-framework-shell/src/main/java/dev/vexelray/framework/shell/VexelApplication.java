@@ -1,5 +1,7 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.widget.spi.WidgetSeams;
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.FrameStage;
 import dev.vexelray.framework.api.RunMode;
@@ -9,10 +11,13 @@ import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.WindowControls;
+import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.app.AppHome;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
+import dev.vexelray.gui.keymap.Keymap;
+import dev.vexelray.gui.keymap.KeymapWindow;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
@@ -22,6 +27,7 @@ import dev.vexelray.os.NativeWindow;
 import dev.vexelray.os.WindowConfig;
 
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -49,6 +55,9 @@ public final class VexelApplication {
      * orphan somebody's window.
      */
     private static final String MAIN = "main";
+
+    /** The store in the application's home the person's chords are kept in: {@code keys.properties}. */
+    private static final String KEYS_STORE = "keys";
 
     /** 5 Hz floor while focused: a missed wake is late, never lost. */
     private static final long IDLE_REFRESH_NANOS = 200_000_000L;
@@ -116,6 +125,7 @@ public final class VexelApplication {
         // code that differs first runs, so its cause is said here, where the crash's reader will find it (StackCheck).
         StackCheck.report(shell.build(), VexelApplication.class.getClassLoader());
         shell.busGraph(wiring.busGraph());
+        shell.again(wiring.again());
         shell.arguments(java.util.Arrays.asList(argv));
         try (Disposer disposer = shell.disposer()) {
             build(wiring, shell, disposer, info, launch, windows);
@@ -186,6 +196,20 @@ public final class VexelApplication {
         return shell;
     }
 
+    /**
+     * Run one frame of a tree built by {@link #tree}, on the calling thread, as the window's loop would: input is
+     * dispatched, the widgets' and the views' mailboxes are drained, and the tree is laid out at the window's first
+     * size. For a headless test, which has no loop: a {@code @View} hears only in a frame, so a test that waits for one
+     * to act steps frames while it waits, and the thread calling this is then the GUI thread, as the loop's is.
+     */
+    public static void frame(Shell shell) {
+        AppInfo info = shell.info();
+        // In single-thread mode the frame runs the logic's tick, as the loop's APP hook does.
+        shell.runLogicOnMain();
+        dev.vexelray.gui.core.spi.Seams.of(shell.gui())
+                .frame(info.width(), info.height(), dev.vexelray.gui.core.text.TextFaces.standard());
+    }
+
     private static Launch parseOrExit(String[] args, AppInfo info) {
         try {
             return Launch.parse(args, info.name(), info.settingKeys());
@@ -227,6 +251,8 @@ public final class VexelApplication {
         shell.phase(Phase.CONFIG);
         adoptFormerHome(info.name(), wiring.formerNames());
         shell.settings(Settings.open(info.name()));
+        // The framework's own job, before the application's: an Open from any part is answered from the first tick.
+        Links.serve(shell);
         wiring.config(shell);
 
         // ---- MODEL: what the application knows, before there is anything to draw it with. ----------------
@@ -235,19 +261,15 @@ public final class VexelApplication {
 
         // ---- GUI: the look applied before the first widget, and the clock attached before it too. --------
         shell.phase(Phase.GUI);
-        // On the application's bus and the application's lanes, not private ones. A Gui made with neither
-        // makes itself both -- its own fabric, so nothing published on one tree is heard on another, and its
-        // own cached pool, so the thread count is a property of the window count. Handing both over is what
-        // makes placement a decision the wiring takes rather than an accident of how many trees exist.
-        // See Shell.bus and Shell.lanes.
-        Gui gui = disposer.register(
-                new Gui(shell.bus(), shell.lanes().handlers(), shell.lanes().offload()));
+        // On the application's bus, not a private one: a Gui made without it makes its own fabric, so nothing
+        // published on one tree would be heard by the application. It owns no threads: its handlers run on the GUI
+        // thread, in the frame (vexelray-gui 0.2, threading.md T1.1). See Shell.bus.
+        Gui gui = disposer.register(new Gui(shell.bus(), Windows.MAIN));
         Appearance appearance = shell.appearance();
         // The theme and the zoom range, through the same call an application uses on the windows the framework
         // did not build -- so there is one definition of what an appearance means on a Gui rather than two that
         // have to be kept in agreement. Before the first widget, because a role resolves when a widget writes a
-        // prop. The zoom chords come with the range unless the application turned them off: see
-        // Appearance.ZoomRange.
+        // prop. The chords that move within the zoom range stay the application's: see Appearance.ZoomRange.
         appearance.applyTo(gui);
         // Not part of that call, because Gui.minSize is a floor for one tree's layout and not for the
         // application: the main window's answer is the wrong one for a tool window beside it.
@@ -255,6 +277,9 @@ public final class VexelApplication {
             gui.minSize(appearance.minWidth(), appearance.minHeight());
         }
         shell.gui(gui);
+        // Every window's close is asked of each part that hears CloseRequested, in turn, and the answers are heard in
+        // this tree's frame, on the main thread, where the close routes run.
+        shell.closes(new Closes(shell.bus(), wiring.closeHearers(), gui));
         // Registered after the Gui so it closes before it: the clock outlives the window but not the process.
         KronoGui krono = disposer.register(KronoGui.attach(gui));
         shell.krono(krono);
@@ -267,6 +292,9 @@ public final class VexelApplication {
         if (appearance.drawsOwnFrame()) {
             shell.titleBar(new TitleBar(gui, WindowControls.NONE, info.title()));
         }
+        // The chords, on the main window's tree, for the application to declare its commands on through TREE. Empty
+        // and unsaved until ATTACH, which decides from what was declared whether the bars show its button.
+        shell.keymap(new Keymap(gui));
         // The other windows, declared by name from here to the end of TREE. Each one's tree is built when it is
         // declared, beside this one and with no window; the windows themselves are claimed at ATTACH.
         shell.windows(new Windows(shell, new Window(NamedWindow.of(Windows.MAIN, info.title(), info.width(),
@@ -325,7 +353,7 @@ public final class VexelApplication {
         // dragLocksPointer declaration -- the designer's viewport among them -- was stated and never carried
         // out. See PointerLock.
         input.bridge(gui, shell.pointerLock());
-        app.input(InputBackend.perWindow(shell.pointerLock()));
+        app.input(TactrollerInputBackend.perWindow(shell.pointerLock()));
         // Held rather than discarded once installed: a clipboard belongs to a Gui, so every other window is bound
         // too -- the named ones at their claim, below, and a Gui the application built itself through
         // Shell.clipboard. The application's, if the wiring handed one back by WINDOW.
@@ -338,28 +366,49 @@ public final class VexelApplication {
         // is the same seam every other window we open goes through -- see Appearance.applyTo, which names this
         // as the case it was written for.
         //
-        // The look and not the bus, and the asymmetry is load-bearing. The dialogs keep a Gui of their own on
-        // a bus of its own, because Gui's topics are static: a second tree on this application's bus would
-        // receive this one's mutations into a mailbox that nothing drains while no dialog is up, and that
-        // mailbox is bounded and BLOCKs. See Gui(Atchung). Shell.bus() is for everything that is not a Gui.
+        // The look and not the bus. The dialogs keep a Gui of their own on a bus of their own, which Modals
+        // makes: that was load-bearing when a Gui's topics were static, and a closed dialog's tree would have filled
+        // with this one's messages. The application's windows share its bus since phase 5 (a tree's own topics are
+        // named by it, and the widgets' shared ones scoped by tree); moving the dialogs onto it is vexelray-gui's.
         Modals modals = disposer.register(Modals.install(app, appearance::applyTo));
         // And the Dialogs every part was handed, unless the application handed back its own: from here on a
         // question goes to these, after whatever was asked while there was no window to ask it in.
         if (!shell.dialogsDecided()) {
-            shell.frameworkDialogs(disposer.register(new NativeDialogs(app, modals, shell.lanes().handlers())));
+            shell.frameworkDialogs(disposer.register(new NativeDialogs(app, modals)));
         }
         // A machine that cannot draw this application fifteen times a second is offered simplified graphics, through
-        // whichever Dialogs the application asks with. Always on, for the same reason as the stall report below: a
-        // slow machine does not throw, it only reads as a bad application. See SlowFrames for when, and what follows.
-        app.slowFramesOffer(new SlowFramesPrompt(shell.dialogs()));
+        // whichever Dialogs the application asks with, and answered in the main window's frame. Always on, for the same
+        // reason as the stall report below: a slow machine does not throw, it only reads as a bad application. See
+        // SlowFrames for when, and what follows.
+        app.slowFramesOffer(new SlowFramesPrompt(shell.ownAsks(), shell.gui()));
         // The window exists at last, so the bar can be given controls that actually work and the instruments
         // that use them. Both in one place, because an instrument without real controls is the exact failure
         // automation.md 7 records: "every other window had a screenshot button that neither worked nor
         // complained". The mark too: the window wears it in the taskbar, and a drawn caption without it is the
         // one place the native frame showed it and ours did not. Here because its sizes are textures, and a
         // texture needs the device.
-        if (appearance.drawsOwnFrame()) {
-            shell.titleBar().controls(app.controls()).instruments(appearance.instruments()).icon(app, mark);
+        //
+        // The key button joins every bar's instruments once the application has declared a command, every action having been declared by
+        // the end of TREE. The person's own chords are read here and not earlier, so a headless tree sees the
+        // defaults, and from here every rebind is written as it happens (Keymap.persist). A store of its own,
+        // because the settings store writes back everything it holds and would race the keymap's.
+        Keymap keymap = shell.keymap();
+        Appearance chrome = appearance;
+        if (!keymap.actions().isEmpty()) {
+            keymap.persist(AppHome.of(info.name()).settings(KEYS_STORE));
+            List<WindowInstrument> tools = new ArrayList<>(appearance.instruments());
+            tools.add(KeymapWindow.instrument(app, gui, keymap));
+            chrome = appearance.instruments(tools);
+        }
+        if (chrome.drawsOwnFrame()) {
+            // The mark's drawing when it has one, sharp at every scale; else the icon's rasters, nearest the scale.
+            dev.vexelray.gui.core.ImageSdg drawing = Mark.drawing(wiring, info);
+            TitleBar bar = shell.titleBar().controls(app.controls()).instruments(chrome.instruments());
+            if (drawing != null) {
+                bar.icon(drawing);
+            } else {
+                bar.icon(app, mark);
+            }
         }
         if (memory.maximized(MAIN)) {
             app.window().maximize();
@@ -370,16 +419,39 @@ public final class VexelApplication {
         // Every other window the wiring declared, claimed by the framework rather than by a recipe that would have
         // had to take the GuiApp to do it: remembered under its name, wearing the window mark, commanded by its
         // own bar and bound to the clipboard. Before the wiring's ATTACH, so a part built there finds them claimed.
-        shell.windows().claim(app, memory, shell.clipboard(), shell.windowMark());
-        // The mark on every bar opens the About window, as the native caption's icon opens the system menu. Here, once
+        // Wearing the same instruments as the main bar, the key button among them: a person rebinds from whichever window
+        // they are in, and the editor it opens is the one window however many bars it is clicked on.
+        shell.windows().claim(app, memory, shell.clipboard(), shell.windowMark(), chrome);
+        // A window that stands on its own says whose it is in its lockup: the mark, then the name as a logo. In the
+        // theme's type unless the application gave its own logo while building its tree, which is identity and so the
+        // application's to give. A satellite (About, settings) wears the mark alone, which is its app menu, and its
+        // title after it: it belongs to the main window, which already says the name, and the name before a title
+        // like "About <name>" said it twice.
+        if (chrome.drawsOwnFrame()) {
+            String name = About.name(info, shell.build());
+            List<TitleBar> bars = new ArrayList<>();
+            bars.add(shell.titleBar());
+            for (Window w : shell.windows().declared()) {
+                if (!w.satellite()) {
+                    bars.add(w.titleBar());
+                }
+            }
+            for (TitleBar bar : bars) {
+                if (bar.wordmark() == null) {
+                    bar.wordmark(name);
+                }
+            }
+        }
+        // Every bar's app menu opens with About, as the native caption's icon opens the system menu. Here, once
         // every bar wears its mark, and with the logo uploaded, since its sizes are textures too.
         if (about != null) {
             about.attach(app, mark);
             String tip = "About " + About.name(info, shell.build());
             Runnable open = about.window()::show;
-            shell.titleBar().onMark(tip, open);
+            WidgetSeams host = WidgetSeams.get();   // the host's door: opening About is the framework's own code
+            host.onMark(shell.titleBar(), tip, open);
             for (Window w : shell.windows().declared()) {
-                w.titleBar().onMark(tip, open);
+                host.onMark(w.titleBar(), tip, open);
             }
         }
 
@@ -388,6 +460,12 @@ public final class VexelApplication {
                 .add(FrameStage.INPUT, input::pump)
                 .add(FrameStage.CLOCK, krono::tick)
                 .add(FrameStage.SETTLE, memory::poll);
+        // Single-thread mode (T1.7): the logic's tick runs here, after input is published and the clock has ticked,
+        // before the frame drains the widgets' mailboxes, so what it writes is drawn in this frame. APP is the
+        // framework's stage for exactly this, draining what arrived, and no application reaches it.
+        if (shell.logicOnMain()) {
+            shell.hooks().add(FrameStage.APP, shell::runLogicOnMain);
+        }
 
         // The two deadlines the framework itself holds. An application's own are added by its wiring, which is
         // the point of the seam: the clock knows about animations, and it does not know that the window
@@ -397,7 +475,7 @@ public final class VexelApplication {
 
         // And the wakes, without which the parking below is a hang rather than a saving: a worker's mutation
         // and a timeline's tick are not OS input, so each has to nudge the message queue.
-        shell.wake(gui::onWork);
+        shell.wake(Seams.of(gui)::onWork);
         shell.wake(krono.kron()::onWork);
 
         wiring.attach(shell);
@@ -413,10 +491,10 @@ public final class VexelApplication {
         shell.hooks().onFailure(HookFailures::failed);
         shell.hooks().seal();
         shell.pacing().seal();
-        // Every component's thread starts here and not in its constructor: a mailbox must not pump before its
-        // publishers exist, and the wiring has only just finished making them. Each gets its wake connected on
-        // the way, so a component that publishes a result nudges the loop without the wiring saying so. See
-        // Shell.place, which the generated wiring reaches through Placements.
+        // The logic lane starts here and not in a constructor: a mailbox must not be delivered to before its
+        // publishers exist, and the wiring has only just finished making them. Its wake is connected on the way, so
+        // a tick that delivered nudges the loop without the wiring saying so. See Logic, which the generated wiring
+        // reaches through Inboxes.
         shell.startComponents();
 
         if (launch.mode() == RunMode.WINDOWED) {

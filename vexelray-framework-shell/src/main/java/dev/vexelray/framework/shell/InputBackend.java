@@ -2,7 +2,6 @@ package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.gui.core.Gui;
-import dev.vexelray.gui.core.app.WindowInput;
 
 /**
  * The input backend, attached to the window and bridged onto the bus.
@@ -26,16 +25,6 @@ public interface InputBackend extends AutoCloseable {
     /** The framework's backend, on tactroller, or its absence reported. Never throws, never returns null. */
     static InputBackend open() {
         return TactrollerInputBackend.open();
-    }
-
-    /**
-     * Input for each window the framework opens on its own — a dialog, a named window — each with its own
-     * backend and its own {@link PointerLock}, tuned like the main window's.
-     *
-     * @param tuning the main window's lock, read for its mode and threshold only
-     */
-    static WindowInput.Factory perWindow(PointerLock tuning) {
-        return TactrollerInputBackend.perWindow(tuning);
     }
 
     /** Whether there is a backend at all. */

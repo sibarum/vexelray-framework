@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.framework.api.FrameStage;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
@@ -97,8 +98,8 @@ final class WakeSeamsTest {
             // A touchpad tap: press and release at one point, with no pointer motion. Motion would be an OS
             // event and would have woken the loop by itself, which is why the shape that broke carries none.
             Gui gui = wiring.shell.gui();
-            gui.bus().publish(InputTopics.INPUT, new InputEvent.ButtonPressed(MouseButton.LEFT, 20, 20, 0));
-            gui.bus().publish(InputTopics.INPUT, new InputEvent.ButtonReleased(MouseButton.LEFT, 20, 20, 0));
+            gui.bus().publish(gui.input(), new InputEvent.ButtonPressed(MouseButton.LEFT, 20, 20, 0));
+            gui.bus().publish(gui.input(), new InputEvent.ButtonReleased(MouseButton.LEFT, 20, 20, 0));
             // Stands in for the OS message that a real click would also have delivered. Everything after this
             // wake is what is under test: the handler runs, and something has to ask for the frame that shows it.
             window.postWake();
@@ -188,7 +189,7 @@ final class WakeSeamsTest {
             Gui gui = shell.gui();
             Node box = gui.box().size(Length.dp(200), Length.dp(120));
             gui.root().append(box);
-            gui.onClick(gui.root(), clicks::incrementAndGet);
+            Seams.of(gui).onClick(gui.root(), clicks::incrementAndGet);
         }
 
         @Override

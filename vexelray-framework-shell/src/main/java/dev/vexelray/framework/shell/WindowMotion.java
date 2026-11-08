@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.Timing;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.krono.Fades;
 import dev.vexelray.gui.krono.KronoGui;
@@ -51,7 +52,7 @@ final class WindowMotion {
     static final Dur PAINT = Dur.ms(120);
 
     /** A cut-off name being shown whole. */
-    static final Dur REVEAL = Dur.ms(150);
+    static final Timing REVEAL = Timing.millis(150, Timing.Curve.IN_OUT_CUBIC);
 
     /** A node sliding to where layout put it. */
     static final Dur MOVE = Dur.ms(180);
@@ -74,7 +75,7 @@ final class WindowMotion {
 
     /** Give {@code gui} the framework's motion, timed on {@code krono}. Before its first widget. */
     static void install(Gui gui, KronoGui krono) {
-        Unclip.of(gui).motion((progress, done) -> krono.ramp(REVEAL, Ease.IN_OUT_CUBIC, progress, done));
+        Unclip.of(gui).motion(REVEAL);   // on the tree's clock, which KronoGui installed when it attached
         gui.paintMotion(Fades.on(krono, PAINT, Ease.LINEAR));
         gui.motion(Transitions.on(krono).followSubtree(gui.root(), MOVE, Ease.OUT_CUBIC));
         Presence presence = Presence.on(krono).rise(RISE_EM).followSubtree(gui.root(), PRESENCE, Ease.OUT_CUBIC);

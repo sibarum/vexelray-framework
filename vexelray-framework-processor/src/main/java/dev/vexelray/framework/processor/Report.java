@@ -52,6 +52,13 @@ final class Report implements Messager {
         compiler.printMessage(kind, msg, e, a, v);
     }
 
+    /** A message at a place in a source tree, rather than at an element: what {@link StepCheck} finds in a body. */
+    void at(com.sun.source.util.Trees trees, Diagnostic.Kind kind, CharSequence msg, com.sun.source.tree.Tree tree,
+            com.sun.source.tree.CompilationUnitTree unit) {
+        count(kind);
+        trees.printMessage(kind, msg, tree, unit);
+    }
+
     private void count(Diagnostic.Kind kind) {
         if (kind == Diagnostic.Kind.ERROR) {
             errors++;

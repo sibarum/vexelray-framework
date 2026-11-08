@@ -57,17 +57,23 @@ This project was generated from the vexel-desktop template, which is a small tex
 I'm turning it into a log viewer: it opens a .log file, follows it as it grows, colours
 lines by level, and filters them by a word typed into a field above the text.
 
-Read CLAUDE.md, README.md, Recipes.java, Model.java and Ui.java first. Then tell me which
-of the generated parts we keep as they are, which we change, and which we delete, and
-propose the order to do it in, smallest working step first. Don't change any files yet.
+Read CLAUDE.md, README.md, EXAMPLES.md, Messages.java, Editor.java and View.java first. Then
+tell me which of the generated parts we keep as they are, which we change, and which we
+delete, and propose the order to do it in, smallest working step first. Don't change any
+files yet.
 ```
 
 Correct the plan. That is much cheaper than correcting the code. Then ask for one step of it at a time.
 
+A log viewer is an editor of a kind, so most of the template stays. For an application that is not about files at
+all, say so, and make the first step taking the editor out: "Delete the template's editor, leaving the title bar over
+an empty page, with `mvn test` passing and a screenshot of the empty window. Nothing new yet."
+[Getting started](../getting-started.md#turning-it-into-your-application) lists what that deletes and what it keeps.
+
 ## Requests that work
 
 **One slice at a time, model to screen, with its test.** "Add level colouring: a pure function from a line to its
-spans in `text/`, unit-tested, called from where `Buffer` calls `Markdown.spans` now." A slice like that is small
+spans in `-core`, unit-tested, run by the job the view asks for a file's spans after each edit, as `MarkText` runs `Markdown.spans` now." A slice like that is small
 enough to review in one sitting. "Build the log viewer" is not.
 
 **Say what done looks like, in a form that can be checked.** Name the `ottermate` run that proves it:
@@ -159,7 +165,7 @@ to read closely is the agent's own mistakes, because that is the one it leaves o
 | Symptom | Usually |
 | --- | --- |
 | `Could not resolve dependencies` for `dev.vexelray...` | A stack repository was never installed, or a newer one was pulled and not reinstalled. `bootstrap.sh --from <repo>` reinstalls it and everything after it ([Getting started §2](../getting-started.md#2-install-the-stack)) |
-| The window freezes, nothing is thrown | A lock held while committing to the model, or one taken from a model listener. Both rules are written on the generated `Workspace` |
+| The window freezes, nothing is thrown | Something in the view or in a step that blocks: the disk, a lock, a sleep. Disk work is a `@Job`, and a wait is a chain; the generated README's *Threading, in one paragraph* says which lane runs what |
 | It works under `mvn exec:exec` and not as a native executable | A missing native-image registration. The generated README's *A native executable* section has the fix |
 | The agent keeps rewriting the same thing | Stop it. Clear the session, and start again with a smaller request and the file it should copy |
 | A framework feature you need is missing | Not your bug. Write it up in `docs/framework-notes.md` and [open an issue](https://github.com/sibarum/vexelray-framework/issues/new) |

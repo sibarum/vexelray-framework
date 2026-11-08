@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -16,11 +15,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Where this application's threads come from — all of them that are not the main thread and not the timeline.
  *
- * <p>Three of the five lanes live here: the <b>handler lane</b>, the <b>offload lane</b>, and the
- * <b>component threads</b> minted by {@link #thread}. The other two are not this class's to make — the main
- * thread is the one the process started on, and the timeline is single-threaded by construction inside
- * Kronometer, entered from {@code FrameStage.CLOCK}. A sixth lane is a design change argued in
- * {@code docs/architecture.md}, not a pool added at a call site.
+ * <p>Three kinds of lane live here: the <b>logic lane's</b> thread ({@link #logic}), each <b>declared lane's</b>
+ * ({@link #thread}), and the <b>job lane</b> ({@link #jobs}). The other two are not this class's to make: the main
+ * thread is the one the process started on, and the timeline is single-threaded by construction inside Kronometer,
+ * entered from {@code FrameStage.CLOCK}. A further lane is a design change argued in {@code docs/architecture.md}, not
+ * a pool added at a call site (T1.1). 0.1's handler lane, an unbounded pool every click ran on, is gone: a widget's
+ * event is a message, so there is no handler to run.
  *
  * <p><b>Why a type rather than a field on the container.</b> The point of owning the threads is that placement
  * is decided in the wiring rather than by how many trees an application happens to hold, and that is only true
@@ -54,7 +54,7 @@ public final class Lanes implements AutoCloseable {
     private static final long STOP_NANOS = TimeUnit.SECONDS.toNanos(2);
 
     /**
-     * Threads on the offload lane. Bounded, because a pool that answers a full queue by growing has chosen the
+     * Threads on the job lane. Bounded, because a pool that answers a full queue by growing has chosen the
      * one policy the rest of this model refuses: the lane exists to absorb a stall, and an unbounded one
      * answers a wedged network mount by making a thread per blocked call, so the lane meant to absorb the
      * stall is what multiplies it.
@@ -63,10 +63,9 @@ public final class Lanes implements AutoCloseable {
      * which is backpressure. A bounded queue would make it <em>fail</em>, and choosing loss is a decision taken
      * per channel by whoever knows what that channel carries — not a default a pool takes on their behalf.
      */
-    private static final int OFFLOAD_THREADS = Math.max(4, Runtime.getRuntime().availableProcessors());
+    private static final int JOB_THREADS = Math.max(4, Runtime.getRuntime().availableProcessors());
 
-    private final ExecutorService handlers;
-    private final ExecutorService offload;
+    private final ExecutorService jobs;
     /** Component threads, in the order they were placed. Stopped in reverse, like everything else. */
     private final List<Thread> components = new ArrayList<>();
     /** Parent of every component's own group, so the lanes are one subtree in a thread dump. */
@@ -78,48 +77,32 @@ public final class Lanes implements AutoCloseable {
 
     /** The lanes an ordinary application gets. */
     public Lanes() {
-        this(Executors.newCachedThreadPool(named("handler")), boundedOffload());
+        this(boundedJobs());
     }
 
     /**
-     * The lanes, with both supplied — for a test that wants the container's placement without its threads.
-     *
-     * <p>A same-thread executor ({@code Runnable::run}) for the handler lane is what makes a headless run
-     * deterministic: input published on the bus is handled synchronously inside the frame, so a test has exact
-     * control over what fires and when.
+     * The lanes, with the job lane supplied: for a test that wants a job run where it can see it.
      */
-    public Lanes(ExecutorService handlers, ExecutorService offload) {
-        this.handlers = handlers;
-        this.offload = offload;
+    public Lanes(ExecutorService jobs) {
+        this.jobs = jobs;
     }
 
     /**
-     * The lane input handlers run on — clicks, keys, chars, drags, state.
-     *
-     * <p>Unbounded in threads, deliberately and for now. A handler is meant to be short application code
-     * answering an input event, and {@link #offload} is where anything that blocks belongs; but while blocking
-     * handlers still exist in applications on this stack, bounding this lane would stop click dispatch dead
-     * rather than reveal the defect. The bound arrives after the blocking handlers move.
-     */
-    public ExecutorService handlers() {
-        return handlers;
-    }
-
-    /**
-     * The lane for work that is genuinely unbounded — file I/O, network, an image decode — and which may
-     * outlast any number of frames.
+     * The job lane, {@code vexel-job-<n>}: where a {@code @Job} runs, for work that is genuinely unbounded (file I/O,
+     * network, an image decode) and which may outlast any number of frames (T5.8).
      *
      * <p><b>A pool here does not contradict static placement.</b> A component is placed statically because it
-     * is stateful and ordered; an offloaded task is stateless and unordered, so there is nothing to confine and
+     * is stateful and ordered; a job is stateless and unordered, so there is nothing to confine and
      * no sequence to keep. What polices the edge is the shareable set rather than the placement: a task that
      * captures a component's state is the thing that must not compile.
      *
-     * <p><b>A result never lands in place.</b> Work finishing here comes back through one of exactly two doors
-     * — published on a topic and folded into a cell, or dropped on a queue drained in {@code FrameStage.APP}.
-     * What a thread from this lane must never do is touch the tree or the timeline directly.
+     * <p><b>A result never lands in place.</b> A job's reply is published, and every subscriber hears it on its own
+     * lane. What a thread from this lane must never do is touch the tree or the timeline directly.
+     *
+     * <p>The framework's, as every lane is: an application declares a job and never takes this pool (T2.5).
      */
-    public ExecutorService offload() {
-        return offload;
+    public ExecutorService jobs() {
+        return jobs;
     }
 
     /**
@@ -139,6 +122,19 @@ public final class Lanes implements AutoCloseable {
      * @param name what the thread is called in a dump and in a report — the component's name, not a number
      */
     public Thread thread(String name, Runnable body) {
+        return mint(name, "vexel-component-" + name, body);
+    }
+
+    /**
+     * Mint the logic lane's thread, {@code vexel-logic} (T1.2), on the same terms as a component's: started now, a
+     * platform thread, stopped by {@link #closed}, and interrupted as the lane called {@code logic}. It runs the tick
+     * that drains every component without a lane of its own.
+     */
+    public Thread logic(Runnable body) {
+        return mint("logic", "vexel-logic", body);
+    }
+
+    private Thread mint(String name, String threadName, Runnable body) {
         if (closed) {
             throw new IllegalStateException("lanes are closed; " + name + " cannot be placed on one");
         }
@@ -146,7 +142,7 @@ public final class Lanes implements AutoCloseable {
         // reaches all of them. See interruptLane.
         ThreadGroup group = new ThreadGroup(componentGroups, "vexel-lane-" + name);
         groups.put(name, group);
-        Thread t = new Thread(group, body, "vexel-component-" + name);
+        Thread t = new Thread(group, body, threadName);
         t.setDaemon(true);
         components.add(t);
         t.start();
@@ -265,10 +261,8 @@ public final class Lanes implements AutoCloseable {
         }
         components.clear();
 
-        handlers.shutdown();
-        offload.shutdown();
-        awaitOrStop(handlers, deadline);
-        awaitOrStop(offload, deadline);
+        jobs.shutdown();
+        awaitOrStop(jobs, deadline);
     }
 
     /** Whether {@link #close} has run. A component checks this to know an interrupt was a shutdown. */
@@ -303,9 +297,9 @@ public final class Lanes implements AutoCloseable {
         lane.shutdownNow();
     }
 
-    private static ExecutorService boundedOffload() {
-        ThreadPoolExecutor pool = new ThreadPoolExecutor(OFFLOAD_THREADS, OFFLOAD_THREADS, 30L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(), named("offload"));
+    private static ExecutorService boundedJobs() {
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(JOB_THREADS, JOB_THREADS, 30L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(), named("job"));
         // An idle application should not sit on threads it is not using, and letting the core time out makes
         // the bound a ceiling rather than a floor.
         pool.allowCoreThreadTimeOut(true);
@@ -315,7 +309,7 @@ public final class Lanes implements AutoCloseable {
     /**
      * Daemon platform threads, named for their lane.
      *
-     * <p>The name is load-bearing rather than decorative: "worker thread" used to mean the handler lane and the
+     * <p>The name is load-bearing rather than decorative: "worker thread" used to mean 0.1's handler lane and its
      * offload lane both, which is one name for two lanes with different rules in the documentation applications
      * read — and in the thread dump they reach for when one of them is the problem.
      */

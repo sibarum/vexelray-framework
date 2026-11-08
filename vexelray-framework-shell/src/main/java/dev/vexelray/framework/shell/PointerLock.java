@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.Stability;
 import dev.vexelray.gui.core.Gui;
@@ -161,12 +162,12 @@ public final class PointerLock {
     private boolean supported = true;
 
     /**
-     * What the GUI has asked for. Written by the dispatcher's sink and read by {@link #reconcile()} on the main
-     * thread — nominally the same thread, since the sink fires inside {@code Gui.frame}, but not on every path:
-     * {@code InputDispatcher.clearHandlers} drops the lock too, and a node can be removed by a worker. Volatile
-     * is a cheap way not to depend on which of those happened.
+     * What the GUI has asked for. Written by the dispatcher's sink and read by {@link #reconcile()}, both on the main
+     * thread: the sink fires inside {@code Gui.frame}, and the other path to it, {@code InputDispatcher.clearHandlers}
+     * dropping the lock with a removed node, is the reconciler's, which runs there too. This was volatile while a
+     * worker could remove a node; under 0.2 nothing off the GUI thread holds a {@code Gui} (ROADMAP phase 5).
      */
-    private volatile boolean wanted;
+    private boolean wanted;
 
     /** Whether the device is actually locked right now. Main thread only. */
     private boolean locked;
@@ -268,7 +269,7 @@ public final class PointerLock {
             return;
         }
         if (gui != null) {
-            gui.onPointerLock(this::want);
+            Seams.of(gui).onPointerLock(this::want);
         }
     }
 

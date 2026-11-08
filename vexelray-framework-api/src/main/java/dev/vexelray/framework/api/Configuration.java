@@ -28,9 +28,34 @@ import java.lang.annotation.Target;
  * non-private constructor taking nothing, and a starter's is public — and calls each winning provider once. One
  * promise above is not kept: a {@code @Provides} calling another directly is a method body, and the processor
  * reads declarations. See {@link dev.vexelray.framework.api} for which half of this package is built.
+ *
+ * <p><b>A configuration also lists the components and jobs of its module.</b> A processor sees the source of the
+ * compilation it was handed, and nothing in a jar beside it — so when an application is split into modules, a
+ * {@link Component} compiled in one of them is a class file to the module holding the {@link VexelApp}, and nothing
+ * would construct it. The module says what it is made of here, and the application names the configuration as a
+ * starter: listed, not discovered, for the reason {@link VexelApp#starters()} gives.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)
 @Stability(Stability.Level.EXPERIMENTAL)
 public @interface Configuration {
+
+    /**
+     * The {@link Component} classes this configuration brings, by class literal. Needed only for a component compiled
+     * in another module than the {@link VexelApp}'s; one compiled beside it is found where it is declared, and
+     * listing it as well changes nothing.
+     */
+    Class<?>[] components() default {};
+
+    /** The {@link Job} classes this configuration brings, on the same terms as {@link #components()}. */
+    Class<?>[] jobs() default {};
+
+    /** The {@link Source} classes this configuration brings, on the same terms as {@link #components()}. */
+    Class<?>[] sources() default {};
+
+    /**
+     * The {@link Destination} classes this configuration brings, on the same terms as {@link #components()}. A part that
+     * is both a source and a destination is listed here, and found there too.
+     */
+    Class<?>[] destinations() default {};
 }

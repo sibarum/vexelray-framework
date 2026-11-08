@@ -1,48 +1,51 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
+import dev.vexelray.framework.core.Modifiers;
+import dev.vexelray.framework.core.WindowClosed;
+import dev.vexelray.framework.core.WindowCommand;
+import dev.vexelray.framework.core.WindowFullScreen;
+import dev.vexelray.framework.core.WindowOpened;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.app.AppWindow;
 import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.core.app.WindowSpec;
 import dev.vexelray.gui.core.edit.History;
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Icon;
+import dev.vexelray.os.NativeWindow;
 import dev.vexelray.os.WindowConfig;
-
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
+import sibarum.tactroller.api.Modifier;
 
 /**
  * <b>One of this application's windows</b> — the main one, or a settings window, a viewer, a tool window by name —
- * with its tree built by the framework and its window commanded from anywhere. The main window is
- * {@link Windows#main()}; the others are declared through {@link Windows#named}.
+ * with its tree built by the framework. The main window is {@link Windows#main()}; the others are declared through
+ * {@link Windows#named}.
  *
- * <p><b>Every command is safe from any thread</b>, which is why a recipe holding one is not main-thread. Each only
- * asks: {@link #show} posts to the frame loop, and the window is created there, at the top of the next frame. That
- * was already true of the {@code AppWindow} underneath; what was not true is that a recipe could hold one without
- * also taking the {@code GuiApp} to claim it, which made the recipe main-thread for the sake of a handle that is not
- * (calculator FN-1). The claim is the framework's now, so the colour is the handle's own.
+ * <p><b>What a part holds is the tree, not the window.</b> A recipe builds into {@link #gui()} and places
+ * {@link #titleBar()}; it opens, hides or closes the window by sending a {@link WindowCommand} with its {@link #key()},
+ * and hears it come and go as {@link WindowOpened} and {@link WindowClosed}. The commands are carried out, and
+ * everything this class knows about the window is read and written, on the main thread alone, so there is no lock in
+ * it. (In 0.1 the handle's {@code show()} could be called from any thread and its listeners ran on the main thread:
+ * nine {@code synchronized} blocks and two copy-on-write lists, ROADMAP §3.)
  *
- * <p><b>Usable before the window can exist.</b> The handle is handed out with the trees, two phases before there is a
- * device, and the window is claimed at {@code ATTACH}. A command before then is remembered and carried out when the
- * window is claimed, so a tree that opens its window on its first frame does not have to know whether that is
- * possible yet.
+ * <p><b>Usable before the window can exist.</b> The trees are built two phases before there is a device, and the
+ * window is claimed at {@code ATTACH}. A command before then is remembered and carried out when the window is claimed,
+ * so a tree that opens its window on its first frame does not have to know whether that is possible yet.
  *
  * <p><b>The tree outlives the window</b>, as {@code AppWindow}'s does: closing destroys the window and keeps the
  * {@link #gui()}, and showing again re-creates a window around the same tree, so whatever was in it is still there.
  * The framework closes the tree at shutdown.
  *
- * <p><b>The main window is the same type with one difference</b>: closing it is quitting. Its {@link #close} takes the
- * route its own close button does, so a close gate ({@link #onClose}) is asked first and may refuse; it cannot be
- * shown again once it has gone. That is what a <i>Quit</i> button wants, and it is why such a button no longer needs
- * the {@code GuiApp}.
+ * <p><b>The main window is the same type with one difference</b>: closing it is quitting, by the route its own close
+ * button takes, so the application is asked first ({@code CloseRequested}) and may refuse; it cannot be shown again
+ * once it has gone.
  *
  * <p><b>What the framework does for a named window</b>, and what used to be five steps at every second window: its
- * own {@code Gui}, on a bus of its own (two trees on one bus each receive the other's mutations, so the main window
- * drew the calculator's settings) and on the application's lanes; the application's look, or the one it was declared
+ * own {@code Gui}, named by its key on the application's bus (so its widgets are {@code "<key>.<name>"}, and a view
+ * hears them as it hears the main window's); the application's look, or the one it was declared
  * with; a title bar wearing the application's window mark, with the controls and the instruments of its own window;
  * its placement and zoom remembered under its name, and forgotten when it closes; and the application's clipboard.
  */
@@ -50,42 +53,30 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class Window {
 
     /** What a claimed window is commanded through: a named window's {@code AppWindow}, or the main window's loop. */
-    private interface Handle {
-
-        void show();
-
-        void hide();
-
-        void toggle();
-
-        void close();
-
-        boolean open();
+    private interface Handle extends WindowCommand.Sink {
     }
 
     private final NamedWindow declared;
     private final Gui gui;
     private final TitleBar bar;
-    private final List<Runnable> opened = new CopyOnWriteArrayList<>();
-    private final List<Runnable> closed = new CopyOnWriteArrayList<>();
+    /** Where a close is asked of the application ({@code CloseRequested}), and where opened and closed are said. */
+    private final Shell shell;
 
-    /** The claimed window, or null until {@code ATTACH}. Guarded by {@code this}, with the two below. */
+    // The main thread's, from here down: the startup thread before ATTACH, and the frame after.
+
+    /** The claimed window, or null until {@code ATTACH}. */
     private Handle handle;
     /** Whether the window should be on screen once it is claimed: the commands given before it could be. */
     private boolean shown;
-    /** Whether {@link #close} was asked for before the claim. Only the main window acts on it: see {@link #claimMain}. */
+    /** Full screen as the commands before the claim left it: null for none given, so the window opens as remembered. */
+    private Boolean fullScreen;
+    /** Whether a close was asked for before the claim. Only the main window acts on it: see {@link #claimMain}. */
     private boolean closeAsked;
-    /** The handle, when this is the main window; null for a named one. */
-    private MainHandle main;
-    /** Asked before the window closes, or null to let it close. Read when a close arrives, so it can be set at any time. */
-    private volatile CloseGate gate;
-    /** Guarded by {@code this}: whether {@link #gate} has been set, which it may be once. */
-    private boolean gated;
     /**
      * Told how the next close goes, once: {@code [proceeded, cancelled]}, or null. Set by {@link #close(Runnable,
      * Runnable)}, taken by the close it asked for.
      */
-    private volatile Runnable[] outcome;
+    private Runnable[] outcome;
 
     /**
      * @param shown whether the window is on screen once claimed unless a command says otherwise: true for the main
@@ -96,15 +87,29 @@ public final class Window {
         this.gui = gui;
         this.bar = bar;
         this.shown = shown;
+        this.shell = shell;
         // Undo for the whole window, bound before any widget exists so there is no window without it: Ctrl+Z,
-        // Ctrl+Shift+Z and Ctrl+Y everywhere in the tree, drops and pastes recorded into the same stack, and a
-        // failure shown rather than swallowed. A narrower history (a page's, a document's) outranks this one by
+        // Ctrl+Shift+Z and Ctrl+Y everywhere in the tree, and a failure shown rather than swallowed. A drop or a
+        // paste is the application's to record, as any edit of its model is: the widget only announces it. A narrower history (a page's, a document's) outranks this one by
         // claim scope, as Gui.history says.
-        gui.history(history).dropHistory(history);
+        gui.history(history);
         UndoFeedback.install(gui, shell);
         // Motion for the whole window, on the application's one clock, so a second window moves exactly as the main
-        // one does rather than not at all. See WindowMotion.
+        // one does rather than not at all. See WindowMotion. The tree's clock too, which runs every Tween and Timing in
+        // it: KronoGui installed it in the main window's tree only, and without one a named window's tween landed at
+        // once (the About window's intro never played).
+        Seams.of(gui).clock(Seams.of(shell.gui()).clock());
         WindowMotion.install(gui, shell.krono());
+        // What is held here, said to the application as a mode it can hear (Modifiers, Vexplore FN-9): on each change
+        // of the set, which the dispatcher commits on change only and clears when the window loses focus. Committed on
+        // the GUI thread; the bus carries it to each part on its own lane.
+        Seams.of(gui).modifiers().onCommit(v -> shell.bus().publish(Modifiers.TOPIC, held(key(), v.value())));
+    }
+
+    /** {@code held}, the dispatcher's set, as the message an application hears for window {@code window}. */
+    static Modifiers held(String window, java.util.Set<Modifier> held) {
+        return new Modifiers(window, held.contains(Modifier.SHIFT), held.contains(Modifier.CONTROL),
+                held.contains(Modifier.ALT), held.contains(Modifier.SUPER));
     }
 
     /** This window's undo and redo. See {@link #history()}. */
@@ -123,9 +128,14 @@ public final class Window {
         return history;
     }
 
-    /** The name this window is known by: in the settings file, and on the automation socket. */
+    /** The name this window is known by: in the settings file, on the automation socket, and in a WindowCommand. */
     public String key() {
         return declared.key();
+    }
+
+    /** Whether this window belongs to the main one ({@link NamedWindow#satellite()}) rather than standing beside it. */
+    boolean satellite() {
+        return declared.owned();
     }
 
     /** The tree shown in this window, live whether or not the window is open. Build into its {@code root()}. */
@@ -146,103 +156,96 @@ public final class Window {
         return bar;
     }
 
-    /**
-     * Put this window in front of the user: open it if it is closed, unhide it if it is hidden, raise it and give it
-     * the keyboard. Asking for a window that is open raises the one there is rather than opening a second.
-     */
-    public Window show() {
-        Handle h;
-        synchronized (this) {
-            shown = true;
-            h = handle;
-        }
-        if (h != null) {
-            h.show();
-        }
-        return this;
+    /** Whether the window is to be on screen, as the commands so far have left it. Main thread; for a test. */
+    boolean shown() {
+        return shown;
     }
 
-    /** Take this window off the screen, keeping it and everything in it for the next {@link #show}. */
-    public Window hide() {
-        Handle h;
-        synchronized (this) {
+    /** Full screen as the commands before the claim left it, or null for none given. Main thread; for a test. */
+    Boolean fullScreen() {
+        return fullScreen;
+    }
+
+    /** Carry out {@code command}. Main thread. */
+    void command(WindowCommand command) {
+        command.to(commands);
+    }
+
+    /** The commands, as the main thread carries them out: on the window once claimed, remembered until then. */
+    private final WindowCommand.Sink commands = new WindowCommand.Sink() {
+        @Override
+        public void show() {
+            Window.this.show();
+        }
+
+        @Override
+        public void hide() {
             shown = false;
-            h = handle;
-        }
-        if (h != null) {
-            h.hide();
-        }
-        return this;
-    }
-
-    /** {@link #show} if this window is not in front of the user, {@link #hide} if it is. */
-    public Window toggle() {
-        Handle h;
-        synchronized (this) {
-            h = handle;
-            if (h == null) {
-                shown = !shown;
+            if (handle != null) {
+                handle.hide();
             }
         }
-        if (h != null) {
-            h.toggle();
+
+        @Override
+        public void toggle() {
+            if (handle == null) {
+                shown = !shown;
+            } else {
+                handle.toggle();
+            }
         }
-        return this;
+
+        @Override
+        public void close() {
+            Window.this.close();
+        }
+
+        @Override
+        public void fullScreen(boolean on) {
+            if (handle == null) {
+                fullScreen = on;
+            } else {
+                handle.fullScreen(on);
+            }
+        }
+
+        @Override
+        public void toggleFullScreen() {
+            if (handle == null) {
+                fullScreen = !Boolean.TRUE.equals(fullScreen);
+            } else {
+                handle.toggleFullScreen();
+            }
+        }
+    };
+
+    /**
+     * Put this window in front of the person: open it if it is closed, unhide it if it is hidden, raise it and give it
+     * the keyboard. Main thread: the framework's own, for the window mark's About.
+     */
+    void show() {
+        shown = true;
+        if (handle != null) {
+            handle.show();
+        }
     }
 
     /**
      * Close this window by the route its own close button takes. A named window goes and its tree stays, for a later
-     * {@link #show}: what a button inside the window does when it means "done". The main window's close is quitting,
-     * and its close gate is asked first.
+     * show. The main window's close is quitting, and the application is asked first. Main thread.
      */
-    public Window close() {
-        Handle h;
-        synchronized (this) {
-            shown = false;
-            closeAsked = true;
-            h = handle;
+    void close() {
+        shown = false;
+        closeAsked = true;
+        if (handle != null) {
+            handle.close();
         }
-        if (h != null) {
-            h.close();
-        }
-        return this;
-    }
-
-    /** Whether the window exists, on screen or hidden. False before {@code ATTACH}. */
-    public boolean isOpen() {
-        Handle h;
-        synchronized (this) {
-            h = handle;
-        }
-        return h != null && h.open();
     }
 
     /**
-     * Ask {@code gate} before this window closes, by its close button, by {@link #close}, or for the main window by the
-     * OS or a liveness exit. For the main window that is asking before the application quits.
-     *
-     * <p><b>Any time, from any thread</b>: the gate is read when a close arrives, so one set after the window opened
-     * still counts. <b>Once per window</b>: a second would silently replace the first, and in an application with two
-     * things worth guarding, the one replaced is as likely as not the one that knew about the unsaved documents.
-     *
-     * @throws IllegalStateException if this window already has a gate
-     */
-    public Window onClose(CloseGate gate) {
-        Objects.requireNonNull(gate, "gate");
-        synchronized (this) {
-            if (gated) {
-                throw new IllegalStateException("window '" + key() + "' already has a close gate; a second would "
-                        + "replace it");
-            }
-            gated = true;
-        }
-        this.gate = gate;
-        return this;
-    }
-
-    /**
-     * A close has arrived: ask the gate, or let it through when there is none. What the window's own close route calls,
-     * on the handler lane; package-private so a test can stand in for the route.
+     * A close has arrived, by the close button, by {@link #close}, or for the main window by the OS or a liveness exit:
+     * ask the application ({@code CloseRequested}) when something hears that, or let it through. What the window's own
+     * close route calls, in the frame, on the main thread; package-private so a test can stand in for the route.
      */
     void requested(Runnable proceed, Runnable cancel) {
         Runnable[] told = outcome;
@@ -255,41 +258,17 @@ public final class Window {
             told[1].run();
             cancel.run();
         };
-        CloseGate g = gate;
-        if (g == null) {
-            go.run();
-        } else {
-            g.ask(go, stay);
-        }
+        shell.closes().ask(key(), go, stay);
     }
 
     /**
-     * {@link #close()}, told whether it happened: {@code proceeded} once the gate (if any) has let it, before the
-     * window goes, or {@code cancelled} if the gate kept it open. What a restart needs, since it must not start a
-     * second process for a window that stayed.
+     * {@link #close()}, told whether it happened: {@code proceeded} once the application (if it is asked) has let it,
+     * before the window goes, or {@code cancelled} if it kept the window open. What a restart needs, since it must not
+     * start a second process for a window that stayed. Main thread.
      */
     void close(Runnable proceeded, Runnable cancelled) {
         outcome = new Runnable[] {proceeded, cancelled};
         close();
-    }
-
-    /**
-     * Run {@code listener} each time the window is created — placed where it was left, its zoom restored — on the
-     * main thread. For a part that does work only while its window is up, such as a viewer reading full-size images.
-     * The main window is created once, and its listeners run when it is claimed, at {@code ATTACH}.
-     */
-    public Window onOpened(Runnable listener) {
-        opened.add(listener);
-        return this;
-    }
-
-    /**
-     * Run {@code listener} each time the window is destroyed, on the main thread. The tree is still there. The main
-     * window's run once, when the frame loop has ended and before anything is closed.
-     */
-    public Window onClosed(Runnable listener) {
-        closed.add(listener);
-        return this;
     }
 
     /**
@@ -303,7 +282,6 @@ public final class Window {
         if (mark != null) {
             config = config.icon(mark);
         }
-        // The gate is read at the close, not here, so one set after the claim still counts.
         WindowSpec spec = WindowSpec.of(config, gui).standing(declared.standing())
                 .onCloseRequest(request -> requested(request::proceed, request::cancel));
         if (bar != null) {
@@ -312,13 +290,13 @@ public final class Window {
             spec = bar.commands(spec);
             bar.instruments(appearance.instruments()).icon(app, mark);
         }
-        // Remembered first, so a listener sees the window where it was left; and forgotten on close, which is what
-        // a watch from onCreated never was (calculator FN-4).
+        // Remembered first, so a part hearing WindowOpened finds the window where it was left; and forgotten on close,
+        // which is what a watch from onCreated never was (calculator FN-4).
         WindowSpec remembered = memory.remember(key, spec, declared.width(), declared.height())
-                .onCreated(w -> run(opened))
-                .onClosed(() -> run(closed));
+                .onCreated(w -> shell.bus().publish(WindowOpened.TOPIC, new WindowOpened(key)))
+                .onClosed(() -> shell.bus().publish(WindowClosed.TOPIC, new WindowClosed(key)));
         AppWindow w = app.window(key, () -> remembered);
-        Handle h = new Handle() {
+        handle = new Handle() {
             @Override
             public void show() {
                 w.show();
@@ -340,105 +318,96 @@ public final class Window {
             }
 
             @Override
-            public boolean open() {
-                return w.open();
+            public void fullScreen(boolean on) {
+                app.post(() -> screen(w.window(), on));
+            }
+
+            @Override
+            public void toggleFullScreen() {
+                app.post(() -> screen(w.window(), null));
             }
         };
-        boolean show;
-        synchronized (this) {
-            handle = h;
-            show = shown;
-        }
         // A close asked for before now has nothing to close: the window was never open.
-        if (show) {
-            h.show();
-        }
-    }
-
-    /** The main window's handle: every command posted to the loop, and open until the loop ends. */
-    private static final class MainHandle implements Handle {
-
-        private final GuiApp app;
-        private volatile boolean running = true;
-
-        MainHandle(GuiApp app) {
-            this.app = app;
-        }
-
-        @Override
-        public void show() {
-            app.post(() -> app.window().focus());   // focus() unhides and un-minimizes on the way
-        }
-
-        @Override
-        public void hide() {
-            app.post(() -> app.window().hide());
-        }
-
-        @Override
-        public void toggle() {
-            app.post(() -> {
-                if (app.window().isVisible()) {
-                    app.window().hide();
-                } else {
-                    app.window().focus();
-                }
-            });
-        }
-
-        @Override
-        public void close() {
-            // The route the title bar's X takes, so the application's close gate is asked first.
-            app.post(() -> app.controls().close());
-        }
-
-        @Override
-        public boolean open() {
-            return running;
+        if (shown) {
+            handle.show();
+            if (fullScreen != null) {
+                handle.fullScreen(fullScreen);
+            }
         }
     }
 
     /**
-     * Claim the main window, once, at {@code ATTACH}, after the framework has set it up. Main thread. Its open
-     * listeners run here, since it was created with the application. A close asked for before now is carried out:
-     * an application that decided to quit while it was being built quits as soon as it can.
+     * Claim the main window, once, at {@code ATTACH}, after the framework has set it up. Main thread. It was created
+     * with the application, so it is said to be open here. A close asked for before now is carried out: an application
+     * that decided to quit while it was being built quits as soon as it can.
      */
     void claimMain(GuiApp app) {
-        MainHandle h = new MainHandle(app);
-        // GuiApp holds one handler for the main window, and this is it: the gate is read at the close, as for the
-        // others, so the application's recipes may set it in ATTACH, after this.
+        // GuiApp holds one handler for the main window, and this is it.
         app.onCloseRequest(request -> requested(request::proceed, request::cancel));
-        boolean show;
-        boolean close;
-        synchronized (this) {
-            handle = h;
-            main = h;
-            show = shown;
-            close = closeAsked;
+        // Posted to the top of the next frame, as a named window's AppWindow posts its own: a command arrives in the
+        // middle of one, and the loop's window is changed between frames.
+        handle = new Handle() {
+            @Override
+            public void show() {
+                app.post(() -> app.window().focus());   // focus() unhides and un-minimizes on the way
+            }
+
+            @Override
+            public void hide() {
+                app.post(() -> app.window().hide());
+            }
+
+            @Override
+            public void toggle() {
+                app.post(() -> {
+                    if (app.window().isVisible()) {
+                        app.window().hide();
+                    } else {
+                        app.window().focus();
+                    }
+                });
+            }
+
+            @Override
+            public void close() {
+                // The route the title bar's X takes, so the application is asked first.
+                app.post(() -> app.controls().close());
+            }
+
+            @Override
+            public void fullScreen(boolean on) {
+                app.post(() -> screen(app.window(), on));
+            }
+
+            @Override
+            public void toggleFullScreen() {
+                app.post(() -> screen(app.window(), null));
+            }
+        };
+        shell.bus().publish(WindowOpened.TOPIC, new WindowOpened(key()));
+        if (closeAsked) {
+            handle.close();
+        } else if (!shown) {
+            handle.hide();
+        } else if (fullScreen != null) {
+            handle.fullScreen(fullScreen);
         }
-        run(opened);
-        if (close) {
-            h.close();
-        } else if (!show) {
-            h.hide();
+    }
+
+    /**
+     * Put {@code w} full screen ({@code on}), back to its window, or, with null, whichever it is not; and say what it is
+     * now. Main thread, between frames. A window not open has nothing to change, and nothing is said.
+     */
+    private void screen(NativeWindow w, Boolean on) {
+        if (w == null) {
+            return;
         }
+        w.fullscreen(on == null ? !w.isFullscreen() : on);
+        shell.bus().publish(WindowFullScreen.TOPIC, new WindowFullScreen(key(), w.isFullscreen()));
     }
 
     /** The main window's loop has ended. Main thread, before anything is closed. */
     void mainEnded() {
-        MainHandle h;
-        synchronized (this) {
-            h = main;
-        }
-        if (h != null) {
-            h.running = false;
-        }
-        run(closed);
-    }
-
-    private static void run(List<Runnable> listeners) {
-        for (Runnable listener : listeners) {
-            listener.run();
-        }
+        shell.bus().publish(WindowClosed.TOPIC, new WindowClosed(key()));
     }
 }

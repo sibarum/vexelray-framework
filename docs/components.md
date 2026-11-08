@@ -16,32 +16,51 @@ with a reason of their own: that a full FAIL mailbox halts the process (ruling 5
 and that the designer is not ported. Every ruling states its reason, and a new one must; see TODO.md, *A ruling
 carries its reason*. Rulings 1 and 2 are complete.
 
+> **0.2, 2026-10-26: the message model.** [threading.md](threading.md) was rewritten around six rulings (its §0),
+> and this page has not caught up beyond the notes marked *0.2* below. Read threading.md first where they
+> disagree. What changes here, in summary:
+>
+> - A component is **a mailbox and private state**, not a thread. Components that declare no lane share one
+>   **logic lane** (T1.6), which is what `Component.DEFAULT_LANE` becomes. They drain once per tick, not
+>   continuously (T5.5).
+> - Every part with behaviour is a component, including what 0.1 left as plain provided objects (`Ui`, `Actions`,
+>   `Model`), so ruling 9's answer covers them too. A component never holds another, on any lane (T2.3).
+> - Sends are constructor parameters, and `@Publishes` goes (T4.5). Each topic is state or edge (T4.1).
+> - The table under *What a component is owed* was rewritten in phase 4, when the tick replaced `Placement`.
+> - `@Subscribe` has no loss policy: the topic's kind is the policy (T4.2), and `Overflow` is gone. Ruling 5 below
+>   is 0.1's.
+
 ## What a component is
 
 A `@Component` is **a thread and a mailbox**: a class constructed once, before the loop runs, by its one
 constructor, that runs on a *lane* and is reached by publishing, never by holding. A value that needs only a
 lifetime and swappable behaviour is a `@Provides`; a value is neither. The main thread is not a lane and a
-component is never `@MainThread`.
+component never runs there: no application code does (T7.1).
 
 ## What a component is owed
 
+*Rewritten for 0.2 in phase 4, 2026-10-29, when the tick replaced `Placement`.*
+
 | The framework owes it | Held by | Rule |
 | --- | --- | --- |
-| A platform thread of its lane, named `vexel-component-<lane>`, never virtual | `LanesTest` | T1.2, T1.4 |
-| One shared default thread when it names no lane, so a plain service costs no thread | `Component.DEFAULT_LANE` | ruled 2026-09-29 |
-| A mailbox per `@Subscribe`, with a declared loss policy and bound | processor, `Placement` | T4.1, T4.3 |
-| Construction before the loop; start only after everything is built | `PlacementTest` | T6.1 |
-| A wake of the frame loop after any delivery, with nothing to call | `PlacementTest` | T5.3 |
-| Drain-then-stop at shutdown, inside a total bound after which the process halts | `PlacementTest`, `Disposer.beforeClose` | T6.2, liveness |
-| Its own `ThreadGroup`, so the watchdog can interrupt everything the lane started | `Lanes.interruptLane` | liveness |
-| A stall report naming its lane, and a policy the application can override | `Watchdog`, `LivenessPolicy` | T6.5 |
-| That no other lane holds a reference to it, and no provider does | processor | T2.3, T3.7 |
-| That a value crossing into it shares nothing with the sender's heap | processor, for `@Subscribe` payloads (deeply immutable, `Shareable`); a captured lambda is **not checked** | T2.4, T2.5 |
-| That no blocking cycle runs through it | processor, for declared sends | T4.4 |
+| A place on the logic lane's tick, delivered one message at a time and never beside another component | `Logic`, `LogicTest` | T1.6 |
+| A thread of its own, `vexel-component-<lane>`, never virtual, when it declares a lane, meeting the rest at every round's end | `Crew`, `LanesTest`, `LogicTest` | T1.2, T1.4, T5.6 |
+| The same deliveries in the same order whether the ticks run on their own thread or the main thread | `LogicTest`'s witness | T1.7, T5.6 |
+| A mailbox per `@Subscribe`, on the topic its payload declares, with its kind and an edge bound | processor, `Inboxes` | T4.1, T4.2, T4.3 |
+| A key filter on a state topic, done by the wiring | processor, `Inboxes` | T4.8 |
+| A sender per payload it sends, on that payload's declared topic, ordered by the tick | processor, `Inboxes.sender` | T4.5 |
+| Construction before the loop; the first tick only after everything is built | `LogicTest` | T6.1 |
+| A wake of the frame loop after a tick that delivered, with nothing to call | `LogicTest` | T5.3 |
+| The last tick at shutdown, inside a total bound after which the process halts | `LogicTest`, `Disposer.beforeClose` | T6.2, liveness |
+| Its lane's own `ThreadGroup` and gauge, so a wedged lane is reported and interrupted by name | `Lanes`, `Watchdog`, `LivenessTest` | T6.5, liveness |
+| That no component and no provider holds it | processor | T2.3, T3.7 |
+| That a value crossing into it shares nothing with the sender's heap, and a value provided to it is shareable | processor (`Shareable`) | T2.4, T2.6 |
+| That nothing in it asks for synchronisation | processor | T2.7 |
 
-And what it owes the application: it never blocks the main thread, never touches the timeline (T3.2), and
-returns work through one of the two doors (T5.1). A wedged component loses its own lane and nothing else; a
-component that throws ends the application, because nothing declared that failure (section 10).
+And what it owes the application: it never blocks (a `@Job` does), never touches the timeline (T3.2), and returns
+work as a message (T5.1). A wedged component holds the logic lane, or its own declared lane, and the window keeps
+painting in the default mode (T6.5); a component that throws ends the application, because nothing declared that
+failure (section 10).
 
 ## What exists, what is decided, what is not
 
@@ -51,7 +70,7 @@ component that throws ends the application, because nothing declared that failur
 | Declaration | `@Component(lane)`, `@Subscribe`, `@Publishes` | what the nine rulings below (accepted 2026-10-01) ordered and is not built: the capture rule | |
 | Colour | T2.1 to T2.4 (T2.4 as a check: payloads must be deeply immutable), T3.1, T3.7 | the copier's pattern (annotate a record, processor emits the copy) | its annotation's name; the capture check's mechanism |
 | Channels | T4.1, T4.3, T4.4, T4.7 for declared sends | | the graph as generated data (additive) |
-| Completion | `Lanes.offload()`, `app.post` | two doors | `kronometer` `offload` and the timeline door unbuilt |
+| Completion | `@Job` with its reply topic (section 10), `Lanes.offload()`, `app.post` | two doors; the executors withdrawn from application parts | `kronometer` `offload` and the timeline door unbuilt |
 | Liveness | watchdog, busy gauge, shutdown bound, policy seam | main-thread heartbeat that knows a dialog is up | |
 | Tree | | T3.5: the tree does not restrict messaging | **T3.4, T3.6, T6.3** |
 
@@ -182,6 +201,16 @@ kept, since a developer who can tolerate loss already has `DROP_OLDEST`, `DROP_N
 the same attribute. The advice that survives is the cheap half: a sample belongs on `COALESCE_LATEST` (T4.1),
 and a bound that is simply too small should be raised.
 
+**0.2, revisited 2026-10-26.** The ruling that a lost edge must never be silent stands, and the message model
+makes it stricter. An edge topic delivers every message (threading.md T4.1, ruling 1 of 0.2), so `DROP_OLDEST` and
+`DROP_NEWEST` are no longer offered: a channel that can lose a message is a **state** topic, which keeps the last
+write per key and cannot overflow. `BLOCK` goes too, because under the tick no publish waits (T4.4, withdrawn). An
+edge mailbox that overflows still halts, naming the topic (T4.2). Two parts of this ruling are reopened, for phase 2
+to settle: the default capacity, because 64 was sized for a mailbox drained continuously and a tick-drained one
+holds everything that arrived since the last tick; and whether capacity stays a per-subscription attribute, because
+the template already needed 4096 to survive closing every tab, and immutable lists in payloads (ruling 6 of 0.2) are
+expected to remove that burst.
+
 ### 6. Supervision
 
 Ruled: report only, and a policy the application can override. The three open points have answers in code
@@ -225,7 +254,30 @@ one. Reactive *automation* (a user script that reacts rather than drives) is a d
 script is not compiled into the application: it is the wire protocol growing an event stream, which is
 additive. Say so, so the two are not built as one seam.
 
-### 10. Offload as a request with a reply-to (proposed 2026-10-18, not ruled)
+**0.2, revisited 2026-10-26: still not a thing, and now it matters more.** The audit found the cost of the other
+half of this ruling: in 0.1, an application's `Ui`, `Actions` and `Model` were provided objects, could not subscribe,
+and so took callbacks instead. 0.2 does not give a provided object a mailbox. It makes those parts components, which
+under one logic lane (T1.6) costs no thread. A provided value is then what its name says, a value: shareable or a
+framework service (T2.6), with no behaviour that reacts to anything.
+
+### 10. Offload as a request with a reply-to (proposed 2026-10-18, ruled and built 2026-10-26)
+
+**Ruled 2026-10-26: `@Job` is the offload API, and it is built.** The user's reason: the application's parts should
+talk by message passing as far as it reaches, and slow work done as a lambda handed to an executor is the one place
+the framework still asked for a closure instead of a message. The template's split into a `-core` controller and a
+`-gui` view was the occasion: its disk work moved from `gui.offload()` lambdas to four jobs. What was built is
+`dev.vexelray.framework.api.Job` (topic and reply), the processor's checks (below, all of them, from declarations),
+`Jobs` in `-shell`, which the generated wiring calls to subscribe each job on the offload lane, and `JobsTest`. The
+half that withdraws the raw executors from application parts is **not** done: see *What it does not settle*, and
+TODO.md.
+
+**And the same day: a configuration lists the components and jobs of its module.** Splitting the template found that a
+`@Component` compiled in another module than the `@VexelApp` is a class file to the processor, which reads only the
+round's sources, so nothing constructed it and nothing said so. `@Configuration(components = ..., jobs = ...)` lists
+them, and the application names that configuration among its starters, for the reason `@VexelApp(starters)` gives:
+listed, not discovered. The processor reads a listed component's `@Subscribe` and `@Publishes` off its class file, so
+every channel check covers it as it covers the application's own (`VexelProcessorTest`,
+`aComponentAndAJobFromAnotherModuleAreWiredThroughTheConfigurationThatListsThem`).
 
 **Where it came from.** The capture rule (T2.5) was stuck between a heavy check and no check (build order, step 4),
 because offload today is callbacks: `GuiApp.offload(work, landed, failed)` takes three lambdas, and `Lanes.offload()`
@@ -236,18 +288,22 @@ is nothing left to capture: the question goes away rather than being checked.
 **The shape.** Slow work is a *declared job*, not a lambda, and its result is a *message*, not a callback.
 
 ```java
-@Job(topic = "file.read", reply = "file.opened")
+@Job
 final class ReadFile {                                  // no mutable state: checked
     ReadFile(FileSystem files) { ... }                  // injected like any part; must be Shareable or a declared service
-    Opened run(OpenFile request) throws IOException { ... }   // runs on the offload pool
+    Opened run(OpenFile request) { ... }                // runs on the job lane; its types name both channels
 }
-record OpenFile(Path path) {}                           // request: deeply immutable, as any payload
-record Opened(Path path, String text) {}                // reply: deeply immutable, carries what the caller needs
+record OpenFile(Path path) {                            // request: deeply immutable, as any payload
+    static final Topic<OpenFile> TOPIC = Topic.edge(OpenFile.class);
+}
+record Opened(Path path, String text) {                 // reply: deeply immutable, carries what the caller needs
+    static final Topic<Opened> TOPIC = Topic.edge(Opened.class);
+}
 
 @Component
 final class Documents {
-    @Publishes("file.read") ...                         // asks
-    @Subscribe(topic = "file.opened")                   // hears back, on its own lane, in order
+    Documents(Sender<OpenFile> open) { ... }            // asks: a declared send, by its payload
+    @Subscribe                                          // hears back, on the logic lane, in order
     void opened(Opened o) { ... }
 }
 ```
@@ -301,8 +357,196 @@ written against v1 would write offload as lambdas into `Lanes.offload()`. Moving
 out. Adding `@Job` alone is additive; withdrawing the executors from application parts is not, so that half is the
 part to rule on before the freeze.
 
-**To rule on:** adopt this as the v1 offload API (`@Job`, the reply topic, and the executors withdrawn from
-application parts). Failure's shape is ruled (above).
+**Ruled (above):** `@Job` and the reply topic are the v1 offload API. Failure's shape is ruled (above). Still to do
+before the freeze: withdraw the executors from application parts, which is the breaking half.
+
+### 11. Sources: what keeps producing from outside (ruled and built 2026-10-30)
+
+**Ruled by the author 2026-10-30: sources are a kind of part in the framework.** A source keeps producing messages
+from outside the application for as long as it runs: a socket, a stream, a child process, a device. **Why:** it is
+the right shape, and netcode and much else will need it, so it belongs in the framework rather than worked around in
+each application. The occasion was the Inspector (ROADMAP phase 7½), which reads a running application's rows over a
+link for as long as it is attached, a recording at its recorded pace, and a launched child's output. Its 0.1 form made
+three hand-made threads for them (its FN-1). *Rejected:* a loop of short jobs, each waiting a bounded time for what
+arrived and asked again at once. That needs nothing new, but every client of a stream would write the same loop, and a
+connection's life would be a chain of requests rather than one thing the wiring can name.
+
+**The shape: a job that sends while it runs, on a thread of its own.** Everything a job is, a source is, with two
+differences: `run` may send as it goes, and it lasts as long as what it reads from.
+
+```java
+@Source
+final class LinkRows {                                    // final fields only, as a job's
+    private final Sender<RowBatch> rows;
+    LinkRows(Sender<RowBatch> rows) { this.rows = rows; } // declared sends, by construction (T4.5)
+
+    Detached run(Attach request) {                        // one run per request, on vexel-source-link-rows
+        try (LinkClient link = LinkClient.open(request.discovery())) {
+            for (RowBatch b; (b = link.next()) != null; ) {
+                rows.send(b);                             // as it goes
+            }
+            return new Detached(request.run(), Detached.Why.WENT_AWAY);
+        } catch (ClosedByInterruptException stopped) {
+            return new Detached(request.run(), Detached.Why.STOPPED);
+        } catch (IOException e) {
+            return new Detached(request.run(), Detached.Why.failed(e));
+        }
+    }
+}
+```
+
+- **A run starts on a request**, published on the request's topic like any message, so it is a declared send and in
+  the channel graph. **It ends by returning**, and the return value is published as a job's reply is: why it ended,
+  stopped, went away or failed, carrying what the caller needs to tell which run it was. A failure it expects is part
+  of that reply; anything else that escapes `run` halts, as a job's does (section 10).
+- **Per-run state is local to `run`.** The source's fields are final, as a job's are (only senders, `Shareable`
+  values and declared services), so nothing is shared between runs or with anything else, and there is nothing to
+  check beyond what a job already gets.
+- **A thread of its own per run**, a platform thread named `vexel-source-<name>` (T1.2, T1.4), started when the run
+  starts and gone when it returns. Not the job lane: a run that blocks for an hour would hold one of the job lane's
+  bounded threads for good (T1.5), which is exactly what the job lane is bounded to refuse.
+- **One run per key of the request, as many keys as there are.** The request's topic decides: on a keyed topic
+  (`Topic.edge(Attach.class, a -> a.target())`) each key has a run of its own, side by side, one connection per peer;
+  an unkeyed topic is one key, so one run. A request for a key whose run is going stops that run, and the new one
+  starts once it has returned, so a key's runs never overlap and its replies keep their order. That is attaching
+  again and reconnecting. Every request gets one reply. *Ruled 2026-10-30, replacing "one run at a time per source":*
+  the message system is transport-agnostic, so many live connections are the expected case, not a later one.
+- **A stop is a message of the application's own**, named on the annotation (`@Source(stop = Detach.class)`) and
+  keyed as the request is, so that it is a channel like any other: a type with a declared topic, which the graph can
+  show. It stops the run for its key without starting another. (Proposed first as a `Stop` topic the framework
+  declared per source; a topic is named by its payload's type, and one framework type cannot name a channel per
+  source.)
+- **Stopping interrupts the run's thread**, then closes what the run handed its `Closer`. A read on an
+  `InterruptibleChannel` (a socket or file channel) answers the interrupt with `ClosedByInterruptException`; one that
+  ignores it, a process's output, is ended by the close. `run` takes the `Closer` as an optional second parameter,
+  since the resource belongs to the run and a source's fields are final. At shutdown every run is stopped and waited
+  for, a bounded time, before the logic's last tick, so their end replies are delivered in it and nothing is sent into
+  a component that is closing (T6.2).
+- **What it sends arrives from outside**: hops zero, ordered by arrival, as input is (T5.6, T5.7). One run's messages
+  keep their order, since one thread sends them. A source is therefore one of the things a replay must record (ROADMAP
+  §5, item 5), with input.
+- **Nothing changes between modes** (T1.7). A run's thread is outside the tick in both.
+- **The watchdog does not watch a source.** A run blocked in a read is resting, not wedged; it holds no lane.
+- **Listed like a job**: `@Configuration(sources = ...)` in the module that compiles it, for the reason section 10
+  gives for jobs.
+
+**What the processor checks**, all from declarations, as for a job: the request, the reply and every payload a sender
+carries are `Shareable`; the class has final fields only, each `Shareable`, a sender or a provided part; no
+`@Subscribe`, no `Inbox` (a source hears nothing but its request, which the framework delivers); `run` declares no
+`throws`, takes nothing after its request but a `Closer`, and returns a reply; the stop message has a declared topic;
+one part, job or source, per request topic; and nothing holds a source.
+
+**Where it is built:** `@Source` and `Closer` in `-api`; `Sources` in `-shell` (the runs, by key); the processor's
+`Declarations.source`, `Graph.source` and `Channels.stopType`; atchung's `Sender.outside` and `Topic.keyFor`. Held by
+`SourcesTest` and `VexelProcessorTest`'s source cases.
+
+**The open questions, as ruled by the author 2026-10-30:**
+
+1. **Backpressure: nothing in the framework.** *Ruled:* it is not a problem to add code for in advance. A source that
+   can outrun the logic buffers and batches what it sends (the Inspector's link reader sends rows by the batch), and
+   one that overflows a mailbox all the same fails as any publisher does (T4.2), since nothing better can be done. A
+   publish that waited for room was built in atchung and taken out again the same day.
+2. **A read that ignores interrupts: a `Closer`, built.** A child process's output is an `InputStream`, which an
+   interrupt does not unblock. The proposed `close()` on the source had nothing to close, since a source's fields are
+   final and the resource belongs to one run; so the run hands it over, `run(Launch request, Closer closer)`, and
+   stopping closes it from the stopping thread after the interrupt. *Ruled:* the second parameter.
+3. **Several runs of one source: built, by key.** *Ruled:* the message system is transport-agnostic, so a source
+   holds as many live connections as there are keys; see the run-per-key rule above.
+4. **A cause of its own: built.** Each message a run sends begins a cause naming the source (atchung's
+   `Sender.outside`), so a trace finds where it came from and the Inspector draws it as a source, not `uncaused`.
+5. **The framework's own sources.** `Timer`, the automation sockets and tactroller's message pump are sources in
+   all but name. Whether they become sources is decided after the first application one is built, not before.
+
+### 12. Destinations: what writes outside, and a source that is one too (ruled 2026-11-01)
+
+**Found porting MainFrame:** a terminal goes both ways. Its shell's output is a source's run, and the pseudo-terminal
+it reads is local to that run, so the keys typed into the tab and the size it is laid out at had no way to reach the
+pseudo-terminal: a source hears nothing but its request. A socket, a serial port and a child process's pipes are the
+same: one connection, read and written.
+
+**Ruled by the author 2026-11-01: a `@Destination` is a kind of part, the mirror of a source, and a part may be both.**
+A destination takes messages and writes them outside the application: a pseudo-terminal's input, a socket's sending
+half, a log file, a recording. Any application may declare one, as it declares a job or a source, listed with
+`@Configuration(destinations = ...)` when another module compiles it. *Rejected:* a service of the application's own
+holding the open connections by key, which a source fills and a job writes through. It needs no framework, and it is
+state shared between threads in application code, which is what 0.2 removes.
+
+**The shape: the framework holds the connection, and hands it to each half.**
+
+```java
+@Source(stop = CloseShell.class) @Destination
+public final class Shell {
+    private final Sender<Output> output;
+    public Shell(Sender<Output> output) { this.output = output; }
+
+    public Pty open(OpenShell request) { ... }               // the connection, made on the key's writer thread
+    public ShellEnded run(OpenShell request, Pty pty) { ... } // the source half: reads, and sends as it goes
+    public void write(Pty pty, Typed typed) { ... }          // the destination half, one method per message heard
+    public void write(Pty pty, Resized resized) { ... }
+    public void close(Pty pty) { ... }                       // once, after both halves are done with it
+}
+```
+
+- **The connection is a value the framework keeps per key**, never a field, so a destination's fields are final as a
+  job's are and nothing new is checked. It never crosses a lane: it is made, used and closed by the part's own
+  methods, so it need not be shareable.
+- **`open` makes it.** With the request as its one parameter, one connection per key of the request's topic, as a
+  source has one run per key; a request for a key already open stops that one first, and the new one opens once it is
+  closed. With no parameter, one connection, opened when the application starts (after `ATTACH`, as a part's
+  constructor runs before it) and closed at shutdown (after the logic's last tick, as an `AutoCloseable` part is).
+  Opening may block, so it runs on the key's writer thread.
+- **`write` is the destination half**: one method per message type it hears, the connection first. Each heard type
+  has a declared topic, and on a keyed connection a message goes to the connection its topic's key names; on an
+  unkeyed one, to the one there is. Every message, in the order sent, on the key's writer thread, which is a thread
+  of its own (`vexel-destination-<name>`) because a write may block: a pipe whose program reads nothing fills, and
+  waits. Messages for a key whose connection is still opening wait for it. One for a key with no connection is
+  dropped and counted, as a widget message for an address nobody answers to is. **T5.8 gains a third place that
+  may block**, a destination's write, beside a job and a source's read.
+- **`run` is the source half**, present when the part is also a `@Source`: it takes the request and the connection,
+  sends as it goes, and returns why it ended, published as a source's reply is. A run that returns stops the key, so
+  its connection is closed and its writes end.
+- **`close` ends it**, once per connection, after the run is interrupted (or has returned) and the writer has
+  stopped, on whichever thread stopped it. A stop message (`@Source(stop = ...)`, or `@Destination(stop = ...)` for a
+  destination that is not a source) stops the key. Closing is what ends a read that ignores an interrupt, so a part
+  with a connection needs no `Closer`.
+- **Backpressure: nothing in the framework**, as for a source (section 11, question 1). A destination's writes are
+  heard inline and queued for its writer; one that cannot keep up grows its queue.
+- **Failure:** as a job's. What escapes `open`, `write`, `run` or `close` goes to the process-wide fault policy, which
+  halts, except once the part is stopping for shutdown. An expected failure is the run's reply, or for a destination
+  with no run, nothing: a write that cannot land is the connection's to report through what it reads.
+
+**What the processor checks**, from declarations, as for a job or a source: a final class, one constructor, final
+fields (senders only if it is also a source); exactly one `open`, taking nothing or one request, returning the
+connection; at least one `write`, each `void`, taking the connection and one message whose type is shareable and has a
+declared topic; exactly one `close`, `void`, taking the connection; with `@Source`, a `run` taking the request and the
+connection and returning a reply (no `Closer`), and `open` taking that request; no `throws` anywhere; no `@Subscribe`
+and no `Inbox`; nothing holds one. The messages a destination writes count as heard, so a sender of them is not
+talking to nobody.
+
+**Where it is built:** `@Destination` and `@Configuration(destinations = ...)` in `-api`; `Destinations` in `-shell`
+(the connections, by key, with their writers and runs); the processor's `Declarations.destination`, `Graph`'s
+destinations, `Channels.destination` and the generator's call. Held by `DestinationsTest` and `VexelProcessorTest`'s
+destination cases.
+
+### 13. Every provider of a type, or at most one (ruled and built 2026-11-03)
+
+**A recipe may take `All<T>`, every provider of `T`, or `Optional<T>`, zero or one.** It is how a part takes pieces it
+does not name: a window's owner declares what it holds as a type of its own, takes `All` of it, and lays the pieces
+out, and leaving a piece out of the build leaves one fewer. The modular template needs it so that a module adds a
+piece of a window without the base naming the module; the argument and the four rulings are in
+[plans/regions.md](plans/regions.md).
+
+**The rules, held by the processor:** the providers of a type taken as `All<T>` are exempt from *exactly one provider
+wins*, so a type taken that way anywhere is taken that way everywhere (as a plain `T` or an `Optional<T>` it is
+refused); a `@Default` provider of it is refused; only a recipe takes either shape, and a raw one is refused; the
+pieces are held to what a parameter of `T` would be (no main-thread value, no component). `Optional<T>` with two
+providers is the conflict it always was. The order of `All<T>` is the providers' qualified names, configuration and
+then method, stable and meaning nothing; a mode that does not build a piece leaves it out, and `Optional<T>` is empty
+there. Both exist in every mode, so neither narrows the modes of the part that takes it.
+
+**Where it is built:** `All` in `-api`; `Graph`'s `gatheredUse` and the exemption in `conflicts`; the generator's
+`AllArg` and `OptionalArg`, with a field of its own for each piece. Held by `VexelProcessorTest`'s *All<T> and
+Optional<T>* cases.
 
 ## Build order once the rulings are taken
 
@@ -312,7 +556,8 @@ Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) ord
 2. **The cycle check (T4.4) is done, 2026-10-02**, on the data `Channels` already had: nodes are components, an edge
    is a declared send to a mailbox, and a cycle with a blocking edge is a compile error. **The graph is exposed as
    generated data (the rest of T4.5), 2026-10-19**, now that something consumes it: the generated wiring's
-   `BUS_GRAPH`, in vexelray-inspector's bus-graph text (`docs/bus-circuit.md`), which the Inspector draws as a circuit. The stated limit stands
+   `BUS_GRAPH`, in vexelray-inspector's bus-graph text (version 2 since 2026-11-02, `docs/bus-graph.md`), which the
+   Inspector draws as its graph. The stated limit stands
    and is on `@Publishes`: only a *declared* send is in the graph.
 3. **The copier** (T2.4). **The check half is done, 2026-10-02** (`Shareable`): a `@Subscribe` payload must be
    deeply immutable, and anything else is refused, naming the first thing that stops it. **The generated copier is
@@ -324,7 +569,9 @@ Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) ord
    lambda. What is left is a Trees-based check that resolves each captured name (accurate, and the heaviest
    piece in the processor) or a rule the reader keeps. See TODO, *Decide now. Two promises need a method body*.
    **Proposed 2026-10-18 instead: section 10**, which makes slow work a declared job with a reply topic, so there is
-   no lambda to capture with and the check needs only declarations.
+   no lambda to capture with and the check needs only declarations. **Ruled and built 2026-10-26** for the
+   framework's path; the raw executors are still reachable from an application part, so T2.5 is held only where an
+   application uses `@Job`.
 5. **Supervision's missing halves:** the main-thread heartbeat that knows a dialog is up, and `Overrun` per
    lane.
 6. **The completion path:** route offload completions into the timeline through `KronBridge`.

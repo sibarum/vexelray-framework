@@ -22,7 +22,7 @@ before this repo sees it.
 | **tactroller** | Input. **Every** device event flows through it; there is no side channel |
 | **atchung** | The typed bus. Also `elektroq` — **the house precedent for this repo's mechanism**: annotate a record, a processor emits code, native-image needs no `reflect-config.json` |
 | **kronometer** | Timing and animation, wrapped as `vexelray-gui-krono` |
-| **mainframe** | A terminal over ConPTY. **Rebuilt from the template in October 2026**, so treat it like any other generated application; its `docs/framework-notes.md` is where a gap found while building it gets written down. Its old `mainframe-template` (the typed shell and its `new vexel-desktop` builder) is gone, archived at the tag `archive/pre-v1`: a project is generated with `vexelray-framework-template`'s `Generate` ([getting-started.md](docs/getting-started.md) §3). **Read the template's `files/App.java` and `files/Recipes.java`**: they are what a correct application looks like (there is no `Wiring.java` to read: the processor writes it) |
+| **mainframe** | A terminal over ConPTY. **Rebuilt from the template in October 2026**, so treat it like any other generated application; its `docs/framework-notes.md` is where a gap found while building it gets written down. Its old `mainframe-template` (the typed shell and its `new vexel-desktop` builder) is gone, archived at the tag `archive/pre-v1`: a project is generated with `vexelray-framework-template`'s `Generate` ([getting-started.md](docs/getting-started.md) §3). **Read the template's `files/Messages.java`, `files/Editor.java`, `files/View.java` and `files/Recipes.java`**: they are what a correct application looks like, a `-core` controller and a `-gui` view talking by messages (there is no `Wiring.java` to read: the processor writes it) |
 | **calculator-vexel-demo** | **Rebuilt from the template in October 2026**: a calculator and plotter over `cott-engine`, written fresh rather than restored. Treat it like any other generated application. Its `docs/framework-notes.md` is where a gap found while building it gets written down. The old hand-wired calculator is gone, and its findings are in [architecture.md](docs/architecture.md) |
 | **text-editor-vexel-demo** | **Rebuilt from the template in October 2026**: a tabbed editor with a file navigator, written fresh rather than restored (the grammars and highlighting tables came over from the old one's history). Treat it like any other generated application. Its `docs/framework-notes.md` is where a gap found while building it gets written down — FN-20 started [units.md](docs/units.md). What the *old*, hand-wired editor found is in [architecture.md](docs/architecture.md)'s *what porting the text editor found* |
 | **vexelray-scheduler** | A home-visit schedule that explains itself, generated from the template in October 2026 (the app is the `vexelray-scheduler-app` module). **The precedent for motion**: it keeps its nodes and changes them, and its `docs/framework-notes.md` FN-1 to FN-7 are the motion gaps it worked around |
@@ -46,9 +46,11 @@ invented rather than needed. The load-bearing ones:
 
 ## Constraints on this repo specifically
 
-- **`-api` and `-core` stay JDK-only.** Not for portability — it is where the dependency edges fall,
-  and it is what makes the container testable with no GPU. A graphics import in either is a layering
-  break, not a convenience. Vulkan-aware code goes in `-shell`.
+- **`-api` stays JDK-only, and `-core` takes nothing but the JDK and `atchung-core`.** Not for
+  portability — it is where the dependency edges fall, and it is what makes the container testable with no
+  GPU. The bus is JDK-only itself, and `-core` takes it (ruled 2026-10-28) because `Timer` names a `Topic`
+  and an application's own `-core` module, which cannot reach `-shell`, has to be able to take one. A
+  graphics import in either is a layering break, not a convenience. Vulkan-aware code goes in `-shell`.
 - **Nothing reflects.** No `Class.forName`, no `MethodHandles` on the startup path, no runtime
   annotation reads. Retention is `CLASS`, deliberately, and `package-info.java` in `-api` explains why
   it is neither `RUNTIME` nor `SOURCE`.
@@ -57,7 +59,7 @@ invented rather than needed. The load-bearing ones:
   either**, at any level: a disabled call is still a branch on the hot path. Use `Probe` there.
 - **Log through `sibarum.probe.Log`, and keep stdout for protocol.** No `System.err.println` for a
   diagnostic, and no `System.out` at all except a line another program parses (`automation: localhost:<port>`).
-  `-api` and `-core` stay JDK-only, so they do not log; it starts at `-shell`. The model, the levels, the
+  `-api` and `-core` take no logger, so they do not log; it starts at `-shell`. The model, the levels, the
   mode-dependent defaults and where the file goes are in `../atchung/docs/logging.md`. The framework configures
   it for every application (`Logs.start`); an application never calls `Logging.configure` itself.
 - **A compile error beats a startup error beats a runtime error**, in that order, always. The whole

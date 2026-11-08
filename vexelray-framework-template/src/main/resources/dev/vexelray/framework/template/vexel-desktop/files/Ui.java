@@ -1,6 +1,6 @@
 package ${packageName};
 
-import ${packageName}.text.Markdown;
+import ${packageName}.core.Markdown;
 import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
@@ -16,13 +16,14 @@ import dev.vexelray.gui.widget.TitleBar;
  *
  * <h2>It holds no state</h2>
  *
- * <p>{@link #show} takes a whole {@link Doc} and writes everything derived from it — the window title, the tab
- * headers, the status line — which is the rule worth keeping as this grows: a label that remembers a value can
- * disagree with the session, and a header that says a file is saved when it is not is the application lying.
+ * <p>Every label here says what the editor last told the view, and the view tells it ({@link #caption},
+ * {@link #status}). Nothing is remembered here to be shown later, which is the rule worth keeping as this grows: a
+ * label that remembers a value can disagree with the session, and a header that says a file is saved when it is not
+ * is the application lying.
  *
- * <p>{@code show} is called from the committing thread, which is a worker. That is correct and is the framework's
- * own idiom: a prop written off the GUI thread is queued and applied by the next drain. What is <em>not</em>
- * allowed is the other direction — reading the model from inside the frame loop.
+ * <p>Built in the {@code TREE} phase, before there is a window, and needing none: that is what lets a test build the
+ * real tree headless. Written to from the view's lane, which is the framework's own idiom: a prop written off the GUI
+ * thread is queued and applied by the next drain.
  *
  * <p>The title bar is the framework's. Chrome placement belongs to whoever owns the window, so that the screenshot
  * instrument in it means the same thing in every window on the desk; this application places the node and
@@ -40,7 +41,7 @@ final class Ui {
     private final Motion motion;
     private final Color danger;
 
-    Ui(Gui gui, Motion motion, Model model, TitleBar titleBar) {
+    Ui(Gui gui, Motion motion, TitleBar titleBar) {
         this.titleBar = titleBar;
         this.motion = motion;
         this.danger = gui.theme().color(Role.DANGER);
@@ -66,8 +67,7 @@ final class Ui {
                 gui.theme().color(Role.INK),
                 gui.theme().color(Role.PANEL));
 
-        workspace = new Workspace(gui, model, motion, markup,
-                p -> status.text(Landmarks.STATUS_POSITION, "Ln " + p.line() + ", Col " + p.column()));
+        workspace = new Workspace(gui, motion, markup);
         navigator = new Navigator(gui, motion);
 
         SplitPane split = new SplitPane(gui, SplitPane.Orientation.SIDE_BY_SIDE, navigator.node(), workspace.node())
@@ -87,20 +87,25 @@ final class Ui {
         return navigator;
     }
 
-    /** Draw the eye to the status line: something was refused or failed, and the message there says what. */
-    void alert() {
-        motion.cues.play(status.node(), Cue.ring(danger, 2));
-    }
-
-    /** Write everything derived from the session. One method taking the whole value, so no two fields can disagree. */
-    void show(Doc doc) {
-        Doc.Entry front = doc.front();
-        titleBar.title(front == null ? ${className}.TITLE : front.title() + " — " + ${className}.TITLE);
-        status.text(Landmarks.STATUS_FILE, front == null ? "" : front.title());
-        status.text(Landmarks.STATUS_MESSAGE, doc.status());
-        if (front == null) {
+    /** The front file's title, dot and all, in the title bar and the status line; empty when nothing is open. */
+    void caption(String file) {
+        titleBar.title(file.isEmpty() ? ${className}.TITLE : file + " — " + ${className}.TITLE);
+        status.text(Landmarks.STATUS_FILE, file);
+        if (file.isEmpty()) {
             status.text(Landmarks.STATUS_POSITION, "");
         }
-        workspace.retitle(doc);
+    }
+
+    /** Where the caret is in the front file, on the status line. */
+    void position(String where) {
+        status.text(Landmarks.STATUS_POSITION, where);
+    }
+
+    /** Say something on the status line, and when {@code alert}, draw the eye to it: something was refused or failed. */
+    void status(String message, boolean alert) {
+        status.text(Landmarks.STATUS_MESSAGE, message);
+        if (alert) {
+            motion.cues.play(status.node(), Cue.ring(danger, 2));
+        }
     }
 }

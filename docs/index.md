@@ -8,7 +8,7 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | --- | --- |
 | [**Vexplore**](apps/vexplore.md) | A file explorer that suggests instead of asking, and where every action can be undone |
 | [**VexelRay IDE**](apps/text-editor.md) | A tabbed text editor with a file navigator, which comes back where you left it |
-| [**Pix**](apps/pix.md) | Pictures, animations and video, with sound: one at a time, as large as the window allows, and the rest of the folder a key press away |
+| [**Rasterware**](apps/pix.md) | Pictures, animations and video, with sound: one at a time, as large as the window allows, and the rest of the folder a key press away |
 | [**MainFrame**](apps/mainframe.md) | A terminal window for the shell you already have |
 | [**Calculator**](apps/calculator.md) | An ordinary-looking calculator that divides by zero |
 | [**Fluid Sim**](https://github.com/sibarum/vexelray-sim-fluid) | Fluid simulation experiments: dam breaks, mixing and heat, live on the GPU |
@@ -17,7 +17,7 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | [**VexelRay Inspector**](https://github.com/sibarum/vexelray-inspector) | DevTools for VexelRay applications, drawn as clockwork: a running app's frame loop, beat by beat |
 
 They are separate programs that know about each other: a text file in Vexplore opens in VexelRay IDE and a picture in
-Pix, and VexelRay IDE can show any file in Vexplore.
+Rasterware, and VexelRay IDE can show any file in Vexplore.
 
 **[Install them](https://sibarum.github.io/)** with one line, for your user only. This is <span data-version="windows">0.1.1</span>, an experimental
 prerelease. On Windows, in PowerShell:
@@ -26,11 +26,11 @@ prerelease. On Windows, in PowerShell:
 irm https://sibarum.github.io/install.ps1 | iex
 ```
 
-On Linux, in a terminal, with no `sudo`. These are snapshot builds (<span data-version="linux">0.1.2-SNAPSHOT</span>) of VexelRay IDE, Pix, MainFrame,
-Calculator and VexelRay Inspector; the others are not on Linux yet:
+On Linux, in a terminal, with no `sudo`. This installs VexelRay IDE, Rasterware, MainFrame and Calculator, version
+<span data-version="linux">0.1.2</span>, and VexelRay Inspector if you ask for it; the others are not on Linux yet:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/sibarum/vexelray-dist/main/preflight/install.sh | sh
+curl -fsSL https://sibarum.github.io/install.sh | sh
 ```
 
 ## The framework
@@ -43,18 +43,24 @@ framework's own, and starts up as fast as the equivalent hand-written `main`.
 
 ```java
 @VexelApp(name = "text-editor", title = "VexelRay IDE", width = 800, height = 592,
-          icon = "/editor.ico", starters = AutomationStarter.class)
+          icon = "/editor.ico", starters = {AutomationStarter.class, Core.class})
 final class TextEditorApp {
-
-    public static void main(String[] args) {
-        VexelApplication.run(new TextEditorAppWiring(), args);
-    }
 }
 ```
 
-`TextEditorAppWiring` is generated from the annotation while the application compiles; nobody writes it.
+```java
+public static void main(String[] args) {
+    VexelApplication.run(new TextEditorAppWiring(), args);
+}
+```
 
-The framework is before v1. [The source and the tour are on GitHub](https://github.com/sibarum/vexelray-framework).
+`TextEditorAppWiring` is generated from the annotation, the application's `@Provides` recipes, and the components
+and jobs `Core` lists, while the application compiles; nobody writes it. The parts it builds talk by messages and
+nothing else.
+
+The framework is before v1. **To build an application on it, start at the [developer guide](developers/index.md)**:
+one script installs the stack, and one command generates a working project from the template.
+[The source and the tour are on GitHub](https://github.com/sibarum/vexelray-framework).
 
 | Document | What it is |
 | --- | --- |

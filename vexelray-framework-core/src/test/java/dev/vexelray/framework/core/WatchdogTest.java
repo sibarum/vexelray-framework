@@ -1,6 +1,8 @@
 package dev.vexelray.framework.core;
 
 import org.junit.jupiter.api.Test;
+import sibarum.atchung.Atchung;
+import sibarum.atchung.Subscriber;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -19,16 +21,21 @@ final class WatchdogTest {
 
     private static final long MS = TimeUnit.MILLISECONDS.toNanos(1);
 
+    /** A watchdog on {@code lanes}, started, whose reports {@code heard} hears directly on the bus, as the policy does. */
+    private static Watchdog watching(Lanes lanes, long thresholdNanos, Subscriber<Stalled> heard) {
+        Atchung bus = Atchung.create();
+        bus.subscribe(Stalled.TOPIC, heard);
+        return new Watchdog(lanes, bus, status -> { }).start(thresholdNanos);
+    }
+
     @Test
     void aLaneInsideOneDeliveryTooLongIsReportedOnceByName() throws Exception {
-        try (Lanes lanes = new Lanes(); Watchdog dog = new Watchdog(lanes, status -> { })) {
-            CopyOnWriteArrayList<Lanes.Stall> seen = new CopyOnWriteArrayList<>();
-            CountDownLatch reported = new CountDownLatch(1);
-            dog.start(50 * MS, stall -> {
-                seen.add(stall);
-                reported.countDown();
-            });
-
+        CopyOnWriteArrayList<Stalled> seen = new CopyOnWriteArrayList<>();
+        CountDownLatch reported = new CountDownLatch(1);
+        try (Lanes lanes = new Lanes(); Watchdog dog = watching(lanes, 50 * MS, stall -> {
+            seen.add(stall);
+            reported.countDown();
+        })) {
             Lanes.Busy busy = lanes.busy("compose");
             busy.enter();
             assertTrue(reported.await(5, TimeUnit.SECONDS), "a wedged delivery was never reported");
@@ -37,16 +44,14 @@ final class WatchdogTest {
 
             assertEquals(1, seen.size(), "one stalled delivery is one report, not one per check");
             assertEquals("compose", seen.get(0).lane());
-            assertTrue(seen.get(0).nanos() >= 50 * MS);
+            assertTrue(seen.get(0).stalledFor().toNanos() >= 50 * MS);
         }
     }
 
     @Test
     void aLaneThatIsParkedOrQuickIsNeverReported() throws Exception {
-        try (Lanes lanes = new Lanes(); Watchdog dog = new Watchdog(lanes, status -> { })) {
-            AtomicInteger reports = new AtomicInteger();
-            dog.start(200 * MS, stall -> reports.incrementAndGet());
-
+        AtomicInteger reports = new AtomicInteger();
+        try (Lanes lanes = new Lanes(); Watchdog dog = watching(lanes, 200 * MS, stall -> reports.incrementAndGet())) {
             lanes.busy("parked");
             Lanes.Busy quick = lanes.busy("quick");
             for (int i = 0; i < 20; i++) {
@@ -60,10 +65,8 @@ final class WatchdogTest {
 
     @Test
     void aSecondStallOnTheSameLaneIsAnotherReport() throws Exception {
-        try (Lanes lanes = new Lanes(); Watchdog dog = new Watchdog(lanes, status -> { })) {
-            CountDownLatch two = new CountDownLatch(2);
-            dog.start(30 * MS, stall -> two.countDown());
-
+        CountDownLatch two = new CountDownLatch(2);
+        try (Lanes lanes = new Lanes(); Watchdog dog = watching(lanes, 30 * MS, stall -> two.countDown())) {
             Lanes.Busy busy = lanes.busy("compose");
             for (int i = 0; i < 2; i++) {
                 busy.enter();
@@ -76,14 +79,13 @@ final class WatchdogTest {
 
     @Test
     void aPolicyThatThrowsDoesNotStopTheWatching() throws Exception {
-        try (Lanes lanes = new Lanes(); Watchdog dog = new Watchdog(lanes, status -> { })) {
-            CountDownLatch other = new CountDownLatch(1);
-            dog.start(30 * MS, stall -> {
-                if (stall.lane().equals("first")) {
-                    throw new IllegalStateException("policy bug");
-                }
-                other.countDown();
-            });
+        CountDownLatch other = new CountDownLatch(1);
+        try (Lanes lanes = new Lanes(); Watchdog dog = watching(lanes, 30 * MS, stall -> {
+            if (stall.lane().equals("first")) {
+                throw new IllegalStateException("policy bug");
+            }
+            other.countDown();
+        })) {
             lanes.busy("first").enter();
             Thread.sleep(100);
             lanes.busy("second").enter();
@@ -95,11 +97,11 @@ final class WatchdogTest {
     void theProcessIsHaltedWhenAnOrderlyStopOverruns() throws Exception {
         CountDownLatch halted = new CountDownLatch(1);
         AtomicInteger status = new AtomicInteger(-1);
-        try (Watchdog dog = new Watchdog(new Lanes(), s -> {
+        try (Watchdog dog = new Watchdog(new Lanes(), Atchung.create(), s -> {
             status.set(s);
             halted.countDown();
         }, text -> { })) {
-            dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
+            dog.start(TimeUnit.SECONDS.toNanos(10));
             dog.haltAfter(50 * MS);
             assertTrue(halted.await(5, TimeUnit.SECONDS), "the backstop never fired");
             assertEquals(Watchdog.HALT_STATUS, status.get());
@@ -109,8 +111,8 @@ final class WatchdogTest {
     @Test
     void closingBeforeTheDeadlineDisarmsTheHalt() throws Exception {
         AtomicInteger halts = new AtomicInteger();
-        Watchdog dog = new Watchdog(new Lanes(), s -> halts.incrementAndGet());
-        dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
+        Watchdog dog = new Watchdog(new Lanes(), Atchung.create(), s -> halts.incrementAndGet());
+        dog.start(TimeUnit.SECONDS.toNanos(10));
         dog.haltAfter(100 * MS);
         dog.close();
         Thread.sleep(300);
@@ -120,8 +122,8 @@ final class WatchdogTest {
     @Test
     void aLaterRequestCannotRelaxTheDeadline() throws Exception {
         CountDownLatch halted = new CountDownLatch(1);
-        try (Watchdog dog = new Watchdog(new Lanes(), s -> halted.countDown(), text -> { })) {
-            dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
+        try (Watchdog dog = new Watchdog(new Lanes(), Atchung.create(), s -> halted.countDown(), text -> { })) {
+            dog.start(TimeUnit.SECONDS.toNanos(10));
             dog.haltAfter(50 * MS);
             dog.haltAfter(TimeUnit.HOURS.toNanos(1));
             assertTrue(halted.await(5, TimeUnit.SECONDS), "a patient second caller postponed the backstop");
@@ -141,11 +143,11 @@ final class WatchdogTest {
         wedged.start();
         List<String> events = new CopyOnWriteArrayList<>();
         CountDownLatch halted = new CountDownLatch(1);
-        try (Watchdog dog = new Watchdog(new Lanes(), s -> {
+        try (Watchdog dog = new Watchdog(new Lanes(), Atchung.create(), s -> {
             events.add("halt");
             halted.countDown();
         }, text -> events.add(text))) {
-            dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
+            dog.start(TimeUnit.SECONDS.toNanos(10));
             dog.haltAfter(50 * MS);
             assertTrue(halted.await(5, TimeUnit.SECONDS), "the backstop never fired");
         } finally {
@@ -164,14 +166,14 @@ final class WatchdogTest {
         CountDownLatch halted = new CountDownLatch(1);
         CountDownLatch never = new CountDownLatch(1);
         long start = System.nanoTime();
-        try (Watchdog dog = new Watchdog(new Lanes(), s -> halted.countDown(), text -> {
+        try (Watchdog dog = new Watchdog(new Lanes(), Atchung.create(), s -> halted.countDown(), text -> {
             try {
                 never.await();   // a stream a wedged thread is holding
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         })) {
-            dog.start(TimeUnit.SECONDS.toNanos(10), stall -> { });
+            dog.start(TimeUnit.SECONDS.toNanos(10));
             dog.haltAfter(50 * MS);
             assertTrue(halted.await(10, TimeUnit.SECONDS), "a stuck report held the backstop");
         } finally {

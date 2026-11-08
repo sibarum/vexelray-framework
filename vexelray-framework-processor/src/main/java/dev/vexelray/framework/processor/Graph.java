@@ -3,11 +3,14 @@ package dev.vexelray.framework.processor;
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.ConditionalOnType;
 import dev.vexelray.framework.api.Default;
+import dev.vexelray.framework.api.Hears;
 import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.OnMode;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.api.RunMode;
 import dev.vexelray.framework.api.Setting;
+import dev.vexelray.framework.api.Subscribe;
+import dev.vexelray.framework.api.View;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
@@ -59,6 +62,12 @@ final class Graph {
     }
 
     private List<Provider> live = List.of();
+    /** The types some recipe takes as {@code All<T>}: a set, not a part, so exempt from one provider winning. */
+    private List<TypeMirror> gathered = List.of();
+
+    /** {@code All}'s name, which the processor reads a parameter's type against. */
+    static final String ALL = "dev.vexelray.framework.api.All";
+    static final String OPTIONAL = "java.util.Optional";
 
     private final Mirrors mirrors;
     private final Declarations declarations;
@@ -68,6 +77,11 @@ final class Graph {
 
     private final Set<TypeElement> configurations = new LinkedHashSet<>();
     private final Set<TypeElement> components = new LinkedHashSet<>();
+    private final Set<TypeElement> jobs = new LinkedHashSet<>();
+    /** The sources among {@link #jobs}. */
+    private final Set<TypeElement> sources = new LinkedHashSet<>();
+    /** The destinations among {@link #jobs}, a part that is also a source included. */
+    private final Set<TypeElement> destinations = new LinkedHashSet<>();
 
     Graph(Mirrors mirrors, Declarations declarations, Elements elements, Types types, Messager messager) {
         this.mirrors = mirrors;
@@ -85,7 +99,59 @@ final class Graph {
         components.add(type);
     }
 
-    /** The live providers, as the last {@link #check()} found them — what the generator builds from. */
+    void job(TypeElement type) {
+        jobs.add(type);
+    }
+
+    /**
+     * A source, which is a job in everything the graph asks (constructed by its one constructor, final fields, held by
+     * nothing, reached by its request's topic), and is in {@link #jobsSeen} with them. What differs, the senders it may
+     * take and how the wiring starts it, asks {@link #isSource}.
+     */
+    void source(TypeElement type) {
+        jobs.add(type);
+        sources.add(type);
+    }
+
+    /** Whether {@code job}, one of {@link #jobsSeen}, is a {@code @Source}. */
+    boolean isSource(TypeElement job) {
+        return sources.contains(job);
+    }
+
+    /**
+     * A destination, which is a job in everything the graph asks, as a source is ({@code docs/components.md}, section
+     * 12). A part that is also a {@code @Source} is one as well, so it may take the senders a source takes.
+     */
+    void destination(TypeElement type) {
+        jobs.add(type);
+        destinations.add(type);
+        if (mirrors.has(type, dev.vexelray.framework.api.Source.class)) {
+            sources.add(type);
+        }
+    }
+
+    /** Whether {@code job}, one of {@link #jobsSeen}, is a {@code @Destination}. */
+    boolean isDestination(TypeElement job) {
+        return destinations.contains(job);
+    }
+
+    /** What a part held as a job is called in a message: its annotation. */
+    String kind(TypeElement job) {
+        return isDestination(job) ? "@Destination" : isSource(job) ? "@Source" : "@Job";
+    }
+
+    /** Every live job, in the order the rounds and the configurations offered them. */
+    List<TypeElement> jobsSeen() {
+        List<TypeElement> out = new ArrayList<>();
+        for (TypeElement j : jobs) {
+            if (live(j)) {
+                out.add(j);
+            }
+        }
+        return out;
+    }
+
+    /** The live providers, as the last {@link #check} found them — what the generator builds from. */
     List<Provider> providersSeen() {
         return live;
     }
@@ -101,14 +167,26 @@ final class Graph {
         return out;
     }
 
-    void check() {
+    /**
+     * @param application whether this compilation holds the {@code @VexelApp}, so every provider is in view: only then
+     *                    can a part nothing supplies be told from one another module's recipe supplies
+     */
+    void check(boolean application) {
         List<Provider> providers = providers();
         live = providers;
+        gathered = gatheredTypes(providers);
         conflicts(providers);
+        gatheredUse(providers);
         VariableElement lentTo = null;
         for (TypeElement component : components) {
             if (live(component)) {
                 ExecutableElement constructor = constructor(component);
+                if (constructor != null && mirrors.has(component, Hears.class)
+                        && constructor.getParameters().stream().noneMatch(Graph::isInbox)) {
+                    error(component, Mirrors.simple(component) + " declares @Hears and takes no Inbox. @Hears lists what a"
+                            + " component hears through its inbox on the logic lane; a component on a lane of its own"
+                            + " declares its mailboxes with @Subscribe");
+                }
                 if (constructor != null) {
                     for (VariableElement p : constructor.getParameters()) {
                         componentParameter(component, p, providers);
@@ -131,6 +209,19 @@ final class Graph {
             if (mirrors.owned(provider.method())) {
                 for (VariableElement p : provider.method().getParameters()) {
                     providerParameter(provider, p, providers);
+                }
+            }
+        }
+        for (TypeElement job : jobsSeen()) {
+            ExecutableElement constructor = constructor(job);
+            if (constructor != null) {
+                for (VariableElement p : constructor.getParameters()) {
+                    jobParameter(job, p, providers);
+                }
+            }
+            for (Element e : job.getEnclosedElements()) {
+                if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)) {
+                    jobField(job, (VariableElement) e, providers, application);
                 }
             }
         }
@@ -175,8 +266,10 @@ final class Graph {
         for (RunMode mode : RunMode.values()) {
             for (int i = 0; i < providers.size(); i++) {
                 Provider a = providers.get(i);
-                // A recipe run for its effect provides nothing, so two of them supply nothing twice.
-                if (a.effect() || !a.modes().contains(mode.name()) || !winsIn(a, mode, providers)) {
+                // A recipe run for its effect provides nothing, so two of them supply nothing twice; and a type taken
+                // as All<T> is a set, whose providers are all of them by design.
+                if (a.effect() || isGathered(a.type()) || !a.modes().contains(mode.name())
+                        || !winsIn(a, mode, providers)) {
                     continue;
                 }
                 for (int j = i + 1; j < providers.size(); j++) {
@@ -207,6 +300,125 @@ final class Graph {
         return true;
     }
 
+    // --- every provider of a type, or at most one ------------------------------------------------------------
+
+    /**
+     * What {@code type} gathers, when it is {@code All<T>} or {@code Optional<T>} as {@code wrapper} names: its
+     * {@code T}, or {@code null} when it is not that wrapper. A wildcard or a raw type has no {@code T} to gather, and is
+     * {@code null} too; {@link #gatheredUse} refuses it.
+     */
+    static TypeMirror piece(TypeMirror type, String wrapper) {
+        if (type.getKind() != TypeKind.DECLARED) {
+            return null;
+        }
+        javax.lang.model.type.DeclaredType declared = (javax.lang.model.type.DeclaredType) type;
+        TypeElement element = (TypeElement) declared.asElement();
+        if (!element.getQualifiedName().contentEquals(wrapper) || declared.getTypeArguments().size() != 1) {
+            return null;
+        }
+        TypeMirror piece = declared.getTypeArguments().get(0);
+        return piece.getKind() == TypeKind.DECLARED ? piece : null;
+    }
+
+    /** Whether {@code type} is one some recipe takes as {@code All<T>}. */
+    boolean isGathered(TypeMirror type) {
+        for (TypeMirror g : gathered) {
+            if (types.isSameType(g, type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<TypeMirror> gatheredTypes(List<Provider> providers) {
+        List<TypeMirror> out = new ArrayList<>();
+        for (Provider p : providers) {
+            for (VariableElement parameter : p.method().getParameters()) {
+                TypeMirror piece = piece(parameter.asType(), ALL);
+                if (piece != null && out.stream().noneMatch(t -> types.isSameType(t, piece))) {
+                    out.add(piece);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Every parameter the wiring fills: every live recipe's, component's and job's. */
+    private List<VariableElement> everyParameter(List<Provider> providers) {
+        List<VariableElement> out = new ArrayList<>();
+        for (Provider p : providers) {
+            out.addAll(p.method().getParameters());
+        }
+        for (TypeElement part : componentsSeen()) {
+            ExecutableElement constructor = constructor(part);
+            if (constructor != null) {
+                out.addAll(constructor.getParameters());
+            }
+        }
+        for (TypeElement part : jobsSeen()) {
+            ExecutableElement constructor = constructor(part);
+            if (constructor != null) {
+                out.addAll(constructor.getParameters());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * {@code All<T>} and {@code Optional<T>} where they are allowed and nowhere else ({@code docs/plans/regions.md}): in
+     * a recipe, over a declared type, and with a type taken as {@code All<T>} taken that way everywhere. A gathered type
+     * has any number of providers, so a parameter asking for one of them, or at most one, would get whichever the
+     * build happened to pick, which is the error <i>exactly one provider wins</i> exists to stop.
+     */
+    private void gatheredUse(List<Provider> providers) {
+        for (VariableElement parameter : everyParameter(providers)) {
+            if (!mirrors.owned(parameter)) {
+                continue;
+            }
+            TypeMirror type = parameter.asType();
+            TypeElement element = Mirrors.element(type);
+            boolean all = element != null && element.getQualifiedName().contentEquals(ALL);
+            boolean optional = element != null && element.getQualifiedName().contentEquals(OPTIONAL);
+            Element owner = parameter.getEnclosingElement();
+            String who = owner.getKind() == ElementKind.METHOD ? Mirrors.where((ExecutableElement) owner)
+                    : Mirrors.simple(owner.getEnclosingElement());
+            if ((all || optional) && owner.getKind() != ElementKind.METHOD && !mirrors.has(parameter, Setting.class)) {
+                error(parameter, who + " takes " + Mirrors.simple(parameter) + ", " + (all ? "an All" : "an Optional")
+                        + ", and only a recipe takes one: a part's pieces are laid out where it is built. Take it in"
+                        + " the @Provides method that builds what holds them, and hand that the pieces");
+                continue;
+            }
+            if ((all || optional) && piece(type, all ? ALL : OPTIONAL) == null) {
+                error(parameter, who + " takes " + Mirrors.simple(parameter) + ", a " + type + ", with no declared type"
+                        + " to gather: name one, as in " + (all ? "All<SidePiece>" : "Optional<Centre>"));
+                continue;
+            }
+            TypeMirror single = optional ? piece(type, OPTIONAL) : all ? null : type;
+            if (single != null && isGathered(single)) {
+                error(parameter, who + " takes " + Mirrors.simple(parameter) + " as " + (optional ? "an Optional of " : "")
+                        + "one " + single + ", and " + single + " is taken as All<" + Mirrors.simple(Mirrors.element(single))
+                        + "> elsewhere, so it has any number of providers. A type is a set or a part, not both:"
+                        + " take All<" + Mirrors.simple(Mirrors.element(single)) + "> here too, or give the one part a"
+                        + " type of its own");
+            }
+            if (optional && single != null) {
+                TypeElement held = Mirrors.element(single);
+                if (held != null && Framework.root(held.getQualifiedName().toString()) != null) {
+                    error(parameter, who + " takes " + Mirrors.simple(parameter) + ", an Optional of "
+                            + Mirrors.simple(held) + ", which the framework always supplies: take it as it is");
+                }
+            }
+        }
+        for (Provider p : providers) {
+            if (p.isDefault() && isGathered(p.type()) && mirrors.owned(p.method())) {
+                error(p.method(), "@Default on " + Mirrors.where(p.method()) + ", which provides " + p.type() + ", and "
+                        + p.type() + " is taken as All<" + Mirrors.simple(Mirrors.element(p.type())) + ">: every"
+                        + " provider of it is taken, so there is nothing for a default to stand back from. Remove"
+                        + " @Default");
+            }
+        }
+    }
+
     private void conflict(Provider a, Provider b, RunMode mode) {
         String both = a.isDefault()
                 ? "Two @Default providers, and nothing of the application's own to back either of them off"
@@ -230,31 +442,110 @@ final class Graph {
             return;
         }
         String name = Mirrors.simple(component);
-        TypeElement placement = Mirrors.element(parameter.asType());
-        if (placement != null && placement.getQualifiedName().contentEquals(Framework.PLACEMENT)) {
-            error(parameter, name + " takes a Placement, which is the container's. A component does not make or"
-                    + " hold its own: declare its mailboxes with @Subscribe and its lane with @Component(lane = ...),"
-                    + " and the generated wiring places it");
+        if (refused(name, parameter)) {
             return;
         }
-        String main = whyOnMain(parameter.asType(), providers);
+        boolean view = mirrors.has(component, View.class);
+        TypeElement held = Mirrors.element(parameter.asType());
+        if (held != null && mirrors.has(held, View.class) && !view) {
+            error(parameter, "T7.4: " + name + " takes the view " + Mirrors.simple(held) + ". A view is presentation"
+                    + " on the GUI thread, and only another view may hold it: send it a message instead");
+        }
+        if (view && isInbox(parameter)) {
+            error(parameter, "@View " + name + " takes an Inbox, which is a logic component's. A view hears in the"
+                    + " frame, through its @Subscribe methods");
+            return;
+        }
+        if (isInbox(parameter)) {
+            for (Element member : component.getEnclosedElements()) {
+                if (mirrors.has(member, Subscribe.class)) {
+                    error(member, name + " takes its Inbox and also declares a @Subscribe mailbox. A component hears"
+                            + " one way: a component that takes its inbox subscribes there itself and lists what it"
+                            + " hears in @Hears, which a mailbox the wiring adds would contradict. Hear the topic in"
+                            + " the inbox instead (a ledger's Builder.on, or Inbox.subscribe)");
+                    break;
+                }
+            }
+            return;
+        }
+        // A view is the GUI thread's (T7.4), so a main-thread value may go into it as into any main-thread part.
+        String main = view ? null : whyOnMain(parameter.asType(), providers);
         if (main != null) {
             error(parameter, "T2.2: " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
-                    + main + "), and " + name + " is a @Component, which runs on a lane of its own. A"
-                    + " main-thread value may be injected only into something that is itself main-thread."
+                    + main + "), and " + name + " is a @Component, which runs in the logic's ticks. A"
+                    + " main-thread value is the framework's, and no application part but a view takes one."
                     + " Publish to it instead of holding it");
         }
         TypeElement other = Mirrors.element(parameter.asType());
         if (other != null && mirrors.has(other, Component.class)) {
-            String here = declarations.lane(component);
-            String there = declarations.lane(other);
-            if (!here.equals(there)) {
-                error(parameter, "T2.3: " + name + " (lane \"" + here + "\") holds " + Mirrors.simple(other)
-                        + " (lane \"" + there + "\"). A direct reference between two components is permitted"
-                        + " only where they share a thread; across lanes, behaviour is reached by publishing,"
-                        + " never by holding");
+            error(parameter, "T2.3: " + name + " holds " + Mirrors.simple(other) + ". A component never holds another,"
+                    + " on one lane or two: two components talk by messages whether or not they share a thread, so"
+                    + " moving one to a lane of its own costs capacity and never behaviour. Send it a message");
+        }
+        if (!view && isComputeQueue(parameter) && declarations.lane(component).equals(Component.DEFAULT_LANE)) {
+            error(parameter, "T3.1: " + name + " takes the ComputeQueue and runs on the logic lane, so every other"
+                    + " component's tick would wait on its submissions. Declare a lane of its own,"
+                    + " @Component(lane = ...), whose thread alone submits to the queue");
+        }
+        if (!view && main == null && other != null && !mirrors.has(other, Component.class)) {
+            provided(name, parameter, providers);
+        }
+        heldJob(name, parameter);
+    }
+
+    /**
+     * T2.6: a value provided to a component is shareable, or a framework service. A provided value can be injected into
+     * any number of parts, so one that is not deeply immutable is state two owners hold. The framework's own values are
+     * its table's ({@link Framework#ROOTS}), and a component's own sender and inbox are the wiring's, made for it alone.
+     */
+    private void provided(String component, VariableElement parameter, List<Provider> providers) {
+        TypeMirror type = parameter.asType();
+        TypeElement element = Mirrors.element(type);
+        if (isInbox(parameter) || Channels.isSender(parameter) || element == null
+                || Framework.root(element.getQualifiedName().toString()) != null) {
+            return;
+        }
+        for (Provider p : providers) {
+            if (types.isSameType(p.type(), type)) {
+                String why = Shareable.why(type);
+                if (why != null) {
+                    error(parameter, "T2.6: " + component + " takes " + Mirrors.simple(parameter) + ", which "
+                            + Mirrors.where(p.method()) + " provides, and it is not shareable: " + why + ". A provided"
+                            + " value can reach any number of parts, so one that can change is state they all hold."
+                            + " Provide a record of immutable values, or make the state a component's and reach it"
+                            + " by messages");
+                }
+                return;
             }
         }
+    }
+
+    /**
+     * T2.5 and T4.5: what no application part takes ({@link Framework#REFUSED}), and an executor of any kind. Whether
+     * {@code parameter} was one, so the caller says nothing more about it.
+     */
+    private boolean refused(String who, VariableElement parameter) {
+        TypeElement type = Mirrors.element(parameter.asType());
+        if (type == null) {
+            return false;
+        }
+        String why = Framework.REFUSED.get(type.getQualifiedName().toString());
+        if (why == null && type.getQualifiedName().contentEquals(Framework.SHELL)
+                && !elements.getPackageOf(parameter).getQualifiedName().toString().startsWith(Framework.OWN)) {
+            why = Framework.SHELL_REFUSED;
+        }
+        if (why == null) {
+            TypeElement executor = elements.getTypeElement("java.util.concurrent.Executor");
+            if (executor != null && types.isAssignable(types.erasure(parameter.asType()), executor.asType())) {
+                why = "T2.5: an executor runs whatever it is handed on a thread nothing declares. Work that blocks is"
+                        + " a @Job, and a component that needs a core declares @Component(lane = ...)";
+            }
+        }
+        if (why != null) {
+            error(parameter, who + " takes " + Mirrors.simple(parameter) + ", a " + Mirrors.simple(type) + ". " + why);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -267,15 +558,33 @@ final class Graph {
             return;
         }
         String where = Mirrors.where(provider.method());
+        if (refused(where, parameter)) {
+            return;
+        }
+        // All<T> and Optional<T> hand over T's providers, so T is held to what a parameter of T would be.
+        TypeMirror piece = piece(parameter.asType(), ALL);
+        if (piece == null) {
+            piece = piece(parameter.asType(), OPTIONAL);
+        }
+        if (piece != null) {
+            String onMain = whyOnMain(piece, providers);
+            if (onMain != null) {
+                error(parameter, "T2.2: " + where + " takes " + Mirrors.simple(parameter) + ", whose pieces are"
+                        + " main-thread values (" + onMain + "). No application code runs on the main thread (T7.1)");
+            }
+            TypeElement held = Mirrors.element(piece);
+            if (held != null && (mirrors.has(held, Component.class) || mirrors.has(held, View.class))) {
+                error(parameter, "T3.7: " + where + " takes " + Mirrors.simple(parameter) + ", whose pieces are the"
+                        + " component " + Mirrors.simple(held) + ". The container hands out a channel or a shareable"
+                        + " value, never the object");
+            }
+            return;
+        }
         String main = whyOnMain(parameter.asType(), providers);
-        if (main != null && !provider.onMain()) {
+        if (main != null) {
             error(parameter, "T2.2: " + where + " takes " + Mirrors.simple(parameter) + ", a main-thread value ("
-                    + main + (provider.effect()
-                        ? "), and it is not @MainThread. A recipe run for its effect that takes a main-thread value"
-                          + " runs on the main thread: mark " + where + " @MainThread to say so"
-                        : "), and what it provides is not @MainThread. A main-thread value may be injected"
-                          + " only into something that is itself main-thread: mark " + where + " @MainThread if its"
-                          + " value lives there too"));
+                    + main + "). A main-thread value is the framework's, and no application code runs on the main"
+                    + " thread (T7.1): reach it by a message, or show what the application decided through a @View");
         }
         if (isComputeQueue(parameter)) {
             error(parameter, "T3.1: " + where + " takes the ComputeQueue, which is lent to one @Component and to"
@@ -283,15 +592,123 @@ final class Graph {
                     + " whatever thread asked. Take it in the component that submits to it");
         }
         TypeElement other = Mirrors.element(parameter.asType());
-        if (other != null && mirrors.has(other, Component.class)) {
+        if (other != null && (mirrors.has(other, Component.class) || mirrors.has(other, View.class))) {
             error(parameter, "T3.7: " + where + " takes the component " + Mirrors.simple(other) + ". The"
                     + " container hands out a channel or a shareable value, never the object, and a provided"
                     + " value holding a component would carry it to whoever asks for that value");
         }
-        if (other != null && other.getQualifiedName().contentEquals(Framework.PLACEMENT)) {
-            error(parameter, where + " takes a Placement, which is a component's thread and mailboxes, and the"
-                    + " container's. Nothing is handed one: declare mailboxes with @Subscribe and the lane with"
-                    + " @Component(lane = ...)");
+        if (isInbox(parameter)) {
+            error(parameter, where + " takes an Inbox, which is a component's own: what arrives there runs on the"
+                    + " component's turn on the logic lane, and a provided value can be injected anywhere. Take it in"
+                    + " the @Component's constructor");
+        }
+        heldJob(where, parameter);
+    }
+
+    /** Whether {@code parameter} is an atchung {@code Inbox}: the logic lane's, and only a component's to take. */
+    private static boolean isInbox(VariableElement parameter) {
+        TypeElement type = Mirrors.element(parameter.asType());
+        return type != null && type.getQualifiedName().contentEquals(Framework.INBOX);
+    }
+
+    /**
+     * A job's constructor parameter. A job runs on the job lane, a pool, so it is a crossing on every request:
+     * never a main-thread value (T2.2), never a component (T2.3, which a pool has no lane to share), never the compute
+     * queue (T3.1). And never another job, which is reached by publishing like any.
+     */
+    private void jobParameter(TypeElement job, VariableElement parameter, List<Provider> providers) {
+        if (mirrors.has(parameter, Setting.class)) {
+            return;
+        }
+        String name = Mirrors.simple(job);
+        String kind = kind(job);
+        if (refused(kind + " " + name, parameter)) {
+            return;
+        }
+        if (Channels.isSender(parameter)) {
+            // A source sends as it goes, which is what makes it one; a job's only word is its reply.
+            if (!isSource(job)) {
+                error(parameter, kind + " " + name + " takes " + Mirrors.simple(parameter) + ", a Sender. A job answers"
+                        + " with its reply, which the wiring publishes, and sends nothing else: a request that leads to"
+                        + " more is a component's to follow, and reading that keeps sending is a @Source");
+            }
+            return;
+        }
+        String lane = isDestination(job) ? "a destination writes on a thread of its own"
+                : isSource(job) ? "a source runs on a thread of its own" : "a job runs on the job lane";
+        String main = whyOnMain(parameter.asType(), providers);
+        if (main != null) {
+            error(parameter, "T2.2: " + kind + " " + name + " takes " + Mirrors.simple(parameter) + ", a main-thread"
+                    + " value (" + main + "), and " + lane + ". Answer with what the main thread needs, and let"
+                    + " a subscriber that is the main thread's act on it");
+        }
+        TypeElement other = Mirrors.element(parameter.asType());
+        if (other != null && (mirrors.has(other, Component.class) || mirrors.has(other, View.class))) {
+            error(parameter, "T2.3: " + kind + " " + name + " takes the component " + Mirrors.simple(other) + ". "
+                    + Character.toUpperCase(lane.charAt(0)) + lane.substring(1) + ", which shares a thread with no"
+                    + " component: carry what it needs in the request, and answer in the reply");
+        }
+        if (isComputeQueue(parameter)) {
+            error(parameter, "T3.1: " + kind + " " + name + " takes the ComputeQueue, which is lent to one @Component"
+                    + " and to nothing else");
+        }
+        if (isInbox(parameter)) {
+            error(parameter, kind + " " + name + " takes an Inbox, which is a component's own. It hears its request"
+                    + " and answers with its reply; it has no inbox to hear in");
+        }
+        heldJob(kind + " " + name, parameter);
+    }
+
+    /**
+     * A job's field: final ({@link Declarations#job}), and of a type that is shareable or that the container supplies.
+     * A field of any other type is state the job made for itself, which two requests running at once would share.
+     *
+     * <p>Whether the container supplies it is the application's answer, as it is for a parameter (see the class
+     * comment). A module compiled on its own sees only its own recipes, and a job in a {@code -core} module may take a
+     * part its {@code -gui} module's recipe builds. So with no application here, a type no provider here returns is
+     * left for the application's compilation, which checks the job again from the configuration that lists it, with
+     * every recipe in view.
+     */
+    private void jobField(TypeElement job, VariableElement field, List<Provider> providers, boolean application) {
+        TypeMirror type = field.asType();
+        if (Shareable.why(type) == null) {
+            return;
+        }
+        TypeElement element = Mirrors.element(type);
+        if (element != null && Framework.root(element.getQualifiedName().toString()) != null) {
+            return;
+        }
+        if (isSource(job) && element != null && element.getQualifiedName().contentEquals(Channels.SENDER)) {
+            return;     // what its constructor took, kept: an outside sender holds nothing that changes
+        }
+        for (Provider p : providers) {
+            if (types.isSameType(p.type(), type)) {
+                return;
+            }
+        }
+        if (!application) {
+            return;
+        }
+        error(field, kind(job) + " " + Mirrors.simple(job) + " has the field "
+                + Mirrors.simple(field) + ", a " + type
+                + ", which is neither shareable nor something the container supplies. Two requests may run at once,"
+                + " so a job keeps no state of its own: take the part from the container, or make the value a record"
+                + " of immutable values");
+    }
+
+    /** A job named as a parameter: it is reached by publishing its topic, and nothing holds one. */
+    private void heldJob(String who, VariableElement parameter) {
+        TypeElement other = Mirrors.element(parameter.asType());
+        if (other != null && mirrors.has(other, dev.vexelray.framework.api.Job.class)) {
+            error(parameter, who + " takes the job " + Mirrors.simple(other) + ". A job is reached by publishing its"
+                    + " topic, never by holding it: publish the request and subscribe to the reply");
+        }
+        if (other != null && mirrors.has(other, dev.vexelray.framework.api.Destination.class)) {
+            error(parameter, who + " takes the destination " + Mirrors.simple(other) + ". A destination is reached by"
+                    + " publishing what it writes, never by holding it");
+        } else if (other != null && mirrors.has(other, dev.vexelray.framework.api.Source.class)) {
+            error(parameter, who + " takes the source " + Mirrors.simple(other) + ". A source is reached by publishing"
+                    + " its request, never by holding it: publish the request and subscribe to what it sends");
         }
     }
 
@@ -367,7 +784,7 @@ final class Graph {
     }
 
     /** The one non-private constructor, or {@code null} when there is not exactly one — already reported. */
-    private static ExecutableElement constructor(TypeElement type) {
+    static ExecutableElement constructor(TypeElement type) {
         ExecutableElement found = null;
         for (Element e : type.getEnclosedElements()) {
             if (e.getKind() == ElementKind.CONSTRUCTOR && !e.getModifiers().contains(Modifier.PRIVATE)) {

@@ -7,8 +7,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,9 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Where the application's threads come from, and what is true of every one of them.
  *
  * <p>Three claims, each of which the model above this depends on rather than merely prefers. <b>The lanes are
- * distinct and named apart</b>, because "worker thread" meaning both is one name for two lanes with different
- * rules in the documentation applications read — and in the thread dump somebody reaches for when one of them
- * is the problem. <b>The offload lane is bounded</b>, because a pool that answers a full queue by growing has
+ * named apart</b>, because one name for two lanes with different rules is a thread dump that misleads whoever
+ * reaches for it when one of them is the problem. <b>The job lane is bounded</b>, because a pool that answers a full queue by growing has
  * chosen the one policy the rest of the model refuses. <b>Every thread is a platform thread</b>, because an
  * application that takes Kronometer's single-carrier flag has no second carrier to give a virtual one, which
  * makes it the documented deadlock rather than merely the slower choice.
@@ -28,39 +27,45 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 final class LanesTest {
 
+    /** T1.2: each lane has one name, used everywhere. The logic lane's and a declared lane's are minted here too. */
     @Test
-    void theTwoLanesAreDistinctAndNamedApart() throws Exception {
-        AtomicReference<String> handler = new AtomicReference<>();
-        AtomicReference<String> offloaded = new AtomicReference<>();
-        CountDownLatch both = new CountDownLatch(2);
+    void theLanesAreNamedApart() throws Exception {
+        AtomicReference<String> job = new AtomicReference<>();
+        AtomicReference<String> logic = new AtomicReference<>();
+        AtomicReference<String> declared = new AtomicReference<>();
+        CountDownLatch all = new CountDownLatch(3);
         try (Lanes lanes = new Lanes()) {
-            lanes.handlers().execute(() -> {
-                handler.set(Thread.currentThread().getName());
-                both.countDown();
+            lanes.jobs().execute(() -> {
+                job.set(Thread.currentThread().getName());
+                all.countDown();
             });
-            lanes.offload().execute(() -> {
-                offloaded.set(Thread.currentThread().getName());
-                both.countDown();
+            lanes.logic(() -> {
+                logic.set(Thread.currentThread().getName());
+                all.countDown();
             });
-            assertTrue(both.await(5, TimeUnit.SECONDS), "a lane never ran its work");
+            lanes.thread("physics", () -> {
+                declared.set(Thread.currentThread().getName());
+                all.countDown();
+            });
+            assertTrue(all.await(5, TimeUnit.SECONDS), "a lane never ran its work");
         }
-        assertNotEquals(handler.get(), offloaded.get(), "both lanes are the same pool");
-        assertTrue(handler.get().startsWith("vexel-handler"), handler.get());
-        assertTrue(offloaded.get().startsWith("vexel-offload"), offloaded.get());
+        assertTrue(job.get().startsWith("vexel-job-"), job.get());
+        assertEquals("vexel-logic", logic.get());
+        assertEquals("vexel-component-physics", declared.get());
     }
 
     @Test
-    void theOffloadLaneIsBoundedInThreadsRatherThanGrowing() {
+    void theJobLaneIsBoundedInThreadsRatherThanGrowing() {
         try (Lanes lanes = new Lanes()) {
             // Bounded in threads, not in queue: work waits behind the work already on the lane, which is
-            // backpressure. A bounded queue would make it fail instead, and a caller of offload has nowhere to
+            // backpressure. A bounded queue would make it fail instead, and a job's sender has nowhere to
             // put a rejection — choosing loss is a decision taken per channel, by whoever knows what that
             // channel carries.
-            ThreadPoolExecutor pool = (ThreadPoolExecutor) lanes.offload();
+            ThreadPoolExecutor pool = (ThreadPoolExecutor) lanes.jobs();
             assertTrue(pool.getMaximumPoolSize() < Integer.MAX_VALUE,
-                    "the offload lane grows without bound, so a wedged mount answers backpressure by spawning");
+                    "the job lane grows without bound, so a wedged mount answers backpressure by spawning");
             assertTrue(pool.getQueue().remainingCapacity() > 1_000,
-                    "the offload lane's queue is bounded, which turns a slow consumer into a rejection the "
+                    "the job lane's queue is bounded, which turns a slow consumer into a rejection the "
                             + "caller cannot answer");
         }
     }
@@ -71,7 +76,7 @@ final class LanesTest {
         AtomicReference<Thread> onComponent = new AtomicReference<>();
         CountDownLatch both = new CountDownLatch(2);
         try (Lanes lanes = new Lanes()) {
-            lanes.offload().execute(() -> {
+            lanes.jobs().execute(() -> {
                 onLane.set(Thread.currentThread());
                 both.countDown();
             });
@@ -92,7 +97,7 @@ final class LanesTest {
         }
         // isVirtual() rather than a property read: the flag that would make this wrong is the application's to
         // set, and correctness here may not depend on what it happens to be.
-        assertFalse(onLane.get().isVirtual(), "the offload lane is virtual");
+        assertFalse(onLane.get().isVirtual(), "the job lane is virtual");
         assertFalse(onComponent.get().isVirtual(), "a component thread is virtual");
         assertTrue(onLane.get().isDaemon(), "a lane thread can hold the process open past the loop ending");
         assertTrue(onComponent.get().isDaemon(), "a component thread can hold the process open");
@@ -119,8 +124,7 @@ final class LanesTest {
 
         assertTrue(lanes.closed());
         assertFalse(placed.isAlive(), "close returned with a component thread still running");
-        assertTrue(lanes.handlers().isShutdown(), "the handler lane outlived close");
-        assertTrue(lanes.offload().isShutdown(), "the offload lane outlived close");
+        assertTrue(lanes.jobs().isShutdown(), "the job lane outlived close");
 
         // Placing after shutdown is a mistake with a name rather than a thread that starts and is never
         // stopped — which is what it used to be, since nothing owned the threads to know.

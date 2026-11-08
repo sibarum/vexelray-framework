@@ -17,7 +17,7 @@ import sibarum.probe.Log;
  * the run's lifecycle, and a provider answering null is the application deciding it is degraded — a window nobody can
  * click — which is worth seeing in a packaged build's console. Not {@code ERROR}: nothing failed that was asked for.
  *
- * <p><b>Not for application code</b>, on the terms {@link Placements} states: the wiring lives in the application's
+ * <p><b>Not for application code</b>, on the terms {@link Inboxes} states: the wiring lives in the application's
  * package, so its door has to be public, and this class is that door and nothing else.
  */
 @Stability(Stability.Level.EXPERIMENTAL)

@@ -1,8 +1,8 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.core.Launch;
+import dev.vexelray.framework.core.Stalled;
 import org.junit.jupiter.api.Test;
-import sibarum.atchung.Backpressure;
 import sibarum.atchung.Topic;
 
 import java.time.Duration;
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 final class LivenessTest {
 
     private static final AppInfo DEMO = new AppInfo("demo", "Demo", 800, 600);
-    private static final Topic<String> WORK = Topic.of("test.liveness.work", String.class);
+    private static final Topic<String> WORK = Topic.edge("test.liveness.work", String.class);
 
     private static Shell shell() {
         return new Shell(Launch.parse(new String[0], "demo", Set.of()), DEMO);
@@ -52,10 +52,10 @@ final class LivenessTest {
                     reported.countDown();
                 }
             });
-            shell.place("compose").subscribe(WORK, msg -> {
+            shell.inbox("app.Compose", "compose").subscribe(WORK, msg -> {
                 wedged.countDown();
                 await(release);
-            }, 1, Backpressure.COALESCE_LATEST);
+            }, 1);
 
             shell.startComponents();
             shell.bus().publish(WORK, "hangs");
@@ -63,6 +63,41 @@ final class LivenessTest {
             assertTrue(reported.await(5, TimeUnit.SECONDS), "a wedged lane was never reported");
             assertEquals("compose", seen.get().lane());
             assertTrue(seen.get().stalledFor().toMillis() >= 50);
+            release.countDown();
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
+    @Test
+    void aStallIsReportedAsAMessageOnTheApplicationsBus() throws Exception {
+        Shell shell = shell();
+        try {
+            CountDownLatch release = new CountDownLatch(1);
+            AtomicReference<Stalled> heard = new AtomicReference<>();
+            CountDownLatch reported = new CountDownLatch(1);
+            shell.liveness(new LivenessPolicy() {
+                @Override
+                public Duration stallThreshold() {
+                    return Duration.ofMillis(50);
+                }
+
+                @Override
+                public void onStall(Stall stall, Context context) {
+                }
+            });
+            shell.bus().subscribe(Stalled.TOPIC, s -> {
+                heard.set(s);
+                reported.countDown();
+            });
+            shell.inbox("app.Compose", "compose").subscribe(WORK, msg -> await(release), 1);
+
+            shell.startComponents();
+            shell.bus().publish(WORK, "hangs");
+
+            assertTrue(reported.await(5, TimeUnit.SECONDS), "a wedged lane was never published");
+            assertEquals("compose", heard.get().lane());
+            assertTrue(heard.get().stalledFor().toMillis() >= 50);
             release.countDown();
         } finally {
             shell.disposer().close();
@@ -85,13 +120,13 @@ final class LivenessTest {
                     context.interrupt(stall.lane());
                 }
             });
-            shell.place("compose").subscribe(WORK, msg -> {
+            shell.inbox("app.Compose", "compose").subscribe(WORK, msg -> {
                 try {
                     Thread.sleep(60_000);
                 } catch (InterruptedException e) {
                     interrupted.countDown();
                 }
-            }, 1, Backpressure.COALESCE_LATEST);
+            }, 1);
 
             shell.startComponents();
             shell.bus().publish(WORK, "hangs");
@@ -119,7 +154,7 @@ final class LivenessTest {
                     reports.incrementAndGet();
                 }
             });
-            shell.place("busy").subscribe(WORK, msg -> delivered.incrementAndGet(), 64, Backpressure.BLOCK);
+            shell.inbox("app.Busy", "busy").subscribe(WORK, msg -> delivered.incrementAndGet(), 64);
 
             shell.startComponents();
             for (int i = 0; i < 20; i++) {

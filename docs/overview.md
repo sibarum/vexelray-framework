@@ -24,9 +24,10 @@ the buttons and the title bar are drawn by the stack.
 
 Underneath those, four more repositories do one job each: `intrabuf` (the serialization the bus carries),
 `dxgi-bridge` (presentation on Windows), `imagelib-wrapper` (image decoding, which `vexelray-gui`'s build uses) and
-`vexelray-build` (the Maven plugin that stamps every build with its source). An application written from the
+`vexelray-build` (the Maven plugin that stamps every build with its source), and two more give the title bar's camera
+its video: `ffmpeg-wrapper` and `vexelray-codec`. An application written from the
 template depends on the framework and on a few `vexelray-gui` modules for its widgets; the rest arrives with them.
-[Getting started](getting-started.md#2-install-the-stack) installs all eleven, and [the repositories](repositories.md)
+[Getting started](getting-started.md#2-install-the-stack) installs all thirteen, and [the repositories](repositories.md)
 lists the optional ones too.
 
 ## What the framework owns, and what you write
@@ -44,10 +45,14 @@ What an application writes:
 - **One `@VexelApp` class**: its name (which is also its settings folder), title, size, icon, and the starters it
   pulls in.
 - **`@Configuration` classes of `@Provides` methods**: one per part of the application, each saying what it needs.
-- **Optionally, `@Component` classes**: parts that run on a thread of their own and receive messages.
+- **`@Component` classes**: the parts that decide, each with its own state and mailbox, on the logic lane. A
+  generated project keeps them in its `-core` module, beside a `Messages` file with every message, and lists them in
+  a `@Configuration` its `@VexelApp` names among its starters.
+- **A `@View`**: the part that shows what the components decided and tells them what the person did.
+- **`@Job` classes**: slow work, a request in and a reply out.
 
-Five of the framework's defaults are overridable, one at a time, by providing the same type yourself: the look
-(`Appearance`), the input backend, the clipboard, the liveness policy and the dialogs. When you do, the framework's
+Six of the framework's defaults are overridable, one at a time, by providing the same type yourself: the look
+(`Appearance`), the fonts, the input backend, the clipboard, the liveness policy and the dialogs. When you do, the framework's
 version is never built, so there is no precedence to reason about. The rest of the edge is the framework's alone
 for now.
 
@@ -58,11 +63,11 @@ for now.
 | `@VexelApp` | The application: its name (the settings directory), title, size, `icon` and `starters` |
 | `@Configuration` / `@Provides` | Recipes: one method per part, its parameters what it needs |
 | `@Default` | The framework's answer, unless the application provides its own |
-| `@Component` | An actor on a lane: the shared default lane unless it names one |
-| `@Subscribe` | A component method that receives a topic, through a mailbox of its own with a declared overflow |
-| `@Publishes` | Which topics a type or method sends on, so a blocking send from the main thread is a compile error |
-| `@MainThread` | May only be touched on the main thread, checked at compile time |
-| `@BeforeFrame(FrameStage)` | Per-frame work, in a named stage |
+| `@Component` | An actor on the logic lane, or on a lane of its own if it names one; it sends through the `Sender<T>`s it takes |
+| `@View` | Presentation on the GUI thread, told by messages in the frame |
+| `@Subscribe` | A method that receives its parameter's message type, through a mailbox of its own |
+| `@Job` | Slow work: a request type in, a reply type out, on the job lane |
+| `@Hears` / `@Publishes` | The message types a ledger-built component hears and sends, as class literals |
 | `@OnMode(RunMode)` | Exists only in some run modes |
 | `@ConditionalOnType` | Contributes only if a type is on the compile classpath |
 | `@Setting` | Binds one configuration value, by key, overridable for one launch with `--key=value` |
@@ -110,7 +115,7 @@ phases, and every part is built in one:
 | `RUN` | The frame loop, and the shutdown in reverse order after it |
 
 **You never declare a phase.** A part's phase is the latest phase of anything it takes. A method taking a `Model`
-runs in `MODEL`; one taking a `Gui` runs in `TREE`, after the framework has configured the `Gui` in `GUI`; one taking the `Shell` runs last. Because the phase follows from
+runs in `MODEL`; one taking a `Gui` runs in `TREE`, after the framework has configured the `Gui` in `GUI`. No part takes the `Shell` (the processor refuses it): what has to wait for the window hears the framework's `WindowOpened` instead. Because the phase follows from
 the code, it cannot disagree with it.
 
 *More: [architecture.md](architecture.md#1-phases--construction-order-is-a-correctness-constraint-not-a-scheduling-detail).*
@@ -126,12 +131,12 @@ the widget tree and presents it:
 | --- | --- |
 | `INPUT` | Device input onto the bus |
 | `CLOCK` | The timeline ticks: animations and anything scheduled for now |
-| `APP` | The application's own per-frame work, usually draining what a background thread produced |
+| `APP` | The framework's draining of what arrived; with `--logic=main`, the application's logic tick |
 | `SETTLE` | Deferred bookkeeping |
 
-Input comes before the clock so that a frame shows the value it computed, rather than one frame late. Per-frame
-work joins a stage with `@BeforeFrame(FrameStage.APP)`; the stages are a closed list rather than numeric priorities,
-so no part's position depends on another part's number.
+Input comes before the clock so that a frame shows the value it computed, rather than one frame late. The stages
+are the framework's own, a closed list rather than numeric priorities, and no application code runs in them: the
+application's logic runs in its tick, and what it shows is a view's, told by messages.
 
 **The loop sleeps when there is nothing to do.** It does not redraw at a fixed rate: it waits until the earliest
 deadline any part holds (the next animation step, a window position to save) or until something wakes it. Parts
@@ -154,28 +159,32 @@ Vulkan, the window and presenting stay on the main thread. Everything else runs 
 | --- | --- |
 | **Main thread** | The window, the GPU, the frame loop. Never waits on another lane |
 | **Timeline** | Kronometer: animations and scheduled work, one at a time |
-| **Handler lane** | Event handlers: a click, a key, a submitted text field |
-| **Offload lane** | Slow work such as reading and writing files, bounded so it waits rather than grows |
-| **Component lanes** | Each `@Component`: a shared default lane, or one it names for itself |
+| **Logic lane** | Every `@Component`, one message at a time, so none needs a lock. Never the main thread |
+| **Declared lanes** | A component that names a `lane` for heavy work: a thread of its own, in the same rounds as the logic lane |
+| **Job lane** | Each `@Job`: slow work such as reading and writing files, a request in and a reply out, bounded so it waits rather than grows |
+| **A source's run, a destination's writer** | A thread per connection to something outside, such as a shell or a socket ([components.md](components.md) sections 11 and 12) |
 
-A component is one part, on one thread, with one mailbox. It does not hold references to other components; it
-receives messages through `@Subscribe` methods and sends them on the bus. Each mailbox says what happens when it is
-full (fail, drop, keep the latest, or wait), and a send that could block the main thread is a compile error.
+A `@View` is not on a lane: it runs on the main thread in each frame, holds the widgets, and only shows and tells. A
+click or a key is a message the view hears, not a handler run somewhere ([threading.md](threading.md) T1.1).
+
+A component is one part with its own state and mailbox. It does not hold references to other components; it receives
+messages through `@Subscribe` methods and sends them through the `Sender<T>` it takes for each message type. A channel
+is its message type, declared once beside it, so neither end spells a name. Every component runs on one logic lane by
+default, one delivery at a time; one that declares a lane gets a thread of its own in the same rounds.
 
 ```java
 @Component(lane = "physics")
 final class Physics {
 
-    @Subscribe(topic = Messages.START, overflow = Overflow.COALESCE_LATEST)
-    public void start(Start s) {
+    @Subscribe
+    public void start(Start s) {          // Start's topic, Topic.state(Start.class), says it is state
         ...
     }
 }
 ```
 
 Lanes are assigned when the application is compiled, never at runtime, and are platform threads rather than virtual
-ones. A value that may only be used on the main thread is marked `@MainThread`, and handing one to anything else is
-a compile error.
+ones. No application code runs on the main thread, and handing a part a main-thread value is a compile error.
 
 *More: [threading.md](threading.md) for the rules, [components.md](components.md) for the component model, and
 [architecture.md](architecture.md#the-concurrency-model) for the reasoning.*
@@ -207,8 +216,10 @@ cannot be cancelled, and nothing is restarted: the default policy reports and ex
 ## Windows, chrome and dialogs
 
 The main window is a `Window`, and so is every other. A second window is declared in a recipe and the framework
-builds and remembers it the same way. Each window can have a close check (`Window.onClose`), for unsaved work; the
-framework installs none of its own, because the default has to be that closing closes.
+builds and remembers it the same way. A window's close can be a question, for unsaved work: a part that
+hears `CloseRequested` is asked before any window closes, and answers with a `CloseAnswer`. When several do, each
+is asked in turn, and the first to refuse keeps the window open. With no such part, closing closes, because that has
+to be the default.
 
 The title bar is drawn by the framework from the application's identity (its title and icon) and in the
 application's theme. Its placement and controls are the framework's, so every window behaves the same and tools
@@ -240,7 +251,7 @@ altogether.
 | Module | What it is |
 | --- | --- |
 | `-api` | The annotations. JDK-only |
-| `-core` | Phases, launch, frame stages, pacing, disposal, lanes, the watchdog. JDK-only, so every decision the container makes is tested with no GPU |
+| `-core` | Phases, launch, frame stages, pacing, disposal, lanes, the watchdog, the timer. The JDK and the bus (atchung, itself JDK-only), so every decision the container makes is tested with no GPU |
 | `-processor` | The compile-time checks and the generated wiring |
 | `-shell` | The application edge itself, and the only module that builds the window and the GPU device |
 | `-automation` | The driving socket and `AutomationStarter` |

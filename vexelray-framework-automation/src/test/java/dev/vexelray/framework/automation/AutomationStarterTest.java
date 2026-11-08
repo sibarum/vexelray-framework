@@ -56,8 +56,13 @@ final class AutomationStarterTest {
         assertTrue(attach.contains("shell.disposer().register(driver);"), wiring);
     }
 
+    /**
+     * Phase 5: a driver is opened on the shell, which an application part may not take, so the starter's is the only
+     * one; whether to name the starter is the application's whole say. (Before, a {@code @Provides Driver} of the
+     * application's own backed the starter's {@code @Default} off.)
+     */
     @Test
-    void anApplicationsOwnDriverBacksTheStartersOff(@TempDir Path out) throws IOException {
+    void anApplicationCannotOpenADriverOfItsOwn(@TempDir Path out) throws IOException {
         Compiled compiled = compile(out, Map.of("app.DemoApp", APP, "app.Recipes", """
                 package app;
                 import dev.vexelray.framework.api.*;
@@ -67,11 +72,8 @@ final class AutomationStarterTest {
                     @Provides Driver driver(dev.vexelray.framework.shell.Shell shell) { return Driver.open(shell); }
                 }
                 """));
-        assertEquals(List.of(), compiled.errors(), "a @Default is backed off, not in conflict");
-
-        String wiring = compiled.wiring();
-        assertTrue(wiring.contains("recipes.driver(shell)"), wiring);
-        assertFalse(wiring.contains("automationStarter"), wiring);
+        assertEquals(1, compiled.errors().size(), String.join("\n", compiled.errors()));
+        assertTrue(compiled.errors().get(0).contains("Recipes.driver takes shell, a Shell"), compiled.errors().get(0));
     }
 
     @Test

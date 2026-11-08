@@ -99,6 +99,8 @@ public final class Checks {
                 if (problem != null) problems.add(problem);
             }
         }
+        // Which modules, which no pattern can say: the names are the manifest's own.
+        if (!template.modules().isEmpty()) problems.addAll(template.choose(answers.get(Template.MODULES)).problems());
         return List.copyOf(problems);
     }
 

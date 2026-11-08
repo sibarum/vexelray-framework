@@ -75,7 +75,7 @@ class GenerateTest {
         Path recipes = find(temp.resolve("demo-app"), "Recipes.java");
         assertNotNull(recipes);
         boolean named;
-        try (Stream<Path> files = Files.walk(temp.resolve("demo-app/src/main/java"))) {
+        try (Stream<Path> files = Files.walk(temp.resolve("demo-app/demo-app-gui/src/main/java"))) {
             named = files.filter(Files::isRegularFile).anyMatch(f -> read(f).contains("Hello There"));
         }
         assertTrue(named, "the window title should land in the source");
