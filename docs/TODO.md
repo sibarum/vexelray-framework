@@ -1419,6 +1419,21 @@ tests broke when it moved onto the current stack; the numbers are its `docs/fram
       the edge keyed by it throws an NPE that names neither the record nor the field. Rename the inbox-only form so
       it reads as such, or refuse a null edge key on publish with a message naming `to`.
 
+### Found by Rasterware's Trace panel (2026-11-08)
+
+Rasterware (Spike/Pix on `v0.2`) traces a picture into an SDG drawing beside it and compares the two across a line
+(its `docs/trace.md`). The numbers are its `docs/framework-notes.md`.
+
+- [ ] **The tracer has no corner fitting** (FN-22, `vexelray-fields-sdg` `Trace`): the Trace board's Corners control
+      cannot be offered. A corner fit as a `Trace.Options` field, with its bench case.
+- [ ] **A node's reported box includes its drawn offset, and an overflowing child is not centred** (FN-23,
+      `vexelray-gui-core`): a view that measures a node it moves chases itself every frame. Report the layout box apart
+      from the drawn one; centre an overflowing child as CSS does.
+- [ ] **A stretched `Segment` packs its options at its start** (FN-24, `vexelray-gui-widget`): the rest of its width is
+      a dead track. Share a given width among the options, or keep its own width.
+- [ ] **No way to draw one node with another's transform** (FN-25, `vexelray-gui-core` `Drawn`): a compare repeats the
+      picture's scale and offset by hand. A `Drawn.follow(node, leader)`.
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
