@@ -1,6 +1,8 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.diag.Diagnostics;
+import dev.vexelray.fields.sdg.SdgFile;
+import dev.vexelray.gui.core.ImageSdg;
 import dev.vexelray.os.Icon;
 
 import java.io.IOException;
@@ -85,6 +87,31 @@ final class Mark {
             return null;
         }
         return load(anchor, variant, "the application's background icon " + variant);
+    }
+
+    /**
+     * The mark as a drawing: {@code pix.sdgb} beside {@code pix.ico}, as the icon plugin's pair goal makes it from the
+     * drawing the icon is made from, which the title bar draws sharp at every scale in place of the icon's rasters.
+     * An application that names no mark, or whose mark is built in code or has no drawing beside it, has none:
+     * {@code null}, not reported. One that is there and does not read is.
+     */
+    static ImageSdg drawing(Wiring wiring, AppInfo info) {
+        String named = wiring.icon();
+        if (info.icon() != null || named == null) {
+            return null;
+        }
+        String variant = variant(named, "");
+        if (variant == null) {
+            return null;
+        }
+        String sdgb = variant.substring(0, variant.lastIndexOf('.')) + ".sdgb";
+        try (InputStream in = wiring.getClass().getResourceAsStream(sdgb)) {
+            return in == null ? null : ImageSdg.of(SdgFile.read(in.readAllBytes()));
+        } catch (IOException | RuntimeException e) {
+            Diagnostics.dropped("Mark.drawing", "the application's mark as a drawing " + sdgb,
+                    e + "; the title bar shows its icon instead");
+            return null;
+        }
     }
 
     /** {@code pix.ico} to {@code pix-window.ico}, keeping any path; {@code null} for a name with no extension. */

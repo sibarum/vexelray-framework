@@ -401,7 +401,14 @@ public final class VexelApplication {
             chrome = appearance.instruments(tools);
         }
         if (chrome.drawsOwnFrame()) {
-            shell.titleBar().controls(app.controls()).instruments(chrome.instruments()).icon(app, mark);
+            // The mark's drawing when it has one, sharp at every scale; else the icon's rasters, nearest the scale.
+            dev.vexelray.gui.core.ImageSdg drawing = Mark.drawing(wiring, info);
+            TitleBar bar = shell.titleBar().controls(app.controls()).instruments(chrome.instruments());
+            if (drawing != null) {
+                bar.icon(drawing);
+            } else {
+                bar.icon(app, mark);
+            }
         }
         if (memory.maximized(MAIN)) {
             app.window().maximize();
