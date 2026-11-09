@@ -109,7 +109,14 @@ final class AboutIntro {
         this.g = g;
         this.bus = shell.bus();
         this.page = page;
-        this.orb = g.box().role("about-orb").hitInert(true).scroll(false, false).visible(false);
+        // The intro times every word's opacity itself, frame by frame, so none is faded by the paint motion as well: a
+        // fade lags the front, and the blanking at a close became a fade from the settled page played on reopening.
+        for (Node n : page.arrivals()) {
+            n.paintCuts(true);
+        }
+        page.mark().paintCuts(true);
+        page.signature().paintCuts(true);
+        this.orb = g.box().role("about-orb").hitInert(true).scroll(false, false).paintCuts(true).visible(false);
         // Over the whole window, as an overlay is: it flies across the page and lands on the foot.
         g.root().append(orb.floatAt(Length.ZERO, Length.ZERO));
         // The intro's time, from the start (0) to the end (1), on the window's clock: heard in this window's frame.
@@ -138,6 +145,17 @@ final class AboutIntro {
         } else {
             load();
         }
+    }
+
+    /**
+     * The window has closed: put the page back before the front now, and stop a run under way. Its tree stays for the
+     * next opening, and that opening draws a frame of it before {@link #play} is heard (in the main window's next
+     * frame), so a page left settled was shown whole for a frame and then went blank to start again.
+     */
+    void closed() {
+        clock.at(0f);
+        wanted = false;
+        hide();
     }
 
     /** The page before the front: no marks, no words. */

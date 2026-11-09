@@ -1,6 +1,7 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.core.Open;
+import dev.vexelray.framework.core.WindowClosed;
 import dev.vexelray.framework.core.WindowOpened;
 import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.Gui;
@@ -135,6 +136,12 @@ final class About {
         shell.gui().mailbox(WindowOpened.TOPIC, opened -> {
             if (opened.window().equals(KEY)) {
                 intro.play();
+            }
+        }, 16);
+        // Blanked as it closes, so the next opening's first frame, drawn before play is heard, is already blank.
+        shell.gui().mailbox(WindowClosed.TOPIC, closed -> {
+            if (closed.window().equals(KEY)) {
+                intro.closed();
             }
         }, 16);
         return new About(window, intro);
