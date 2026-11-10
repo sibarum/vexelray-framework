@@ -98,6 +98,17 @@ final class WindowsTest {
         assertEquals("main.ok", shell.windows().main().gui().address("ok"));
     }
 
+    /** Inspector FN-18: a view naming its window is asked by that window's tree, and a key not declared stops it. */
+    @Test
+    void aViewNamingAWindowIsHandedThatWindowsTree() {
+        Window w = declare(Appearance.DEFAULT, NamedWindow.of("graph", "Graph", 300, 200));
+        assertSame(w.gui(), Views.tree(shell, "graph"));
+        assertSame(shell.windows().main().gui(), Views.tree(shell, "main"));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> Views.tree(shell, "grpah"));
+        assertTrue(e.getMessage().contains("'grpah'") && e.getMessage().contains("[main, graph"), e.getMessage());
+    }
+
     @Test
     void aClosedWindowsTreeHoldsNothingOfAnotherWindowsWidgets() {
         Fatal previous = Atchung.fatal();

@@ -322,6 +322,10 @@ class VexelProcessorTest {
                         Shell.LOG.add("view draw");
                         ASKED.add(part);
                     }
+                    public static dev.vexelray.gui.core.Gui tree(Shell shell, String window) {
+                        Shell.LOG.add("view tree " + window);
+                        return shell.gui();
+                    }
                     /** Ask every registered part for a frame at {@code present}, logging the offsets it sets. */
                     public static long ask(long present) {
                         long due = dev.vexelray.gui.core.Frame.NEVER;
@@ -1196,6 +1200,41 @@ class VexelProcessorTest {
                     }
                 }
                 """).errors());
+    }
+
+    /**
+     * Inspector FN-18: a view of a second window is asked by that window's tree, the one its nodes are in, and not the
+     * main one, which ignores them. Its mailboxes stay on the main tree.
+     */
+    @Test
+    void aViewNamingItsWindowIsAskedByThatWindowsTree() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @View(window = "graph")
+                public final class GraphView {
+                    public record Dots(dev.vexelray.gui.core.Node dot, float y) {}
+                    public Dots state = new Dots(new dev.vexelray.gui.core.Node("dot"), 0f);
+                    public GraphView() {}
+                    @Subscribe public void chosen(dev.vexelray.gui.widget.Tree.Chosen c) {}
+                    @Draw
+                    public static long draw(Dots s, dev.vexelray.gui.core.Frame frame, dev.vexelray.gui.core.Drawn out) {
+                        out.offset(s.dot(), 0f, s.y());
+                        return dev.vexelray.gui.core.Frame.NEVER;
+                    }
+                }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        String wiring = Files.readString(compiled.out().resolve("app/DemoAppWiring.java"));
+        assertTrue(wiring.contains("dev.vexelray.framework.shell.Views.draw(dev.vexelray.framework.shell.Views.tree("
+                + "shell, \"graph\"), (frame, out) -> app.GraphView.draw(graphView.state, frame, out));"), wiring);
+        assertTrue(wiring.contains("dev.vexelray.framework.shell.Views.mailbox(shell.gui(), \"app.GraphView#chosen\""),
+                wiring);
+
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.FRAMES, Map.of());
+        assertEquals(List.of("view mailbox app.GraphView#chosen dev.vexelray.gui.widget.Tree.Chosen []",
+                "view tree graph", "view draw"), run.phase("tree"));
     }
 
     /**

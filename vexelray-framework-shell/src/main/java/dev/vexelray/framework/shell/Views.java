@@ -39,4 +39,13 @@ public final class Views {
     public static void draw(Gui gui, dev.vexelray.gui.core.spi.Asked part) {
         dev.vexelray.gui.core.spi.Seams.of(gui).ask(part);
     }
+
+    /**
+     * The tree of the window a view names in {@code @View(window = ...)}: the one that asks its {@code @Draw}. The
+     * window must be declared by the time the view is built, which it is when the view takes what the declaring recipe
+     * returns; otherwise the start stops here, naming the windows there are.
+     */
+    public static Gui tree(Shell shell, String window) {
+        return shell.windows().treeOf(window);
+    }
 }

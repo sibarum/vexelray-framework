@@ -164,6 +164,27 @@ public final class Windows {
         return w;
     }
 
+    /**
+     * The tree of the window declared as {@code key}, or the main one's for {@code "main"}: what a {@code @View} naming
+     * its window is asked by ({@link Views#tree}). A key not declared yet stops the start, naming the ones that are.
+     */
+    Gui treeOf(String key) {
+        Window w = byKey(key);
+        if (w == null) {
+            List<String> keys = new ArrayList<>();
+            if (main != null) {
+                keys.add(main.key());
+            }
+            for (Window d : declared) {
+                keys.add(d.key());
+            }
+            throw new IllegalStateException("a view names the window '" + key + "', and no window has that key yet "
+                    + "(declared: " + keys + "). Declare it with windows.named in a recipe, and have the view take what "
+                    + "that recipe returns, so the window is declared before the view is built");
+        }
+        return w.gui();
+    }
+
     /** Every window declared so far, in declaration order. */
     List<Window> declared() {
         return List.copyOf(declared);

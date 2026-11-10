@@ -1077,7 +1077,13 @@ final class Generator {
                             + " is not visible from " + Mirrors.simple(app) + "'s package, where the generated wiring"
                             + " calls the one with the other. Make both public");
                 }
-                after.add(Framework.VIEWS + ".draw(shell.gui(), (frame, out) -> "
+                // Asked by the tree of the window the view's nodes are in, which only the view can say (@View.window):
+                // the main tree ignores a node that is not in it, so a satellite's view asked there is never seen
+                // (Inspector FN-18). Its mailboxes stay on the main tree, which ticks while a satellite is closed.
+                String window = mirrors.string(mirrors.find(b.component, View.class), "window");
+                String tree = window.isEmpty() ? "shell.gui()"
+                        : Framework.VIEWS + ".tree(shell, " + literal(window) + ")";
+                after.add(Framework.VIEWS + ".draw(" + tree + ", (frame, out) -> "
                         + b.component.getQualifiedName() + "." + Mirrors.simple(draw) + "(" + field + "."
                         + Mirrors.simple(state) + ", frame, out));");
             }

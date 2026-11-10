@@ -30,4 +30,18 @@ public @interface View {
 
     /** The lane name a view's {@code @Subscribe} methods are drained on: the GUI thread's widget tick. Reserved. */
     String LANE = "<gui>";
+
+    /**
+     * The window this view's nodes are in, by the key it was declared with ({@code windows.named(...)}); empty, the
+     * default, is the main window. It says which window's tree asks the view's {@link Draw}: a tree draws only its own
+     * nodes and ignores any other's, so a view of a second window asked by the main tree sets nothing anyone sees
+     * (Inspector FN-18). The wiring cannot tell from the constructor, because a view takes the application's own
+     * window type (a {@code GraphWindow} holding the {@code Window}), so the view says it.
+     *
+     * <p>Only the asked half moves. The view's {@link Subscribe} methods are drained by the main window's widget tick
+     * whatever this says, since the main window ticks while a second one is closed, and a closed window's mailbox would
+     * fill. A key no window was declared with by the time the view is built stops the start, naming the keys there are:
+     * keys are declared in recipe code, so the processor cannot check one.
+     */
+    String window() default "";
 }
