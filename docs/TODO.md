@@ -1491,12 +1491,11 @@ main thread, and the window and present live there. Asked only when somebody is 
 marker, since its driver kills it at the end. Held by `UncleanExitsTest`, `BugReportTest` and `BugReportPromptTest`, and
 driven in the rebuilt editor with a planted marker under `-Dvexelray.bugReport=ask`.
 
-- [ ] **A framework question closed without a reply stays on screen until the main loop's next frame**
-      (`vexelray-gui-widget` `Modals`, or the parked loop). Found driving the bug report: *Not now* (a click, or Escape)
-      left the dialog drawn in a background run until a pointer move over the main window woke the loop; *Save bug
-      report…* closed it at once, because it publishes the picker request, which wakes the loop. A person's own mouse
-      wakes it, so it has not been seen at a desk; the slow-frames prompt's *Not now* goes the same way. **Ask:** closing
-      a modal wakes the loop that owns it.
+- [x] **Not a bug: a dialog closed by *Not now* or Escape does close on its own.** It looked as if it stayed up until
+      a pointer move woke the loop, because `windows` was asked a few milliseconds after the click, before the frame
+      that tears the window down. `ottermate --launch` reads a piped script only once the application is up, so a
+      `sleep` placed in the pipe before that is spent on startup and waits for nothing. With the pause after the
+      application was up, both ways out left one window, with no input after them (2026-11-10).
 - [ ] **The save itself has not been driven live.** The press reaches the picker request, and the zip is written and
       read back in `BugReportTest`, but the Windows save dialog is the OS's and ottermate cannot answer it. A
       `Dialogs` that answers pickers in an automation run would close that gap, for every picker.
