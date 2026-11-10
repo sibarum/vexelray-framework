@@ -137,9 +137,10 @@ public final class VexelApplication {
         shell.busGraph(wiring.busGraph());
         shell.again(wiring.again());
         shell.arguments(java.util.Arrays.asList(argv));
+        UncleanExits exits = unclean();
         try (Disposer disposer = shell.disposer()) {
             try {
-                build(wiring, shell, disposer, info, launch, windows);
+                build(wiring, shell, disposer, info, launch, windows, exits);
             } catch (Throwable stopped) {
                 said(info, stopped);
                 throw stopped;
@@ -148,6 +149,8 @@ public final class VexelApplication {
             // closes, and waits for it to finish closing.
             shell.startRestart();
         }
+        // Closed, and within the bound: a close the bound had to halt never gets here, and is offered as a crash.
+        exits.closed();
     }
 
     /** What {@link #said} logged, so the uncaught handler does not log it a second time. */
@@ -355,7 +358,7 @@ public final class VexelApplication {
     }
 
     private static void build(Wiring wiring, Shell shell, Disposer disposer, AppInfo info, Launch launch,
-                              Function<WindowConfig, NativeWindow> windows) {
+                              Function<WindowConfig, NativeWindow> windows, UncleanExits exits) {
         About about = toTree(wiring, shell, disposer, info);
         Gui gui = shell.gui();
         KronoGui krono = shell.krono();
@@ -424,6 +427,9 @@ public final class VexelApplication {
         // reason as the stall report below: a slow machine does not throw, it only reads as a bad application. See
         // SlowFrames for when, and what follows.
         app.slowFramesOffer(new SlowFramesPrompt(shell.ownAsks(), shell.gui()));
+        // A run before this one did not close. Asked here, through the same dialogs, because this is the first moment
+        // anything healthy can: the crash itself could draw nothing. Logged whether or not anyone is asked.
+        offerBugReport(shell, info, exits);
         // The window exists at last, so the bar can be given controls that actually work and the instruments
         // that use them. Both in one place, because an instrument without real controls is the exact failure
         // automation.md 7 records: "every other window had a screenshot button that neither worked nor
@@ -580,6 +586,51 @@ public final class VexelApplication {
      * under the OS default is still a window — so this reports and carries on rather than taking the process
      * down on the way up.
      */
+    /**
+     * This run's marker, and the earlier runs that left one: from here a run that is not closed has crashed, been halted
+     * or been killed, and the next start offers a bug report for it (UncleanExits, BugReportPrompt). After the
+     * stale-module check, whose exit says everything a report would.
+     *
+     * <p><b>Only in a run somebody would be asked in.</b> An automation run ends by its driver killing it ({@code ottermate
+     * --launch} does, process tree and all), so its marker would be offered to the next person to open the application
+     * as a crash of theirs. A driven run neither writes one nor claims one: a person's crash waits for the person.
+     *
+     * <p><b>A stop the person asked for is a close.</b> Ctrl+C, a closed console and a logoff run the shutdown hooks,
+     * which take the marker away, unless an exception stopped the run ({@link #said}). A halt, a native fault and a kill
+     * run no hooks, and stay.
+     */
+    private static UncleanExits unclean() {
+        sibarum.probe.LogConfig config = sibarum.probe.Logging.config();
+        if (!BugReportPrompt.asks(config.mode())) {
+            return UncleanExits.NONE;
+        }
+        UncleanExits exits = UncleanExits.begin(config);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (reported == null) {
+                exits.closed();
+            }
+        }, "vexel-unclean-exit"));
+        return exits;
+    }
+
+    /** Say that earlier runs did not close, and offer a report for them. */
+    private static void offerBugReport(Shell shell, AppInfo info, UncleanExits exits) {
+        if (exits.ended().isEmpty()) {
+            return;
+        }
+        sibarum.probe.LogConfig config = sibarum.probe.Logging.config();
+        for (UncleanExits.Ended e : exits.ended()) {
+            LOG.warn("an earlier run, process {} started {}, did not close: it crashed, was halted or was killed; its"
+                    + " records are earlier in {}, and a bug report is offered", e.pid(), e.started(),
+                    config.logFile());
+        }
+        BuildInfo build = shell.build();
+        String name = About.name(info, build);
+        String issues = build.issues().getOrDefault(build.group() + ":" + build.artifact(), "");
+        new BugReportPrompt(shell.ownAsks(), shell.gui(), new BugReportPrompt.Contents(info.name(), name,
+                About.summary(name, build), issues, config.mode().name(), config.logFile(), exits.ended())).offer();
+    }
+
     private static void installMark(Icon icon) {
         if (icon == null) {
             return;

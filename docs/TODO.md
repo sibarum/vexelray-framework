@@ -1481,6 +1481,36 @@ Rasterware plays animations and videos again, which finished vexelray-gui's fram
       hears its first frame (the codec's widgets look again every 16 ms instead); and `Node.image(Feed, ImageRegion)`,
       so a picture that plays can be mirrored.
 
+### Found by building the bug report (2026-11-10)
+
+A run that does not close leaves a marker beside its log (`UncleanExits`), and the next start offers to save a bug
+report for it (`BugReportPrompt`, `BugReport`): one zip of the logs, About's *Copy info* and the machine, scrubbed of the
+home folder, user name and computer name, saved where the person picks and sent nowhere. **At the next start, not at the
+crash**, because nothing in a dying process can draw: a native fault takes every thread, the watchdog does not watch the
+main thread, and the window and present live there. Asked only when somebody is there to answer; a driven run writes no
+marker, since its driver kills it at the end. Held by `UncleanExitsTest`, `BugReportTest` and `BugReportPromptTest`, and
+driven in the rebuilt editor with a planted marker under `-Dvexelray.bugReport=ask`.
+
+- [ ] **A framework question closed without a reply stays on screen until the main loop's next frame**
+      (`vexelray-gui-widget` `Modals`, or the parked loop). Found driving the bug report: *Not now* (a click, or Escape)
+      left the dialog drawn in a background run until a pointer move over the main window woke the loop; *Save bug
+      report…* closed it at once, because it publishes the picker request, which wakes the loop. A person's own mouse
+      wakes it, so it has not been seen at a desk; the slow-frames prompt's *Not now* goes the same way. **Ask:** closing
+      a modal wakes the loop that owns it.
+- [ ] **The save itself has not been driven live.** The press reaches the picker request, and the zip is written and
+      read back in `BugReportTest`, but the Windows save dialog is the OS's and ottermate cannot answer it. A
+      `Dialogs` that answers pickers in an automation run would close that gap, for every picker.
+- [ ] **A stall the policy ended is not offered.** `LivenessPolicy`'s default exit goes through the window's close, so
+      the run closes and takes its marker away. If a stall should be offered as a bug, the policy says so through its
+      context (`Context.report()`, say), additively.
+- [ ] **The logs can name what the application worked on.** The scrub takes out what names the person, not the
+      file names an application logs; the README says so. A logging convention for paths outside home (`Log` taking
+      a path as a path) would let the report shorten them too.
+- [ ] **Someone who never starts the application again is never asked.** The cost of the next-start design. If it
+      proves too high: a native message box from the dying process for the deaths that leave it time (an exception out
+      of the frame loop, the watchdog's halt), which needs a downcall `vexelray-os` does not have yet. Native faults
+      would still be the next start's.
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
