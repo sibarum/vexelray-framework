@@ -586,7 +586,11 @@ A part has one state and two declared halves, and the GUI thread runs those and 
 **Told builds, asked chooses.** A part with nothing moving has no asked half. A part whose asked half returns a time
 keeps the window drawing until then and no longer, so a still window draws nothing (frame-loop.md rule 2). An
 asked half over its budget for a run of frames is frozen on what it last drew and reported, so a slow part shows a
-stuck picture, loudly, and never stops the window.
+stuck picture, loudly, and never stops the window. *Added 2026-11-10:* **a widget's asked half** goes through the
+same seam as its input handlers, `Seams.ask`, which is the widget library's as well as the host's (vexelray-gui's
+`spi`, which no `@View` may import). It is library code, so the library's tests hold it to the asked half's rules,
+as they hold a widget's click and key handlers; the processor checks an application's `@Draw` only. vexelray-codec's
+`ImageView` and `VideoView` are the first, asking while a feed plays and letting go when it stops.
 **Why:** drawing, presentation and pacing a video are one thing, the author's ruling, and a list of exceptions grows
 by one door per kind of moving thing. A declared step is already not a callback (T7.2), and the asked half is the
 same kind of declaration with a frame's conditions added. *(partly held. The host half is built in vexelray-gui
