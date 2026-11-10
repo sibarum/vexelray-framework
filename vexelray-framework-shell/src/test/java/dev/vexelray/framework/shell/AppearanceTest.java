@@ -163,8 +163,8 @@ final class AppearanceTest {
     }
 
     /**
-     * The minimum size is deliberately not part of it. {@code Gui.minSize} is <i>"not an OS window
-     * minimum"</i> — it is the smallest canvas one tree can be laid out on — so the main window's floor is the
+     * The minimum size is deliberately not part of it. {@code Gui.minSize} belongs to one tree (the smallest
+     * canvas it can be laid out on, and the floor of the window showing it), so the main window's floor is the
      * wrong answer for a tool window beside it, and applying it would be a silent layout crop.
      */
     @Test

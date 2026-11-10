@@ -221,9 +221,9 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
      * the method it was fixed with: {@code Modals.install(app, appearance::applyTo)}.
      *
      * <p><b>The theme and the zoom range; not the minimum size.</b> That line is where it is because
-     * {@code Gui.minSize} is <i>"not an OS window minimum"</i> — it is the smallest canvas <em>this tree</em>
-     * can be laid out on, so it is a fact about one layout and the main window's floor is the wrong answer for
-     * a tool window beside it.
+     * {@code Gui.minSize} belongs to one tree: the smallest canvas <em>this tree</em> can be laid out on, and with
+     * it the floor of the window showing that tree. So it is a fact about one layout, and the main window's floor
+     * is the wrong answer for a tool window beside it.
      *
      * <p><b>Only for a window that is meant to look the same</b>, which is the correction the text editor
      * forced on this method after it was written. Its file drawer is deliberately a different hue from its
