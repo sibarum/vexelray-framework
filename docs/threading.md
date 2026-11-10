@@ -590,7 +590,8 @@ stuck picture, loudly, and never stops the window. *Added 2026-11-10:* **a widge
 same seam as its input handlers, `Seams.ask`, which is the widget library's as well as the host's (vexelray-gui's
 `spi`, which no `@View` may import). It is library code, so the library's tests hold it to the asked half's rules,
 as they hold a widget's click and key handlers; the processor checks an application's `@Draw` only. vexelray-codec's
-`ImageView` and `VideoView` are the first, asking while a feed plays and letting go when it stops.
+`ImageView` and `VideoView` are the first. Which seam is whose, and how a widget writes and tests its asked half:
+vexelray-gui's `docs/reference/seams.md`.
 **Why:** drawing, presentation and pacing a video are one thing, the author's ruling, and a list of exceptions grows
 by one door per kind of moving thing. A declared step is already not a callback (T7.2), and the asked half is the
 same kind of declaration with a frame's conditions added. *(partly held. The host half is built in vexelray-gui

@@ -1744,6 +1744,32 @@ made the right shape unwritable, which is the one thing a check must never do.
 fix went into a guide. A guide is read once, by someone who already knows to look. The defaults and the diagnostics
 above are read by everyone, at the moment they matter.
 
+## What Rasterware found: the seams
+
+On 2026-11-10 Rasterware brought pictures that play back onto 0.2, which finished vexelray-gui's frame contract
+(step 5): vexelray-codec's `ImageView` and `VideoView` play through a `Player` into a feed and show the frame due from
+an asked half of their own. Its retrospective (Rasterware `docs/retrospective.md`, *Pictures that play*) is the source
+of this section.
+
+**`Seams` is the right seam, and it could not be found.** A widget that moves needed to answer each frame, and the
+question put to the author was whether to give widgets "a door" onto the GUI thread, which would have restated T7.6.
+There was nothing to build: `Seams` (vexelray-gui's `spi`) is, by its own class Javadoc, the widget library's seam as
+well as the host's, and a widget library in another repo (vex-suite-common's `TerminalScreen`) already registered its
+input there. `ask` was on it. What hid it was the words around it: `Asked` and `Seams.ask` said "the host's", the plan
+said widgets are parts without saying how one registers, and no page mapped which seam is whose. So the conclusion is
+the opposite of a missing seam: **keep `Seams` as the one type a widget library reaches and an application is not
+handed, keep every new widget hook on it rather than on `Gui`, and keep its map current.** The map is now vexelray-gui's
+`docs/reference/seams.md`, and T7.6 says a widget's asked half goes through `Seams.ask`, held by the library's tests.
+
+**The boundary is review until the processor holds it.** Writing the map found that `Seams` claimed the processor
+refuses a `@View` that imports `spi`; it does not yet (owed with phase 4's `@View` checks). `GuiSurfaceTest` and the
+API walk keep anything an application is handed from leading to `Seams`, but `Seams.of(gui)` is public and static, so
+an application could call it. The refusal is in [TODO.md](TODO.md), *Found by Rasterware's pictures that play*.
+
+**What it says about method.** A design question about a layer starts with who already reaches it. The answer here
+was a grep away (`Seams.of(` outside vexelray-gui), and a plausible new door was nearly designed beside the real one:
+the costliest kind of finding, since nothing failed.
+
 ## The application's mark
 
 The text editor's port gave `AppInfo` an icon, and the framework put it on the process and the main window. Nothing

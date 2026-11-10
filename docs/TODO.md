@@ -1445,6 +1445,24 @@ Rasterware (Spike/Pix on `v0.2`) traces a picture into an SDG drawing beside it 
 - [ ] **The processor crashes on a stale sibling module** (FN-30, `-processor`): an NPE naming nothing, where it could
       name the class a `@Configuration` lists and say to build the module it is in first.
 
+### Found by Rasterware's pictures that play (2026-11-10)
+
+Rasterware plays animations and videos again, which finished vexelray-gui's frame contract (step 5) in the stack. Its
+`docs/retrospective.md`, *Pictures that play*, has the shapes; the numbers are its `docs/framework-notes.md`.
+
+- [ ] **The processor refuses a `@View` that imports `dev.vexelray.gui.core.spi`** (proposal 1, FN-34, `-processor`):
+      owed with phase 4's `@View` checks, and until then `Seams.of(gui)` is a public static an application could call.
+      With it, a test in vexelray-gui that every public method of `Seams` is in `docs/reference/seams.md`'s table with
+      its owner, so the map cannot fall behind the class. [architecture.md](architecture.md), *What Rasterware found:
+      the seams*, has why the seam itself stays as it is.
+- [ ] **A stale module of the application's own stops the start, and says which** (proposal 2, FN-31, `-shell`):
+      `exec:exec` without `compile` ran `pix-gui` against a days-old `pix-core` from the local repository; the stack check
+      warned, then the window quit 150 ms in with nothing logged as why. Kin to FN-30: one is the compile, this the run.
+- [ ] **A feed is shown as a texture is** (proposal 3, FN-32 and FN-33, `vexelray-gui-core`): `Node.image(Feed)`
+      registers the feed's wake when it names it, not when the feed is first drawn, so a node drawn at nothing still
+      hears its first frame (the codec's widgets look again every 16 ms instead); and `Node.image(Feed, ImageRegion)`,
+      so a picture that plays can be mirrored.
+
 ## Upstream
 
 Cannot be fixed from this repo. The one that blocks v1 is under **Blocks v1**; these do not.
