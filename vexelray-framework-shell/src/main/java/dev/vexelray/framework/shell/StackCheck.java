@@ -121,7 +121,8 @@ final class StackCheck {
         }
         Mismatch first = own.get(0);
         return names(parts) + (parts.size() == 1 ? " is " : " are ") + shortSource(first.loaded()) + " on the class "
-                + "path, but " + artifact(first.by()) + " was built with " + shortSource(first.wanted()) + ", from this "
+                + "path, but " + artifact(first.by()) + " was built against " + names(parts) + " " + shortSource(first.wanted())
+                + ", from this "
                 + "application's own sources: a module of it is older (or newer) than the rest, which fails as soon as the "
                 + "code between them runs, so it does not start. Usually the run took it from the local repository: run "
                 + "with compile (mvn compile exec:exec, from the parent), or install every module first (mvn install)";

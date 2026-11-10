@@ -107,7 +107,7 @@ class StackCheckTest {
     void aModuleOfTheApplicationsOwnThatIsNotTheOneItWasBuiltWithStopsTheStart() throws IOException {
         ClassLoader stale = loader(jar("core", "dev.app", "app-core", "old0"));
         String error = StackCheck.report(app("dev.app:app-core:1@a1+dirty.d1"), stale);
-        assertTrue(error.startsWith("app-core is old0 on the class path, but app was built with a1+dirty.d1"), error);
+        assertTrue(error.startsWith("app-core is old0 on the class path, but app was built against app-core a1+dirty.d1"), error);
         assertTrue(error.contains("mvn compile exec:exec"), error);
 
         ClassLoader library = loader(jar("common", "dev.app", "suite-common", "lib2"));

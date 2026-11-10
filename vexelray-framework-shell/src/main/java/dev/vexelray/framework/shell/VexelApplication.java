@@ -138,11 +138,44 @@ public final class VexelApplication {
         shell.again(wiring.again());
         shell.arguments(java.util.Arrays.asList(argv));
         try (Disposer disposer = shell.disposer()) {
-            build(wiring, shell, disposer, info, launch, windows);
+            try {
+                build(wiring, shell, disposer, info, launch, windows);
+            } catch (Throwable stopped) {
+                said(info, stopped);
+                throw stopped;
+            }
             // The loop has ended. A restart the main window's close asked for starts now, before this process
             // closes, and waits for it to finish closing.
             shell.startRestart();
         }
+    }
+
+    /** What {@link #said} logged, so the uncaught handler does not log it a second time. */
+    private static volatile Throwable reported;
+
+    /**
+     * Log what stopped the application, and flush, before anything is closed; the caller rethrows it.
+     *
+     * <p>Rasterware FN-31: a {@code NoSuchMethodError} from the first frame reached the uncaught handler only after the
+     * try-with-resources had closed everything, the automation socket first, and a driver that sees its connection
+     * drop stops the process: {@code ottermate --launch} did, the window quit 150 ms in, and neither the console nor
+     * the file (flushed once a second) had a word of why. The shutdown bound that halts a close that hangs would lose it
+     * the same way. So it is said here, while nothing has been closed, and the handler skips it on the way out.
+     */
+    private static void said(AppInfo info, Throwable stopped) {
+        if (reported == null) {
+            reported = stopped;
+            Thread.UncaughtExceptionHandler handler = Thread.getDefaultUncaughtExceptionHandler();
+            if (handler != null) {
+                Thread.setDefaultUncaughtExceptionHandler((thread, thrown) -> {
+                    if (thrown != reported) {
+                        handler.uncaughtException(thread, thrown);
+                    }
+                });
+            }
+        }
+        LOG.error("stopped: " + info.name() + ", on " + stopped, stopped);
+        sibarum.probe.Logging.flush();
     }
 
     /**

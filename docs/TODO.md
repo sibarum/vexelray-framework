@@ -1470,8 +1470,12 @@ Rasterware plays animations and videos again, which finished vexelray-gui's fram
 - [x] **A stale module of the application's own stops the start, and says which** (proposal 2, FN-31, `-shell`). Done
       2026-11-10: a mismatch the application itself was built against from its own commit is an error that names the
       module and says to run with `compile`, and the process exits 3 (`StackCheck.own`). A library of the same group
-      from another repository has another commit, and stays a warning. **Unverified:** why the window then quit with
-      nothing logged; that silence is still there for any other `NoSuchMethodError` at startup.
+      from another repository has another commit, and stays a warning. **And the silence, found the same day** by
+      running today's `pix-gui` against `df22435`'s `pix-core` under `ottermate --launch`: the `NoSuchMethodError`
+      (`Caption.title()`, in `View.caption` on the first frame) reached the uncaught handler only after the
+      try-with-resources had closed the automation socket, and ottermate, seeing the connection drop, stopped the
+      process before a word was written. `VexelApplication.run` now logs what stops it, and flushes, before anything is
+      closed, and the handler skips it on the way out, so it is said once either way.
 - [ ] **A feed is shown as a texture is** (proposal 3, FN-32 and FN-33, `vexelray-gui-core`): `Node.image(Feed)`
       registers the feed's wake when it names it, not when the feed is first drawn, so a node drawn at nothing still
       hears its first frame (the codec's widgets look again every 16 ms instead); and `Node.image(Feed, ImageRegion)`,
