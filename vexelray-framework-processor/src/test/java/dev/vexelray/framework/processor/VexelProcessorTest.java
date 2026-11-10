@@ -3355,6 +3355,59 @@ class VexelProcessorTest {
                 """), "T2.2: Owner.holder takes windows, whose pieces are main-thread values");
     }
 
+    // --- a type that does not resolve -------------------------------------------------------------------------
+
+    /**
+     * Rasterware FN-30: {@code -gui} compiled alone against a {@code -core} older than it names a type that is not there.
+     * Each signature the wiring reads that names it is said once, with what fixes it, beside javac's own symbol; nothing
+     * crashes (a view's {@code @Subscribe} and a {@code Sender} did, with an NPE naming nothing), and nothing is said
+     * about it that is not so (a {@code @Provides} taking it was called a cycle).
+     */
+    @Test
+    void aTypeTheWiringReadsThatDoesNotResolveIsSaidOnceWithWhatFixesIt() {
+        String app = """
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """;
+        Map<String, String> parts = new java.util.LinkedHashMap<>();
+        parts.put("V.x", "@View public final class V { public V() {} @Subscribe public void x(Gone g) {} }");
+        parts.put("C's constructor", "@Component public final class C { public C(sibarum.atchung.Sender<Gone> s) {} }");
+        parts.put("K.s", "@Configuration public final class K { @Provides public String s(Gone g) { return null; } }");
+        for (Map.Entry<String, String> part : parts.entrySet()) {
+            List<String> errors = app(app, part.getValue());
+            assertTrue(errors.stream().anyMatch(e -> e.startsWith(part.getKey() + " names Gone, which does not resolve")
+                    && e.contains("build it first")), () -> part.getKey() + ":\n" + String.join("\n", errors));
+            assertTrue(errors.stream().allMatch(e -> e.contains("does not resolve") || e.contains("cannot find symbol")),
+                    () -> part.getKey() + " was told something else:\n" + String.join("\n", errors));
+        }
+    }
+
+    /**
+     * Rasterware FN-34: a view names nothing in vexelray-gui's {@code spi}, the widget libraries' seam, whether imported
+     * or spelt out; {@code Seams.of(gui)} is public, so this is what keeps a view's code to the checks it has.
+     */
+    @Test
+    void aViewThatNamesTheWidgetLibrariesSeamIsRefused() {
+        String app = """
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """;
+        onlyError(app(app, """
+                import dev.vexelray.gui.core.spi.Asked;
+                @View
+                public final class Imports {
+                    public Imports() {}
+                }
+                """), "@View Imports names dev.vexelray.gui.core.spi, the widget libraries' seam");
+        onlyError(app(app, """
+                @View
+                public final class Spells {
+                    public Spells() {}
+                    long asked(dev.vexelray.gui.core.spi.Asked a) { return 0L; }
+                }
+                """), "@View Spells names dev.vexelray.gui.core.spi");
+    }
+
     // --- harness --------------------------------------------------------------------------------------------
 
     private static List<String> app(String... bodies) {

@@ -101,6 +101,8 @@ public final class VexelProcessor extends AbstractProcessor {
     private Channels channels;
     private Generator generator;
     private RecordWithers withers;
+    private Unresolved unresolved;
+    private SpiBoundary spi;
     private TypeElement app;
     private Report report;
     private boolean checked;
@@ -120,6 +122,8 @@ public final class VexelProcessor extends AbstractProcessor {
                 env.getFiler());
         this.report = report;
         withers = new RecordWithers(report, env.getFiler());
+        unresolved = new Unresolved(report);
+        spi = SpiBoundary.of(env, report);
         StepCheck.install(env, report);
     }
 
@@ -143,6 +147,16 @@ public final class VexelProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment round) {
+        // A type the wiring reads that does not resolve: said once each, and nothing else read, since every check after
+        // this would meet it as a crash or a wrong message (Unresolved). The withers are still written, so their absence
+        // is not a second symbol javac cannot find.
+        if (!checked && unresolved.report(round)) {
+            checked = true;
+            for (Element e : round.getElementsAnnotatedWith(Withers.class)) {
+                withers.write((TypeElement) e);
+            }
+            return false;
+        }
         for (Element e : round.getElementsAnnotatedWith(VexelApp.class)) {
             app((TypeElement) e);
         }
@@ -151,6 +165,9 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(View.class)) {
             component((TypeElement) e);
+            if (spi != null) {
+                spi.check((TypeElement) e);
+            }
         }
         for (Element e : round.getElementsAnnotatedWith(Hears.class)) {
             if (!mirrors.has(e, Component.class)) {

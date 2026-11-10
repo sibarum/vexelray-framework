@@ -70,6 +70,8 @@ public final class VexelApplication {
 
     /** Usage error. Distinct from 1 so a script can tell "you typed it wrong" from "it went wrong". */
     private static final int EXIT_USAGE = 2;
+    /** A module of the application's own is not the one it was built with (StackCheck). */
+    private static final int EXIT_STALE = 3;
 
     private VexelApplication() {
     }
@@ -123,7 +125,15 @@ public final class VexelApplication {
         shell.build(wiring.build());
         // Before anything from the stack runs: a part installed over the one this was built against fails only when the
         // code that differs first runs, so its cause is said here, where the crash's reader will find it (StackCheck).
-        StackCheck.report(shell.build(), VexelApplication.class.getClassLoader());
+        String stale = StackCheck.report(shell.build(), VexelApplication.class.getClassLoader());
+        if (!stale.isEmpty()) {
+            // A module of the application's own that is not the one it was built with: stopped here, named, rather than
+            // left to quit in silence when the code between them first runs (Rasterware FN-31).
+            sibarum.probe.Log.of("framework.stack").error(stale);
+            sibarum.probe.Logging.flush();
+            System.exit(EXIT_STALE);
+            throw new IllegalStateException("unreachable: System.exit does not return");
+        }
         shell.busGraph(wiring.busGraph());
         shell.again(wiring.again());
         shell.arguments(java.util.Arrays.asList(argv));

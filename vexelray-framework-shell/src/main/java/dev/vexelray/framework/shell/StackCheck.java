@@ -63,16 +63,68 @@ final class StackCheck {
     private StackCheck() {
     }
 
-    /** Say once, as a warning, whatever {@link #find} finds. Never throws: a check that cannot read has nothing to say. */
-    static void report(BuildInfo build, ClassLoader loader) {
+    /**
+     * Say once, as a warning, whatever {@link #find} finds; and, as an error, a module of the application's own that is
+     * not the one it was built with ({@link #own}). Never throws: a check that cannot read has nothing to say.
+     *
+     * @return the error, when the start should stop on it; empty otherwise
+     */
+    static String report(BuildInfo build, ClassLoader loader) {
         try {
             List<Mismatch> found = find(build, loader);
+            List<Mismatch> own = own(build, found);
+            if (!own.isEmpty()) {
+                return describeOwn(own);
+            }
             if (!found.isEmpty()) {
                 LOG.warn(describe(found));
             }
         } catch (RuntimeException e) {
             LOG.debug("the stack check could not read the class path", e);
         }
+        return "";
+    }
+
+    /**
+     * The mismatches that are the application's own modules: what the application itself was built against from its
+     * own commit. Those are not the stack's risk but the application's fault, and the start stops on them (Rasterware
+     * FN-31): {@code exec:exec} without {@code compile} ran {@code pix-gui} against a {@code pix-core} installed days
+     * before, the warning went by, and the window quit 150 ms in with nothing said. A module of the same repository
+     * is a different module of the same program, so code that differs is code the other half calls; and nothing about
+     * it is anyone else's to reinstall. A library from another repository with the same group (vex-suite-common beside
+     * MainFrame) has its own commit, and stays a warning.
+     */
+    static List<Mismatch> own(BuildInfo build, List<Mismatch> found) {
+        String commit = build.commit();
+        String self = build.group() + ":" + build.artifact();
+        List<Mismatch> own = new ArrayList<>();
+        if (commit.isEmpty() || "-".equals(commit)) {
+            return own;
+        }
+        for (Mismatch m : found) {
+            int plus = m.wanted().indexOf('+');
+            String wanted = plus < 0 ? m.wanted() : m.wanted().substring(0, plus);
+            if (m.by().equals(self) && wanted.equals(commit)) {
+                own.add(m);
+            }
+        }
+        return own;
+    }
+
+    /** The error: which of the application's modules is not the one it was built with, and what fixes it. */
+    static String describeOwn(List<Mismatch> own) {
+        List<String> parts = new ArrayList<>();
+        for (Mismatch m : own) {
+            if (!parts.contains(artifact(m.part()))) {
+                parts.add(artifact(m.part()));
+            }
+        }
+        Mismatch first = own.get(0);
+        return names(parts) + (parts.size() == 1 ? " is " : " are ") + shortSource(first.loaded()) + " on the class "
+                + "path, but " + artifact(first.by()) + " was built with " + shortSource(first.wanted()) + ", from this "
+                + "application's own sources: a module of it is older (or newer) than the rest, which fails as soon as the "
+                + "code between them runs, so it does not start. Usually the run took it from the local repository: run "
+                + "with compile (mvn compile exec:exec, from the parent), or install every module first (mvn install)";
     }
 
     /** Every part loaded from another source than the application, or another part, was built against. */

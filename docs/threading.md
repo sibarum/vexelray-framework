@@ -462,8 +462,9 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   `onDrop`, `reveals`, `onResize`, the host's sinks and `frame`) are on vexelray-gui's `spi.Seams`, reached by
   `Seams.of(gui)` and from nothing an application is handed. **Why:** a seam on `Gui` is a side channel a view could
   do logic through in the frame. *(held for `Gui` by vexelray-gui's `GuiSurfaceTest`: `Gui` takes a function only
-  where it runs as the caller, `mailbox`, `hear` and `batch`, and returns nothing that leads to `Seams`. Owed: the
-  processor refusing a `@View` that imports the `spi` package, with `@View` in phase 4)*
+  where it runs as the caller, `mailbox`, `hear` and `batch`, and returns nothing that leads to `Seams`; and for a
+  view by the processor, which refuses a `@View` that names the `spi` package, imported or spelt out, `SpiBoundary`,
+  2026-11-10)*
 - **A view may still give a widget display functions** (a row builder, a label, an `f(x)` to plot). **Why:** they
   are presentation, which T7.4 already puts on the GUI thread, and logic can never pass one because it holds no
   widget. On two conditions: the function's shape takes the item and returns a description, with no `Gui` in hand

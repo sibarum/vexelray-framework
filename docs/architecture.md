@@ -1764,7 +1764,9 @@ handed, keep every new widget hook on it rather than on `Gui`, and keep its map 
 **The boundary is review until the processor holds it.** Writing the map found that `Seams` claimed the processor
 refuses a `@View` that imports `spi`; it does not yet (owed with phase 4's `@View` checks). `GuiSurfaceTest` and the
 API walk keep anything an application is handed from leading to `Seams`, but `Seams.of(gui)` is public and static, so
-an application could call it. The refusal is in [TODO.md](TODO.md), *Found by Rasterware's pictures that play*.
+an application could call it. **Built the same day:** the processor refuses a `@View` that names `spi`, imported or
+spelt out (`SpiBoundary`), and vexelray-gui's `SeamsMapTest` fails when a public method of `Seams` has no row in the
+map; it found one at once (`resizing`, a host's sink and a grip's read model, added since the map was written).
 
 **What it says about method.** A design question about a layer starts with who already reaches it. The answer here
 was a grep away (`Seams.of(` outside vexelray-gui), and a plausible new door was nearly designed beside the real one:

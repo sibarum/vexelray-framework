@@ -1201,6 +1201,10 @@ sends that differ (`Replay`, `InputRecording`, held by `ReplayTest` in both mode
       and a difference says what the run sent (`  was ...`) beside what the replay did (`  now ...`); about 40 MB more
       on 13.7 s of a heavy run. A replay also runs on a thread of its own now (`c305588`), so the rows its components
       write are told from the run's.
+- [ ] **What reaches a source or a destination writes no row** (Inspector FN-15, `-shell`): `Jobs` writes a `receive` row
+      as a request reaches a job (R7), and `Sources` and `Destinations` do not, so a source's start and stop and a
+      destination's open and write have no count in the flows panel and are not on a cause's path. The same row, naming
+      the part, from both.
 
 ### Found by restyling VexelRay IDE and bringing back its Run menu (2026-11-03)
 
@@ -1412,12 +1416,20 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 PhaseArray (Spike/phasearray on `v0.2`), generated from the template and turned into a sound design tool. Its
 tests broke when it moved onto the current stack; the numbers are its `docs/framework-notes.md`.
 
-- [ ] **A tick with no alarm is refused only when a timed bound is first armed** (FN-5, atchung): `bus.tick(null)`
+- [ ] **The atlas has no `∿` and no `⋯`** (FN-4, `vexelray-text`): each shows as an empty box, so the design's sine and
+      elision are drawn as `∼` and `…`. More evidence for *a look is colour* under **Blocks v1** (the atlas's faces and
+      charset are the application's to choose).
+- [ ] **A picture's text cannot be measured, aligned or given a face** (FN-5, `vexelray-gui-draw`): `Picture.Text` is a
+      run from its left end, so `PatchBay` guesses 0.6 em a character to centre or right-align one. An anchor on the
+      text mark (start, middle, end), resolved where the glyphs are laid out, keeps a picture a value; a face on the mark
+      beside it.
+- [ ] **A tick with no alarm is refused only when a timed bound is first armed** (FN-6, atchung): `bus.tick(null)`
       compiles and builds, and `Waits.arm` throws at the first message to an inbox with a time bound. Refuse the
       bound when the inbox is made, or make the alarm an argument of `bus.tick`.
-- [ ] **`CloseRequested`'s two-argument form can be published, and fails as a bare NPE** (FN-6): `to` is null and
-      the edge keyed by it throws an NPE that names neither the record nor the field. Rename the inbox-only form so
-      it reads as such, or refuse a null edge key on publish with a message naming `to`.
+- [x] **`CloseRequested`'s two-argument form can be published, and fails as a bare NPE** (FN-7). Done 2026-11-10: the
+      topic's key refuses a request with no `to` as it is published, naming the field and the three-argument form
+      (`CloseRequestedTest`). The two-argument form stays, for a test handing a request straight to an inbox, which
+      reads no key.
 
 ### Found by Rasterware's Trace, Convert and Layers panels (2026-11-08)
 
@@ -1442,22 +1454,24 @@ Rasterware (Spike/Pix on `v0.2`) traces a picture into an SDG drawing beside it 
       drawn flat. `Drawn.turn`, then a perspective transform drawn as a quad.
 - [ ] **No look that draws an SDG layer's distance** (FN-29, `vexelray-canvas` looks): the board's *Show distance
       fields* is left out. A `Look` that paints distance as bands.
-- [ ] **The processor crashes on a stale sibling module** (FN-30, `-processor`): an NPE naming nothing, where it could
-      name the class a `@Configuration` lists and say to build the module it is in first.
+- [x] **The processor crashes on a stale sibling module** (FN-30, `-processor`). Done 2026-11-10: before anything is
+      read, each signature the wiring reads that names a type that does not resolve is said once, with "build that
+      module first", and nothing else is checked or written (`Unresolved`). It was two NPEs (a view's `@Subscribe`, any
+      `Sender<Missing>`) and three wrong messages (a `@Provides` taking it was called a cycle).
 
 ### Found by Rasterware's pictures that play (2026-11-10)
 
 Rasterware plays animations and videos again, which finished vexelray-gui's frame contract (step 5) in the stack. Its
 `docs/retrospective.md`, *Pictures that play*, has the shapes; the numbers are its `docs/framework-notes.md`.
 
-- [ ] **The processor refuses a `@View` that imports `dev.vexelray.gui.core.spi`** (proposal 1, FN-34, `-processor`):
-      owed with phase 4's `@View` checks, and until then `Seams.of(gui)` is a public static an application could call.
-      With it, a test in vexelray-gui that every public method of `Seams` is in `docs/reference/seams.md`'s table with
-      its owner, so the map cannot fall behind the class. [architecture.md](architecture.md), *What Rasterware found:
-      the seams*, has why the seam itself stays as it is.
-- [ ] **A stale module of the application's own stops the start, and says which** (proposal 2, FN-31, `-shell`):
-      `exec:exec` without `compile` ran `pix-gui` against a days-old `pix-core` from the local repository; the stack check
-      warned, then the window quit 150 ms in with nothing logged as why. Kin to FN-30: one is the compile, this the run.
+- [x] **The processor refuses a `@View` that imports `dev.vexelray.gui.core.spi`** (proposal 1, FN-34, `-processor`).
+      Done 2026-11-10: `SpiBoundary` refuses a view naming the package, imported or spelt out; vexelray-gui's
+      `SeamsMapTest` holds `seams.md`'s table to every public method of `Seams`, and found `resizing` missing.
+- [x] **A stale module of the application's own stops the start, and says which** (proposal 2, FN-31, `-shell`). Done
+      2026-11-10: a mismatch the application itself was built against from its own commit is an error that names the
+      module and says to run with `compile`, and the process exits 3 (`StackCheck.own`). A library of the same group
+      from another repository has another commit, and stays a warning. **Unverified:** why the window then quit with
+      nothing logged; that silence is still there for any other `NoSuchMethodError` at startup.
 - [ ] **A feed is shown as a texture is** (proposal 3, FN-32 and FN-33, `vexelray-gui-core`): `Node.image(Feed)`
       registers the feed's wake when it names it, not when the feed is first drawn, so a node drawn at nothing still
       hears its first frame (the codec's widgets look again every 16 ms instead); and `Node.image(Feed, ImageRegion)`,

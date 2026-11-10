@@ -98,6 +98,26 @@ class StackCheckTest {
                 + " against old."), said);
     }
 
+    /**
+     * Rasterware FN-31: {@code -gui} run against a {@code -core} from the local repository rather than the one it was
+     * built with stops the start, naming the module and what fixes it. A library of the same group from another
+     * repository (vex-suite-common beside MainFrame) has its own commit, and stays a warning.
+     */
+    @Test
+    void aModuleOfTheApplicationsOwnThatIsNotTheOneItWasBuiltWithStopsTheStart() throws IOException {
+        ClassLoader stale = loader(jar("core", "dev.app", "app-core", "old0"));
+        String error = StackCheck.report(app("dev.app:app-core:1@a1+dirty.d1"), stale);
+        assertTrue(error.startsWith("app-core is old0 on the class path, but app was built with a1+dirty.d1"), error);
+        assertTrue(error.contains("mvn compile exec:exec"), error);
+
+        ClassLoader library = loader(jar("common", "dev.app", "suite-common", "lib2"));
+        assertEquals("", StackCheck.report(app("dev.app:suite-common:1@lib1"), library),
+                "a library of the same group from another repository is not the application's own");
+
+        ClassLoader fresh = loader(jar("core", "dev.app", "app-core", "a1+dirty.d1"));
+        assertEquals("", StackCheck.report(app("dev.app:app-core:1@a1+dirty.d1"), fresh));
+    }
+
     @Test
     void aBuildWithoutStampsHasNothingToCompare() throws IOException {
         Path bare = Files.createDirectories(tmp.resolve("bare"));

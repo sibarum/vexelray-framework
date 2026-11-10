@@ -34,8 +34,12 @@ import sibarum.atchung.Topic;
 @Stability(Stability.Level.EXPERIMENTAL)
 public record CloseRequested(String window, long ticket, String to) {
 
-    /** Keyed by the part asked, so each part hears only its own turn. */
-    public static final Topic<CloseRequested> TOPIC = Topic.edge(CloseRequested.class, CloseRequested::to);
+    /**
+     * Keyed by the part asked, so each part hears only its own turn. A request addressed to no part is refused here,
+     * naming {@code to}, rather than reaching the bus as a null key and failing there as an NPE that names nothing
+     * (PhaseArray FN-7).
+     */
+    public static final Topic<CloseRequested> TOPIC = Topic.edge(CloseRequested.class, CloseRequested::addressee);
 
     /** The main window's key. Its close is the application's quit. */
     public static final String MAIN = "main";
@@ -43,6 +47,16 @@ public record CloseRequested(String window, long ticket, String to) {
     /** A request addressed to no part: what a test hands straight to the inbox of the part it tests. */
     public CloseRequested(String window, long ticket) {
         this(window, ticket, null);
+    }
+
+    /** {@link #to}, which a request on the bus must have: its key. */
+    private static String addressee(CloseRequested r) {
+        if (r.to == null) {
+            throw new IllegalArgumentException("a CloseRequested sent on the bus names no part to ask (to is null): the "
+                    + "two-argument form is for handing a request straight to the inbox of the part a test tests. On the "
+                    + "bus, address it: new CloseRequested(window, ticket, Part.class.getName())");
+        }
+        return r.to;
     }
 
     /** Whether this is the main window's close, and so a quit. */
