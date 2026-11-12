@@ -33,7 +33,7 @@ application that does not use one does not carry it.
 | Repository | What it adds | Before it |
 | --- | --- | --- |
 | [`vexelray-installer`](https://github.com/sibarum/vexelray-installer) | Shipping: turns your native executable into a one-line installer served from a GitHub repository. See [Shipping](developers/shipping.md) | `vexelray-build` |
-| [`vexelray-sim-core`](https://github.com/sibarum/vexelray-sim-core) | What GPU simulations share. [`vexelray-sim-fluid`](https://github.com/sibarum/vexelray-sim-fluid) and [`vexelray-sim-rigid`](https://github.com/sibarum/vexelray-sim-rigid) build on it | The needed repositories |
+| [`vexelray-sim-physics`](https://github.com/sibarum/vexelray-sim-physics) | GPU simulations: what they share, the fluid, the rigid bodies, and the two coupled. Fluid Sim and Rigid Sim are its demos | The needed repositories |
 | [`vexelray-inspector`](https://github.com/sibarum/vexelray-inspector) | DevTools for your application: attach to it while it runs and watch its frame loop, messages, timers and animations. Your project can already be attached to; the Inspector is the application that does it, and [installs with the others](https://sibarum.github.io/) | The needed repositories |
 
 ## Not needed

@@ -11,8 +11,8 @@ Desktop applications built on the VexelRay stack, and the framework they are bui
 | [**Rasterware**](apps/pix.md) | Pictures, animations and video, with sound: one at a time, as large as the window allows, and the rest of the folder a key press away |
 | [**MainFrame**](apps/mainframe.md) | A terminal window for the shell you already have |
 | [**Calculator**](apps/calculator.md) | An ordinary-looking calculator that divides by zero |
-| [**Fluid Sim**](https://github.com/sibarum/vexelray-sim-fluid) | Fluid simulation experiments: dam breaks, mixing and heat, live on the GPU |
-| [**Rigid Sim**](https://github.com/sibarum/vexelray-sim-rigid) | Spheres that collide, bounce, spin and roll, live on the GPU |
+| [**Fluid Sim**](https://github.com/sibarum/vexelray-sim-physics/tree/develop/vexelray-sim-fluid) | Fluid simulation experiments: dam breaks, mixing and heat, live on the GPU |
+| [**Rigid Sim**](https://github.com/sibarum/vexelray-sim-physics/tree/develop/vexelray-sim-rigid) | Spheres that collide, bounce, spin and roll, live on the GPU |
 | [**Maistro**](https://github.com/sibarum/vexelray-maistro) | A desktop client for Claude Code: the conversation beside a mind map its replies grow |
 | [**VexelRay Inspector**](https://github.com/sibarum/vexelray-inspector) | DevTools for VexelRay applications, drawn as clockwork: a running app's frame loop, beat by beat |
 
