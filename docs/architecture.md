@@ -246,8 +246,11 @@ screen names it, so a person clicking the camera could not find the picture. Cor
 **The key button is the framework's too, and earned rather than given.** The framework makes one `Keymap`
 (vexelray-gui's `-keymap`) on the main window's `Gui` at `GUI` and hands it to parts from `TREE`; an application
 declares its commands on it by id, label and default chords, each sending a message: the one way it binds a window-wide chord, since `Gui.shortcut` went (2026-11-07).
-At `ATTACH`, if anything was declared, every framework bar gets `KeymapWindow`'s button after the
-application's own instruments, the declared windows' as well as the main one's, and the person's changes are read from and written to `keys.properties` in the
+If anything was declared by the end of `TREE`, the framework declares the editor's window, `"keymap"`, as a
+satellite like About (`KeyBindings`), and at `ATTACH` every framework bar's app menu gets *Key bindings…* after the
+application's own instruments, the declared windows' as well as the main one's. Being declared, the window wears the
+same mark and app menu, follows a choice of look, and opens by `WindowCommand.show("keymap")`; vexelray-gui's
+`KeymapWindow`, which the framework used until 2026-11-13, had none of those. The person's changes are read from and written to `keys.properties` in the
 application's home. Nothing declared, no button: keymap.md's rule that an application without rebindable
 commands has nothing for it to open. A store of its own because a `Settings` writes back everything it holds,
 and two over one file would race. A headless tree never reaches `ATTACH`, so a test sees the defaults and writes

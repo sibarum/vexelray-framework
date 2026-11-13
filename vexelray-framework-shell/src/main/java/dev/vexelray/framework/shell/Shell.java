@@ -932,8 +932,9 @@ public final class Shell {
      * another window too is claimed there with {@code keymap.attach(window.gui())}.
      *
      * <p><b>The framework owns the button that rebinds them</b>, as it owns the screenshot: once any action is
-     * declared by the end of {@code TREE}, every framework title bar shows the key button, which opens the editor in a
-     * window of its own (vexelray-gui's {@code KeymapWindow}). An application that declares none shows none, because
+     * declared by the end of {@code TREE}, every framework title bar's app menu has <i>Key bindings…</i>, which opens
+     * the editor in one of the framework's own windows, {@code "keymap"} (see {@code KeyBindings}), so a
+     * {@code WindowCommand} can open it too. An application that declares none shows none, because
      * it has nothing for the editor to list. What the person changed is kept in {@code keys.properties} in the
      * application's home, from {@code ATTACH}; a headless tree ({@code VexelApplication.tree}) neither reads nor
      * writes it, so a test sees the defaults.

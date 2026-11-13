@@ -17,7 +17,6 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.keymap.Keymap;
-import dev.vexelray.gui.keymap.KeymapWindow;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
@@ -292,7 +291,7 @@ public final class VexelApplication {
      * entry point twenty lines below it read {@code Role.PAGE} off the theme, and only one of those two could
      * still have been right.
      */
-    private static About toTree(Wiring wiring, Shell shell, Disposer disposer, AppInfo info) {
+    private static OwnWindows toTree(Wiring wiring, Shell shell, Disposer disposer, AppInfo info) {
         // ---- CONFIG: the settings store, and the look. Both are values; neither needs a Gui. -------------
         shell.phase(Phase.CONFIG);
         adoptFormerHome(info.name(), wiring.formerNames());
@@ -357,16 +356,23 @@ public final class VexelApplication {
         // ---- TREE: the widgets, the framework's title bar among them. No window needed. -------------------
         shell.phase(Phase.TREE);
         wiring.tree(shell);
+        // The key-bindings window, once every action is declared, and only if one was. See KeyBindings.
+        KeyBindings keys = KeyBindings.declare(shell);
         // The About window, which the mark on every title bar opens. Last in TREE, so it is declared after every
         // window of the application's, and an application that declared its own "about" keeps it. See About.
         // The icon it names is where its art pair is found; one it built in code has none.
-        return About.declare(shell, info, shell.build(), wiring.getClass(),
-                info.icon() == null ? wiring.icon() : null);
+        return new OwnWindows(About.declare(shell, info, shell.build(), wiring.getClass(),
+                info.icon() == null ? wiring.icon() : null), keys);
+    }
+
+    /** The windows the framework declares for itself at the end of {@code TREE}; each null when there is none. */
+    private record OwnWindows(About about, KeyBindings keys) {
     }
 
     private static void build(Wiring wiring, Shell shell, Disposer disposer, AppInfo info, Launch launch,
                               Function<WindowConfig, NativeWindow> windows, UncleanExits exits) {
-        About about = toTree(wiring, shell, disposer, info);
+        OwnWindows own = toTree(wiring, shell, disposer, info);
+        About about = own.about();
         Gui gui = shell.gui();
         KronoGui krono = shell.krono();
         Appearance appearance = shell.appearance();
@@ -454,8 +460,12 @@ public final class VexelApplication {
         Appearance chrome = appearance;
         if (!keymap.actions().isEmpty()) {
             keymap.persist(AppHome.of(info.name()).settings(KEYS_STORE));
+        }
+        // The line opens the framework's own window (KeyBindings), declared at the end of TREE: it wears the mark and
+        // this same app menu, and follows a choice of look.
+        if (own.keys() != null) {
             List<WindowInstrument> tools = new ArrayList<>(chrome.instruments());
-            tools.add(KeymapWindow.instrument(app, gui, keymap));
+            tools.add(own.keys().instrument());
             chrome = chrome.instruments(tools);
         }
         // Light and Dark, for an application that declared both looks: a section of every bar's app menu, after the key

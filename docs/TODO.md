@@ -624,8 +624,17 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         `ImageSdg`: the template's Markdown job answers with spans in roles, and an open interface was refused as
         "unknown". A paint is a value by its type's contract (the reconciler skips a write equal to the last), so
         refusing it refused safe code.
-      - **Not done: a window whose tree the framework does not hold.** The key-bindings editor copies the main tree's
-        theme when it opens (`KeymapWindow`, vexelray-gui), so it keeps the old look until it is opened again.
+      - **Done 2026-11-13: the key-bindings window is the framework's own** (`-shell`'s `KeyBindings`). It was
+        vexelray-gui's `KeymapWindow`, whose tree and bar the framework did not hold: no mark and so no app menu, and a
+        theme copied once at opening. Now it is declared through `Windows` as a satellite, as About is, so it wears
+        the mark and the same app menu (Theme included), follows every choice, and opens by `show("keymap")` (FN-13
+        below). The editor's Cancel is heard as `Button.PRESSED` at `KeymapEditor.cancelAddress()`, a message, where
+        it was a package-private callback. `KeymapWindow` stays for an application without the framework, and now
+        follows its opener's theme (`Seams.onTheme`). **One difference:** it took the opener's zoom at each opening
+        and bound the zoom chords; as a framework satellite it has its own remembered zoom and no chords, as About
+        does. Whether satellites should follow the main window's zoom is a question for all of them, not this one.
+      - **Not done: a popped-out pane** (`Popout`, vexelray-gui) copies its host's theme at the first pop and keeps
+        it, and its bar has no mark or app menu: the same gap the key-bindings window had, in a widget.
       - **Not done: the applications' own colours.** The text editor, the IDE's scope colours and others still resolve
         `gui.theme().color(...)` early in places, and keep the look they started in until they adopt roles. The
         IDE's theme menu can now be the framework's.
@@ -1392,8 +1401,9 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 - [ ] **A header's double-click is not a declarable message** (FN-11, vexelray-gui): `Tabs.ACTIVATED`, as a list's
       row has; MainFrame reads `gui.clicks()` through a hand-opened mailbox the processor cannot see.
 - [ ] **A menu line cannot show its chord** (FN-12, vexelray-gui): an item naming the key-map action it stands for.
-- [ ] **The framework's key-bindings window cannot be opened by a `WindowCommand`** (FN-13): `KeymapWindow` registers
-      through `GuiApp.window`, not `Windows`, so `show("keymap")` from a menu or chord is ignored; declare it through `Windows`.
+- [x] **The framework's key-bindings window cannot be opened by a `WindowCommand`** (FN-13): `KeymapWindow` registered
+      through `GuiApp.window`, not `Windows`, so `show("keymap")` from a menu or chord was ignored. Done 2026-11-13: the
+      framework declares it through `Windows` (`KeyBindings`), so `WindowCommand.show("keymap")` opens it.
 - [ ] **A key-map action can only be declared application-wide, then moved** (FN-14, vexelray-gui): two views that
       each scope their own Esc depend on the order they are built in; declare an action straight into its place.
 - [ ] **A headless tree runs the real jobs against the real home** (FN-15): MainFrame's `ViewTest` wrote the real

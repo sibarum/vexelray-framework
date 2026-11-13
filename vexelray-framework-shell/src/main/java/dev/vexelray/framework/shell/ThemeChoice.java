@@ -29,9 +29,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * ({@link #follow}): the main window's and each declared window's without a look of its own. The swap is
  * {@code Gui.theme}, which lands with the frame's edits and fades under each tree's paint motion, so nothing changes in
  * one frame. {@link Shell#appearance()} says the look in force from then on, so every dialog opened later, and any
- * window the application builds later and themes through it, opens in the chosen one. A window already open with a
- * tree the framework does not hold (the key-bindings editor, which copies the main tree's theme when it opens) keeps
- * the look it opened in until it is opened again.
+ * window the application builds later and themes through it, opens in the chosen one. The key-bindings window is one
+ * of the framework's declared windows ({@link KeyBindings}), so it follows too. A window already open with a tree the
+ * framework does not hold (one an application builds through the {@code GuiApp} itself) keeps the look it opened in.
  */
 final class ThemeChoice {
 
