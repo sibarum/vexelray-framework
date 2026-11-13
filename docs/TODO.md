@@ -533,6 +533,47 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       It blocks v1 because the fix changes how an `Ask` is made, for example the framework issuing the id or keying
       `Answer` by the asking part as `CloseRequested` is now, and every application that asks would change with it.
 
+- [ ] **There is no one way to put a 3D viewport in a window, and every application re-derives one.** The
+      pieces exist and none of them is *the* pattern. `GuiApp.viewport(w, h)` hands out a render target and
+      `Node.image(target)` shows it; the engine has `RenderTechnique` and `SampledTechniqueHost`; `vexelray-gui`'s
+      `CLAUDE.md` says the application "brings the technique". What is missing is the statement of how, so each
+      application chooses again, and they have chosen differently:
+      - `vexelray-designer`'s `Viewport` uses `target.pipelineFor` and `renderInto` directly, owns its orbit
+        camera (`gui-plot`'s `Camera`), resize policy (re-mint at a 1.35x growth threshold), input (drag, wheel
+        through the bus) and axis swap, and overlays a `Sketch`.
+      - `vexelray-sim-fluid`'s `DebugView` does the same by hand for a 2D field, with a fixed square target and its
+        own storage buffer, and does not resize at all.
+      - `SdfRaymarchTechnique` and `SampledTechniqueHost` are the *named* route and cannot be used by either,
+        because neither can bind an application's storage buffer (`SdfRaymarchTechnique` builds its pipeline with no
+        descriptor layouts). So an application that wants data in the march drops below the technique seam to
+        `SdfComposer.fragmentSpirv(...)` with a hand-written `sdf(vec3)`, as `ConeField` does, and then has
+        rebuilt the host.
+
+      Found when asking how to render the 3D fluid (48^3 MLS-MPM) with the SDF technique: the answer was a
+      survey of three repos rather than a call. What each application re-solves, and so what a pattern has to
+      say once: who owns the target and its resize; how an application's data (a storage buffer, a texture, push
+      constants) reaches a technique; the orbit camera and its input, including the y-up/z-up swap; overlays and
+      depth against the rest of the GUI; and which thread and frame stage drives it (`renderInto` blocks on its
+      own fence, so it is main-thread, `FrameStage.APP`). The fluid adds a case the pattern must not rule out: the
+      data lives on a *different device* (`ParticleSimulation3` owns its own `Accelerator`), so it arrives by host
+      readback each frame until the engine can share buffers, which belongs in `vexelray`.
+
+      **What would close it:** one `Viewport3D` component, or a template in the project builder, that owns the
+      target, resize, orbit and overlay, and takes a technique that can declare the buffers it binds; plus the
+      technique seam growing that declaration. Where it lives is the open question: the lifecycle is this
+      repo's (`Shell`, frame stage, disposer), the target and camera are `vexelray-gui`'s, and the binding is
+      `vexelray`'s `RenderTechnique`. Decide which repo owns the contract before any of them is written.
+
+      **Why it blocks v1:** it was after v1, to move here if "where does the binding declaration live" changed
+      `RenderTechnique`'s signature, since that is what an application's technique implements. **Ruled
+      2026-11-13: it does.** `RenderTechnique` grows to declare what a technique binds, and a technique is library
+      code the processor does not read, held to vexelray's `techniques.md` by its own tests.
+
+      **Proposed 2026-11-12:** vexelray-gui's [device-feed.md](../../vexelray-gui/docs/plans/device-feed.md) answers
+      it as a *technique view* (the host in vexelray-gui, the bindings in vexelray's `RenderTechnique`, the
+      declaration and a lent `DeviceQueue` here), with the simulations' 0.2 port and Rasterware's video as its
+      witnesses. Its open questions 1 and 2 are the rulings above.
+
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
       is frozen. This is the step that turns *nothing known is wrong* into 1.0. It cannot start early,
@@ -789,47 +830,6 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       regardless, other mailboxes are read with a try-lock, and the file is forced to disk first. The watchdog's
       and the shutdown bound's halts leave no record either and could share it. A per-mailbox overflow handler
       was designed and dropped; see ruling 5. **A generated project needs the new atchung installed to see it.**
-
-- [ ] **There is no one way to put a 3D viewport in a window, and every application re-derives one.** The
-      pieces exist and none of them is *the* pattern. `GuiApp.viewport(w, h)` hands out a render target and
-      `Node.image(target)` shows it; the engine has `RenderTechnique` and `SampledTechniqueHost`; `vexelray-gui`'s
-      `CLAUDE.md` says the application "brings the technique". What is missing is the statement of how, so each
-      application chooses again, and they have chosen differently:
-      - `vexelray-designer`'s `Viewport` uses `target.pipelineFor` and `renderInto` directly, owns its orbit
-        camera (`gui-plot`'s `Camera`), resize policy (re-mint at a 1.35x growth threshold), input (drag, wheel
-        through the bus) and axis swap, and overlays a `Sketch`.
-      - `vexelray-sim-fluid`'s `DebugView` does the same by hand for a 2D field, with a fixed square target and its
-        own storage buffer, and does not resize at all.
-      - `SdfRaymarchTechnique` and `SampledTechniqueHost` are the *named* route and cannot be used by either,
-        because neither can bind an application's storage buffer (`SdfRaymarchTechnique` builds its pipeline with no
-        descriptor layouts). So an application that wants data in the march drops below the technique seam to
-        `SdfComposer.fragmentSpirv(...)` with a hand-written `sdf(vec3)`, as `ConeField` does, and then has
-        rebuilt the host.
-
-      Found when asking how to render the 3D fluid (48^3 MLS-MPM) with the SDF technique: the answer was a
-      survey of three repos rather than a call. What each application re-solves, and so what a pattern has to
-      say once: who owns the target and its resize; how an application's data (a storage buffer, a texture, push
-      constants) reaches a technique; the orbit camera and its input, including the y-up/z-up swap; overlays and
-      depth against the rest of the GUI; and which thread and frame stage drives it (`renderInto` blocks on its
-      own fence, so it is main-thread, `FrameStage.APP`). The fluid adds a case the pattern must not rule out: the
-      data lives on a *different device* (`ParticleSimulation3` owns its own `Accelerator`), so it arrives by host
-      readback each frame until the engine can share buffers, which belongs in `vexelray`.
-
-      **What would close it:** one `Viewport3D` component, or a template in the project builder, that owns the
-      target, resize, orbit and overlay, and takes a technique that can declare the buffers it binds; plus the
-      technique seam growing that declaration. Where it lives is the open question: the lifecycle is this
-      repo's (`Shell`, frame stage, disposer), the target and camera are `vexelray-gui`'s, and the binding is
-      `vexelray`'s `RenderTechnique`. Decide which repo owns the contract before any of them is written.
-
-      **Why after v1, not before:** a component that applications opt into breaks none that compiled without it.
-      It moves to **Blocks v1** if the answer to "where does the binding declaration live" turns out to change
-      `RenderTechnique`'s signature, since that is what an application's technique implements.
-
-      **Proposed 2026-11-12:** vexelray-gui's [device-feed.md](../../vexelray-gui/docs/plans/device-feed.md) answers
-      it as a *technique view* (the host in vexelray-gui, the bindings in vexelray's `RenderTechnique`, the
-      declaration and a lent `DeviceQueue` here), with the simulations' 0.2 port and Rasterware's video as its
-      witnesses. Its open question 1 is this item's.
-
 
 - [ ] **`-diagnostics`, and move `FpsProbe` into it.** It is `text-editor-vexel-demo`'s, about 250
       lines, and generic apart from the one thing that makes it worth having: it deliberately pokes
