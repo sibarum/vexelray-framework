@@ -633,8 +633,13 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
         follows its opener's theme (`Seams.onTheme`). **One difference:** it took the opener's zoom at each opening
         and bound the zoom chords; as a framework satellite it has its own remembered zoom and no chords, as About
         does. Whether satellites should follow the main window's zoom is a question for all of them, not this one.
-      - **Not done: a popped-out pane** (`Popout`, vexelray-gui) copies its host's theme at the first pop and keeps
-        it, and its bar has no mark or app menu: the same gap the key-bindings window had, in a widget.
+      - **Done 2026-11-13: a popped-out pane** (`Popout`, vexelray-gui) follows its host's theme (`Seams.onTheme`)
+        where it copied it at the first pop, and its bar wears the host window's bar (`TitleBar.wear`): the mark,
+        built again in the pane's tree, the About line and the same app menu, kept in step as they change, and no
+        wordmark, as a satellite. A tree's bar is found by `TitleBar.of(gui)`, the first bar built in it. A mark an
+        application built as a node (`TitleBar.icon(Node)`) is not copied, since a node belongs to one tree; such a
+        pane shows no mark and so no app menu. No application on the stack uses `Popout` yet, so this is proved by
+        `PopoutTest` and not yet in a running window.
       - **Not done: the applications' own colours.** The text editor, the IDE's scope colours and others still resolve
         `gui.theme().color(...)` early in places, and keep the look they started in until they adopt roles. The
         IDE's theme menu can now be the framework's.
