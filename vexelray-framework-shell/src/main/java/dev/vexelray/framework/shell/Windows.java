@@ -153,6 +153,10 @@ public final class Windows {
         Gui gui = shell.disposer().register(new Gui(shell.bus(), window.key()));
         if (window.theme() == null) {
             appearance.applyTo(gui);
+            // And every choice of look after this, for an application with two. One with its own look keeps it.
+            if (shell.themes() != null) {
+                shell.themes().follow(gui);
+            }
         } else {
             // A look of its own still shares how far the zoom goes: see Appearance.applyTo.
             gui.theme(window.theme());

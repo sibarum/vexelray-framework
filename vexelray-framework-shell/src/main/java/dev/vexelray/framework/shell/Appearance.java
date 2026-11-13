@@ -56,13 +56,23 @@ import java.util.List;
  * @param zoom        how far the UI zoom goes and what one press moves it by. {@link ZoomRange#DEFAULT} when
  *                    the application says nothing, which is the range five places on this stack had already
  *                    agreed on. Never null
+ * @param light       the application's light look, when it has two; {@code null}, with {@code dark}, for one look
+ * @param dark        the application's dark look, when it has two. Both or neither: with both, every bar's app menu
+ *                    offers <i>Light</i> and <i>Dark</i>, the person's choice is remembered, and {@code theme} is the
+ *                    one in force ({@link #themes})
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorations decorations,
-                         List<WindowInstrument> instruments, ZoomRange zoom) {
+                         List<WindowInstrument> instruments, ZoomRange zoom, Theme light, Theme dark) {
 
-    /** Dark, no size floor, application-drawn frame, the standard instruments, the agreed zoom range. */
+    /** Dark, no size floor, application-drawn frame, the standard instruments, the agreed zoom range, one look. */
     public static final Appearance DEFAULT = new Appearance(Theme.DARK, null, null, null, null, null);
+
+    /** One look, as every appearance was before there could be two. */
+    public Appearance(Theme theme, Length minWidth, Length minHeight, Decorations decorations,
+                      List<WindowInstrument> instruments, ZoomRange zoom) {
+        this(theme, minWidth, minHeight, decorations, instruments, zoom, null, null);
+    }
 
     /**
      * How far the UI zoom goes, and what one press of a zoom chord moves it by.
@@ -142,8 +152,22 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
     }
 
     public Appearance {
+        // Two looks or one. A light theme alone is not a choice, and the framework derives neither half of a pair
+        // (docs/TODO.md, ruled 2026-10-21): a light theme is not the dark one reflected, so a half made up here would be
+        // a guess somebody then tunes by hand. Refused in CONFIG rather than shown as a menu with one line in it.
+        if ((light == null) != (dark == null)) {
+            throw new IllegalArgumentException("a light/dark choice takes both looks, each the application's own: "
+                    + "Appearance.themes(light, dark) was given only the " + (light == null ? "dark" : "light") + " one");
+        }
+        if (light != null && light == dark) {
+            throw new IllegalArgumentException("a light/dark choice takes two looks, and was given the same one twice");
+        }
         if (theme == null) {
-            theme = Theme.DARK;
+            theme = dark != null ? dark : Theme.DARK;
+        }
+        if (light != null && theme != light && theme != dark) {
+            throw new IllegalArgumentException("with Appearance.themes(light, dark), the look in force is one of the "
+                    + "two; theme was neither");
         }
         // CLIENT rather than SYSTEM as the default: three of the four applications on this stack draw their own
         // frame, and it is what makes a framework title bar -- and so the screenshot instrument -- reachable
@@ -171,12 +195,12 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
 
     /** The same, with a size floor. */
     public Appearance minSize(Length width, Length height) {
-        return new Appearance(theme, width, height, decorations, instruments, zoom);
+        return new Appearance(theme, width, height, decorations, instruments, zoom, light, dark);
     }
 
     /** The same, with the frame drawn by whoever this says. */
     public Appearance decorations(Decorations decorations) {
-        return new Appearance(theme, minWidth, minHeight, decorations, instruments, zoom);
+        return new Appearance(theme, minWidth, minHeight, decorations, instruments, zoom, light, dark);
     }
 
     /**
@@ -186,7 +210,7 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
      * screenshot button in its caption.
      */
     public Appearance instruments(List<WindowInstrument> instruments) {
-        return new Appearance(theme, minWidth, minHeight, decorations, instruments, zoom);
+        return new Appearance(theme, minWidth, minHeight, decorations, instruments, zoom, light, dark);
     }
 
     /** The same, with the UI zoom held between these bounds. See {@link ZoomRange} for what is whose. */
@@ -196,7 +220,50 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
 
     /** The same, with this zoom range. {@code null} for the framework's. */
     public Appearance zoom(ZoomRange zoom) {
-        return new Appearance(theme, minWidth, minHeight, decorations, instruments, zoom);
+        return new Appearance(theme, minWidth, minHeight, decorations, instruments, zoom, light, dark);
+    }
+
+    /**
+     * The same, with a light and a dark look, both the application's own, and the choice between them in every bar's
+     * app menu: <i>Light</i> and <i>Dark</i>, a radio pair under <i>Theme</i>, after About and the key bindings.
+     *
+     * <p><b>The application authors both, and the framework derives neither</b> (ruled 2026-10-21, docs/TODO.md). The
+     * two hand-tuned pairs on the stack say why: the light page sits at L 0.975 where a mirror of the dark one gives
+     * 0.809, the accent at 0.56 where a mirror gives 0.31, and a shadow's alpha drops from 0.55 to 0.18. So this takes
+     * two finished themes, and an application with one look has no menu for it.
+     *
+     * <p><b>The look a first run opens in</b> is this appearance's {@link #theme} when it is one of the two, and the
+     * dark one otherwise: {@code Appearance.of(light, ...).themes(light, dark)} opens light. After that the person's
+     * choice is remembered in the settings store and read back before the first widget, so a later run opens in it
+     * with nothing changing on screen.
+     *
+     * <p><b>What a choice reaches:</b> every window that took the application's theme ({@link #applyTo}), open now or
+     * opened later, the dialogs among them; never one with a look of its own. The swap is {@code Gui.theme}, so every
+     * colour fades as a hover does. What it cannot reach is a colour the application resolved once and kept as a
+     * {@code Color}: make that a role of its own, with a value in each theme.
+     */
+    public Appearance themes(Theme light, Theme dark) {
+        Theme start = theme == light ? light : dark;
+        return new Appearance(start, minWidth, minHeight, decorations, instruments, zoom, light, dark);
+    }
+
+    /** True when the application declared a light and a dark look, and so when the app menu offers the choice. */
+    public boolean choosesTheme() {
+        return light != null;
+    }
+
+    /** True when the look in force is the light one of a pair; false for the dark one, and for a single look. */
+    public boolean isLight() {
+        return light != null && theme == light;
+    }
+
+    /** The same, in the light look of its pair when {@code light}, else the dark one. Only for a pair. */
+    Appearance chosen(boolean light) {
+        if (!choosesTheme()) {
+            throw new IllegalStateException("an appearance with one look has nothing to choose between");
+        }
+        return new Appearance(light ? this.light : dark, minWidth, minHeight, decorations, instruments, zoom,
+                this.light, dark);
     }
 
     /**

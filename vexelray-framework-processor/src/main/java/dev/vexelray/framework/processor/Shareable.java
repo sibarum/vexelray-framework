@@ -37,6 +37,8 @@ import java.util.Set;
  *       crossing the bus themselves.</li>
  *   <li>in the same places, a vexelray-gui {@code ImageSdg}: an SDG drawing and its pages, the same handle for a
  *       drawing that a {@code Feed} is for a raster, built once by a job and only read after (see {@link #SDG}).</li>
+ *   <li>anywhere, a vexelray-gui named colour, {@code Paint}, {@code Role} or {@code Ink}: a value by the type's own
+ *       contract (see {@link #PAINTS}), so a span or a picture in roles crosses as one in colours did.</li>
  * </ul>
  * <b>What is refused, and why it is not a limitation of the check:</b> an array (mutable), an interface that is not
  * sealed (its implementations are unknown), any other generic type, a class with a mutable field, and an inner
@@ -123,6 +125,19 @@ final class Shareable {
      */
     static final String SDG = "dev.vexelray.gui.core.ImageSdg";
 
+    /**
+     * vexelray-gui's named colours: a {@code Paint}, the {@code Role} every theme answers, and the {@code Ink} a picture's
+     * marks hold. Open interfaces, so not provably immutable from the declaration, and accepted everywhere anyway,
+     * because being a value is the type's contract and the stack depends on it: the reconciler skips a write whose paint
+     * equals the one there, so a paint that changed under it would never be drawn, and a role is a function of the
+     * palette that holds nothing. Refusing them refused every span and every picture that names its colour, the form a
+     * themed application is meant to write (ruled 2026-11-12, when the template's Markdown job first answered with spans
+     * in roles). A mutable implementation is its author's to answer for, as the check's rule 4 says of anything it cannot
+     * see (docs/plans/chains.md).
+     */
+    static final Set<String> PAINTS = Set.of("dev.vexelray.gui.core.style.Paint", "dev.vexelray.gui.core.style.Role",
+            "dev.vexelray.gui.draw.Ink");
+
     private static String why(TypeMirror type, String path, Set<String> visiting, Rules rules) {
         if (type.getKind().isPrimitive()) {
             return null;
@@ -136,7 +151,8 @@ final class Shareable {
         DeclaredType declared = (DeclaredType) type;
         TypeElement element = (TypeElement) declared.asElement();
         String name = element.getQualifiedName().toString();
-        if (VALUES.contains(name) || element.getKind() == ElementKind.ENUM || rules.nodes() && name.equals(NODE)
+        if (VALUES.contains(name) || PAINTS.contains(name) || element.getKind() == ElementKind.ENUM
+                || rules.nodes() && name.equals(NODE)
                 || rules.feeds() && (name.equals(FEED) || name.equals(SDG))) {
             return null;
         }

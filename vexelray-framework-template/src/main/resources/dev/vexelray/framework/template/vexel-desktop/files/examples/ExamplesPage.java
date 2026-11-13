@@ -51,14 +51,14 @@ final class ExamplesPage implements ExamplesList {
                 .textSize(Length.rem(0.8125f))
                 .padding(Length.ZERO, Length.rem(0.75f)))
                 .name("list");
-        list.node().width(Length.FILL).height(Length.FILL).background(gui.theme().color(Role.PANEL));
+        list.node().width(Length.FILL).height(Length.FILL).background(Role.PANEL);
         gui.landmark(ExamplesWindow.LIST, list.node());
 
-        question = gui.text("").textSize(Length.rem(1.25f)).fontWeight(600).textColor(gui.theme().color(Role.INK))
+        question = gui.text("").textSize(Length.rem(1.25f)).fontWeight(600).textColor(Role.INK)
                 .width(Length.FILL);
         gui.landmark(ExamplesWindow.QUESTION, question);
         // As wide as the pane and wrapped inside it: it has no width of its own, so a long line never scrolls sideways.
-        about = gui.text("").textSize(Length.rem(0.8125f)).textColor(gui.theme().color(Role.DIM)).width(Length.FILL);
+        about = gui.text("").textSize(Length.rem(0.8125f)).textColor(Role.DIM).width(Length.FILL);
         gui.landmark(ExamplesWindow.ABOUT, about);
         stage = gui.column().width(Length.FILL).height(Length.grow(1f));
 
@@ -71,7 +71,7 @@ final class ExamplesPage implements ExamplesList {
         split.node().width(Length.FILL).height(Length.grow(1f));
 
         gui.root().direction(Direction.COLUMN)
-                .background(gui.theme().color(Role.PAGE))
+                .background(Role.PAGE)
                 .children(window.titleBar().node(), split.node());
 
         List<Example> sorted = new ArrayList<>(examples.list());

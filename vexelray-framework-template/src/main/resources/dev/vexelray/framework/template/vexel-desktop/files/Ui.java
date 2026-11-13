@@ -1,7 +1,6 @@
 package ${packageName};
 
 import ${packageName}.core.Markdown;
-import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
 import dev.vexelray.gui.core.layout.Length;
@@ -39,12 +38,10 @@ final class Ui {
     private final Workspace workspace;
     private final Navigator navigator;
     private final Motion motion;
-    private final Color danger;
 
     Ui(Gui gui, Motion motion, TitleBar titleBar) {
         this.titleBar = titleBar;
         this.motion = motion;
-        this.danger = gui.theme().color(Role.DANGER);
 
         status = new StatusBar(gui)
                 .slot(Landmarks.STATUS_FILE, StatusBar.Side.LEFT, "")
@@ -56,16 +53,11 @@ final class Ui {
             gui.landmark(slot, status.slot(slot));
         }
 
-        // Markdown's colours are the theme's roles, and one of this application's own (Look.EMPHASIS). Resolved
-        // once, here, because a role resolves at the moment it is asked and the theme does not change under us.
-        Markdown.Style markup = new Markdown.Style(
-                gui.theme().color(Role.ACCENT),
-                gui.theme().color(Role.FAINT),
-                Look.EMPHASIS,
-                gui.theme().color(Role.ACCENT),
-                gui.theme().color(Role.DIM),
-                gui.theme().color(Role.INK),
-                gui.theme().color(Role.PANEL));
+        // Markdown's colours are the theme's roles, and one of this application's own (Look.EMPHASIS). Roles, not the
+        // colours they are now: a span is drawn in whichever theme the field is in, so the person's choice of look
+        // recolours every document with nothing marked again, fading with the rest of the window.
+        Markdown.Style markup = new Markdown.Style(Role.ACCENT, Role.FAINT, Look.EMPHASIS, Role.ACCENT, Role.DIM,
+                Role.INK, Role.PANEL);
 
         workspace = new Workspace(gui, motion, markup);
         navigator = new Navigator(gui, motion);
@@ -75,7 +67,7 @@ final class Ui {
         split.node().width(Length.FILL).height(Length.grow(1f));
 
         gui.root().direction(Direction.COLUMN)
-                .background(gui.theme().color(Role.PAGE))
+                .background(Role.PAGE)
                 .children(titleBar.node(), split.node(), status.node());
     }
 
@@ -105,7 +97,8 @@ final class Ui {
     void status(String message, boolean alert) {
         status.text(Landmarks.STATUS_MESSAGE, message);
         if (alert) {
-            motion.cues.play(status.node(), Cue.ring(danger, 2));
+            // A role, so the ring is drawn in whichever look is in force while it plays.
+            motion.cues.play(status.node(), Cue.ring(Role.DANGER, 2));
         }
     }
 }

@@ -20,7 +20,7 @@ final class Recipes {
 
     @Provides
     Appearance look() {                              // no parameters: built first, before the Gui exists
-        return Appearance.of(Look.THEME, Length.rem(36), Length.rem(20));
+        return Appearance.of(Look.DARK, Length.rem(36), Length.rem(20));
     }
 
     @Provides

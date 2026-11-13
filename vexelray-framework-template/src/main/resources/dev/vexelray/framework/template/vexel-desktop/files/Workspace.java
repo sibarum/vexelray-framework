@@ -1,7 +1,6 @@
 package ${packageName};
 
 import ${packageName}.core.Markdown;
-import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
@@ -48,7 +47,6 @@ final class Workspace {
     private final Tabs tabs;
     private final Node hint;
     private final Node root;
-    private final Color accent;
 
     /** Parallel to the bar's tabs. */
     private final List<Buffer> buffers = new ArrayList<>();
@@ -59,7 +57,6 @@ final class Workspace {
         this.gui = gui;
         this.motion = motion;
         this.markup = markup;
-        this.accent = gui.theme().color(Role.ACCENT);
 
         tabs = new Tabs(gui).name("documents").closable(false).slide(motion.change)
                 .action(MenuAction.of(SAVE, "Save"))
@@ -73,7 +70,7 @@ final class Workspace {
         Node empty = gui.text("Open a file from the navigator, or type a path above it (Ctrl+L)")
                 .font(Type.UI)
                 .textSize(Type.SMALL)
-                .textColor(gui.theme().color(Role.FAINT));
+                .textColor(Role.FAINT);
         gui.landmark(Landmarks.EMPTY, empty);
         hint = gui.row().width(Length.FILL).height(Length.grow(1f))
                 .justify(Justify.CENTER).alignItems(AlignItems.CENTER)
@@ -172,7 +169,7 @@ final class Workspace {
             return;
         }
         tabs.select(i);
-        motion.cues.play(tabs.header(i), Cue.ring(accent, 1));
+        motion.cues.play(tabs.header(i), Cue.ring(Role.ACCENT, 1));
         if (focus) {
             gui.focus(buffer.field.node());
         }

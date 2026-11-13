@@ -57,7 +57,7 @@ final class UndoFeedback implements Consumer<UndoEvent> {
             return;
         }
         if (outcome == Outcome.REFUSED && e.target() != null) {
-            cues().play(e.target(), Cue.ring(gui.theme().color(Role.DANGER)));
+            cues().play(e.target(), Cue.ring(Role.DANGER));
             return;
         }
         asks.ask(e.redo() ? "Can't redo" : "Can't undo", message(outcome, e.redo()), List.of("OK"));

@@ -550,24 +550,50 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       own `GetCommandLineW` (vexelray-os already reads it, in `CommandLine`) would be exact on both, behind a
       `NativePlatform.commandLine()`.
 
-- [ ] **A light/dark switch in the title bar, for an application that declares both looks** (`-shell`'s
-      `Appearance` and title bar, probably as a `WindowInstrument`; `-template`). Asked for 2026-10-21, after the
-      scheduler retrospective.
+- [x] **A light/dark switch, for an application that declares both looks** (`-shell`'s `Appearance` and
+      `ThemeChoice`, `-core`'s `ThemeShifted`, `-template`; vexelray-gui throughout). Asked for 2026-10-21, after the
+      scheduler retrospective. Done 2026-11-12.
       - **Ruled 2026-10-21: the application authors both themes, and the framework derives neither.** Reason:
         writing a design system takes under five minutes, and the two hand-tuned pairs on the stack
         (`Palette.DARK`/`LIGHT`, VexelRay IDE's `Look`) show that a light theme is not a reflection of a dark one. The
         light page sits at L 0.975, where a mirror gives 0.809. The accent goes from 0.6925 to 0.56, where a
         mirror gives 0.31. Shadow alpha goes from 0.55 to 0.18. A derived theme would be a guess that somebody
-        then tunes by hand.
-      - So the button appears only when `Appearance` carries a second theme, and an application with one theme
-        has none. `Appearance` is `EXPERIMENTAL`, so a new component behind a wither is additive.
-      - The choice is remembered beside the zoom (`WindowMemory`). It applies to every window that took the
-        application's theme, never to one with its own (`applyTo`'s rule). The swap is `Gui.theme`, which
-        fades under a `PaintMotion`, so nothing changes in one frame.
-      - **The catch is a colour kept as a `Color` rather than a `Role`**, because a retheme cannot reach it.
-        The template's own `Look.EMPHASIS` is one, and so are VexelRay IDE's scope colours, which is why VexelRay IDE's theme
-        menu only takes effect at the next start. The template should make each of its own colours a role, and
-        test each role's contrast against the page in both looks.
+        then tunes by hand. So the choice appears only when `Appearance` carries a second theme.
+      - **Ruled 2026-11-12: in the shared app menu, as a radio pair like the other settings in menus.** Reason, the
+        author's: that is where it was asked for. And a look is a setting about the application, as its key bindings
+        are, while a button at the bar's right is for a state a person has to see without asking.
+      - **Ruled 2026-11-12: every API that takes a colour takes a name too, the colour forms stay, and the application
+        is told when the look shifts.** Reason, the author's: themes are then easy to support from the first day, with
+        no code, and the developer still has a control over how a shift happens when they need one. So a span, a
+        picture's marks (`Ink`, with `Paint` an `Ink`), a cue, a drop indicator, an icon's tint, the modal dim and an
+        instrument's mark and lamps take a `Role` beside a `Color`. A name no node's channel holds is resolved by the
+        renderer each frame, and fades on one tree-wide amount (`PaintMotion.Channel.THEME`), so it changes with the
+        nodes around it, not in one frame (checked: a code-block highlight was caught part-way in the same frame as the
+        editor and title bar). The control is two-level: `Seams.onTheme` for a widget that worked something out from
+        the theme (IconView's layered variant and outline), and `ThemeShifted`, a state message, for an application.
+        Colours a widget's subject *is* (a colour picker's value, Oklab conversions, the paint motion's own plumbing)
+        take colours only, since they are data, not styling.
+      - **Done:** `Appearance.themes(light, dark)`; the *Theme* section of every bar's app menu; the choice saved as
+        `theme=light|dark` and read in `GUI` before the first tree is themed; every tree that took the application's
+        look follows a choice, and dialogs and later windows open in it. The template ships `Look.DARK` and
+        `Look.LIGHT`, writes roles everywhere (Markdown included), and `LookTest` holds both looks to WCAG contrast.
+        vexelray-gui's own early-resolved colours went to roles: the title bar's glyphs, the scrollbar, the drop
+        indicators, the find highlight, the slider ticks, the tab indicator, the board's lift, a button's ripple.
+      - **The processor accepts `Paint`, `Role` and `Ink` in a payload** (`Shareable.PAINTS`), beside `Feed` and
+        `ImageSdg`: the template's Markdown job answers with spans in roles, and an open interface was refused as
+        "unknown". A paint is a value by its type's contract (the reconciler skips a write equal to the last), so
+        refusing it refused safe code.
+      - **Not done: a window whose tree the framework does not hold.** The key-bindings editor copies the main tree's
+        theme when it opens (`KeymapWindow`, vexelray-gui), so it keeps the old look until it is opened again.
+      - **Not done: the applications' own colours.** The text editor, the IDE's scope colours and others still resolve
+        `gui.theme().color(...)` early in places, and keep the look they started in until they adopt roles. The
+        IDE's theme menu can now be the framework's.
+
+- [ ] **A generated project names a build plugin that is not there** (`-template`'s `template.manifest`, found
+      2026-11-12). `buildVersion` is filled from `vexelrayVersion`, `0.2.0-SNAPSHOT`, but `vexelray-build` is still
+      `0.1.3-SNAPSHOT` on `develop` and nothing installs a `0.2.0-SNAPSHOT` of it. So `mvn compile` on a fresh project
+      fails to resolve `vexelray-build-maven-plugin`. Either move `vexelray-build` to 0.2 with the engine, or give
+      `buildVersion` a version of its own.
 
 - [ ] **The camera records as well as photographs, for a person and for ottermate** (`vexelray-gui-core`'s
       `WindowInstrument` and `WindowControls`, `vexelray-gui-nfd`'s `SaveScreenshot`, `vexelray`'s presenter,
@@ -1509,6 +1535,17 @@ driven in the rebuilt editor with a planted marker under `-Dvexelray.bugReport=a
       proves too high: a native message box from the dying process for the deaths that leave it time (an exception out
       of the frame loop, the watchdog's halt), which needs a downcall `vexelray-os` does not have yet. Native faults
       would still be the next start's.
+
+### Found by designing vexelray-gui's `Progress` widget (2026-11-12)
+
+Nothing in the framework runs a long computation that reports as it goes. Additive, so after v1, but the template's
+A6 example waits on it.
+
+- [ ] **Daemons: a component off the tick** (`-api`, `-shell`, `-processor`, atchung). Direction ruled 2026-11-12, for
+      the reason recorded in [components.md](components.md) section 14, which has the sketch. The mid-run check is
+      ruled (a delivery is superseded by a newer state value for its key or its declared stop, asked through atchung's
+      `Pump`). Four questions remain before building: one thread or a few, the mailbox's capacity and order across
+      topics, the name, and its relation to sources.
 
 ## Upstream
 

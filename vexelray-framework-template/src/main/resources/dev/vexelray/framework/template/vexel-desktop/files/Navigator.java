@@ -80,7 +80,7 @@ final class Navigator {
                 .width(Length.FILL).height(Length.FILL)
                 .gap(Type.TIGHT)
                 .padding(Type.TIGHT, Type.TIGHT)
-                .background(gui.theme().color(Role.PANEL))
+                .background(Role.PANEL)
                 .alignItems(AlignItems.STRETCH)
                 .children(path.node(), tree.node());
     }
@@ -179,7 +179,7 @@ final class Navigator {
         if (reached && item.equals(revealing)) {
             Node row = tree.rowNode(revealing);
             if (row != null) {
-                motion.cues.play(row, Cue.ring(gui.theme().color(Role.ACCENT), 1));
+                motion.cues.play(row, Cue.ring(Role.ACCENT, 1));
             }
             revealing = null;
         }

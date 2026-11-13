@@ -1,6 +1,7 @@
 package ${packageName}.core;
 
 import dev.vexelray.canvas.Color;
+import dev.vexelray.gui.core.style.Paint;
 import dev.vexelray.gui.core.text.Span;
 import org.junit.jupiter.api.Test;
 
@@ -16,18 +17,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class MarkdownTest {
 
-    private static final Color HEADING = Color.rgb(0x000001);
-    private static final Color MARKER = Color.rgb(0x000002);
-    private static final Color EMPHASIS = Color.rgb(0x000003);
-    private static final Color LINK = Color.rgb(0x000004);
-    private static final Color QUOTE = Color.rgb(0x000005);
-    private static final Color CODE = Color.rgb(0x000006);
-    private static final Color CODE_BG = Color.rgb(0x000007);
+    private static final Paint HEADING = Paint.of(Color.rgb(0x000001));
+    private static final Paint MARKER = Paint.of(Color.rgb(0x000002));
+    private static final Paint EMPHASIS = Paint.of(Color.rgb(0x000003));
+    private static final Paint LINK = Paint.of(Color.rgb(0x000004));
+    private static final Paint QUOTE = Paint.of(Color.rgb(0x000005));
+    private static final Paint CODE = Paint.of(Color.rgb(0x000006));
+    private static final Paint CODE_BG = Paint.of(Color.rgb(0x000007));
 
     private static final Markdown.Style STYLE = new Markdown.Style(HEADING, MARKER, EMPHASIS, LINK, QUOTE, CODE, CODE_BG);
 
     /** The foreground on {@code needle}'s first character, or null if nothing colours it. */
-    private static Color fgOf(String text, String needle) {
+    private static Paint fgOf(String text, String needle) {
         int at = text.indexOf(needle);
         for (Span s : Markdown.spans(text, STYLE)) {
             if (s.fg() != null && s.covers(at)) {

@@ -55,12 +55,12 @@ final class LaterNodes implements LaterPanel {
 
     private static Node section(Gui gui, String heading, Node... body) {
         Node column = gui.column().width(Length.FILL).gap(Length.rem(0.6f)).alignItems(AlignItems.STRETCH);
-        column.append(gui.text(heading).fontWeight(600).textColor(gui.theme().color(Role.INK)));
+        column.append(gui.text(heading).fontWeight(600).textColor(Role.INK));
         return column.append(body);
     }
 
     private static Node note(Gui gui, String text) {
-        return gui.text(text).textSize(Length.rem(0.8125f)).textColor(gui.theme().color(Role.DIM)).width(Length.FILL);
+        return gui.text(text).textSize(Length.rem(0.8125f)).textColor(Role.DIM).width(Length.FILL);
     }
 
     @Override

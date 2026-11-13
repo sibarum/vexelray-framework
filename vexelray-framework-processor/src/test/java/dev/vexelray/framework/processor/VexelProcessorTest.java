@@ -366,6 +366,21 @@ class VexelProcessorTest {
                 public record ImageSdg(int[] pageWidths, float[] instance) {
                 }
                 """),
+            Map.entry("dev.vexelray.gui.draw.Ink", """
+                package dev.vexelray.gui.draw;
+                public interface Ink {
+                }
+                """),
+            Map.entry("dev.vexelray.gui.core.style.Paint", """
+                package dev.vexelray.gui.core.style;
+                public interface Paint extends dev.vexelray.gui.draw.Ink {
+                }
+                """),
+            Map.entry("dev.vexelray.gui.core.style.Role", """
+                package dev.vexelray.gui.core.style;
+                public interface Role extends Paint {
+                }
+                """),
             Map.entry("dev.vexelray.gui.core.spi.Asked", """
                 package dev.vexelray.gui.core.spi;
                 public interface Asked {
@@ -2269,6 +2284,30 @@ class VexelProcessorTest {
                     public static final sibarum.atchung.Topic<Pictured> T = sibarum.atchung.Topic.edge(Pictured.class);
                 }
                 """, sink("Pictured")));
+    }
+
+    /**
+     * A named colour crosses as a colour did: a span or a picture in roles is what a themed application is meant to
+     * write, and a paint is a value by its type's contract, so refusing it refused safe code.
+     */
+    @Test
+    void aNamedColourMayCrossAndBeHeld() {
+        assertEquals(List.of(), app("""
+                public record Styled(dev.vexelray.gui.core.style.Role heading, dev.vexelray.gui.core.style.Paint body,
+                                     java.util.List<dev.vexelray.gui.draw.Ink> marks) {
+                    public static final sibarum.atchung.Topic<Styled> T = sibarum.atchung.Topic.edge(Styled.class);
+                }
+                """, sink("Styled")));
+    }
+
+    /** Only vexelray-gui's: an application's own open interface of the same name is as unknown as any other. */
+    @Test
+    void anInterfaceLikeAPaintIsNotOne() {
+        onlyError(app("""
+                public interface Paint {}
+                """, """
+                public record Styled(Paint body) {}
+                """, sink("Styled")), "Styled.body: Paint is an interface that is not sealed");
     }
 
     @Test

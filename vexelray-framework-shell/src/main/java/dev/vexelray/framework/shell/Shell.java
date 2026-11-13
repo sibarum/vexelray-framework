@@ -95,7 +95,10 @@ public final class Shell {
     /** A fresh wiring of this application, for a replay to build its components from; null when it has none. */
     private Wiring again;
 
-    private Appearance appearance = Appearance.DEFAULT;
+    /** Volatile: set in CONFIG, and again on the main thread by a choice of look, read from any. */
+    private volatile Appearance appearance = Appearance.DEFAULT;
+    /** The light/dark choice, for an application that declared both looks; else null. See {@link ThemeChoice}. */
+    private ThemeChoice themes;
     /** The application's own fonts, or null for the standard set. See {@link #fonts(FontSet)}. */
     private FontSet fonts;
     private Settings settings;
@@ -638,9 +641,27 @@ public final class Shell {
         return this;
     }
 
-    /** The look in force. Never null. */
+    /**
+     * The look in force. Never null. For an application with a light and a dark look ({@link Appearance#themes}), the
+     * one the person chose: from {@code GUI} on, a window themed through this opens in it.
+     */
     public Appearance appearance() {
         return appearance;
+    }
+
+    /** The person's choice of look, past CONFIG's rule: {@link ThemeChoice}'s, and only ever one of the same pair. */
+    void chosenAppearance(Appearance chosen) {
+        this.appearance = chosen;
+    }
+
+    /** The light/dark choice, set in GUI; null for an application with one look. */
+    void themes(ThemeChoice themes) {
+        this.themes = themes;
+    }
+
+    /** The light/dark choice, or null for an application with one look. */
+    ThemeChoice themes() {
+        return themes;
     }
 
     /**

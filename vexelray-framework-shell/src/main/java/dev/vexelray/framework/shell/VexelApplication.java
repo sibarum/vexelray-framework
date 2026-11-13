@@ -311,12 +311,19 @@ public final class VexelApplication {
         // published on one tree would be heard by the application. It owns no threads: its handlers run on the GUI
         // thread, in the frame (vexelray-gui 0.2, threading.md T1.1). See Shell.bus.
         Gui gui = disposer.register(new Gui(shell.bus(), Windows.MAIN));
+        // The look the person chose in an earlier run, for an application with two: read before the first tree is
+        // themed, so the run opens in it rather than switching to it in sight. See ThemeChoice.
+        ThemeChoice themes = ThemeChoice.open(shell);
+        shell.themes(themes);
         Appearance appearance = shell.appearance();
         // The theme and the zoom range, through the same call an application uses on the windows the framework
         // did not build -- so there is one definition of what an appearance means on a Gui rather than two that
         // have to be kept in agreement. Before the first widget, because a role resolves when a widget writes a
         // prop. The chords that move within the zoom range stay the application's: see Appearance.ZoomRange.
         appearance.applyTo(gui);
+        if (themes != null) {
+            themes.follow(gui);
+        }
         // Not part of that call, because Gui.minSize is a floor for one tree's layout and not for the
         // application: the main window's answer is the wrong one for a tool window beside it.
         if (appearance.hasMinSize()) {
@@ -416,7 +423,9 @@ public final class VexelApplication {
         // makes: that was load-bearing when a Gui's topics were static, and a closed dialog's tree would have filled
         // with this one's messages. The application's windows share its bus since phase 5 (a tree's own topics are
         // named by it, and the widgets' shared ones scoped by tree); moving the dialogs onto it is vexelray-gui's.
-        Modals modals = disposer.register(Modals.install(app, appearance::applyTo));
+        // The look in force when each dialog is built, not the one at install: a person who chose the other look has
+        // every later dialog in it too. Read from the shell, which a choice updates (ThemeChoice).
+        Modals modals = disposer.register(Modals.install(app, dialog -> shell.appearance().applyTo(dialog)));
         // And the Dialogs every part was handed, unless the application handed back its own: from here on a
         // question goes to these, after whatever was asked while there was no window to ask it in.
         if (!shell.dialogsDecided()) {
@@ -445,9 +454,16 @@ public final class VexelApplication {
         Appearance chrome = appearance;
         if (!keymap.actions().isEmpty()) {
             keymap.persist(AppHome.of(info.name()).settings(KEYS_STORE));
-            List<WindowInstrument> tools = new ArrayList<>(appearance.instruments());
+            List<WindowInstrument> tools = new ArrayList<>(chrome.instruments());
             tools.add(KeymapWindow.instrument(app, gui, keymap));
-            chrome = appearance.instruments(tools);
+            chrome = chrome.instruments(tools);
+        }
+        // Light and Dark, for an application that declared both looks: a section of every bar's app menu, after the key
+        // bindings, its own rule above it. See ThemeChoice for why the menu and not a button.
+        if (shell.themes() != null) {
+            List<WindowInstrument> tools = new ArrayList<>(chrome.instruments());
+            tools.add(shell.themes().instrument());
+            chrome = chrome.instruments(tools);
         }
         if (chrome.drawsOwnFrame()) {
             // The mark's drawing when it has one, sharp at every scale; else the icon's rasters, nearest the scale.

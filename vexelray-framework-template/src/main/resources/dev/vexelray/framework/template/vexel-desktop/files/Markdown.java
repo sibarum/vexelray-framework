@@ -1,6 +1,7 @@
 package ${packageName}.core;
 
 import dev.vexelray.canvas.Color;
+import dev.vexelray.gui.core.style.Paint;
 import dev.vexelray.gui.core.text.Span;
 
 import java.util.ArrayList;
@@ -30,9 +31,19 @@ import java.util.Locale;
  */
 public final class Markdown {
 
-    /** The colours, chosen by whoever owns the theme. A background may be null to leave code unmarked. */
-    public record Style(Color heading, Color marker, Color emphasis, Color link, Color quote, Color code,
-                        Color codeBackground) {
+    /**
+     * The colours, chosen by whoever owns the theme: paints, so a {@code Role} is drawn in whichever theme the field is
+     * in and follows a theme swap with nothing marked again. A background may be null to leave code unmarked.
+     */
+    public record Style(Paint heading, Paint marker, Paint emphasis, Paint link, Paint quote, Paint code,
+                        Paint codeBackground) {
+
+        /** In fixed colours, the same in every theme. */
+        public Style(Color heading, Color marker, Color emphasis, Color link, Color quote, Color code,
+                     Color codeBackground) {
+            this(Paint.of(heading), Paint.of(marker), Paint.of(emphasis), Paint.of(link), Paint.of(quote),
+                    Paint.of(code), Paint.of(codeBackground));
+        }
     }
 
     private Markdown() {
@@ -210,13 +221,13 @@ public final class Markdown {
         return Character.isLetterOrDigit(c);
     }
 
-    private static void fg(List<Span> out, int start, int end, Color color) {
+    private static void fg(List<Span> out, int start, int end, Paint color) {
         if (end > start && color != null) {
             out.add(Span.foreground(start, end, color));
         }
     }
 
-    private static void bg(List<Span> out, int start, int end, Color color) {
+    private static void bg(List<Span> out, int start, int end, Paint color) {
         if (end > start && color != null) {
             out.add(Span.background(start, end, color));
         }
