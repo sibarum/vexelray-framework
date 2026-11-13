@@ -825,6 +825,11 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       It moves to **Blocks v1** if the answer to "where does the binding declaration live" turns out to change
       `RenderTechnique`'s signature, since that is what an application's technique implements.
 
+      **Proposed 2026-11-12:** vexelray-gui's [device-feed.md](../../vexelray-gui/docs/plans/device-feed.md) answers
+      it as a *technique view* (the host in vexelray-gui, the bindings in vexelray's `RenderTechnique`, the
+      declaration and a lent `DeviceQueue` here), with the simulations' 0.2 port and Rasterware's video as its
+      witnesses. Its open question 1 is this item's.
+
 
 - [ ] **`-diagnostics`, and move `FpsProbe` into it.** It is `text-editor-vexel-demo`'s, about 250
       lines, and generic apart from the one thing that makes it worth having: it deliberately pokes
