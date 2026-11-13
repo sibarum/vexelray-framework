@@ -1541,11 +1541,20 @@ driven in the rebuilt editor with a planted marker under `-Dvexelray.bugReport=a
 Nothing in the framework runs a long computation that reports as it goes. Additive, so after v1, but the template's
 A6 example waits on it.
 
-- [ ] **Daemons: a component off the tick** (`-api`, `-shell`, `-processor`, atchung). Direction ruled 2026-11-12, for
+- [ ] **Daemons: a component off the tick, an ongoing two-way channel with the application** (`-api`, `-shell`,
+      `-processor`, atchung). Direction ruled 2026-11-12, for
       the reason recorded in [components.md](components.md) section 14, which has the sketch. The mid-run check is
       ruled (a delivery is superseded by a newer state value for its key or its declared stop, asked through atchung's
-      `Pump`). Four questions remain before building: one thread or a few, the mailbox's capacity and order across
-      topics, the name, and its relation to sources.
+      `Pump`), and so is the mailbox (an ordered `Pump` that stamps each message on arrival and delivers in stamp
+      order; edge capacity 64, with an overflow that names the fix), and so are its threads (one per daemon, fixed at
+      compile time, parked when idle, never shared), the name, `@Daemon`, and its relation to sources (a source and a
+      destination are optimised cases of a daemon, and stay; one class is one kind). Every question is ruled; what is
+      left is building it, with A6 as its example.
+- [ ] **Named job lanes, `@Job(lane = "render")`** (`-api`, `-core` `Lanes`, `-processor`). What a daemon sends work to
+      when it wants every core ([components.md](components.md) section 14, question 2): a bounded pool of its own,
+      sized to the cores by default, so a render's tiles do not make a file open wait on the shared job lane. Additive.
+      Open: whether its threads are kept alive as a daemon's are, or made on demand and let go after idling as the
+      shared lane's are.
 
 ## Upstream
 
