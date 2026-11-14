@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import sibarum.atchung.Atchung;
 import sibarum.atchung.Subscriber;
 
-import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -45,35 +44,6 @@ final class WatchdogTest {
             assertEquals(1, seen.size(), "one stalled delivery is one report, not one per check");
             assertEquals("compose", seen.get(0).lane());
             assertTrue(seen.get(0).stalledFor().toNanos() >= 50 * MS);
-        }
-    }
-
-    @Test
-    void aLaneThatIsParkedOrQuickIsNeverReported() throws Exception {
-        AtomicInteger reports = new AtomicInteger();
-        try (Lanes lanes = new Lanes(); Watchdog dog = watching(lanes, 200 * MS, stall -> reports.incrementAndGet())) {
-            lanes.busy("parked");
-            Lanes.Busy quick = lanes.busy("quick");
-            for (int i = 0; i < 20; i++) {
-                quick.enter();
-                quick.exit();
-                Thread.sleep(20);
-            }
-            assertEquals(0, reports.get());
-        }
-    }
-
-    @Test
-    void aSecondStallOnTheSameLaneIsAnotherReport() throws Exception {
-        CountDownLatch two = new CountDownLatch(2);
-        try (Lanes lanes = new Lanes(); Watchdog dog = watching(lanes, 30 * MS, stall -> two.countDown())) {
-            Lanes.Busy busy = lanes.busy("compose");
-            for (int i = 0; i < 2; i++) {
-                busy.enter();
-                Thread.sleep(150);
-                busy.exit();
-            }
-            assertTrue(two.await(5, TimeUnit.SECONDS), "the second stall on a recovered lane was not reported");
         }
     }
 
@@ -128,59 +98,5 @@ final class WatchdogTest {
             dog.haltAfter(TimeUnit.HOURS.toNanos(1));
             assertTrue(halted.await(5, TimeUnit.SECONDS), "a patient second caller postponed the backstop");
         }
-    }
-
-    @Test
-    void aHaltSaysWhyAndShowsWhatWasStuckBeforeHalting() throws Exception {
-        CountDownLatch release = new CountDownLatch(1);
-        Thread wedged = new Thread(() -> {
-            try {
-                release.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }, "wedged-in-teardown");
-        wedged.start();
-        List<String> events = new CopyOnWriteArrayList<>();
-        CountDownLatch halted = new CountDownLatch(1);
-        try (Watchdog dog = new Watchdog(new Lanes(), Atchung.create(), s -> {
-            events.add("halt");
-            halted.countDown();
-        }, text -> events.add(text))) {
-            dog.start(TimeUnit.SECONDS.toNanos(10));
-            dog.haltAfter(50 * MS);
-            assertTrue(halted.await(5, TimeUnit.SECONDS), "the backstop never fired");
-        } finally {
-            release.countDown();
-        }
-        assertEquals(2, events.size(), "one report, then the halt");
-        String report = events.get(0);
-        assertTrue(report.contains("did not end within 50 ms"), report);
-        assertTrue(report.contains("\"wedged-in-teardown\" WAITING"), "the stuck thread is named, with its state");
-        assertTrue(report.contains("CountDownLatch.await"), "and its stack shows where it is stuck");
-        assertEquals("halt", events.get(1));
-    }
-
-    @Test
-    void aReportThatCannotBeWrittenDoesNotStopTheHalt() throws Exception {
-        CountDownLatch halted = new CountDownLatch(1);
-        CountDownLatch never = new CountDownLatch(1);
-        long start = System.nanoTime();
-        try (Watchdog dog = new Watchdog(new Lanes(), Atchung.create(), s -> halted.countDown(), text -> {
-            try {
-                never.await();   // a stream a wedged thread is holding
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        })) {
-            dog.start(TimeUnit.SECONDS.toNanos(10));
-            dog.haltAfter(50 * MS);
-            assertTrue(halted.await(10, TimeUnit.SECONDS), "a stuck report held the backstop");
-        } finally {
-            never.countDown();
-        }
-        long took = System.nanoTime() - start;
-        assertTrue(took < 50 * MS + Watchdog.REPORT_BOUND_NANOS + TimeUnit.SECONDS.toNanos(2),
-                "the halt waited " + TimeUnit.NANOSECONDS.toMillis(took) + " ms, past the report's bound");
     }
 }

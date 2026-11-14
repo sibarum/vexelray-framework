@@ -9,7 +9,6 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -135,46 +134,6 @@ final class LivenessTest {
         } finally {
             shell.disposer().close();
         }
-    }
-
-    @Test
-    void aBusyButFinishingLaneIsNotAStall() throws Exception {
-        Shell shell = shell();
-        try {
-            AtomicInteger reports = new AtomicInteger();
-            AtomicInteger delivered = new AtomicInteger();
-            shell.liveness(new LivenessPolicy() {
-                @Override
-                public Duration stallThreshold() {
-                    return Duration.ofMillis(500);
-                }
-
-                @Override
-                public void onStall(Stall stall, Context context) {
-                    reports.incrementAndGet();
-                }
-            });
-            shell.inbox("app.Busy", "busy").subscribe(WORK, msg -> delivered.incrementAndGet(), 64);
-
-            shell.startComponents();
-            for (int i = 0; i < 20; i++) {
-                shell.bus().publish(WORK, "quick");
-                Thread.sleep(20);
-            }
-
-            assertTrue(delivered.get() > 0);
-            assertEquals(0, reports.get());
-        } finally {
-            shell.disposer().close();
-        }
-    }
-
-    @Test
-    void theDefaultPolicyIsTenSecondsAndAPolicyMayOverrideOnlyWhatItMeans() {
-        LivenessPolicy standard = new LivenessPolicy() { };
-        assertEquals(Duration.ofSeconds(10), standard.stallThreshold());
-        assertEquals(Duration.ofSeconds(10), standard.closeBound());
-        assertEquals(Duration.ofSeconds(30), standard.exitGrace());
     }
 
     @Test

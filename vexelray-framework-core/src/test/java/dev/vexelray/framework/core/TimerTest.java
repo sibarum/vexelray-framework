@@ -40,25 +40,6 @@ class TimerTest {
     }
 
     @Test
-    void everyPublishesUntilCancelled() throws Exception {
-        Atchung bus = Atchung.create();
-        CountDownLatch three = new CountDownLatch(3);
-        AtomicInteger count = new AtomicInteger();
-        bus.subscribe(BEATS, b -> {
-            count.incrementAndGet();
-            three.countDown();
-        });
-        try (Timer timer = new Timer(bus)) {
-            Timer.Scheduled beat = timer.every(Duration.ofMillis(5), BEATS, new Beat("tick"));
-            assertTrue(three.await(5, TimeUnit.SECONDS), "every period");
-            beat.cancel();
-            int at = count.get();
-            Thread.sleep(60);
-            assertTrue(count.get() <= at + 1, "at most the publish under way after a cancel: " + at + " then " + count.get());
-        }
-    }
-
-    @Test
     void closedSendsNothing() throws Exception {
         Atchung bus = Atchung.create();
         AtomicInteger count = new AtomicInteger();

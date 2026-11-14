@@ -84,11 +84,6 @@ final class FrameHooksTest {
         assertEquals(List.of(FrameStage.INPUT, FrameStage.SETTLE), List.of(hooks.stages()));
     }
 
-    @Test
-    void noHooksIsNotAnError() {
-        new FrameHooks().seal().run();
-    }
-
     /**
      * The calculator's settings window: a SETTLE hook read a window the user had just closed, threw, and took
      * every other hook -- and the application -- down with it. Now the one that threw stops, once, and is

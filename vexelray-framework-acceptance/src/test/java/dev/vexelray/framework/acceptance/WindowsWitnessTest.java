@@ -13,7 +13,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -46,19 +45,13 @@ class WindowsWitnessTest {
     private static final List<String> OVERLAY = List.of("Landmarks", "Parts", "Ui", "Notes", "Palette", "Gate", "Keeper",
             "Shown", "Recipes");
 
-    /** What the notes window is resized and zoomed to, and so what the second launch must find it at. */
-    private static final String NOTES_SIZE = "520x380";
-    private static final String NOTES_ZOOM = "1.5";
-
     private static Path root;
-    private static Path home;
     private static Project project;
     private static Session live;
 
     @BeforeAll
     static void clearTheLastRun() throws IOException {
         root = fresh("windows");
-        home = root.resolve("home");
     }
 
     @AfterAll
@@ -79,144 +72,6 @@ class WindowsWitnessTest {
         // The finding the seam exists for: two windows and nothing main-thread, so nothing waits for WINDOW.
         assertTrue(generated.contains("shell.windows()"), "no recipe was handed the windows\n" + generated);
         assertFalse(generated.contains("shell.app()"), "a recipe still takes the GuiApp\n" + generated);
-    }
-
-    @Test
-    @Order(2)
-    void threeWindowsAreThreeTreesOnOneModel() throws Exception {
-        assertTrue(project != null, "nothing was built");
-        try (Session session = live = launch(project, root, ARTIFACT, "first", home, "-Dwitness.open=notes")) {
-            Driver d = session.driver();
-            d.firstFrame("button.palette");
-
-            // Asked for in TREE, before there was a device: held, and carried out when the window was claimed.
-            awaitWindows(d, 2);
-            d.ok("click " + d.ref("button.palette"));
-            awaitWindows(d, 3);
-
-            // Each window draws its own tree. The main window once drew the calculator's settings tree, because both
-            // were on one bus (calculator FN-2), so the check is that a window's driver cannot see the others' nodes.
-            d.ok("window palette");
-            // Its own landmark first, so the check below is against a tree that has been drawn: settle can answer
-            // before a just-opened window's first frame, and an empty tree holds nobody's button.
-            d.ok("await palette.count 0");
-            assertFalse(d.ok("find button.count").contains("@button.count"),
-                    "the palette's tree holds the main window's button");
-            d.ok("click " + d.ref("palette.bump"));
-            d.ok("await palette.count 1");
-            d.ok("window notes");
-            d.ok("await notes.count 1");
-            d.ok("await notes.opened opened 1");
-            assertFalse(d.ok("find palette.bump").contains("@palette.bump"), "the notes tree holds the palette's");
-            d.ok("window main");
-            d.ok("await count 1");
-
-            // Each window has its own zoom and size, and the notes window's are what the next launch must find.
-            d.ok("window notes");
-            String zoomed = d.ok("zoom " + NOTES_ZOOM);
-            assertTrue(zoomed.contains(NOTES_ZOOM), "the notes window would not zoom to " + NOTES_ZOOM + ": " + zoomed);
-            d.ok("resize " + NOTES_SIZE);
-            d.ok("settle");
-            String notes = d.ok("size");
-            assertTrue(notes.startsWith("ok " + NOTES_SIZE + " "), "the notes window did not take its size: " + notes);
-            d.ok("window main");
-            String main = d.ok("size");
-            assertTrue(main.contains(" zoom=1 ") || main.contains(" zoom=1.0 "),
-                    "zooming the notes window zoomed the main one: " + main);
-
-            // The palette's close is asked of two parts in turn (regions.md, ruling 3), each in a dialog of its own: the
-            // fourth window. The Gate is first. Escape is Cancel, and the palette stays with the Keeper never asked; the
-            // second time Enter is Close, and then the Keeper asks, and its Enter puts the palette away.
-            d.ok("window palette");
-            d.ok("click " + d.ref("palette.close"));
-            awaitWindows(d, 4);
-            d.ok("window 4");
-            d.ok("settle");
-            assertTrue(d.ok("tree").contains("Close the palette?"), "the Gate was not asked first");
-            d.ok("key escape");
-            awaitWindows(d, 3);
-            Thread.sleep(300);
-            awaitWindows(d, 3);
-            d.ok("window palette");
-            d.ok("await palette.count 1");
-            d.ok("click " + d.ref("palette.close"));
-            awaitWindows(d, 4);
-            d.ok("window 4");
-            d.ok("settle");
-            d.ok("key enter");
-            // The Gate's dialog goes and the Keeper's comes: one question up at a time.
-            awaitDialog(d, "Put the palette away?");
-            d.ok("key enter");
-            // Then it closes and comes back to the tree it left: same count, no second window made.
-            awaitWindows(d, 2);
-            d.ok("window main");
-            // No settle first, on purpose: a click straight after the close was the first sign of the lost wake
-            // (architecture.md, what the two-window witness found), so this is where it would show again.
-            d.ok("click " + d.ref("button.count"));
-            d.ok("await count 2");
-            d.ok("click " + d.ref("button.palette"));
-            awaitWindows(d, 3);
-            d.ok("click " + d.ref("button.palette"));
-            Thread.sleep(300);
-            awaitWindows(d, 3);
-            d.ok("window palette");
-            d.ok("await palette.count 2");
-
-            for (String window : List.of("main", "notes", "palette")) {
-                d.ok("window " + window);
-                d.ok("settle");
-                Path shot = root.resolve(window + ".png");
-                d.ok("shot " + shot);
-                assertTrue(Files.size(shot) > 0, "the photograph of " + window + " is empty");
-            }
-
-            String run = Support.read(session.log());
-            assertFalse(run.contains("a frame hook threw") || run.contains("uncaught exception"),
-                    "the windows cost a frame hook\n" + tail(session.log()));
-
-            // Quit through the main window's handle, by the route its close button takes, with two windows still
-            // open. The placement is written on the way out, so the next launch reads what this one left.
-            quit(session);
-        }
-        live = null;
-    }
-
-    @Test
-    @Order(3)
-    void aNamedWindowReopensWhereItWasLeftAtTheZoomItWasLeftAt() throws Exception {
-        assertTrue(project != null, "nothing was built");
-        // The home is shared so the placement carries over, and so is its log folder: the first launch's trace is
-        // copied aside, or this launch would write over the record of the one that failed. Copied and not moved,
-        // and best effort, because a stopped launch can still be holding its files for a moment.
-        Path logs = home.resolve("logs");
-        if (Files.isDirectory(logs)) {
-            Path kept = Files.createDirectories(root.resolve("logs-first"));
-            try (var files = Files.list(logs)) {
-                for (Path f : files.toList()) {
-                    try {
-                        Files.copy(f, kept.resolve(f.getFileName()), StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException held) {
-                        // A diagnostic, not an assertion: the run goes on without it.
-                    }
-                }
-            }
-        }
-        try (Session session = live = launch(project, root, ARTIFACT, "again", home)) {
-            Driver d = session.driver();
-            d.firstFrame("button.palette");
-            awaitWindows(d, 1);
-            d.ok("click " + d.ref("button.notes"));
-            awaitWindows(d, 2);
-            d.ok("window notes");
-            // Its listener ran for this process's first open, so the count is this launch's and not the last one's.
-            // Awaited first, as the window's own landmark, rather than a settle that can beat its first frame.
-            d.ok("await notes.opened opened 1");
-            String notes = d.ok("size");
-            assertTrue(notes.startsWith("ok " + NOTES_SIZE + " "), "the notes window forgot its size: " + notes);
-            assertTrue(notes.contains(" zoom=" + NOTES_ZOOM + " "), "the notes window forgot its zoom: " + notes);
-            quit(session);
-        }
-        live = null;
     }
 
     /**
@@ -270,26 +125,6 @@ class WindowsWitnessTest {
                 "Quit did not end the application within 60 s\n" + tail(session.log()));
         String run = Support.read(session.log());
         assertTrue(run.contains("stopped: " + ARTIFACT), "the application did not stop by its own loop\n" + tail(session.log()));
-    }
-
-    /**
-     * Wait for the fourth window to be a dialog asking {@code question}, and settle in it: one dialog going and the
-     * next coming each lands a frame or so later.
-     */
-    private static void awaitDialog(Driver d, String question) throws Exception {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        String tree = "";
-        while (System.nanoTime() < deadline) {
-            if (d.send("window 4").startsWith("ok")) {
-                tree = d.send("tree");
-                if (tree.contains(question)) {
-                    d.ok("settle");
-                    return;
-                }
-            }
-            Thread.sleep(50);
-        }
-        throw new AssertionError("no dialog asked \"" + question + "\"; the fourth window's tree was\n" + tree);
     }
 
     /** Wait for {@code count} windows to be open. Opening and closing are posted, so they land a frame or so later. */

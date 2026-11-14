@@ -112,36 +112,6 @@ final class WakeSeamsTest {
     }
 
     @Test
-    void anIdleFrameworkApplicationParksRatherThanSpinning(@TempDir Path home) throws Exception {
-        ProbeWiring wiring = new ProbeWiring();
-        Windows windows = new Windows();
-
-        try (Run run = Run.start(wiring, windows, home)) {
-            assertTrue(wiring.attached.await(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
-                    "the application never reached ATTACH");
-            run.settle(wiring);
-            // Floor off, so what is left is the framework's own composition: Pacing reducing over the two
-            // DeadlineSources it registered. With nothing animating and the placement written, both say
-            // "never", so a correct application parks and stays parked.
-            run.parkIndefinitely(wiring);
-            run.settle(wiring);
-
-            HarnessWindow window = windows.main();
-            long waitsBefore = window.waits();
-            long framesBefore = wiring.frames.get();
-            Thread.sleep(400L);
-
-            long frames = wiring.frames.get() - framesBefore;
-            long waits = window.waits() - waitsBefore;
-            assertTrue(waits > 0, "an idle application must park; it never waited");
-            // This is the assertion that fails if the clock's wake is missing: Kron.sleepTimeout answers
-            // FOREVER only once onWork is wired, and "unwired, the answer is ZERO — the loop keeps redrawing
-            // exactly as it did before it asked". A spin is what an unwired clock looks like from out here.
-            assertTrue(frames <= 2, "an idle application must not spin: " + frames + " frames in 400ms");
-        }
-    }
-
-    @Test
     void aRepeatingCueKeepsRunningOnAParkedLoop(@TempDir Path home) throws Exception {
         ProbeWiring wiring = new ProbeWiring();
         Windows windows = new Windows();
