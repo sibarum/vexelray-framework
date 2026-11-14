@@ -429,6 +429,17 @@ mode, and choosing the mode is choosing it. *(held for 0.1's lanes, by `Watchdog
 share of a round watched by its own gauge, so a wedged declared lane is reported by its name and the lanes waiting
 for it at the round's end are not)*
 
+**T6.6 — A lent device queue is given after the device and taken back before it.** *Ruled 2026-11-14* (vexelray-gui's
+`docs/plans/device-feed.md` D). A part that writes on the GPU asks for a `DeviceQueue` (compute or transfer) in its
+constructor, as it asks for anything else the wiring provides. The wiring hands it one once the application's device
+exists, so a part holding one is built in `WINDOW`'s phase or later, and asking for it from an earlier phase is the
+same compile error as any value asked for before it exists. At shutdown the queue is taken back after the part's run
+has stopped (T6.2) and before the device is closed; a submission still in flight on it is waited for there, on the
+shutdown path, never in a frame. **Why:** no application code holds the `GuiApp` (T7.1, T2.2), so the only other way
+to a queue is `AppCompute.lend(GuiApp)` by hand, and a queue that outlives its device is a crash in the driver, not an
+exception. Declared, both mistakes move left. *(owed, device-feed step 4. Held, when built, by a test of the shutdown
+order with a queue held, and the processor's case for a `DeviceQueue` asked for before `WINDOW`)*
+
 ## 7. The main thread and the API surface
 
 **T7.1 — No application code runs on the main thread** (ruling 4). One exception is named, and only one: a
@@ -516,7 +527,13 @@ that one producer off the GUI thread writes and a part's asked half reads, is on
 handing something in, with one writer, one reader, no lock in the read and nothing called across it, and it is how
 pixels made off the GUI thread reach a part without crossing the bus. *Built 2026-10-31 as vexelray-gui's `Feed`*
 (frame-contract.md D): device-free, its slots in the heap, each renderer uploading the slot shown; the processor
-accepts a `Feed` as a handle in a payload and in a view's drawn state, and nowhere else (`Shareable.FEED`). *(owed, phase 5. Held, when built, by a test that reads the shell's and
+accepts a `Feed` as a handle in a payload and in a view's drawn state, and nowhere else (`Shareable.FEED`). *Added
+2026-11-14:* **the device feed** is the same entry with its slots on the application's device (vexelray-gui's
+`docs/plans/device-feed.md` A). The producer writes a slot on a lent queue (T6.6) and hands it over with the timeline
+value its submission signals; a slot is shown only once that value is reached, read without waiting, and comes free
+on the fence of the frame that last sampled it. It adds no lock, no wait on the GUI thread and no call across: it is
+still one writer, one reader, and a handle in a payload. It is the only new shared memory the device work brings.
+*(owed, phase 5. Held, when built, by a test that reads the shell's and
 core's sources against the list. In 0.1 `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` hold
 locks and volatiles for state the main thread and the handler pool both touched)*
 
@@ -592,7 +609,14 @@ same seam as its input handlers, `Seams.ask`, which is the widget library's as w
 `spi`, which no `@View` may import). It is library code, so the library's tests hold it to the asked half's rules,
 as they hold a widget's click and key handlers; the processor checks an application's `@Draw` only. vexelray-codec's
 `ImageView` and `VideoView` are the first. Which seam is whose, and how a widget writes and tests its asked half:
-vexelray-gui's `docs/reference/seams.md`.
+vexelray-gui's `docs/reference/seams.md`. *Added 2026-11-14:* **a technique's `record`** runs on the GUI thread too,
+and is not a third half. A technique view (vexelray-gui's `docs/plans/device-feed.md` C) is a node whose pixels a
+`RenderTechnique` records into the frame; the asked half chooses (the slot, the camera, a blend) through `Drawn`, and
+the technique draws what was chosen. A technique is declared, never called: the host realizes it, records it once per
+frame the node is drawn, and closes it. It is library code, as a widget's asked half is, held to vexelray's
+`techniques.md` (one thread, nothing made in `record`, never blocking) by its own tests, an application's own
+technique included; the processor checks that it is declared and not called directly, and does not read `record`,
+whose body is Vulkan through Panama. *Ruled 2026-11-13 (device-feed open question 2). Owed, device-feed step 4.*
 **Why:** drawing, presentation and pacing a video are one thing, the author's ruling, and a list of exceptions grows
 by one door per kind of moving thing. A declared step is already not a callback (T7.2), and the asked half is the
 same kind of declaration with a frame's conditions added. *(partly held. The host half is built in vexelray-gui
@@ -621,7 +645,7 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **3 Ownership** | T3.1, T3.7, T3.8 | | T3.3 | | T3.4, T3.6 | T3.2, T3.5, T3.9 | |
 | **4 Channels** | T4.3, T4.6 | T4.1, T4.2, T4.5, T4.7, T4.8 | | | | | T4.4 |
 | **5 Completion** | | T5.1, T5.3, T5.5, T5.6, T5.7, T5.8 | | | | T5.4 | T5.2 |
-| **6 Lifecycle** | T6.4 | T6.1, T6.2, T6.5 | | | T6.3 | | |
+| **6 Lifecycle** | T6.4 | T6.1, T6.2, T6.5, T6.6 | | | T6.3 | | |
 | **7 Main thread** | | T7.1, T7.2, T7.3, T7.4, T7.5, T7.6 | | | | | |
 
 Where a rule is held for its 0.1 form and owed for its 0.2 form, it is counted as owed: what the column answers is
