@@ -52,6 +52,7 @@ optional ones that add pictures and video, shipping, and simulations.
 | --- | --- |
 | `vexelray-build` | The Maven plugin that stamps each build with its exact source. Every other build uses it |
 | `intrabuf` | Serialization the message bus carries its envelopes in |
+| `vexelray-fields` | Shapes as fields: signed distance fields and the SDG drawing format |
 | `atchung` | The typed message bus, and the logger nearly every repository uses |
 | `supirvast` | The expression language the engine's shaders are written in |
 | `dxgi-bridge` | Presentation on Windows |

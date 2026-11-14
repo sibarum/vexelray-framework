@@ -13,6 +13,7 @@ clones and installs them in this order, because each needs the ones before it:
 | --- | --- |
 | [`vexelray-build`](https://github.com/sibarum/vexelray-build) | A Maven plugin that stamps each build with the exact source it came from. Every repository below uses it in its build, your project too, so it goes first |
 | [`intrabuf`](https://github.com/sibarum/intrabuf) | Serialization the message bus carries its envelopes in |
+| [`vexelray-fields`](https://github.com/sibarum/vexelray-fields) | Shapes as fields: signed distance fields (SDF, MSDF, MTSDF) and the SDG drawing format, which `vexelray`'s canvas draws |
 | [`atchung`](https://github.com/sibarum/atchung) | The typed message bus and the logger nearly every repository uses, with elektroq, the queue and transports under the bus |
 | [`supirvast`](https://github.com/sibarum/supirvast) | The expression language the engine's shaders are written in |
 | [`dxgi-bridge`](https://github.com/sibarum/dxgi-bridge) | Presentation on Windows |

@@ -17,7 +17,7 @@
 # before it.
 set -euo pipefail
 
-STACK=(vexelray-build intrabuf atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper
+STACK=(vexelray-build intrabuf vexelray-fields atchung supirvast dxgi-bridge kronometer tactroller vexelray imagelib-wrapper
        vexelray-gui ffmpeg-wrapper vexelray-framework vexelray-codec)
 BRANCHES=(v0.2 develop)
 ORIGIN=https://github.com/sibarum
