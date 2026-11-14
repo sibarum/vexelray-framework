@@ -87,7 +87,9 @@ final class SourcesTest {
                 assertTrue(l.text().equals("hello from vexel-source-reader"), l.text());
                 peers.add(l.peer());
                 assertEquals(Cause.source("source test.Reader", Cause.Kind.IO).index(),
-                        Cause.sourceOf(causes.poll()), "a source's message carries the source's cause");
+                        // Added after the line, on the subscriber's thread: waited for as the line is.
+                        Cause.sourceOf(causes.poll(5, TimeUnit.SECONDS)),
+                        "a source's message carries the source's cause");
             }
             peers.sort(null);
             assertEquals(List.of("a", "b"), peers, "two keys, two runs, side by side");
