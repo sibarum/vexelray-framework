@@ -1332,11 +1332,10 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       readout `ottermate await` can read.
 - [ ] **The lockup names the `-gui` module, not the application** (FN-6, template): "mainframe-gui" under
       `exec:exec`, from `About.name` preferring the build's name.
-- [ ] **A widget's per-character edge fills a view's 64-slot mailbox** (FN-8, vexelray-gui and vex-suite-common): one
-      `ottermate type` of 150 characters halted MainFrame on `TerminalScreen.Sent`. A frame's typing as one message,
-      or a view draining a topic published on its own thread within the same frame, would need no capacity guess.
-      **Proposed 2026-11-15, not ruled:** [components.md](components.md) section 15, question 2 (the dispatcher hands a
-      frame at most 32 key events).
+- [ ] **MainFrame's view still raises its `sent` mailbox to 1024** (FN-8's leftover, MainFrame). Since 2026-11-15 a frame
+      delivers at most 32 key presses and typed characters ([components.md](components.md) section 15, question 2;
+      vexelray-gui's `InputDispatcher.KEYS_PER_FRAME`), so the default 64 holds any burst; the raise can go, once checked
+      live with `ottermate type` of a long line.
 - [ ] **A fast source's messages are not merged** (FN-9's other half, vexelray-gui and vex-suite-common). The halt is
       gone (2026-11-15, [components.md](components.md) section 15: a `@Source`'s send waits for room), but a source that
       reads in small pieces (ConPTY: a line per read) still sends one message per read, and `TerminalScreen.feed`

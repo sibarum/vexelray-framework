@@ -779,7 +779,7 @@ idea it can be, without compromising the principles.
 pumps, the ordered stop); the ordered pump and the per-key question on a pumped subscription in atchung; the processor's declaration and graph node. Held, when built, by a
 `DaemonsTest` and the processor's daemon cases, and shown by A6's example in the template.
 
-### 15. Flow control: a producer faster than its hearer (question 1 ruled 2026-11-15; question 2 proposed)
+### 15. Flow control: a producer faster than its hearer (both questions ruled 2026-11-15)
 
 **Found by MainFrame on v0.2** (its `docs/framework-notes.md`, FN-8 and FN-9). Two ways ordinary use halts the
 application through ruling 5 (a full edge mailbox halts), neither of them a bug in the application:
@@ -834,8 +834,9 @@ superseded for sources and stands for every other sender.
   grows memory without bound; and it needs a merge function per payload type. *And* **a `Shown`-style credit protocol
   built into the framework**: the same effect as waiting, with a message type every source would have to answer.
 
-**Question 2, FN-8: at most so many keys in one frame.** *Recommended: the input dispatcher hands a frame at most 32
-key events, and holds the rest for the next frame,* as it already holds the rest of a frame's input after a chord that
+**Question 2, FN-8: at most so many keys in one frame.** **Ruled by the author 2026-11-15, as recommended**, for the
+reason below: it bounds every widget's per-key edges without changing a widget. *Recommended: the input dispatcher
+hands a frame at most 32 key events, and holds the rest for the next frame,* as it already holds the rest of a frame's input after a chord that
 moves the keyboard (`InputDispatcher.holdRest`, Vexplore FN-5). **Why:** a widget that publishes an edge per key then
 publishes at most 32 a frame, under the default capacity 64, for every widget, with no widget changed; a view drains
 its mailboxes every frame. A person never meets it, so it costs only a scripted burst a few frames (150 characters in
@@ -844,6 +845,11 @@ still overflow, and a burst arrives later than it was typed by a frame or two. *
 frame's edges (`TerminalScreen` sending a frame's typing as one `Sent`), which fixes the one widget found and leaves the
 next to be found the same way; and draining a view's mailbox in the frame it was published on its own thread, which
 reorders a view's deliveries against everything else it hears.
+
+**Built 2026-11-15** in vexelray-gui: `InputDispatcher.KEYS_PER_FRAME` (32). A frame counts the key presses and typed
+characters it delivers; past 32, that event and everything after it are held for the next frame as `holdRest` holds,
+so their order with clicks and releases is kept, and a frame with input held owes the next one, so `settle` waits it
+out. Held by `TextInputTest.aBurstOfKeysIsSpreadOverFramesInOrder` (150 characters in five frames, in order).
 
 ## Build order once the rulings are taken
 
