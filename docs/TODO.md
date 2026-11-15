@@ -578,8 +578,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `TechniqueView` (`Node.image(view)`), hosted in the frame's pre-pass with a ring of targets at the view's exact
       size, its pictures bound from device feeds and its numbers set by `@Draw` through `Drawn.param`; this repo's
       processor refusing a technique called outside its host (`TechniqueCalls`) and accepting a `TechniqueView` in a
-      view's state; the compute queue taken back before the device closes. *What still keeps this open:* a technique
-      view seen in a running window; a widget that sizes the view from its box; depth in a view's targets.
+      view's state; the compute queue taken back before the device closes. *Since:* seen in a running window (vexelray-gui's `TechniqueWindowTest`) and sized
+      from its box by `TechniquePane`. *What still keeps this open:* depth in a view's targets, for a technique that
+      composites by depth (the SDF march over a mesh).
 
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
