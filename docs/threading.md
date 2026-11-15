@@ -437,7 +437,8 @@ same compile error as any value asked for before it exists. At shutdown the queu
 has stopped (T6.2) and before the device is closed; a submission still in flight on it is waited for there, on the
 shutdown path, never in a frame. **Why:** no application code holds the `GuiApp` (T7.1, T2.2), so the only other way
 to a queue is `AppCompute.lend(GuiApp)` by hand, and a queue that outlives its device is a crash in the driver, not an
-exception. Declared, both mistakes move left. *(owed, device-feed step 4. Held, when built, by a test of the shutdown
+exception. Declared, both mistakes move left. It grows what is there: `Shell.computeQueue()`, a root from `WINDOW`
+one component may take, is the first case, given back today only by the device's own close. *(owed, device-feed step 4. Held, when built, by a test of the shutdown
 order with a queue held, and the processor's case for a `DeviceQueue` asked for before `WINDOW`)*
 
 ## 7. The main thread and the API surface
@@ -529,9 +530,10 @@ pixels made off the GUI thread reach a part without crossing the bus. *Built 202
 (frame-contract.md D): device-free, its slots in the heap, each renderer uploading the slot shown; the processor
 accepts a `Feed` as a handle in a payload and in a view's drawn state, and nowhere else (`Shareable.FEED`). *Added
 2026-11-14:* **the device feed** is the same entry with its slots on the application's device (vexelray-gui's
-`docs/plans/device-feed.md` A). The producer writes a slot on a lent queue (T6.6) and hands it over with the timeline
-value its submission signals; a slot is shown only once that value is reached, read without waiting, and comes free
-on the fence of the frame that last sampled it. It adds no lock, no wait on the GUI thread and no call across: it is
+`docs/plans/device-feed.md` A). A producer on the CPU writes a slot's mapped staging on its own thread, and the frame
+that first shows the slot lands it on the GPU; a producer on the GPU writes the slot on a lent queue (T6.6) and hands
+it over with the timeline value its submission signals, and the slot is shown only once that value is reached, read
+without waiting. Either way a slot comes free behind a fence taken after the frame that last sampled it. It adds no lock, no wait on the GUI thread and no call across: it is
 still one writer, one reader, and a handle in a payload. It is the only new shared memory the device work brings.
 *(owed, phase 5. Held, when built, by a test that reads the shell's and
 core's sources against the list. In 0.1 `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` hold
