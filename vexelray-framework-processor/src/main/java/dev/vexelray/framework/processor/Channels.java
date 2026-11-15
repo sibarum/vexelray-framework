@@ -226,6 +226,7 @@ final class Channels {
         Set<String> heard = new HashSet<>();
         Set<String> sent = new HashSet<>();
         Set<TypeElement> closeHearers = new LinkedHashSet<>();
+        Set<String> answerHearers = new java.util.TreeSet<>();
         // The parts that send CloseAnswer themselves: by a sender they take, or by @Publishes on them or a method of theirs.
         Set<Element> answerers = new HashSet<>();
         for (Mailbox m : all) {
@@ -237,6 +238,9 @@ final class Channels {
                 heard.add(Topics.name(m.payload()));
                 if (Topics.name(m.payload()).equals(Framework.CLOSE_REQUESTED)) {
                     closeHearers.add(m.component());
+                }
+                if (Topics.name(m.payload()).equals(Framework.ANSWER)) {
+                    answerHearers.add(m.component().getQualifiedName().toString());
                 }
             }
         }
@@ -264,6 +268,9 @@ final class Channels {
                         if (Topics.name(payload).equals(Framework.CLOSE_REQUESTED)) {
                             closeHearers.add(component);
                         }
+                        if (Topics.name(payload).equals(Framework.ANSWER)) {
+                            answerHearers.add(component.getQualifiedName().toString());
+                        }
                     }
                 }
             }
@@ -288,7 +295,18 @@ final class Channels {
         writes(destinations, heard);
         destinations(destinations, heard, jobs(jobs, heard, application), application);
         closes(closeHearers, answerers);
+        this.answerHearers = List.copyOf(answerHearers);
     }
+
+    /**
+     * The parts that hear {@code Answer}, by qualified name and sorted: the addresses an {@code Ask}'s answer can reach,
+     * since each part is handed only the answers addressed to it. After {@link #check}.
+     */
+    List<String> answerHearers() {
+        return answerHearers;
+    }
+
+    private List<String> answerHearers = List.of();
 
     /**
      * The parts a window's close is asked of, in the order they are asked: every part that hears

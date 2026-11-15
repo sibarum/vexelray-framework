@@ -116,6 +116,16 @@ public abstract class Wiring {
     }
 
     /**
+     * The parts that hear {@link dev.vexelray.framework.core.Answer}, by qualified name: the addresses an
+     * {@link dev.vexelray.framework.core.Ask}'s answer can reach. The generated wiring lists them, possibly none, so a
+     * question offering a choice from a part not among them is said in the log, once; {@code null}, the default, is a
+     * hand-written wiring, which declares nothing to check against.
+     */
+    public java.util.List<String> answerHearers() {
+        return null;
+    }
+
+    /**
      * The resource holding the application's mark, named as {@code Class.getResource} names one — relative to this
      * wiring's package, which is the application's — or {@code null} to wear the framework's.
      *

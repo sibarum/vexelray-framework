@@ -261,11 +261,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         syntactic check without attribution is not an option: it cannot tell a captured local from a class name.
         **Ruled and built 2026-10-26: the third option** ([components.md](components.md), section 10): slow work as a
         declared `@Job` whose result is published on a reply topic, so there is no lambda to capture with and the
-        check reads declarations only. The template's disk work is four jobs. **Still to do before v1, and breaking:**
-        withdraw `Lanes.offload()` and `Gui.offload()` from application parts (the *what `Shell` hands over* decision,
-        per accessor), since until then a lambda handed to either is unchecked. The template's `Buffer` still uses
-        `gui.async` for its Markdown spans, which is CPU work on the view's own data and wants an answer of its own
-        (a job taking the text and answering the spans needs `List<Span>` to cross, which the copier would allow).
+        check reads declarations only. The template's disk work is four jobs. **Withdrawn since, checked 2026-11-15:**
+        an application part may not take `Lanes` (the processor's `Framework.REFUSED`, naming `@Job` as the fix), nor
+        the `Shell`; `vexelray-gui` has no public `offload` or `async` left; and the template's Markdown spans are a job
+        (`MarkText`), since a `List<Span>` crosses in a payload (ROADMAP fork 6).
       - **Before v1, with the component model.** **Done 2026-10-02:** the copier's check half (a `@Subscribe` payload must be deeply immutable) and the blocking-cycle
         check (T4.4). **Additive, not built:** the generated copier. **Done 2026-10-19:** the graph exposed as data (the wiring's
         `BUS_GRAPH`, vexelray-inspector `docs/bus-circuit.md`).
@@ -525,13 +524,6 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `@Subscribe` is the one way, `Shell.place`, `Placement`'s constructor, `start` and `subscribe` are package-private,
       and `Placement.superseded()` is deleted. What is left of the sweep is the list above, and it binds the siblings
       `Shell` exposes.
-
-- [ ] **Two parts that ask the person share one id space.** An `Answer` names only its `Ask`'s id, and every part that
-      asks hears every answer, so two parts counting from 1 each act on the other's answers. Found when the windows
-      witness gained a second close answerer ([regions.md](plans/regions.md), step 3's *As built*), whose `Keeper`
-      counts from 2^40 to stay clear of `Gate`. Modules make this common, since each module asks its own questions.
-      It blocks v1 because the fix changes how an `Ask` is made, for example the framework issuing the id or keying
-      `Answer` by the asking part as `CloseRequested` is now, and every application that asks would change with it.
 
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
@@ -1133,10 +1125,6 @@ primary protocol between an application's parts, and friction with it is to be r
 it took is in components.md section 10 (`@Job`, and a configuration listing its module's components and jobs). What
 it found and left:
 
-- [ ] **A message cannot carry a list** (`-processor`, the copier, T2.4). Closing five tabs is five `Closing`
-      messages that each say how many make the set, and the editor collects them, because two mailboxes are in no
-      order with each other. It works and it is checked, and it is ceremony every application with a set will write
-      again. The generated copier (build order, step 3) would let a `List` of records cross. Additive.
 - [ ] **Four applications still commit their icons** (MainFrame, PhaseArray, VexelRay IDE, Vexplore; SDG plan, slice 5).
       Rasterware makes every `.ico` from its drawings at build time (the icon plugin's `pair` goal, `<icon>` and
       `<small>`), and `rc.exe /i target/generated-rc` links it; the others still carry hand-made ones, and the template
@@ -1145,13 +1133,6 @@ it found and left:
       arrays (page sizes, a look's values, the pages' `Pixels`), so it was refused as a job's reply; ruled 2026-11-08
       to cross as a handle beside `Feed`, trusted to be built once and never changed. The copier, or pages that are
       feeds, would take the trust away. Additive.
-- [ ] **A per-item set meets the FAIL bound.** One message per tab, into a mailbox of the default capacity 64, halts the
-      application at the sixty-fifth tab (ruling 5). The template raises those mailboxes to 4096; nothing tells an
-      application it needs to. A set message, once lists can cross, removes the case.
-- [ ] **A component left off its module's list is built by nobody, silently** (`-processor`). `-core`'s `Core` lists its
-      parts because the processor compiling `-gui` cannot see them; forget one and there is no error. The processor
-      compiling `-core` could warn about a `@Component` or `@Job` no configuration in its own module lists, since that
-      compilation sees both. Additive.
 - [x] **The close gate is a callback** (`-shell`, `Window.onClose`). Done 2026-10-29 (ROADMAP phase 5): the
       framework keeps `proceed` and `cancel` under a ticket on the main thread, publishes `CloseRequested(window,
       ticket)` and hears `CloseAnswer(ticket, proceed)`, and asks only when a part hears the question. `CloseGate`,

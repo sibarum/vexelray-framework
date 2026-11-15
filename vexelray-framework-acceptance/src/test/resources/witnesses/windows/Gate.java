@@ -76,7 +76,7 @@ final class Gate {
     public void question(Question q) {
         long id = ++asked;
         questions.add(id);
-        asks.send(new Ask(id, "Witness question", "Count one more?", List.of("Count", "Cancel")));
+        asks.send(new Ask(id, "Witness question", "Count one more?", List.of("Count", "Cancel"), Gate.class));
     }
 
     @Subscribe
@@ -87,7 +87,8 @@ final class Gate {
         }
         long id = ++asked;
         closing.put(id, r.ticket());
-        asks.send(new Ask(id, "Close the palette?", "It keeps its count either way.", List.of("Close", "Cancel")));
+        asks.send(new Ask(id, "Close the palette?", "It keeps its count either way.", List.of("Close", "Cancel"),
+                Gate.class));
     }
 
     @Subscribe

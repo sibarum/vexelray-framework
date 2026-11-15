@@ -55,6 +55,11 @@ final class Framework {
      */
     static final String CLOSE_REQUESTED = "dev.vexelray.framework.core.CloseRequested";
     static final String CLOSE_ANSWER = "dev.vexelray.framework.core.CloseAnswer";
+    /**
+     * What a person answered a question with, addressed to the part that asked: each part that hears it is handed only
+     * its own, by its qualified name, as each part's turn of {@code CloseRequested} is.
+     */
+    static final String ANSWER = "dev.vexelray.framework.core.Answer";
 
     /**
      * A value the framework owns and hands out through a {@code Shell} accessor, from the phase that accessor

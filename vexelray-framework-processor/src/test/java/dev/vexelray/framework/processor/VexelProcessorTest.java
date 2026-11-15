@@ -266,6 +266,7 @@ class VexelProcessorTest {
                     public Wiring again() { return null; }
                     public boolean computeQueue() { return false; }
                     public java.util.List<String> closeHearers() { return java.util.List.of(); }
+                    public java.util.List<String> answerHearers() { return null; }
                     public String icon() { return null; }
                     public void config(Shell shell) {}
                     public void model(Shell shell) {}
@@ -618,6 +619,89 @@ class VexelProcessorTest {
                 """);
         assertEquals(List.of(), plain.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).closeHearers(),
                 "an application that hears no CloseRequested closes its windows when asked");
+    }
+
+    /**
+     * A part in a module with no {@code @VexelApp} is built only if a configuration of that module lists it, and the
+     * application's processor cannot tell one was forgotten. The module's own compilation can, and warns.
+     */
+    @Test
+    void aPartInALibraryThatNoConfigurationListsIsWarnedAbout() {
+        assertEquals(List.of(), build("""
+                @Component
+                public final class Loose {}
+                """, """
+                @Job
+                public final class Stray { public Reply run(Request r) { return new Reply(); }
+                    public record Request() { public static final sibarum.atchung.Topic<Request> TOPIC = sibarum.atchung.Topic.edge(Request.class); }
+                    public record Reply() { public static final sibarum.atchung.Topic<Reply> TOPIC = sibarum.atchung.Topic.edge(Reply.class); }
+                }
+                """).errors());
+        assertEquals(2, WARNINGS.stream().filter(w -> w.contains("no @Configuration here lists it")).count(),
+                WARNINGS.toString());
+        assertTrue(WARNINGS.stream().anyMatch(w -> w.startsWith("Loose ") && w.endsWith("components = {...}")),
+                WARNINGS.toString());
+        assertTrue(WARNINGS.stream().anyMatch(w -> w.startsWith("Stray ") && w.endsWith("jobs = {...}")),
+                WARNINGS.toString());
+
+        assertEquals(List.of(), build("""
+                @Component
+                public final class Loose {}
+                """, """
+                @Configuration(components = Loose.class)
+                public final class Core {}
+                """).errors());
+        assertTrue(WARNINGS.stream().noneMatch(w -> w.contains("lists it")), "listed: " + WARNINGS);
+
+        assertEquals(List.of(), build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Component
+                public final class Loose {}
+                """).errors());
+        assertTrue(WARNINGS.stream().noneMatch(w -> w.contains("lists it")),
+                "beside the @VexelApp, a part is found where it is declared: " + WARNINGS);
+    }
+
+    /**
+     * Two parts that ask the person used to share one id space, since every part that heard {@code Answer} heard every
+     * answer. Now each is handed only the answers addressed to it, by its qualified name, whether it hears them by a
+     * {@code @Subscribe} or through {@code @Hears} and its inbox, and the wiring lists the addresses that hear.
+     */
+    @Test
+    void aPartHearsOnlyTheAnswersToItsOwnQuestions() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @Component
+                public final class Zeta {
+                    public Zeta(sibarum.atchung.Sender<dev.vexelray.framework.core.Ask> ask) {}
+                    @Subscribe public void answered(dev.vexelray.framework.core.Answer a) {}
+                }
+                """, """
+                @Component @Hears(dev.vexelray.framework.core.Answer.class)
+                @dev.vexelray.framework.api.Publishes(dev.vexelray.framework.core.Ask.class)
+                public final class Alpha { public Alpha(sibarum.atchung.Inbox inbox) {} }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        List<String> hearers = run.answerHearers();
+        assertEquals(2, hearers.size(), hearers.toString());
+        assertTrue(hearers.get(0).endsWith(".Alpha") && hearers.get(1).endsWith(".Zeta"), hearers.toString());
+        List<String> config = run.phase("config");
+        String zeta = hearers.get(1);
+        assertTrue(config.stream().anyMatch(l -> l.startsWith("mailbox " + zeta + " ")
+                        && l.contains("dev.vexelray.framework.core.Answer") && l.endsWith("[" + zeta + "]")),
+                "Zeta's mailbox is keyed by its own address: " + config);
+
+        Compiled plain = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), plain.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).answerHearers(),
+                "a generated wiring answers even when nothing hears: none is an answer, and null is a hand-written one");
     }
 
     @Test
@@ -3574,6 +3658,12 @@ class VexelProcessorTest {
             return (List<String>) wiring.getClass().getSuperclass().getMethod("closeHearers").invoke(wiring);
         }
 
+        /** What the wiring answers {@code Wiring.answerHearers}: the addresses an {@code Ask}'s answer can reach. */
+        @SuppressWarnings("unchecked")
+        List<String> answerHearers() throws Exception {
+            return (List<String>) wiring.getClass().getSuperclass().getMethod("answerHearers").invoke(wiring);
+        }
+
         /** What the wiring answers {@code Wiring.busGraph}: the declared message graph, as text. */
         String busGraph() throws Exception {
             return (String) wiring.getClass().getSuperclass().getMethod("busGraph").invoke(wiring);
@@ -3615,6 +3705,9 @@ class VexelProcessorTest {
      * @param against  a class directory to compile against, or {@code null}
      * @param discover find the processor through the processor path, rather than being handed one
      */
+    /** What the last compilation warned, beside the errors it returns. */
+    private static final List<String> WARNINGS = new ArrayList<>();
+
     private static List<String> compile(Map<String, String> sources, Path out, Path against, boolean discover)
             throws IOException {
         JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
@@ -3640,10 +3733,13 @@ class VexelProcessorTest {
             }
             task.call();
         }
+        WARNINGS.clear();
         List<String> errors = new ArrayList<>();
         for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
             if (d.getKind() == Diagnostic.Kind.ERROR) {
                 errors.add(d.getMessage(Locale.ROOT));
+            } else if (d.getKind() == Diagnostic.Kind.WARNING || d.getKind() == Diagnostic.Kind.MANDATORY_WARNING) {
+                WARNINGS.add(d.getMessage(Locale.ROOT));
             }
         }
         return errors;

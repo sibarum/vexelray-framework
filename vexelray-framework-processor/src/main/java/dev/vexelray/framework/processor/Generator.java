@@ -901,6 +901,15 @@ final class Generator {
             }
             src.append(");\n    }\n");
         }
+        // Each Ask's answer is addressed to the part that asked; these are the addresses something hears, so the dialogs
+        // can say when a choice is offered from anywhere else. Always written, an empty list included: none is an answer.
+        src.append("\n    @Override\n    public java.util.List<String> answerHearers() {\n        return java.util.List.of(");
+        String answerComma = "";
+        for (String h : channels.answerHearers()) {
+            src.append(answerComma).append(literal(h));
+            answerComma = ", ";
+        }
+        src.append(");\n    }\n");
         // The mark, by name: the shell decodes it at WINDOW, beside this class, so the name is resolved exactly as
         // Declarations.icon found it. Registered for native-image here too, so no application writes that by hand --
         // and its window and background variants with it (pix-window.ico and pix-background.ico beside pix.ico, see
@@ -1053,7 +1062,9 @@ final class Generator {
                 keys.append(", ").append(literal(k));
             }
             // Each part is asked to close in its turn, by a request addressed to it: it hears only those.
-            if (Topics.name(m.payload()).equals(Framework.CLOSE_REQUESTED)) {
+            // And hears only the answers to its own questions, by the same address.
+            if (Topics.name(m.payload()).equals(Framework.CLOSE_REQUESTED)
+                    || Topics.name(m.payload()).equals(Framework.ANSWER)) {
                 keys.append(", ").append(literal(b.component.getQualifiedName().toString()));
             }
             String topic = topic(app, m.method(), m.payload());

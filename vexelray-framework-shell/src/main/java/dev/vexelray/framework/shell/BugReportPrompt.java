@@ -64,7 +64,7 @@ final class BugReportPrompt {
             t.setDaemon(true);
             t.start();
         });
-        main.mailbox(Answer.TOPIC, this::answered, 4);
+        main.mailbox(Answer.TOPIC, this::answered, 4, java.util.Set.of(OwnAsks.FROM));
         main.mailbox(Picked.TOPIC, this::picked, 4);
     }
 

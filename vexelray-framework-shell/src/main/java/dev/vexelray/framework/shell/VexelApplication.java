@@ -332,6 +332,8 @@ public final class VexelApplication {
         // Every window's close is asked of each part that hears CloseRequested, in turn, and the answers are heard in
         // this tree's frame, on the main thread, where the close routes run.
         shell.closes(new Closes(shell.bus(), wiring.closeHearers(), gui));
+        // Each Ask's answer goes back to the part that asked; the dialogs say when a choice goes to a part that hears none.
+        shell.answerHearers(wiring.answerHearers());
         // Registered after the Gui so it closes before it: the clock outlives the window but not the process.
         KronoGui krono = disposer.register(KronoGui.attach(gui));
         shell.krono(krono);

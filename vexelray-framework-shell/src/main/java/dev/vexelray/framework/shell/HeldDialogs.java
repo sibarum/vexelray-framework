@@ -10,8 +10,12 @@ import sibarum.atchung.Atchung;
 import sibarum.atchung.Sender;
 import sibarum.atchung.Topic;
 
+import sibarum.probe.Log;
+
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -34,6 +38,8 @@ final class HeldDialogs implements Dialogs {
     /** A {@code Modal} on its way to the frame. The framework's own channel, so no application declares it. */
     private static final Topic<Modal> MODALS = Topic.edge(Modal.class);
 
+    private static final Log LOG = Log.of("framework.shell");
+
     private final Atchung bus;
     private final Sender<Answer> answers;
     private final Sender<Picked> picked;
@@ -44,6 +50,10 @@ final class HeldDialogs implements Dialogs {
     // Main thread, in the frame, from here down.
     private Dialogs target;
     private final List<Consumer<Dialogs>> held = new ArrayList<>();
+    /** The parts that hear {@code Answer}, from the generated wiring; null for a hand-written one, which says nothing. */
+    private Set<String> hearers;
+    /** The askers already reported as heard by nobody: once each. */
+    private final Set<String> unheard = new HashSet<>();
 
     HeldDialogs(Atchung bus) {
         this.bus = bus;
@@ -62,6 +72,14 @@ final class HeldDialogs implements Dialogs {
         for (Runnable publish : before) {
             publish.run();
         }
+    }
+
+    /**
+     * The parts that hear {@code Answer} ({@code Wiring.answerHearers}), so that a question with a choice in it, from a
+     * part that hears none of the answers, is said in the log. Startup, main thread, before the first frame.
+     */
+    void hearers(List<String> hearers) {
+        this.hearers = Set.copyOf(hearers);
     }
 
     /** Ask {@code target} from now on, after everything held. Once; on the main thread, or before the first frame. */
@@ -114,10 +132,17 @@ final class HeldDialogs implements Dialogs {
 
     /** An {@link Ask}, as a dialog whose buttons each send its {@link Answer}. */
     private void asked(Ask a) {
+        if (hearers != null && a.buttons().size() > 1 && !a.from().equals(OwnAsks.FROM)
+                && !hearers.contains(a.from()) && unheard.add(a.from())) {
+            LOG.warn("\"" + a.title() + "\" offers a choice, and its answer goes to " + a.from() + ", which hears no"
+                    + " Answer, so the choice reaches nobody. Name the asker by the class of the part that hears"
+                    + " Answer (new Ask(id, title, message, buttons, Part.class)), or give the asker an @Subscribe"
+                    + " for Answer");
+        }
         Modal modal = Modal.of(a.title(), a.message());
         int last = a.buttons().size() - 1;
         for (int i = 0; i <= last; i++) {
-            Answer pressed = new Answer(a.id(), i);
+            Answer pressed = a.answer(i);
             if (i == 0) {
                 modal.defaultButton(a.buttons().get(i), answers, pressed);
             } else if (i == last) {

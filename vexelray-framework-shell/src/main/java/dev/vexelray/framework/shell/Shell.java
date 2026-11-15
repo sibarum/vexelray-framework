@@ -592,6 +592,13 @@ public final class Shell {
         return dialogs.decided();
     }
 
+    /** The parts that hear {@code Answer}, for the dialogs to say when a choice reaches nobody. Null says nothing. */
+    void answerHearers(java.util.List<String> hearers) {
+        if (hearers != null) {
+            dialogs.hearers(hearers);
+        }
+    }
+
     /** Put the framework's dialogs in place, at the start of {@link Phase#ATTACH}. */
     void frameworkDialogs(Dialogs frameworks) {
         dialogs.target(frameworks);

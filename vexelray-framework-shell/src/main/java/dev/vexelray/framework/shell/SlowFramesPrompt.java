@@ -42,7 +42,7 @@ final class SlowFramesPrompt implements SlowFrames.Offer {
     /** Hear answers in {@code main}'s frame, the main window's. Main thread. */
     SlowFramesPrompt(OwnAsks asks, Gui main) {
         this.asks = asks;
-        main.mailbox(Answer.TOPIC, this::answered, CAPACITY);
+        main.mailbox(Answer.TOPIC, this::answered, CAPACITY, java.util.Set.of(OwnAsks.FROM));
     }
 
     /** Main thread: the frame loop asks from its own iteration. */

@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.core.Answer;
 import dev.vexelray.framework.core.CloseRequested;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Sender;
@@ -47,6 +48,11 @@ public final class Inboxes {
         Inbox inbox = shell.inbox(name, lane, names);
         if (names.contains(CloseRequested.TOPIC.name())) {
             inbox.only(CloseRequested.TOPIC, Set.of(name));
+        }
+        // And the answers to its own questions, and no other part's: an Ask names its asker, and each part counts its
+        // own ids, so another part's answer with the same id would be acted on as this one's.
+        if (names.contains(Answer.TOPIC.name())) {
+            inbox.only(Answer.TOPIC, Set.of(name));
         }
         return inbox;
     }

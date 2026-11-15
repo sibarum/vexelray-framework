@@ -14,14 +14,22 @@ import java.util.concurrent.atomic.AtomicLong;
  * or a kiosk's as well as the framework's, and run nothing of their own at the press. A place to save is asked the same
  * way, as a {@link PickFile} answered by a {@link dev.vexelray.framework.core.Picked}.
  *
- * <p><b>Negative ids.</b> Every part that hears {@code Answer} hears every answer, so the framework takes the ids an
- * application never does, counting down from -1; an application counts up from its own. Questions and pickers share
- * the count, so no two of the framework's are ever confused.
+ * <p><b>Addressed from {@link #FROM}, and counted down from -1.</b> Every answer goes back to whoever asked, and the
+ * prompts hear only the answers addressed here, so an application's ids, negative ones included, never reach them.
+ * Among themselves the prompts tell their questions apart by id, which is why they share one count. A place to save is
+ * answered by a {@code Picked}, which is not addressed, so a picker's id is still kept clear of an application's by
+ * being negative.
  *
  * <p>The prompts are decided on the main thread, in a frame or in the frame loop. Safe from any thread all the same,
  * because what a prompt starts can finish elsewhere: the bug report says it was saved from the thread that wrote it.
  */
 final class OwnAsks {
+
+    /**
+     * Who the framework's questions are from, and so the address the prompts hear their answers at: one no part of an
+     * application has, since none is this class.
+     */
+    static final String FROM = OwnAsks.class.getCanonicalName();
 
     private final Atchung bus;
     private final AtomicLong last = new AtomicLong();
@@ -33,7 +41,7 @@ final class OwnAsks {
     /** Ask, and return the id its answer will carry. */
     long ask(String title, String message, List<String> buttons) {
         long id = last.decrementAndGet();
-        bus.publish(Ask.TOPIC, new Ask(id, title, message, buttons));
+        bus.publish(Ask.TOPIC, new Ask(id, title, message, buttons, FROM));
         return id;
     }
 

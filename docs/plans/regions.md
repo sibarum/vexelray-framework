@@ -212,7 +212,16 @@ window open and asks no one after. What it changed:
    The quit at the end of the run is asked of both.
 5. **Found: two parts that ask the person share one id space.** An `Answer` names only its question's id, and every
    part that asks hears every answer, so `Keeper` counts from 2^40 to stay clear of `Gate`. A module that asks
-   questions would meet this; it is in [TODO.md](../TODO.md).
+   questions would meet this. **Fixed 2026-11-15, accepted as recommended:** an `Ask` names its asker (`from`, its
+   canonical name, written as a class literal), and its `Answer` is addressed back (`to`) on a topic keyed by it, so
+   each part is handed only its own answers: by `@Subscribe` through a keyed mailbox, by `@Hears` through
+   `Inbox.only`, exactly as each part's turn of `CloseRequested` is. **Why this and not the framework issuing ids:** the
+   asker has to recognise its answer either way, so the asker's own token is inherent, and once answers are addressed
+   any token works, `out.run()` or a counter from 1; an issued id would still reach every hearer. **What it costs:**
+   every `new Ask` names its part, which is a compile error in an application written before (the old four-argument
+   form is gone on purpose, since a silently unaddressed question would be answered to nobody), and a wrong class
+   names a part that never hears the answer: a question with a choice in it from a part that hears no `Answer` is said
+   once in the log (`Wiring.answerHearers`). `Keeper` now counts from 1, as `Gate` does, which is the witness.
 6. **A test that publishes `CloseRequested` on a whole application's bus must address it.** The template's `ViewTest`
    now names `Editor`. MainFrame and text-editor-vexel-demo have the old line in their `ViewTest`, and their quit
    tests go unanswered until they take the same one-line change.

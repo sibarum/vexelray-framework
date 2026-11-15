@@ -24,17 +24,16 @@ import java.util.Map;
 @Component
 final class Keeper {
 
-    /**
-     * Where its question ids start. An {@link Answer} names only its question's id and every part asking hears every
-     * answer, so two parts that ask must keep apart ids; the Gate counts up from 1.
-     */
-    private static final long IDS = 1L << 40;
-
     private final Sender<Ask> asks;
     private final Sender<CloseAnswer> closes;
     /** A palette close waiting on the person: the question's id, and the close's ticket. */
     private final Map<Long, Long> closing = new HashMap<>();
-    private long asked = IDS;
+    /**
+     * Its question ids, counted from 1 as the Gate counts its own: an answer comes back only to the part that asked, so
+     * the two never meet. Before answers were addressed this counted from 2^40 to stay clear of the Gate, which is the
+     * collision this witness now shows is gone.
+     */
+    private long asked;
 
     Keeper(Sender<Ask> asks, Sender<CloseAnswer> closes) {
         this.asks = asks;
@@ -50,7 +49,7 @@ final class Keeper {
         long id = ++asked;
         closing.put(id, r.ticket());
         asks.send(new Ask(id, "Put the palette away?", "Asked second, after the Gate said Close.",
-                List.of("Put away", "Keep")));
+                List.of("Put away", "Keep"), Keeper.class));
     }
 
     @Subscribe

@@ -108,6 +108,10 @@ public final class VexelProcessor extends AbstractProcessor {
     private boolean checked;
     /** Every component and job read so far, so one a round offers and a configuration also lists is checked once. */
     private final Set<TypeElement> parts = new LinkedHashSet<>();
+    /** The components, jobs, sources and destinations declared in this compilation's own sources. */
+    private final Set<TypeElement> declaredHere = new LinkedHashSet<>();
+    /** What a {@code @Configuration} in this compilation lists. */
+    private final Set<TypeElement> listedHere = new java.util.HashSet<>();
 
     @Override
     public void init(ProcessingEnvironment env) {
@@ -163,6 +167,7 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(Component.class)) {
             component((TypeElement) e);
+            declaredHere.add((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(View.class)) {
             component((TypeElement) e);
@@ -179,12 +184,15 @@ public final class VexelProcessor extends AbstractProcessor {
         }
         for (Element e : round.getElementsAnnotatedWith(Job.class)) {
             job((TypeElement) e);
+            declaredHere.add((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Source.class)) {
             source((TypeElement) e);
+            declaredHere.add((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Destination.class)) {
             destination((TypeElement) e);
+            declaredHere.add((TypeElement) e);
         }
         for (Element e : round.getElementsAnnotatedWith(Configuration.class)) {
             declarations.configuration((TypeElement) e);
@@ -239,8 +247,30 @@ public final class VexelProcessor extends AbstractProcessor {
             checked = true;
             graph.check(false);
             channels.check(graph, false);
+            unlisted();
         }
         return false;
+    }
+
+    /**
+     * A part declared in a module with no {@code @VexelApp} is built only if a configuration lists it: the processor
+     * compiling the application sees this module as class files, so it finds the configuration it names as a starter
+     * and nothing else. Forget one and nothing is said, and nothing builds it (found splitting the template into -core
+     * and -gui). This compilation sees both the parts and the configurations, so it can say so. A warning and not an
+     * error: a module may hold a part some other application lists itself, which is legal and only unusual.
+     */
+    private void unlisted() {
+        for (TypeElement part : declaredHere) {
+            if (listedHere.contains(part) || part.getQualifiedName().toString().startsWith(Framework.OWN)) {
+                continue;
+            }
+            String kind = mirrors.has(part, Job.class) ? "jobs" : mirrors.has(part, Destination.class) ? "destinations"
+                    : mirrors.has(part, Source.class) ? "sources" : "components";
+            report.printMessage(javax.tools.Diagnostic.Kind.WARNING, part.getSimpleName() + " is declared in a module"
+                    + " with no @VexelApp, and no @Configuration here lists it, so nothing builds it: the application's"
+                    + " processor sees this module only through the configurations it names as starters. Add it to a"
+                    + " configuration's " + kind + " = {...}", part);
+        }
     }
 
     /** The one application, and the starters it names — resolved by class literal, never searched for. */
@@ -271,6 +301,14 @@ public final class VexelProcessor extends AbstractProcessor {
     private void listed(TypeElement configuration) {
         AnnotationMirror mirror = mirrors.find(configuration, Configuration.class);
         declarations.listed(configuration, mirror);
+        for (String list : List.of("components", "jobs", "sources", "destinations")) {
+            for (TypeMirror type : mirrors.types(mirror, list)) {
+                TypeElement listed = Mirrors.element(type);
+                if (listed != null) {
+                    listedHere.add(listed);
+                }
+            }
+        }
         for (TypeMirror type : mirrors.types(mirror, "components")) {
             TypeElement c = Mirrors.element(type);
             // Not a component is Declarations.listed's to say; it is not read as one.

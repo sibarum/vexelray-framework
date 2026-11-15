@@ -104,11 +104,12 @@ final class DialogsTest {
         List<Answer> answers = new ArrayList<>();
         shell.bus().subscribe(Answer.TOPIC, answers::add);
 
-        shell.bus().publish(Ask.TOPIC, new Ask(7, "Quit?", "Unsaved.", List.of("Save", "Discard", "Cancel")));
+        shell.bus().publish(Ask.TOPIC,
+                new Ask(7, "Quit?", "Unsaved.", List.of("Save", "Discard", "Cancel"), "app.Editor"));
         assertTrue(recording.asked.isEmpty(), "a question was asked outside the frame");
         VexelApplication.frame(shell);
         assertEquals(List.of("ask Quit?"), recording.asked);
-        assertEquals(List.of(new Answer(7, 1)), answers);
+        assertEquals(List.of(new Answer(7, 1, "app.Editor")), answers, "addressed back to the part that asked");
     }
 
     @Test
@@ -121,7 +122,7 @@ final class DialogsTest {
                 shown.add(modal);
             }
         }, s -> { }), new String[0]);
-        shell.bus().publish(Ask.TOPIC, new Ask(1, "Q", "?", List.of("Save", "Discard", "Cancel")));
+        shell.bus().publish(Ask.TOPIC, new Ask(1, "Q", "?", List.of("Save", "Discard", "Cancel"), "app.Editor"));
         VexelApplication.frame(shell);
         Modal m = shown.getFirst();
         assertEquals("Save", m.defaultButton().label());
@@ -167,7 +168,7 @@ final class DialogsTest {
 
             @Override
             public void tree(Shell shell) {
-                shell.bus().publish(Ask.TOPIC, Ask.info(2, "second", "!"));
+                shell.bus().publish(Ask.TOPIC, Ask.info(2, "second", "!", DialogsTest.class));
                 shell.dialogs().ask(Modal.of("third", "?"));
             }
         }, new String[0]);
@@ -180,7 +181,7 @@ final class DialogsTest {
         recording.press = "OK";
         shell.dialogs(recording);
         assertEquals(List.of("ask first", "ask second", "ask third"), recording.asked);
-        assertEquals(List.of(new Answer(2, 0)), answers);
+        assertEquals(List.of(new Answer(2, 0, DialogsTest.class.getCanonicalName())), answers);
     }
 
     @Test
