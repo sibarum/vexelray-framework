@@ -3,6 +3,9 @@ package dev.vexelray.framework.processor;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.MethodInvocationTree;
+import com.sun.source.util.JavacTask;
+import com.sun.source.util.TaskEvent;
+import com.sun.source.util.TaskListener;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
@@ -28,8 +31,13 @@ import java.util.Set;
  * which are declarations. The check reads calls by what they resolve to, so a technique held as an interface, a
  * concrete class or a field is caught alike. Where vexelray's engine API is not on the path, there are no techniques and
  * nothing to check.
+ *
+ * <p><b>When it reads: after javac has analyzed a class</b>, on its {@code ANALYZE} event, as {@link StepCheck} does
+ * and for its reason. Resolving a class's calls while annotations are processed made javac attribute it there and then,
+ * which adds a record's implicit {@code super()} to its compact constructor's tree; javac's own pass then refused every
+ * record with a compact constructor, in every application compiled with the processor.
  */
-final class TechniqueCalls {
+final class TechniqueCalls implements TaskListener {
 
     static final String TECHNIQUE = "dev.vexelray.engine.RenderTechnique";
     /** What only the host calls: the technique's lifecycle. */
@@ -47,22 +55,33 @@ final class TechniqueCalls {
         this.report = report;
     }
 
-    /** The check, or null where javac's trees are not to hand (another compiler) or no technique type is on the path. */
-    static TechniqueCalls of(ProcessingEnvironment env, Report report) {
+    /**
+     * Listen to this compilation, to read each class once javac has analyzed it. Does nothing where javac's trees are
+     * not to hand (another compiler) or no technique type is on the path: then nothing is refused.
+     */
+    static void install(ProcessingEnvironment env, Report report) {
         TypeElement t = env.getElementUtils().getTypeElement(TECHNIQUE);
         if (t == null) {
-            return null;
+            return;
         }
         try {
-            return new TechniqueCalls(Trees.instance(env), env.getTypeUtils(), env.getTypeUtils().erasure(t.asType()),
-                    report);
+            JavacTask.instance(env).addTaskListener(new TechniqueCalls(Trees.instance(env), env.getTypeUtils(),
+                    env.getTypeUtils().erasure(t.asType()), report));
         } catch (IllegalArgumentException notJavac) {
-            return null;
+            // Not javac: no trees to read.
+        }
+    }
+
+    /** A class analyzed: every call in it, and in the classes nested in it. */
+    @Override
+    public void finished(TaskEvent event) {
+        if (event.getKind() == TaskEvent.Kind.ANALYZE && event.getTypeElement() != null) {
+            check(event.getTypeElement());
         }
     }
 
     /** Every call in {@code type}, and the classes nested in it, outside a technique of its own. */
-    void check(TypeElement type) {
+    private void check(TypeElement type) {
         TreePath path = trees.getPath(type);
         if (path == null) {
             return;

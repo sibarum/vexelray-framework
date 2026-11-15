@@ -104,6 +104,25 @@ class TechniqueCallsTest {
                 """));
     }
 
+    /**
+     * The check reads a class after javac has analyzed it. Read while annotations were processed, it made javac
+     * attribute the record early, and javac's own pass then refused its compact constructor (Rasterware's FN-40).
+     */
+    @Test
+    void aRecordWithACompactConstructorCompiles() throws IOException {
+        assertEquals(List.of(), compile("""
+                package app;
+                public final class Messages {
+                    public record Filmstrip(java.util.List<String> paths, int at) {
+                        public Filmstrip {
+                            paths = java.util.List.copyOf(paths);
+                        }
+                    }
+                    static int shown(March m) { return new Filmstrip(java.util.List.of("a"), 0).paths().size(); }
+                }
+                """));
+    }
+
     private void refused(String source, String fragment) throws IOException {
         List<String> errors = compile(source);
         assertEquals(1, errors.size(), () -> "expected one error containing \"" + fragment + "\", got:\n"
