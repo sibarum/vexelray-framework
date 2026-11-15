@@ -54,10 +54,12 @@ public final class Sources {
 
     /**
      * A sender for a source's run: each message begins a cause of the source's own, since it arrives from outside as
-     * input does ({@code Sender.outside}).
+     * input does, and a send waits on the run's thread while a hearer's mailbox is full ({@code Sender.paced}), so a
+     * source faster than its hearer is paced by it rather than overflowing it (components.md, section 15). The wait
+     * answers the stop's interrupt: the message is not sent, and the run's next read ends it.
      */
     public static <T> Sender<T> sender(Shell shell, String source, Topic<T> topic) {
-        return Sender.outside(shell.bus(), topic, cause(source));
+        return Sender.paced(shell.bus(), topic, cause(source));
     }
 
     /**

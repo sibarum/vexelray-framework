@@ -104,6 +104,46 @@ final class SourcesTest {
                 "shutdown stops every run, and its reply is still published");
     }
 
+    /**
+     * MainFrame FN-9: a source that reads faster than its hearer used to fill the hearer's mailbox and halt the
+     * application. Now a send waits for room (components.md, section 15), so a run sends far more than the mailbox holds
+     * and every line arrives, in order, while the hearer drains at its own pace.
+     */
+    @Test
+    void aSourceFasterThanItsHearerIsPacedByIt() throws Exception {
+        Shell shell = shell();
+        int n = 300;
+        List<String> heard = new java.util.concurrent.CopyOnWriteArrayList<>();
+        BlockingQueue<Detached> ends = new ArrayBlockingQueue<>(2);
+        sibarum.atchung.Tick view = shell.bus().tick(null);
+        view.inbox("view").subscribe(Line.TOPIC, l -> heard.add(l.text()), 4);
+        try {
+            Sender<Line> send = Sources.sender(shell, "test.Flood", Line.TOPIC);
+            Sources.run(shell, "test.Flood", "flood", Attach.TOPIC, (q, closer) -> {
+                for (int i = 0; i < n; i++) {
+                    send.send(new Line(q.peer(), Integer.toString(i)));
+                }
+                return new Detached(q.peer(), "done");
+            }, Detached.TOPIC, Detach.TOPIC);
+            shell.bus().subscribe(Detached.TOPIC, ends::add);
+            shell.bus().publish(Attach.TOPIC, new Attach("a"));
+
+            long until = System.nanoTime() + 10_000_000_000L;
+            while (heard.size() < n && System.nanoTime() < until) {
+                view.run(System.nanoTime() + 1_000_000, sibarum.atchung.Tick.ONE_THREAD);
+                Thread.sleep(1);
+            }
+            List<String> expected = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                expected.add(Integer.toString(i));
+            }
+            assertEquals(expected, heard, "every line, in order, through a mailbox of four");
+            assertEquals(new Detached("a", "done"), ends.poll(5, TimeUnit.SECONDS));
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
     @Test
     void aNewerRequestForAKeyStopsItsRunAndStartsOnceItHasReturned() throws Exception {
         Shell shell = shell();

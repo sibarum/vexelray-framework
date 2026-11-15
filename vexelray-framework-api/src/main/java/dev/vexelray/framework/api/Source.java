@@ -52,10 +52,12 @@ import java.lang.annotation.Target;
  * delivered in it.
  *
  * <p><b>What it sends arrives from outside</b>, as input does: each message begins a cause of its own, named after the
- * source, so a trace finds where it came from. Its sends are ordinary publishes. A source that can outrun the logic
- * batches what it sends (rows by the batch, not by the row); a mailbox it overflows all the same fails as any does,
- * since nothing better can be done. The liveness watchdog does not watch a source: a run blocked in a read is
- * resting, not wedged.
+ * source, so a trace finds where it came from. <b>A send waits for room:</b> while a hearer's mailbox for the topic is
+ * full, the run's thread waits until it drains, so a source faster than its hearer is paced by it and stops reading,
+ * and what it reads from (a pipe, a socket) pushes back on whatever writes it. The hearer's {@code capacity} is how much
+ * may be in flight. No other part's send waits; theirs overflow and fail as before (components.md, section 15). The
+ * wait answers the stop's interrupt: the message is not sent, and the run's next read ends it. The liveness watchdog
+ * does not watch a source: a run blocked in a read, or waiting for room, is resting, not wedged.
  *
  * <h2>Checked and generated</h2>
  *

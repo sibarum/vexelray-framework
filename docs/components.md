@@ -779,6 +779,72 @@ idea it can be, without compromising the principles.
 pumps, the ordered stop); the ordered pump and the per-key question on a pumped subscription in atchung; the processor's declaration and graph node. Held, when built, by a
 `DaemonsTest` and the processor's daemon cases, and shown by A6's example in the template.
 
+### 15. Flow control: a producer faster than its hearer (question 1 ruled 2026-11-15; question 2 proposed)
+
+**Found by MainFrame on v0.2** (its `docs/framework-notes.md`, FN-8 and FN-9). Two ways ordinary use halts the
+application through ruling 5 (a full edge mailbox halts), neither of them a bug in the application:
+
+- **FN-8, one thread, one frame.** `TerminalScreen` publishes `SENT` per character typed, all in the frame the keys
+  arrive in, and the view hears them in its next frame. `ottermate type` of 150 characters delivered them in one frame
+  and the view's 64-slot mailbox halted MainFrame. A person never types 64 keys in a frame; a script, a paste-as-keys
+  tool or a long-stalled frame can.
+- **FN-9, a source on its own thread.** `Shell` reads the pseudo-terminal 16 KB at a time and sends each read. It reads
+  faster than the view draws, so `type` of an 8 MB file filled the view's `Output` mailbox in about 250 ms. Any fast
+  program does it: a build log, `cat`, `git log -p`. MainFrame built flow control of its own (`Shown` per `Output`, two
+  in flight per tab, the rest buffered as one, reading stopped at 1 MB waiting): about 70 lines and a test, which every
+  fast reader would write again (the Inspector's link, a log tail).
+
+They are two problems, so two questions. Neither changes a signature an application calls.
+
+**Question 1, FN-9: a source's send waits for room.** *Reopens section 11's question 1* ("backpressure: nothing in
+the framework", ruled 2026-10-30 because it was not yet a problem to add code for). It now is, with a measurement and
+a hand-written protocol as the evidence. **Ruled by the author 2026-11-15, as recommended below**, for the reasons
+given there: only a source waits, and that is where push-back reaches the producer. Section 11's question 1 is
+superseded for sources and stands for every other sender.
+
+- **Recommended: a `@Source`'s sender waits, on the run's own thread, while a hearer's mailbox for that topic is
+  full**, and sends as soon as there is room. Nothing else waits: a component, a view, a job and the main thread keep
+  ruling 5, and an edge that overflows from them still halts. **Why only a source:** it is the one sender on a thread
+  of its own, outside every tick, that is allowed to rest (the watchdog does not watch it, section 11), so waiting there
+  is the run blocking in a read one step later. And it is the one place backpressure is real end to end: a source that
+  waits stops reading, the pipe fills, and the child process blocks in its write, which is what every terminal does.
+  *Why 0.2's "no publish waits" (T4.4, withdrawn) does not forbid it:* that rule is about the tick, where a waiting
+  publish holds every lane at the round's end; a source's send is outside every tick by construction. *Why stop still
+  works:* stopping interrupts the run's thread, and the wait answers an interrupt as a read does.
+- **What it costs.** A hearer that never drains parks the source for good, which is a source that has stopped rather
+  than a halt; the window stays live, and the source is stopped or the application closed as usual. The capacity becomes
+  the window of what is in flight, so a source that wants more latitude raises the hearer's `capacity`, as now. A
+  message the source sends waits behind a full mailbox even when its other hearers have room: one slow hearer paces the
+  source for all of them, which is the honest reading of "every message, in order".
+- **Where it is built (2026-11-15):** an addition to atchung, frozen behaviour unchanged (its suite and tactroller's
+  pass): an inbox subscription counts what is staged for it beside what is queued, a drain or a close wakes whoever
+  waits for room, and `Sender.paced` is `Sender.outside` that waits for room in every inbox subscription taking the
+  message (`PacedSenderTest`). `Sources.sender` makes that kind, so every `@Source` is paced
+  (`SourcesTest.aSourceFasterThanItsHearerIsPacedByIt`: 300 lines through a mailbox of four, in order).
+- **What it does not do, found trying to delete MainFrame's `Shown` protocol: merge.** Waiting keeps a source from
+  halting; it does not make its messages fewer. ConPTY hands over about a line per read, so `type` of 8 MB is about
+  100,000 reads, and `TerminalScreen.feed` redraws on every call. MainFrame's `Pace` merged what arrived while the view
+  drew into one `Output` (about 900 for those 100,000 reads, measured in its rebuild.md, M1); without it the view would
+  be fed, and redraw, once per line, a few to a frame. So `Pace` stays, now for speed rather than survival, and goes
+  when the terminal draws once per frame: vex-suite-common's TODO (*the terminal draws once per feed*) names the
+  missing piece, a widget-library seam run once a frame after its mailboxes drain. A source that reads in large
+  chunks (a socket, a file) needs no merging and is now correct with nothing of its own.
+- *Rejected:* **a topic that appends to the unconsumed batch** (FN-9's other idea: a pending message merged with the
+  next). It never halts, but it never pushes back either, so a program that writes faster than the view draws, forever,
+  grows memory without bound; and it needs a merge function per payload type. *And* **a `Shown`-style credit protocol
+  built into the framework**: the same effect as waiting, with a message type every source would have to answer.
+
+**Question 2, FN-8: at most so many keys in one frame.** *Recommended: the input dispatcher hands a frame at most 32
+key events, and holds the rest for the next frame,* as it already holds the rest of a frame's input after a chord that
+moves the keyboard (`InputDispatcher.holdRest`, Vexplore FN-5). **Why:** a widget that publishes an edge per key then
+publishes at most 32 a frame, under the default capacity 64, for every widget, with no widget changed; a view drains
+its mailboxes every frame. A person never meets it, so it costs only a scripted burst a few frames (150 characters in
+five). **What it costs:** a widget that publishes several edges per key, or a view that does not drain each frame, can
+still overflow, and a burst arrives later than it was typed by a frame or two. *Rejected:* each widget batching its
+frame's edges (`TerminalScreen` sending a frame's typing as one `Sent`), which fixes the one widget found and leaves the
+next to be found the same way; and draining a view's mailbox in the frame it was published on its own thread, which
+reorders a view's deliveries against everything else it hears.
+
 ## Build order once the rulings are taken
 
 Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) orders the whole.

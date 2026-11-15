@@ -1335,11 +1335,13 @@ are its v0.2 notes (`docs/framework-notes.md` there).
 - [ ] **A widget's per-character edge fills a view's 64-slot mailbox** (FN-8, vexelray-gui and vex-suite-common): one
       `ottermate type` of 150 characters halted MainFrame on `TerminalScreen.Sent`. A frame's typing as one message,
       or a view draining a topic published on its own thread within the same frame, would need no capacity guess.
-- [ ] **A source that outruns a view halts the application** (FN-9): `type` of an 8 MB file in a tab filled the
-      view's `Output` mailbox in ~250 ms. §11's "back-pressure is the source's" means every fast reader writes its own
-      flow control (MainFrame built a `Shown` per `Output`, two in flight; paced, vex-suite-common's "draws once
-      per feed" measured cheap: two feeds a frame, 1.5 ms frames). A sender told when its hearers have
-      room, or a topic kind that appends to the unconsumed batch, would make it the framework's once.
+      **Proposed 2026-11-15, not ruled:** [components.md](components.md) section 15, question 2 (the dispatcher hands a
+      frame at most 32 key events).
+- [ ] **A fast source's messages are not merged** (FN-9's other half, vexelray-gui and vex-suite-common). The halt is
+      gone (2026-11-15, [components.md](components.md) section 15: a `@Source`'s send waits for room), but a source that
+      reads in small pieces (ConPTY: a line per read) still sends one message per read, and `TerminalScreen.feed`
+      redraws on each, so MainFrame keeps its `Shown` protocol to merge what arrives while the view draws. It goes
+      when a widget can draw once per frame after its mailboxes drain, the seam vex-suite-common's TODO names.
 - [ ] **`Tabs` has no place for an application's own nodes** (FN-10, vexelray-gui): no trailing slot after the
       headers (a +, a status pill) and no in-place header edit; MainFrame floats them at the strip's right end.
 - [ ] **A header's double-click is not a declarable message** (FN-11, vexelray-gui): `Tabs.ACTIVATED`, as a list's
