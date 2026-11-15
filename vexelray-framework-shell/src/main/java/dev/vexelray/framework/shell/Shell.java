@@ -987,11 +987,18 @@ public final class Shell {
      * <p><b>Not the main thread's</b>, though it is the device's: T3.1 keeps the window, present and the queue that
      * draws there, and this queue is the one part of Vulkan that is not. The processor lets one component take it and
      * nothing else, so one lane submits to it.
+     *
+     * <p><b>Taken back before the device closes</b> (T6.6): the return is registered with the {@link #disposer()} as the
+     * queue is lent, which is after the application was registered and before the component that takes the queue is
+     * built, so the disposer, closing last-in first, closes that component first, then takes the queue back, then
+     * closes the application and its device.
      */
     public ComputeQueue computeQueue() {
         GuiApp lender = require(Phase.WINDOW, "the compute queue", app);
         if (computeQueue == null) {
-            computeQueue = lender.lendComputeQueue();
+            ComputeQueue lent = lender.lendComputeQueue();
+            computeQueue = lent;
+            disposer().register(lent::takeBack);
         }
         return computeQueue;
     }
