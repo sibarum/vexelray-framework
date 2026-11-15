@@ -1347,7 +1347,6 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       id.
 - [ ] **A source's `open` has no door for a failure it expects** (FN-3): an `open` that may refuse with a reason,
       which becomes the run's reply, so a mistyped program is not a connection that holds nothing.
-- [ ] **A source's sender cannot be a lambda in a test** (FN-4; Vexplore's FN-16 again, atchung).
 - [ ] **A terminal's text cannot be awaited by a script** (FN-5, vex-suite-common): the screen's visible text as a
       readout `ottermate await` can read.
 - [ ] **The lockup names the `-gui` module, not the application** (FN-6, template): "mainframe-gui" under
@@ -1364,7 +1363,6 @@ are its v0.2 notes (`docs/framework-notes.md` there).
       headers (a +, a status pill) and no in-place header edit; MainFrame floats them at the strip's right end.
 - [ ] **A header's double-click is not a declarable message** (FN-11, vexelray-gui): `Tabs.ACTIVATED`, as a list's
       row has; MainFrame reads `gui.clicks()` through a hand-opened mailbox the processor cannot see.
-- [ ] **A menu line cannot show its chord** (FN-12, vexelray-gui): an item naming the key-map action it stands for.
 - [x] **The framework's key-bindings window cannot be opened by a `WindowCommand`** (FN-13): `KeymapWindow` registered
       through `GuiApp.window`, not `Windows`, so `show("keymap")` from a menu or chord was ignored. Done 2026-11-13: the
       framework declares it through `Windows` (`KeyBindings`), so `WindowCommand.show("keymap")` opens it.
