@@ -574,6 +574,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       declaration and a lent `DeviceQueue` here), with the simulations' 0.2 port and Rasterware's video as its
       witnesses. Its open questions 1 and 2 are the rulings above.
 
+      **Built 2026-11-14, most of it:** vexelray's `RenderTechnique.bindings()` and `TechniqueBindings`; vexelray-gui's
+      `TechniqueView` (`Node.image(view)`), hosted in the frame's pre-pass with a ring of targets at the view's exact
+      size, its pictures bound from device feeds and its numbers set by `@Draw` through `Drawn.param`; this repo's
+      processor refusing a technique called outside its host (`TechniqueCalls`) and accepting a `TechniqueView` in a
+      view's state; the compute queue taken back before the device closes. *What still keeps this open:* a technique
+      view seen in a running window; a widget that sizes the view from its box; depth in a view's targets.
+
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
       is frozen. This is the step that turns *nothing known is wrong* into 1.0. It cannot start early,

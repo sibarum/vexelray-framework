@@ -438,8 +438,13 @@ has stopped (T6.2) and before the device is closed; a submission still in flight
 shutdown path, never in a frame. **Why:** no application code holds the `GuiApp` (T7.1, T2.2), so the only other way
 to a queue is `AppCompute.lend(GuiApp)` by hand, and a queue that outlives its device is a crash in the driver, not an
 exception. Declared, both mistakes move left. It grows what is there: `Shell.computeQueue()`, a root from `WINDOW`
-one component may take, is the first case, given back today only by the device's own close. *(owed, device-feed step 4. Held, when built, by a test of the shutdown
-order with a queue held, and the processor's case for a `DeviceQueue` asked for before `WINDOW`)*
+one component may take, is the first case. *(partly held, 2026-11-14. The take-back is built: `Shell.computeQueue`
+registers `ComputeQueue.takeBack` with the disposer as it lends, after the application and before the component, so the
+component closes, the queue is taken back, then the device closes, and a part that still asks is refused by name
+(`ComputeQueueTakeBackTest`). Asked for before `WINDOW` is refused as any `WINDOW` root is. Owed, each with its first
+user: the name `DeviceQueue` and a transfer kind (video, its expected user, needs none since it was staged), and one
+queue per part that asks (step 6, the first application with two producers); until then the processor lets one
+component take it.)*
 
 ## 7. The main thread and the API surface
 
@@ -618,7 +623,8 @@ the technique draws what was chosen. A technique is declared, never called: the 
 frame the node is drawn, and closes it. It is library code, as a widget's asked half is, held to vexelray's
 `techniques.md` (one thread, nothing made in `record`, never blocking) by its own tests, an application's own
 technique included; the processor checks that it is declared and not called directly, and does not read `record`,
-whose body is Vulkan through Panama. *Ruled 2026-11-13 (device-feed open question 2). Owed, device-feed step 4.*
+whose body is Vulkan through Panama. *Ruled 2026-11-13 (device-feed open question 2). Held 2026-11-14 by the processor's
+`TechniqueCalls` (`TechniqueCallsTest`), and a view may hold a `TechniqueView` as it holds a feed.*
 **Why:** drawing, presentation and pacing a video are one thing, the author's ruling, and a list of exceptions grows
 by one door per kind of moving thing. A declared step is already not a callback (T7.2), and the asked half is the
 same kind of declaration with a frame's conditions added. *(partly held. The host half is built in vexelray-gui
