@@ -1844,6 +1844,27 @@ application's About window, which every application has without writing one (`Ab
 The mark becomes a hole in the caption (`TitleBar.onMark`) only once it has something to do, so a bar without the
 framework's About drags by its mark as before.
 
+## What the 3D viewport became
+
+*Closed 2026-11-14; it was the Blocks-v1 entry "there is no one way to put a 3D viewport in a window, and every
+application re-derives one".* The simulations' views and the designer's `Viewport` each made a target, drove its resize,
+and called `renderInto` on the main thread, waiting on its fence every frame; under 0.2 none of that compiles, because no
+application code runs on the main thread (T7.1). The answer is vexelray-gui's device-feed plan, step 4
+(`docs/plans/device-feed.md`), and where each part lives follows from who owns what:
+
+- **The binding is vexelray's.** `RenderTechnique.bindings()` declares what a technique reads that is not its own, a
+  buffer or a picture; the host makes the layout from it and writes the set each frame (`TechniqueBindings`). This was
+  ruled to change the SPI rather than wrap it (2026-11-13), which is why the entry blocked v1: it is what an
+  application's technique implements.
+- **The target, its resize and the recording are vexelray-gui's.** A `TechniqueView` is what a node shows; the host keeps
+  three targets per view at its exact size, records the techniques into the frame's pre-pass, and waits for nothing.
+  `TechniquePane` sizes it from its box; `depth(true)` gives its targets a depth buffer, so techniques composite by depth.
+- **The rules are this repo's.** A view may hold a `TechniqueView` in its state, its `@Draw` sets the techniques'
+  numbers through `Drawn.param`, and calling a technique outside its host is a compile error (`TechniqueCalls`, T7.6).
+
+What the entry asked for and did not get: orbit and overlay. An orbit is the application's numbers, set by its `@Draw`
+from the messages its input sends, and an overlay is the nodes laid over the pane, so neither needed the framework.
+
 ## Modules
 
 ```
