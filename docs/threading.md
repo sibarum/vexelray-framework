@@ -536,9 +536,12 @@ pixels made off the GUI thread reach a part without crossing the bus. *Built 202
 accepts a `Feed` as a handle in a payload and in a view's drawn state, and nowhere else (`Shareable.FEED`). *Added
 2026-11-14:* **the device feed** is the same entry with its slots on the application's device (vexelray-gui's
 `docs/plans/device-feed.md` A). A producer on the CPU writes a slot's mapped staging on its own thread, and the frame
-that first shows the slot lands it on the GPU; a producer on the GPU writes the slot on a lent queue (T6.6) and hands
-it over with the timeline value its submission signals, and the slot is shown only once that value is reached, read
-without waiting. Either way a slot comes free behind a fence taken after the frame that last sampled it. It adds no lock, no wait on the GUI thread and no call across: it is
+that first shows the slot lands it on the GPU; a producer on the GPU writes the slot on a lent queue (T6.6), has the
+submission that writes it signal the feed's own timeline at a value the feed gives it, and hands it over at
+submission, and the slot is shown only once that value is reached, read without waiting; the frame that reads it waits
+for the value inside the GPU, which then costs nothing. *Built 2026-11-15 (device-feed.md 4d):* `Feeds.buffers`, held
+by vexelray-gui's `DeviceWrittenFeedTest` and `DeviceWrittenWindowTest`. Either way a slot comes free behind a fence
+taken after the frame that last sampled it. It adds no lock, no wait on the GUI thread and no call across: it is
 still one writer, one reader, and a handle in a payload. It is the only new shared memory the device work brings.
 *(owed, phase 5. Held, when built, by a test that reads the shell's and
 core's sources against the list. In 0.1 `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` hold
