@@ -103,6 +103,8 @@ public final class VexelProcessor extends AbstractProcessor {
     private RecordWithers withers;
     private Unresolved unresolved;
     private SpiBoundary spi;
+    /** A technique called outside its host (T7.6); null where there are no techniques or no javac trees. */
+    private TechniqueCalls techniqueCalls;
     private TypeElement app;
     private Report report;
     private boolean checked;
@@ -124,6 +126,7 @@ public final class VexelProcessor extends AbstractProcessor {
         withers = new RecordWithers(report, env.getFiler());
         unresolved = new Unresolved(report);
         spi = SpiBoundary.of(env, report);
+        techniqueCalls = TechniqueCalls.of(env, report);
         StepCheck.install(env, report);
     }
 
@@ -156,6 +159,14 @@ public final class VexelProcessor extends AbstractProcessor {
                 withers.write((TypeElement) e);
             }
             return false;
+        }
+        if (techniqueCalls != null) {
+            // Every class compiled, not only the annotated ones: a helper a view calls is as able to call a technique.
+            for (Element e : round.getRootElements()) {
+                if (e instanceof TypeElement type) {
+                    techniqueCalls.check(type);
+                }
+            }
         }
         for (Element e : round.getElementsAnnotatedWith(VexelApp.class)) {
             app((TypeElement) e);

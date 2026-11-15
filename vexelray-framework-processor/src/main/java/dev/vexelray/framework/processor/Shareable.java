@@ -126,6 +126,14 @@ final class Shareable {
     static final String SDG = "dev.vexelray.gui.core.ImageSdg";
 
     /**
+     * vexelray-gui's technique view: techniques and the feeds they read, which the GUI thread's host runs (device-feed.md
+     * C). Accepted where a {@link #FEED} is, as the same kind of handle: a view holds it in its state and its {@code @Draw}
+     * sets its numbers, or a job answers with one it made. What it holds is called only by the host (T7.6, held by
+     * {@link TechniqueCalls}), so holding it shares nothing a step could race on. Added 2026-11-14 with the view.
+     */
+    static final String TECHNIQUE_VIEW = "dev.vexelray.gui.core.TechniqueView";
+
+    /**
      * vexelray-gui's named colours: a {@code Paint}, the {@code Role} every theme answers, and the {@code Ink} a picture's
      * marks hold. Open interfaces, so not provably immutable from the declaration, and accepted everywhere anyway,
      * because being a value is the type's contract and the stack depends on it: the reconciler skips a write whose paint
@@ -153,7 +161,7 @@ final class Shareable {
         String name = element.getQualifiedName().toString();
         if (VALUES.contains(name) || PAINTS.contains(name) || element.getKind() == ElementKind.ENUM
                 || rules.nodes() && name.equals(NODE)
-                || rules.feeds() && (name.equals(FEED) || name.equals(SDG))) {
+                || rules.feeds() && (name.equals(FEED) || name.equals(SDG) || name.equals(TECHNIQUE_VIEW))) {
             return null;
         }
         if (!declared.getTypeArguments().isEmpty()) {

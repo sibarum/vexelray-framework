@@ -345,7 +345,10 @@ class VexelProcessorTest {
                 """),
             Map.entry("dev.vexelray.gui.core.Drawn", """
                 package dev.vexelray.gui.core;
-                public interface Drawn { Drawn offset(Node node, float dx, float dy); }
+                public interface Drawn {
+                    Drawn offset(Node node, float dx, float dy);
+                    default Drawn param(TechniqueView view, int index, float value) { return this; }
+                }
                 """),
             Map.entry("dev.vexelray.gui.core.Node", """
                 package dev.vexelray.gui.core;
@@ -359,6 +362,13 @@ class VexelProcessorTest {
                 public final class Feed {
                     private int shown = -1;
                     public int due(long stamp) { return shown; }
+                }
+                """),
+            Map.entry("dev.vexelray.gui.core.TechniqueView", """
+                package dev.vexelray.gui.core;
+                public final class TechniqueView {
+                    private int width;
+                    public TechniqueView size(int w, int h) { width = w; return this; }
                 }
                 """),
             Map.entry("dev.vexelray.gui.core.ImageSdg", """
@@ -1212,6 +1222,30 @@ class VexelProcessorTest {
                     public static long draw(Playing s, dev.vexelray.gui.core.Frame frame, dev.vexelray.gui.core.Drawn out) {
                         return s.feed().due(frame.presentNanos() - s.at()) < 0 ? frame.presentNanos()
                                 : dev.vexelray.gui.core.Frame.NEVER;
+                    }
+                }
+                """).errors());
+    }
+
+    /**
+     * A view's drawn state may hold a technique view beside its nodes, as it holds a feed, and its asked half may set
+     * the view's numbers (vexelray-gui's docs/plans/device-feed.md C).
+     */
+    @Test
+    void aViewsDrawnStateMayHoldATechniqueViewAndItsDrawSetItsNumbers() {
+        assertEquals(List.of(), build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                @View
+                public final class Orbit {
+                    public record Seen(dev.vexelray.gui.core.TechniqueView view, float yaw) {}
+                    public Seen state = new Seen(new dev.vexelray.gui.core.TechniqueView(), 0f);
+                    public Orbit() {}
+                    @Draw
+                    public static long draw(Seen s, dev.vexelray.gui.core.Frame frame, dev.vexelray.gui.core.Drawn out) {
+                        out.param(s.view(), 0, s.yaw());
+                        return dev.vexelray.gui.core.Frame.NEVER;
                     }
                 }
                 """).errors());
