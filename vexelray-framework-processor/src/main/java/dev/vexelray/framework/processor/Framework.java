@@ -114,6 +114,10 @@ final class Framework {
             new Root("dev.vexelray.gui.core.app.GuiApp", "app", Phase.WINDOW, true),
             // The exception to it, and the only one: a queue nothing on the main thread submits to.
             new Root(COMPUTE_QUEUE, "computeQueue", Phase.WINDOW, false),
+            // Where device feeds are made: on the device, so from WINDOW, and not the main thread's, because making a
+            // feed allocates and submits nothing (vexelray-gui docs/plans/device-feed.md). A job or a source that makes
+            // pictures takes it; no job runs before ATTACH, so the device is always there by then.
+            new Root("dev.vexelray.gui.core.Feeds", "feeds", Phase.WINDOW, false),
             new Root(CLIPBOARD, "clipboard", Phase.ATTACH, false));
 
     /**

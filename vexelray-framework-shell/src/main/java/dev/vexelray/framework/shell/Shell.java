@@ -997,6 +997,15 @@ public final class Shell {
     }
 
     /**
+     * Where device feeds are made: pictures a job or a source writes on its own thread, landed on the GPU by the frame
+     * that first shows them (vexelray-gui's {@code docs/plans/device-feed.md}). Exists from {@link Phase#WINDOW}, since
+     * the feeds are on the device; usable from any thread, since making one submits nothing.
+     */
+    public dev.vexelray.gui.core.Feeds feeds() {
+        return require(Phase.WINDOW, "the device feeds", app).feeds();
+    }
+
+    /**
      * The OS clipboard, already installed on the main {@code Gui} — here so that an application's
      * <em>other</em> windows can be bound to the same one.
      *
