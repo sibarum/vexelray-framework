@@ -318,10 +318,13 @@ final class LogicTest {
                 threads.add(Thread.currentThread().getName());
                 report.send(String.valueOf(a.length()));
             }, 8);
-            shell.startComponents();
+            // Every input queued before anything ticks: with the ticks on their own thread, inputs published after
+            // startComponents race the first tick, which can hear "a" alone and answer it before "bb" arrives -- not
+            // the same inputs as the main thread's run, which ticks only when asked and always hears all three.
             for (String q : List.of("a", "bb", "ccc")) {
                 shell.bus().publish(ASKED, q);
             }
+            shell.startComponents();
             long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
             while (log.size() < 9 && System.nanoTime() < until) {
                 if (onMain) {
