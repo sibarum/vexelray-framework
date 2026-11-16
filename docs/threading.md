@@ -557,10 +557,15 @@ for the value inside the GPU, which then costs nothing. *Built 2026-11-15 (devic
 by vexelray-gui's `DeviceWrittenFeedTest` and `DeviceWrittenWindowTest`. Either way a slot comes free behind a fence
 taken after the frame that last sampled it. It adds no lock, no wait on the GUI thread and no call across: it is
 still one writer, one reader, and a handle in a payload. It is the only new shared memory the device work brings.
-*(owed. Held, when built, by a test that reads the shell's and core's sources against the list. Rechecked
-2026-11-15: the 0.1 locks in `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` are gone. What such a
-test would still have to judge outside the listed classes is three `volatile` fields written on one thread and read on
-others: `Windows.app`, `Shell.appearance` and `VexelApplication.reported`)*
+*(held, 2026-11-15, by the template module's `FrameworkConcurrencyTest`, which parses `-api`, `-core`, `-shell` and
+`-automation` with javac's tree API and fails, by file and line, on any of the constructs in a class not on its
+`INFRASTRUCTURE` list, each entry with its reason, and on an entry whose class no longer needs it, so the list only
+shrinks. The bug report, which wrote on a raw thread of its own, is a job on the job lane whose outcome comes back as a
+message (`BugReportPrompt`), so `OwnAsks` is the main thread's alone. The one entry outside the running model is
+`Frames`, a headless test's frames, which hands what the lanes send to the test's thread as a mailbox hands it to a
+view. The template is held to none at all by `TemplateConcurrencyTest`: its tests hear and wait through `Frames`.
+The list is per class, so three `volatile` fields in listed classes (`Windows.app`, `Shell.appearance`,
+`VexelApplication.reported`) are judged by their class's entry, not one by one)*
 
 **T7.4 — A view component is presentation, and it runs on the GUI thread.** *Ruled 2026-10-27, the second exception
 to T7.1 beside drawing; since 2026-10-29 both are T7.6, of which a view's `@Subscribe` methods are the told half.*
@@ -669,21 +674,19 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **1 Lanes** | T1.1, T1.2, T1.3, T1.4, T1.5, T1.6, T1.7 | | | | | | |
 | **2 Colour** | T2.1, T2.2, T2.3, T2.4, T2.5, T2.6, T2.7 | | | | | | |
 | **3 Ownership** | T3.1, T3.7, T3.8 | | T3.3 | | T3.4, T3.6 | T3.2, T3.5, T3.9 | |
-| **4 Channels** | T4.1, T4.2, T4.3, T4.6, T4.7, T4.8 | T4.5 | | | | | T4.4 |
+| **4 Channels** | T4.1, T4.2, T4.3, T4.5, T4.6, T4.7, T4.8 | | | | | | T4.4 |
 | **5 Completion** | T5.1, T5.3, T5.6, T5.7 | T5.5, T5.8 | | | | T5.4 | T5.2 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4, T6.5 | T6.6 | | | T6.3 | | |
-| **7 Main thread** | T7.1, T7.4, T7.5 | T7.2, T7.3, T7.6 | | | | | |
+| **7 Main thread** | T7.1, T7.3, T7.4, T7.5 | T7.2, T7.6 | | | | | |
 
 Where a rule is held in part and owed in part, it is counted as owed: what the column answers is whether 0.2 is
-true yet. **Rechecked 2026-11-15: thirty-four of the fifty-one rules are held and seven are owed**, each owed entry
+true yet. **Rechecked 2026-11-15: thirty-six of the fifty-one rules are held and five are owed**, each owed entry
 naming what is left:
 
-- **T4.5**: a ledger's `@Publishes` list is not checked against its steps' `out.send` calls.
 - **T5.5**: only the deadline's number, phase 7's to measure.
 - **T5.8**: a `@Subscribe` method that blocks in plain JDK code is not refused, as a ledger's step is.
 - **T6.6**: the name `DeviceQueue`, a transfer kind and one queue per part, each waiting on its first user.
 - **T7.2**: the processor's read of a view's display functions.
-- **T7.3**: the test that reads the framework's sources against the allowlist.
 - **T7.6**: the budget that freezes a slow asked half, and a view's told half as declared steps.
 
 At the redesign's first commit, 2026-10-26, ten were held and thirty-one owed. The column is how progress is read:
