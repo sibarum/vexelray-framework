@@ -160,8 +160,12 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       holds for a component; a free `@Subscribe` would need each re-derived for something with no owner and no
       lane, and its cost (one lane and one mailbox, shared by default) is what makes it checkable. **The reactive
       half of automation is the socket's, not a subscription in the application:** `hear <Payload> [key]` records
-      that topic's messages into a bounded recorder on the driver's own mailbox, and `await heard <Payload> [text]`
-      waits for one; topic names come from `BUS_GRAPH`, so only a channel that exists can be named, and a message
+      that topic's messages into a bounded recorder, and `await heard <Payload> [text]` waits for one. **Built
+      2026-11-16** (`vexelray-gui-automation`'s `Hearing`, `Wiring.topics()`, the Driver; witnessed in
+      `GeneratedProjectTest`), with `heard` to read and `unhear` to stop. The recorder is an inline subscription
+      that does on the sender's thread only what a mailbox enqueue does (a lock, a store into a preallocated ring of
+      256, a counter), not a pumped mailbox, because the reply must say how many were dropped and atchung's lossy
+      policy cannot count them, while `FAIL` would end the application and `BLOCK` would make it wait on an agent; topic names come from `BUS_GRAPH`, so only a channel that exists can be named, and a message
       is written with its record's `toString`, so nothing reflects. **Not covered, deliberately:** macros as code
       loaded at run time. That is a plugin loader, a separate question native-image makes hard, and no witness asks
       for it.
