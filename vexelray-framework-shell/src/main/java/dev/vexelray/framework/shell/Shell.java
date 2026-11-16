@@ -6,6 +6,7 @@ import dev.vexelray.framework.core.Disposer;
 import dev.vexelray.framework.core.FrameHooks;
 import dev.vexelray.framework.core.Lanes;
 import dev.vexelray.framework.core.Launch;
+import dev.vexelray.framework.core.MainThreadBeat;
 import dev.vexelray.framework.core.Pacing;
 import dev.vexelray.framework.core.Phase;
 import dev.vexelray.framework.core.Stalled;
@@ -28,6 +29,8 @@ import sibarum.probe.Log;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
 
 /**
  * What the framework has built so far, and where the wiring hands things back.
@@ -68,8 +71,15 @@ public final class Shell {
     private String busGraph;
     /** What main was handed, as the OS holds it; set by {@link VexelApplication} before any phase runs. */
     private List<String> arguments = List.of();
-    /** The restart a closed main window starts, once the loop has ended; null for none. Main thread. */
-    private Relaunch restarting;
+    /**
+     * The restart owed, started once the loop has ended or on the watchdog's way out, whichever comes first; null for
+     * none. Taken atomically, because those two can race and a restart started twice is two applications.
+     */
+    private final AtomicReference<Relaunch> restarting = new AtomicReference<>();
+    /** Starts a restart: {@link Relaunch#start}, or a test's stand-in. */
+    private Starter starter = how -> how.start();
+    /** The frame loop's pulse, which the watchdog reads to watch the main thread. See {@link MainThreadBeat}. */
+    private final MainThreadBeat beat = new MainThreadBeat();
     private final FrameHooks hooks = new FrameHooks();
     private final Pacing pacing = new Pacing();
     private final Disposer disposer = new Disposer();
@@ -121,17 +131,30 @@ public final class Shell {
     }
 
     Shell(Launch launch, AppInfo info, Lanes lanes) {
-        this(launch, info, lanes, false);
+        this(launch, info, lanes, false, null);
+    }
+
+    /**
+     * With the halt and the process start supplied: the two things a test cannot let happen. {@code halter} is
+     * handed {@link Watchdog#HALT_STATUS} where the process would end, and {@code starter} each restart.
+     */
+    Shell(Launch launch, AppInfo info, IntConsumer halter, Starter starter) {
+        this(launch, info, new Lanes(), false, halter);
+        this.starter = starter;
     }
 
     private Shell(Launch launch, AppInfo info, Lanes lanes, boolean replaying) {
+        this(launch, info, lanes, replaying, null);
+    }
+
+    private Shell(Launch launch, AppInfo info, Lanes lanes, boolean replaying, IntConsumer halter) {
         this.launch = launch;
         this.info = info;
         this.lanes = lanes;
         this.replaying = replaying;
         this.timer = replaying ? Timer.silent(bus) : new Timer(bus);
         this.recording = !replaying && replayable(launch) ? new InputRecording(keepsValues(launch)) : null;
-        this.watchdog = new Watchdog(lanes, bus);
+        this.watchdog = halter == null ? new Watchdog(lanes, bus) : new Watchdog(lanes, bus, halter);
         this.logicOnMain = logicOnMain(launch);
         if (replaying) {
             // No backstop halt: a replay is closed by the run it is part of, which keeps its own.
@@ -215,22 +238,54 @@ public final class Shell {
         // On the main thread, where a window is commanded: this is called from anywhere, the automation socket
         // among them.
         Window main = windows().main();
-        app().post(() -> main.close(() -> restarting = how,
+        app().post(() -> main.close(() -> restarting.set(how),
                 () -> LOG.info("restart cancelled: the window stayed open")));
     }
 
-    /** Start the restart a closed main window asked for, if any. After the loop has ended. */
+    /**
+     * Start the restart owed, if any: after the loop has ended, before anything is closed, and again on the
+     * watchdog's way out, so whichever comes first starts it and the other finds nothing.
+     */
     void startRestart() {
-        Relaunch how = restarting;
-        restarting = null;
+        Relaunch how = restarting.getAndSet(null);
         if (how == null) {
             return;
         }
         try {
-            how.start();
+            starter.start(how);
         } catch (IOException | RuntimeException e) {
             LOG.error("could not restart: {}", e.getMessage());
         }
+    }
+
+    /**
+     * This process, to be started again by a liveness policy, or null with the reason logged: when it cannot say how
+     * it was started, and in an automation run.
+     *
+     * <p><b>Why an automation run is never restarted by a policy.</b> A harness started it ({@code ottermate --launch},
+     * the acceptance run) and judges it by its exit; a new process would be one the harness did not start, cannot
+     * stop and cannot drive, since the port it would print goes nowhere ({@link Relaunch#start} discards its output).
+     * The exit is what the harness can see, so the exit is what it gets. A restart the application asks for itself
+     * ({@link #restart}) is not refused: the automation module uses that to move into and out of a debug run.
+     */
+    Relaunch recoveryRelaunch() {
+        if (Logs.driven(launch)) {
+            LOG.warn("not restarting: this is an automation run, whose harness started this process and would not know"
+                    + " the new one; exiting instead");
+            return null;
+        }
+        Relaunch how = relaunch();
+        if (how.unavailable().isPresent()) {
+            LOG.warn("not restarting: {}; exiting instead", how.unavailable().get());
+            return null;
+        }
+        return how;
+    }
+
+    /** Starts a process: {@link Relaunch#start} in an application, a stand-in in a test. */
+    @FunctionalInterface
+    interface Starter {
+        void start(Relaunch how) throws IOException;
     }
 
     /** The phase currently being built. */
@@ -1096,15 +1151,92 @@ public final class Shell {
             }
 
             @Override
+            public void restart() {
+                Relaunch how = recoveryRelaunch();
+                if (how != null) {
+                    // Owed before the close is asked for, so it is started whichever way this process ends: by the
+                    // window closing (after the loop), or by the grace running out (on the watchdog's way out).
+                    restarting.set(how);
+                    watchdog.beforeHalt(Shell.this::startRestart);
+                }
+                exit();
+            }
+
+            @Override
             public boolean interrupt(String lane) {
-                return lanes.interruptLane(lane);
+                // A component that declares no lane says Component.DEFAULT_LANE, and runs on the logic lane: one lane,
+                // reached by either name, since the declaration is all an application can spell.
+                String name = dev.vexelray.framework.api.Component.DEFAULT_LANE.equals(lane) ? Logic.LANE : lane;
+                return lanes.interruptLane(name);
+            }
+        };
+        LivenessPolicy.MainThreadContext main = new LivenessPolicy.MainThreadContext() {
+            @Override
+            public void halt() {
+                // Now, from the watchdog's own thread, with every thread's stack written first.
+                watchdog.haltAfter(0L);
+            }
+
+            @Override
+            public void restart() {
+                Relaunch how = recoveryRelaunch();
+                if (how != null) {
+                    restarting.set(how);
+                    watchdog.beforeHalt(Shell.this::startRestart);
+                }
+                halt();
             }
         };
         // Heard directly on the bus, so on the watchdog's thread: the policy must run while the lanes are wedged,
         // which a mailbox on one of them would not. A part hears the same report in its mailbox, on its own lane.
-        bus.subscribe(Stalled.TOPIC, stall -> policy.onStall(
-                new LivenessPolicy.Stall(stall.lane(), stall.stalledFor()), context));
+        bus.subscribe(Stalled.TOPIC, stall -> {
+            LivenessPolicy.Stall what = new LivenessPolicy.Stall(stall.lane(), stall.stalledFor());
+            if (stall.mainThread()) {
+                policy.onMainThreadStall(what, main);
+            } else {
+                policy.onStall(what, context);
+            }
+        });
+        watchdog.watchMain(beat, policy.mainThreadStallThreshold().toNanos(), Stalls::servingOs);
         watchdog.start(policy.stallThreshold().toNanos());
+    }
+
+    /**
+     * The frame loop's hook: the main thread's beat, then the frame stages. Handed to {@code GuiApp.run} once, so the
+     * method reference is made once; per frame it is a volatile store and the hooks' own walk, which is the whole of
+     * the hot-path rule.
+     */
+    void frame() {
+        beat.beat();
+        hooks.run();
+    }
+
+    /**
+     * The loop's pacing: the deadlines' answer, then the beat told the loop is about to park, so a quiet window is
+     * idle to the watchdog however long it parks. After the deadlines, so one that hangs is a stall and not a park.
+     */
+    long nanosUntilNextFrame() {
+        long next = pacing.nanosUntilNextFrame();
+        beat.parking();
+        return next;
+    }
+
+    /**
+     * The loop about to run on this thread, as {@code app}: the thread the watchdog reads, and the loop's own count of
+     * iterations, which shows a wake from a park before the frame it leads to. On the main thread, just before the run.
+     */
+    void loopStarting(GuiApp app) {
+        beat.owner(Thread.currentThread()).iterations(app::frame);
+    }
+
+    /** The loop has ended; what runs on the main thread from here is teardown, which the shutdown bound watches. */
+    void loopEnded() {
+        beat.stop();
+    }
+
+    /** The main thread's beat, for a native dialog run on that thread to say it is up ({@link NativeDialogs}). */
+    MainThreadBeat beat() {
+        return beat;
     }
 
     void settings(Settings settings) {

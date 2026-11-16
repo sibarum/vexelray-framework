@@ -155,6 +155,50 @@ final class LanesTest {
         }
     }
 
+    /**
+     * A job worker the pool makes while the logic lane is submitting is the job lane's, not the logic lane's: a thread
+     * joins its creator's group by default, which put job workers inside the logic lane's sweep. And the job lane is a
+     * sweep of its own, reaching every job in flight.
+     */
+    @Test
+    void theJobLaneIsAGroupOfItsOwnThatALaneSubmittingToItDoesNotAdopt() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch jobInterrupted = new CountDownLatch(1);
+        CountDownLatch logicParked = new CountDownLatch(1);
+        CountDownLatch logicInterrupted = new CountDownLatch(1);
+        AtomicReference<ThreadGroup> jobGroup = new AtomicReference<>();
+        try (Lanes lanes = new Lanes()) {
+            lanes.logic(() -> {
+                // The first job, so its worker is created here, on the logic lane's thread.
+                lanes.jobs().execute(() -> {
+                    jobGroup.set(Thread.currentThread().getThreadGroup());
+                    parkUntilInterrupted(parked, jobInterrupted);
+                });
+                parkUntilInterrupted(logicParked, logicInterrupted);
+            });
+            assertTrue(parked.await(5, TimeUnit.SECONDS) && logicParked.await(5, TimeUnit.SECONDS));
+            assertEquals("vexel-lane-" + Lanes.JOB_LANE, jobGroup.get().getName());
+
+            assertTrue(lanes.interruptLane("logic"));
+            assertTrue(logicInterrupted.await(5, TimeUnit.SECONDS));
+            assertFalse(jobInterrupted.await(200, TimeUnit.MILLISECONDS),
+                    "interrupting the logic lane reached a job its submission happened to create a worker for");
+
+            assertTrue(lanes.interruptLane(Lanes.JOB_LANE));
+            assertTrue(jobInterrupted.await(5, TimeUnit.SECONDS), "the job lane's sweep missed a job in flight");
+        }
+    }
+
+    @Test
+    void aSecondLaneUnderOneNameIsRefused() {
+        try (Lanes lanes = new Lanes()) {
+            lanes.thread("twice", () -> { });
+            // One name is one group and one interrupt, so a second would be swept with the first, or take its group.
+            assertThrows(IllegalStateException.class, () -> lanes.thread("twice", () -> { }));
+            assertThrows(IllegalStateException.class, () -> lanes.thread(Lanes.JOB_LANE, () -> { }));
+        }
+    }
+
     private static void parkUntilInterrupted(CountDownLatch parked, CountDownLatch interrupted) {
         parked.countDown();
         try {

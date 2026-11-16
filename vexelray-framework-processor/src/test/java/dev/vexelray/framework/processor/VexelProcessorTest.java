@@ -1549,6 +1549,16 @@ class VexelProcessorTest {
                 """), "has the lane \"<default>x\", which is not a name");
     }
 
+    @Test
+    void theFrameworksOwnLaneNamesAreRefused() {
+        for (String reserved : new String[] {"logic", "job", "replay"}) {
+            onlyError(app("""
+                    @Component(lane = "%s")
+                    public final class Composer {}
+                    """.formatted(reserved)), "has the lane \"" + reserved + "\", which is the framework's own");
+        }
+    }
+
     // --- channels: @Subscribe, Sender and @Publishes ---------------------------------------------------------
 
     /**

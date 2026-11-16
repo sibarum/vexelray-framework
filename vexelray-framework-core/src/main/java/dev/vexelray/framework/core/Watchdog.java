@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 
 /**
  * A thread that belongs to no lane, and so cannot be wedged by one: it notices a lane that has stopped draining,
@@ -34,10 +35,17 @@ import java.util.function.IntConsumer;
  * writing is bounded like everything else here: it runs on a thread of its own, and the halt goes ahead after
  * {@link #REPORT_BOUND_NANOS} whether it finished or not, since a wedged thread can be holding the stream.
  *
- * <p><b>What it does not watch is the main thread.</b> A wedged window is the case the watchdog is for, but the
- * main thread legitimately blocks for as long as a person takes in a modal native dialog, and a halt fired at
- * somebody choosing a filename is the failure this class exists to prevent, not one it may cause. That needs a
- * heartbeat that knows a dialog is up, which is the frame loop's to say.
+ * <p><b>The main thread is watched through its beat</b> ({@link #watchMain}), never by a timer alone. A wedged window
+ * is the case the watchdog is for, but the main thread legitimately parks for as long as nothing is due, and blocks
+ * for as long as a person takes in a modal native dialog, and a halt fired at somebody choosing a filename is the
+ * failure this class exists to prevent, not one it may cause. So the frame loop says which state it is in
+ * ({@link MainThreadBeat}), and a main thread that has made no progress for the threshold, is not parked and is not in
+ * a dialog the framework opened has its stack read before it is called a wedge: a thread inside the operating system's
+ * own modal loop (a window being dragged, its system menu) is serving the person and is left alone. The report is a
+ * {@link Stalled} naming {@link Stalled#MAIN}.
+ *
+ * <p><b>A last act before a halt.</b> {@link #beforeHalt} names something to do on the way out (the framework's
+ * restart starts the new process there), bounded like the report, so it cannot hold the halt up.
  */
 @Stability(Stability.Level.EXPERIMENTAL)
 public final class Watchdog implements AutoCloseable {
@@ -50,6 +58,12 @@ public final class Watchdog implements AutoCloseable {
 
     private static final long MAX_PERIOD_NANOS = TimeUnit.SECONDS.toNanos(1);
     private static final long MIN_PERIOD_NANOS = TimeUnit.MILLISECONDS.toNanos(5);
+
+    /**
+     * How many check periods may pass between two checks before the gap is taken for the process having been
+     * suspended (the machine slept) rather than for the main thread having made no progress.
+     */
+    private static final long SUSPENDED_PERIODS = 4;
 
     private final Lanes lanes;
     private final Atchung bus;
@@ -64,14 +78,31 @@ public final class Watchdog implements AutoCloseable {
     /** How long the deadline that is armed was set for, for the report. */
     private long haltBound;
     private boolean armed;
+    /** Run on the way out, before the halt; null for nothing. See {@link #beforeHalt}. */
+    private volatile Runnable last;
+
+    // The main thread's watch: set before start, and after it read and written only on the watchdog's thread.
+    private MainThreadBeat beat;
+    private long mainThreshold;
+    private Predicate<StackTraceElement[]> servingOs = stack -> false;
+    private long seenBeats = -1L;
+    private long seenIteration = -1L;
+    private long progressAt;
+    private long reportedBeats = -1L;
+    private long reportedIteration = -1L;
+    private long lastCheck;
 
     /** Watching {@code lanes}, and reporting on {@code bus}. */
     public Watchdog(Lanes lanes, Atchung bus) {
         this(lanes, bus, status -> Runtime.getRuntime().halt(status));
     }
 
-    /** With the halt supplied — the one thing a test cannot let happen. */
-    Watchdog(Lanes lanes, Atchung bus, IntConsumer halter) {
+    /**
+     * With the halt supplied — the one thing a test cannot let happen. Public for the framework's tests in other
+     * modules, as {@link Lanes#Lanes(java.util.concurrent.ExecutorService)} is; an application has no reason to
+     * replace the halt, and one that does has given up the guarantee.
+     */
+    public Watchdog(Lanes lanes, Atchung bus, IntConsumer halter) {
         this(lanes, bus, halter, text -> {
             System.err.print(text);
             System.err.flush();
@@ -99,11 +130,44 @@ public final class Watchdog implements AutoCloseable {
         if (thread != null) {
             return this;
         }
-        long period = Math.max(MIN_PERIOD_NANOS, Math.min(thresholdNanos / 4, MAX_PERIOD_NANOS));
+        long shortest = beat == null ? thresholdNanos : Math.min(thresholdNanos, mainThreshold);
+        long period = Math.max(MIN_PERIOD_NANOS, Math.min(shortest / 4, MAX_PERIOD_NANOS));
         thread = new Thread(() -> watch(thresholdNanos, period), "vexel-watchdog");
         thread.setDaemon(true);
         thread.start();
         return this;
+    }
+
+    /**
+     * Watch the main thread as well, through {@code beat}: one that has begun no frame and no loop iteration for
+     * {@code thresholdNanos}, while not parked and not in a native dialog, is published as a {@link Stalled} naming
+     * {@link Stalled#MAIN}, once per stall — unless {@code servingOs} says its stack is inside the operating system's
+     * own modal loop, which a person is holding and which is not a wedge. Before {@link #start}. Nothing is looked for
+     * until the loop has begun its first frame, so a slow start-up is never a stall, nor after it has ended, since
+     * teardown has the shutdown bound.
+     *
+     * <p>{@code servingOs} is asked only about a main thread already suspected, so its stack costs nothing while the
+     * loop is healthy. It must never say no to a thread inside a native modal loop: what follows a report by default is
+     * a halt, and a check that refuses safe code is worse than none.
+     */
+    public synchronized Watchdog watchMain(MainThreadBeat beat, long thresholdNanos,
+                                           Predicate<StackTraceElement[]> servingOs) {
+        if (thread != null) {
+            throw new IllegalStateException("the main thread is watched from the start or not at all");
+        }
+        this.beat = beat;
+        this.mainThreshold = thresholdNanos;
+        this.servingOs = servingOs;
+        return this;
+    }
+
+    /**
+     * Run {@code act} on the way out, just before a halt: on a thread of its own, after the halt's report, and bounded by
+     * {@link #REPORT_BOUND_NANOS} as the report is, since whatever it needs may be what is wedged. A second call
+     * replaces the first, and the act runs at most once.
+     */
+    public void beforeHalt(Runnable act) {
+        last = act;
     }
 
     /**
@@ -175,12 +239,14 @@ public final class Watchdog implements AutoCloseable {
                 }
                 if (armed && System.nanoTime() - haltAt >= 0) {
                     reportHalt(haltBound);
+                    lastAct();
                     halter.accept(HALT_STATUS);
                     return;
                 }
             }
             if (System.nanoTime() - nextCheck >= 0) {
                 check(thresholdNanos);
+                checkMain(periodNanos);
                 nextCheck = System.nanoTime() + periodNanos;
             }
         }
@@ -200,6 +266,69 @@ public final class Watchdog implements AutoCloseable {
             TimeUnit.NANOSECONDS.timedJoin(writer, REPORT_BOUND_NANOS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();   // halting regardless: that is the point of the backstop
+        }
+    }
+
+    /** The {@link #beforeHalt} act, once, on a thread of its own, waited for at most {@link #REPORT_BOUND_NANOS}. */
+    private void lastAct() {
+        Runnable act = last;
+        last = null;
+        if (act == null) {
+            return;
+        }
+        Thread runner = new Thread(() -> {
+            try {
+                act.run();
+            } catch (RuntimeException e) {
+                e.printStackTrace();   // halting regardless: the act was the best effort on the way out
+            }
+        }, "vexel-watchdog-last");
+        runner.setDaemon(true);
+        runner.start();
+        try {
+            TimeUnit.NANOSECONDS.timedJoin(runner, REPORT_BOUND_NANOS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * One look at the main thread. Progress is a frame or a loop iteration begun since the last look; parked, in a
+     * native dialog, or inside the operating system's modal loop is not a stall, however long it lasts.
+     */
+    private void checkMain(long periodNanos) {
+        MainThreadBeat b = beat;
+        if (b == null) {
+            return;
+        }
+        long now = System.nanoTime();
+        boolean suspended = lastCheck != 0L && now - lastCheck > SUSPENDED_PERIODS * periodNanos + MAX_PERIOD_NANOS;
+        lastCheck = now;
+        long beats = b.beats();
+        long iteration = b.iteration();
+        if (!b.watching() || suspended || beats != seenBeats || iteration != seenIteration
+                || b.parked() || b.inNative()) {
+            seenBeats = beats;
+            seenIteration = iteration;
+            progressAt = now;
+            return;
+        }
+        if (now - progressAt < mainThreshold || (beats == reportedBeats && iteration == reportedIteration)) {
+            return;
+        }
+        Thread owner = b.owner();
+        if (owner != null && servingOs.test(owner.getStackTrace())) {
+            // A person is holding it in the platform's own modal loop: not progress, and not a stall. Looked at again
+            // from here, since leaving that loop for a wedge is a stall from then.
+            progressAt = now;
+            return;
+        }
+        reportedBeats = beats;
+        reportedIteration = iteration;
+        try {
+            bus.publish(Stalled.TOPIC, new Stalled(Stalled.MAIN, Duration.ofNanos(now - progressAt)));
+        } catch (RuntimeException e) {
+            e.printStackTrace();   // as for a lane: the watchdog is the one thread that may not stop
         }
     }
 

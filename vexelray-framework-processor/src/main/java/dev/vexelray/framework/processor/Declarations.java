@@ -101,6 +101,12 @@ final class Declarations {
             error(type, "@Component " + name + " has the lane \"" + lane + "\", which is not a name. A lane is a"
                     + " letter followed by letters, digits, '.', '_' or '-'; that is what keeps the default lane's"
                     + " reserved name from being something an application could write by accident");
+        } else if (RESERVED_LANES.contains(lane)) {
+            error(type, "@Component " + name + " has the lane \"" + lane + "\", which is the framework's own: \"logic\""
+                    + " is the lane every component without one shares, \"job\" is where @Job runs, and \"replay\" is"
+                    + " where a replay runs. A lane is one thread under one name, and a liveness policy interrupts it"
+                    + " by that name, so a second lane by it would be interrupted with the first. Name it for what it"
+                    + " does, or leave the lane out to share the logic lane");
         }
         for (Element e : type.getEnclosedElements()) {
             if (e.getKind() == ElementKind.FIELD && !e.getModifiers().contains(Modifier.STATIC)) {
@@ -146,6 +152,13 @@ final class Declarations {
     }
 
     private static final java.util.regex.Pattern LANE_NAME = java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9._-]*");
+
+    /**
+     * The lanes the framework names itself, which -shell spells {@code Logic.LANE}, {@code Lanes.JOB_LANE} and
+     * {@code Shell.REPLAY_LANE}. Written out here because the processor takes neither module; {@code -shell}'s
+     * {@code FrameworkTableTest} is where a table kept in two places is held to one.
+     */
+    static final java.util.Set<String> RESERVED_LANES = java.util.Set.of("logic", "job", "replay");
 
     /** The lane a component was declared on; a view's is {@link View#LANE}, the GUI thread's widget tick. */
     String lane(TypeElement component) {

@@ -1,5 +1,6 @@
 package dev.vexelray.framework.shell;
 
+import dev.vexelray.framework.core.MainThreadBeat;
 import dev.vexelray.framework.core.PickFile;
 import dev.vexelray.framework.core.Picked;
 import dev.vexelray.gui.core.app.GuiApp;
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * The framework's {@link Dialogs}: {@link Modals} for a question, NFD's native pickers for the rest, all parented to
@@ -35,10 +37,25 @@ final class NativeDialogs implements Dialogs, AutoCloseable {
 
     private final GuiApp app;
     private final Modals modals;
+    /**
+     * The way onto the main thread that {@code FileDialog} is handed, for the platforms whose pickers must run there
+     * (macOS): {@code app::post}, with the picker bracketed as a native dialog on the main thread's beat, so the
+     * watchdog knows a person is choosing a file and never takes the frozen loop for a wedge. On Windows the picker
+     * runs on NFD's own thread and this is never used, which is right: the main thread goes on drawing.
+     */
+    private final Executor onMain;
 
-    NativeDialogs(GuiApp app, Modals modals) {
+    NativeDialogs(GuiApp app, Modals modals, MainThreadBeat beat) {
         this.app = app;
         this.modals = modals;
+        this.onMain = task -> app.post(() -> {
+            beat.enterNative();
+            try {
+                task.run();
+            } finally {
+                beat.exitNative();
+            }
+        });
     }
 
     @Override
@@ -64,17 +81,17 @@ final class NativeDialogs implements Dialogs, AutoCloseable {
     private final PickFile.Sink<CompletableFuture<Optional<Path>>> pickers = new PickFile.Sink<>() {
         @Override
         public CompletableFuture<Optional<Path>> open(PickFile p) {
-            return FileDialog.openAsync(app::post, app.windowHandle(), filters(p.filters()), start(p));
+            return FileDialog.openAsync(onMain, app.windowHandle(), filters(p.filters()), start(p));
         }
 
         @Override
         public CompletableFuture<Optional<Path>> folder(PickFile p) {
-            return FileDialog.pickFolderAsync(app::post, app.windowHandle(), start(p));
+            return FileDialog.pickFolderAsync(onMain, app.windowHandle(), start(p));
         }
 
         @Override
         public CompletableFuture<Optional<Path>> save(PickFile p) {
-            return FileDialog.saveAsync(app::post, app.windowHandle(), filters(p.filters()), start(p), p.name());
+            return FileDialog.saveAsync(onMain, app.windowHandle(), filters(p.filters()), start(p), p.name());
         }
     };
 

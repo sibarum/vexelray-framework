@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -107,5 +108,59 @@ final class StallsTest {
                 System.setProperty(key, previous);
             }
         }
+    }
+
+    // ---- what the watchdog asks of a stuck main thread's stack --------------------------------------------------
+
+    private static StackTraceElement at(String cls, String method) {
+        return new StackTraceElement(cls, method, null, -1);
+    }
+
+    private static final StackTraceElement LOOP = at("dev.vexelray.gui.core.app.GuiApp", "run");
+    private static final StackTraceElement MAIN = at("app.Main", "main");
+
+    @Test
+    void theOperatingSystemsModalLoopInsideThePumpIsServingNotStuck() {
+        // A window's system menu, or a drag: the OS's loop runs inside the pump, with nothing of ours above it.
+        assertTrue(Stalls.servingOs(new StackTraceElement[] {
+                at("jdk.internal.foreign.abi.DowncallStub", "invoke"),
+                at("dev.vexelray.os.windows.Win32Window", Stalls.PUMP),
+                at("dev.vexelray.gui.core.app.GuiWindow", "frame"), LOOP, MAIN}));
+        assertTrue(Stalls.servingOs(new StackTraceElement[] {
+                at("dev.vexelray.os.windows.Win32Window", Stalls.WAIT), LOOP, MAIN}), "a park is not a wedge");
+    }
+
+    @Test
+    void aNativeDialogOnTheMainThreadIsServingNotStuck() {
+        assertTrue(Stalls.servingOs(new StackTraceElement[] {
+                at(dev.vexelray.gui.nfd.Nfd.class.getName(), "openDialog"),
+                at("dev.vexelray.gui.nfd.FileDialog", "open"),
+                at("dev.vexelray.gui.core.app.GuiApp", "iterationTop"), LOOP, MAIN}));
+    }
+
+    @Test
+    void aPostedTaskOrAFrameThatNeverReturnsIsStuck() {
+        // A posted task: the pump has not run yet this iteration, so nothing of it is on the stack.
+        assertFalse(Stalls.servingOs(new StackTraceElement[] {
+                at("java.lang.Object", "wait"), at("app.Saver", "save"),
+                at("dev.vexelray.gui.core.app.GuiApp", "iterationTop"), LOOP, MAIN}));
+        // The frame's own work, pulled from inside a drag: the frame is innermost, so the pump below is the drag's.
+        assertFalse(Stalls.servingOs(new StackTraceElement[] {
+                at("app.Logic", "tick"), at(dev.vexelray.framework.core.FrameHooks.class.getName(), "run"),
+                at("dev.vexelray.gui.core.app.GuiWindow", "pullLive"),
+                at("dev.vexelray.os.windows.Win32Window", Stalls.PUMP), LOOP, MAIN}));
+    }
+
+    @Test
+    void aStackWithNothingInItIsGivenTheBenefitOfTheDoubt() {
+        // A runtime that keeps no frames cannot say, and a halt fired at a person is worse than a missed wedge.
+        assertTrue(Stalls.servingOs(new StackTraceElement[0]));
+    }
+
+    /** The pump's names are strings because a stack frame's are; this holds them to the interface they come from. */
+    @Test
+    void thePumpsNamesAreTheWindowInterfacesOwn() throws Exception {
+        dev.vexelray.os.NativeWindow.class.getMethod(Stalls.PUMP);
+        dev.vexelray.os.NativeWindow.class.getMethod(Stalls.WAIT, long.class);
     }
 }

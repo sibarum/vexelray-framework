@@ -129,4 +129,15 @@ class FrameworkTableTest {
         }
         Shell.class.getMethod("settingList", String.class);
     }
+
+    /** The lane names the processor refuses are the ones the framework places its own lanes under. */
+    @Test
+    void theReservedLanesAreTheFrameworksOwn() throws Exception {
+        java.lang.reflect.Field logic = Class.forName("dev.vexelray.framework.shell.Logic").getDeclaredField("LANE");
+        java.lang.reflect.Field replay = Shell.class.getDeclaredField("REPLAY_LANE");
+        logic.setAccessible(true);
+        replay.setAccessible(true);
+        assertEquals(Set.of((String) logic.get(null), dev.vexelray.framework.core.Lanes.JOB_LANE,
+                (String) replay.get(null)), Declarations.RESERVED_LANES);
+    }
 }

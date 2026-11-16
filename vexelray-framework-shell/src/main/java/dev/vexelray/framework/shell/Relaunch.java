@@ -174,6 +174,10 @@ public final class Relaunch {
      * Start the process, told to wait for this one ({@link Launch#RESTART_AFTER}). Its output goes nowhere: it outlives
      * whatever was reading this process's, and its log is where it says what it is doing.
      *
+     * <p>It inherits this process's environment, with {@link #environment}'s changes, and its working directory. Both
+     * are the ones this process was started with, since Java can change neither, so a restart runs where and as the
+     * first start did.
+     *
      * @throws IOException           when the program cannot be started
      * @throws IllegalStateException when {@link #unavailable} says it cannot be
      */

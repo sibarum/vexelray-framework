@@ -75,13 +75,24 @@ public final class Lanes implements AutoCloseable {
     private final Map<String, Busy> gauges = new ConcurrentHashMap<>();
     private volatile boolean closed;
 
+    /**
+     * The job lane's name to {@link #interruptLane}: {@code "job"}. Its threads are in a group of their own under the
+     * lanes', so one interrupt reaches every job in flight, and a worker the pool happens to create while a lane is
+     * submitting to it does not join that lane's group instead (a thread joins its creator's group by default, which
+     * put job workers inside the logic lane's sweep).
+     */
+    public static final String JOB_LANE = "job";
+
     /** The lanes an ordinary application gets. */
     public Lanes() {
-        this(boundedJobs());
+        ThreadGroup group = new ThreadGroup(componentGroups, "vexel-lane-" + JOB_LANE);
+        groups.put(JOB_LANE, group);
+        this.jobs = boundedJobs(group);
     }
 
     /**
-     * The lanes, with the job lane supplied: for a test that wants a job run where it can see it.
+     * The lanes, with the job lane supplied: for a test that wants a job run where it can see it. The supplied pool's
+     * threads are its own, so {@link #interruptLane} of {@link #JOB_LANE} reaches nothing.
      */
     public Lanes(ExecutorService jobs) {
         this.jobs = jobs;
@@ -141,7 +152,10 @@ public final class Lanes implements AutoCloseable {
         // Its own group, so that a thread the body creates joins it without being told to and one interrupt
         // reaches all of them. See interruptLane.
         ThreadGroup group = new ThreadGroup(componentGroups, "vexel-lane-" + name);
-        groups.put(name, group);
+        if (groups.putIfAbsent(name, group) != null) {
+            // Two lanes under one name would be one interrupt for both, and the second would take the first's group.
+            throw new IllegalStateException("a lane called " + name + " is already placed");
+        }
         Thread t = new Thread(group, body, threadName);
         t.setDaemon(true);
         components.add(t);
@@ -220,6 +234,10 @@ public final class Lanes implements AutoCloseable {
      * cannot reach is threads made outside the group — a library's shared executor, the common pool — and
      * threads blocked on a monitor or in a native call. Ending the process is the watchdog's job, not this.
      *
+     * <p>The names are {@code "logic"} for the logic lane, a declared lane's own name, and {@link #JOB_LANE} for every
+     * job in flight at once: a job is stateless and unordered, so there is no one job to name, and an interrupted job
+     * that throws goes to the fault policy as any job that throws does.
+     *
      * @return whether a lane by that name has been placed
      */
     public boolean interruptLane(String name) {
@@ -297,9 +315,9 @@ public final class Lanes implements AutoCloseable {
         lane.shutdownNow();
     }
 
-    private static ExecutorService boundedJobs() {
+    private static ExecutorService boundedJobs(ThreadGroup group) {
         ThreadPoolExecutor pool = new ThreadPoolExecutor(JOB_THREADS, JOB_THREADS, 30L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(), named("job"));
+                new LinkedBlockingQueue<>(), named(JOB_LANE, group));
         // An idle application should not sit on threads it is not using, and letting the core time out makes
         // the bound a ceiling rather than a floor.
         pool.allowCoreThreadTimeOut(true);
@@ -307,16 +325,16 @@ public final class Lanes implements AutoCloseable {
     }
 
     /**
-     * Daemon platform threads, named for their lane.
+     * Daemon platform threads, named for their lane and made in its group.
      *
      * <p>The name is load-bearing rather than decorative: "worker thread" used to mean 0.1's handler lane and its
      * offload lane both, which is one name for two lanes with different rules in the documentation applications
      * read — and in the thread dump they reach for when one of them is the problem.
      */
-    private static ThreadFactory named(String lane) {
+    private static ThreadFactory named(String lane, ThreadGroup group) {
         AtomicInteger n = new AtomicInteger();
         return r -> {
-            Thread t = new Thread(r, "vexel-" + lane + "-" + n.incrementAndGet());
+            Thread t = new Thread(group, r, "vexel-" + lane + "-" + n.incrementAndGet());
             t.setDaemon(true);
             return t;
         };

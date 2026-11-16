@@ -435,7 +435,7 @@ public final class VexelApplication {
         // And the Dialogs every part was handed, unless the application handed back its own: from here on a
         // question goes to these, after whatever was asked while there was no window to ask it in.
         if (!shell.dialogsDecided()) {
-            shell.frameworkDialogs(disposer.register(new NativeDialogs(app, modals)));
+            shell.frameworkDialogs(disposer.register(new NativeDialogs(app, modals, shell.beat())));
         }
         // A machine that cannot draw this application fifteen times a second is offered simplified graphics, through
         // whichever Dialogs the application asks with, and answered in the main window's frame. Always on, for the same
@@ -573,8 +573,9 @@ public final class VexelApplication {
         shell.startComponents();
 
         if (launch.mode() == RunMode.WINDOWED) {
-            // Render on demand: park until something says a frame is due.
-            app.pacing(shell.pacing()::nanosUntilNextFrame)
+            // Render on demand: park until something says a frame is due. Through the shell, which tells the main
+            // thread's beat the loop is parking, so the watchdog takes a quiet window for idle and not for a wedge.
+            app.pacing(shell::nanosUntilNextFrame)
                     .idleRefresh(IDLE_REFRESH_NANOS)
                     .maxFrameRateToDisplay(MAX_FRAME_NANOS);
         }
@@ -582,9 +583,13 @@ public final class VexelApplication {
         // power in a run that exists to finish as fast as it can would only make it take longer.
         try {
             LOG.info("running: {} ({})", info.name(), launch.mode());
-            app.run(gui, launch.frames(), shell.hooks()::run);
+            // The frame hook beats before the stages run, which is what the watchdog watches the main thread by.
+            shell.loopStarting(app);
+            app.run(gui, launch.frames(), shell::frame);
             LOG.info("stopped: {}", info.name());
         } finally {
+            // Teardown from here, which the shutdown bound watches, not the main thread's.
+            shell.loopEnded();
             try {
                 // The main window's close listeners: the loop is over, and nothing is closed yet.
                 shell.windows().ended();

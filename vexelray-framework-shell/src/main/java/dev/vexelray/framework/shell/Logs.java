@@ -28,6 +28,22 @@ final class Logs {
     private Logs() {
     }
 
+    /**
+     * Whether this is a driven run: a socket named at launch ({@code automation}, {@code automation.control} or
+     * {@code automation.diagnostics}, as an argument or a system property), or the agent's {@code VEXELRAY_AUTOMATION}
+     * environment variable — the same test {@link #start} makes for the mode.
+     */
+    static boolean driven(Launch launch) {
+        for (String key : new String[] {"automation", "automation.control", "automation.diagnostics"}) {
+            String property = System.getProperty(key);
+            if (launch.override(key) != null || (property != null && !property.isBlank())) {
+                return true;
+            }
+        }
+        String environment = System.getenv("VEXELRAY_AUTOMATION");
+        return environment != null && !environment.isBlank();
+    }
+
     /** Configure logging for {@code info}'s application from what this launch said. */
     static void start(AppInfo info, Launch launch) {
         Map<String, String> settings = new HashMap<>();
