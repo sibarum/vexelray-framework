@@ -465,6 +465,32 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       it:** a path nobody runs (NFD extracting its library) can still fail at run time; tracing each backend's own
       tests narrows that and does not close it.
 
+      **Built 2026-11-16.** Every jar that binds FFM carries `native-image.properties` with the flags its own code
+      needs (vexelray's os, vulkan, present-dxgi and engine-embedded modules; tactroller's clipboard, Linux and
+      macOS backends; vex-suite-common's two pty modules; dxgi-bridge; supirvast's vastir-vulkan and vastir-tools;
+      gui-core for its shared arena), where before most inherited them by another jar being on the class path.
+      Each FFM library's `FunctionDescriptor`s were checked against its own metadata, which found 21 missing
+      downcalls (vexelray-vulkan 8, engine-embedded 4 and it had none, dxgi-bridge 3, present-dxgi 1, tactroller-macos
+      5 and it had none), and `-Pnative-trace` profiles traced the library tests of tactroller-windows, os-windows,
+      pty-windows and nfd, which found nothing main code reaches missing. `vexelray-bom` (123 artifacts, one version
+      property per repo) is a module here, and the template imports it and writes no metadata and no flags. Its
+      witness: a generated project built native with nothing of its own, then saved, pasted through the Win32
+      clipboard, and opened its windows under ottermate, with no registration errors. The apps' copies were the
+      `java` launcher's JNI calls and the JDK's locale data, which a JVM trace records and a native image does not
+      need, so they belonged nowhere.
+
+      **Left:**
+      - The five applications and `vexelray-gui-demo` still carry those copies and pin their own versions: delete
+        the copies, import the BOM. Mainframe's ConPty entries are already in `vex-suite-common-pty-windows` (FN-22).
+      - The text-highlighting starter: joni 2.2.1 with jcodings, TM4E 0.14.0 (RELEASE260), every `tables/*.bin`,
+        `ArrayList.clone` and `HashMap.clone`, never TM4E's `Raw*` classes (the jar is signed); no FFM flags.
+      - `imagelib-wrapper-windows` registers no DLL resource. Vexplore links imagelib statically to keep 4 MB out
+        of the image, so whether the jar registers it is a choice, not a gap.
+      - `vexelray-audio-api` shares an arena and carries no flags.
+      - Unverified: the Linux and macOS files on their own OS (macOS is written from source only), and NFD's dialogs
+        in a native image. The BOM's sibling versions other than its own, tactroller's and the build plugins' are
+        kept by hand.
+
 - [ ] **The `Window` seam: built, and one choice left.** `memory()`, `app()` and one-off dialogs were each a singleton
       accessor in a world where a window is not, and every one of them had to say *which window*; adding that later
       would have changed the signatures applications call. Built 2026-10-11 and shaped by W1 ([what W1
