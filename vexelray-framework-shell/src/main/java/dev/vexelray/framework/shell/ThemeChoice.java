@@ -9,8 +9,8 @@ import dev.vexelray.gui.core.input.MenuSink;
 import dev.vexelray.gui.draw.Picture;
 import sibarum.probe.Log;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The person's choice between an application's light and dark looks: remembered, read back before the first widget,
@@ -48,7 +48,11 @@ final class ThemeChoice {
 
     private final Shell shell;
     private final Settings settings;
-    private final List<Gui> trees = new CopyOnWriteArrayList<>();
+    /**
+     * The trees that follow a choice. Main thread only, so a plain list: each is added while the trees are built, by the
+     * end of {@code TREE} as {@link Windows#named} requires, and read by {@link #choose} from a menu, in a frame.
+     */
+    private final List<Gui> trees = new ArrayList<>();
 
     private ThemeChoice(Shell shell, Settings settings) {
         this.shell = shell;
