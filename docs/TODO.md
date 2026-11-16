@@ -278,27 +278,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **Why this blocks v1:** which root owns device creation decides what reachability metadata an application inherits, and so the build shape. Nothing to write until that seam moves, but the decision precedes the BOM.
 
-- [ ] **`Gui`'s topics are `static`, so one bus can carry one tree** (`vexelray-gui-core`). Every
-      instance subscribes to the same `vexelray.gui.mutations`, so two trees on one bus each receive the
-      other's mutations — into a mailbox bounded at 65,536 with `Backpressure.BLOCK`, drained only while
-      that tree is being presented. The second `Gui` fills and then blocks the first one's node setters
-      for good: a freeze after tens of thousands of edits, with nothing thrown and nothing logged. This
-      framework shipped it for three commits by putting `Modals` on `Shell.bus()`, and the designer found
-      it by putting a second window there and watching the viewport stop marching.
-
-      **Why this blocks v1:** it caps one fabric per application, so `Shell.bus()` cannot promise that a second window joins it. Either the fix lands upstream first, or v1 documents the ceiling as part of the contract.
-
-      **A third time, 2026-10-07:** `Popout` did `new Gui(host.bus())`, the calculator's settings window
-      copied that line, and the main window came up drawing the *settings* tree from its first frame, with
-      nothing thrown (calculator FN-2). `Popout` now gives the popped-out tree a bus of its own
-      (`vexelray-gui` `a93a661`). Each new second window was another chance to copy the wrong line, so since
-      2026-10-11 the framework builds a named window's tree itself (`Windows.named`, on a bus of its own and the
-      application's lanes), and no application on the stack makes a `Gui` for a second window any more.
-
-      Constrained rather than fixed: `Gui(Atchung)`'s javadoc now says which things may share a bus.
-      **It is also the ceiling on one inspectable fabric per application**, which is the point of having
-      a bus at all — a second window cannot join it. The fix is topics named per instance rather than
-      per class, and it is a real change in `vexelray-gui` rather than a line here.
+- [ ] **The dialogs are the one tree not on the application's bus** (`vexelray-gui-widget`'s `Modals`, and the
+      framework's `NativeDialogs` over it). What this entry used to be, `Gui`'s static topics capping an application at
+      one tree per bus, is fixed upstream: a tree is named and every topic it uses for itself is named by it (T4.6, held
+      by vexelray-gui's `SharedBusTest`), and every window the framework builds is on `shell.bus()` (`Windows`,
+      `WindowsTest.aClosedWindowsTreeHoldsNothingOfAnotherWindowsWidgets`). `Modals` still builds its one tree with
+      `new Gui()`, on a bus of its own, and its constructor's comment gives the reason that no longer holds (static
+      topics) beside a field comment pointing at an `install(GuiApp, Atchung, Consumer)` that does not exist.
+      **Why this blocks v1:** a dialog is the one part of an application the Inspector and a recorded replay cannot see
+      on the fabric, and moving it is a change to what `Modals.install` takes. Upstream, small; then `NativeDialogs`
+      names the tree (`"modal"`) and passes the bus.
 
 - [ ] **What `Shell` hands over is the seventh surface, and it bounds the other six.** `Shell` returns
       `Gui`, `GuiApp`, `KronoGui`, `TitleBar`, `Settings` and `Atchung`, and since October `ComputeQueue`
@@ -484,14 +473,26 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       30 s (the time a close gate's save prompt has before the process is ended anyway), and on a stall report
       then exit. All three durations are the policy's to override.
 
-      **Still to do:** the main thread is not watched, on purpose. It legitimately blocks in a modal native
-      dialog for as long as a person takes, and a halt fired at someone choosing a filename is worse than the
-      wedge, so it wants a heartbeat that knows a dialog is up, from the frame loop. (The 0.1 check that
-      main-thread code sends only on channels that never block is withdrawn: under the tick no send blocks, so
-      T4.7 holds by construction.) Cancellation tokens on `Lanes.offload()`, and
-      the handler and offload pools are not grouped. `Context` has `exit` and `interrupt` and no `restart`.
-      Verify the group sweep under native-image, untested. W2 gets the *wedge* button and the assertions that
-      the window keeps painting and close exits within the bound.
+      **Built 2026-11-15:** the main thread is watched through `MainThreadBeat` (`-core`), written per frame and per
+      park from the frame loop with volatile stores only. A main thread with no frame and no loop iteration for
+      `mainThreadStallThreshold`, not parked and not in a native dialog the framework opened, has its stack read so the
+      operating system's own modal loops inside the pump (a drag, the system menu, drag and drop) are left alone; it is
+      published as `Stalled.MAIN` and goes to `onMainThreadStall(Stall, MainThreadContext)`, whose default is report
+      then halt, and whose context offers only `halt` and `restart`, because a close gate would run on the stuck thread.
+      `Context.restart()` relaunches the same command through `Shell.relaunch`'s mechanism after the close gate's grace,
+      when the window closes or on the watchdog's way out (`Watchdog.beforeHalt`), and exits instead when the command is
+      unknown or the run is driven by automation, whose harness would not know the new process. The job lane's workers
+      are a group of their own (`"job"`), where before a submission from the logic lane put its worker in the logic
+      lane's sweep; `interrupt` takes `Component.DEFAULT_LANE` for the logic lane; the processor refuses the
+      framework's own lane names. 0.1's handler and offload pools are gone, so their cancellation item is closed.
+
+      **Still to do:**
+      - Verify under native-image: the group sweep, and that the main thread's stack keeps method names (an empty
+        stack counts as serving the operating system, so the risk is a missed wedge, never a false halt).
+      - Upstream, `vexelray-gui`: a *pumping* flag in `LoopCounters`, written where `GuiWindow.frame` calls
+        `pumpEvents`, would replace the stack read with an exact signal and catch a wedge inside a pump callback.
+      - W2 gets the *wedge* button and the assertions that the window keeps painting and close exits within the
+        bound, plus a stuck main thread ending within the threshold and a drag held past it ending nothing.
 
 - [ ] **A look is colour; shape, density and type are each widget's** (upstream, `vexelray-gui` and
       `vexelray-text`). Found by VexelRay IDE's retheme to a design mockup (FN-14 to FN-17): every colour landed through the
