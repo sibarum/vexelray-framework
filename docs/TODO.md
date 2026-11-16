@@ -365,6 +365,18 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       codec's TODO. Left behind the `GuiApp`: the sim demos only. **The rest is
       frozen by marking:** `vexelray-gui` gets a stability marker of its own, every public method of `Gui`,
       `TitleBar`, `Keymap` and `Settings` a view can reach carries it, and a test fails on one that does not.
+      **Built 2026-11-16** (`vexelray-gui` `ec6e05c5`, `87102b0c`, `docs/reference/stability.md`): `dev.vexelray.gui.core.
+      Stability`, `FROZEN` or `EXPERIMENTAL`, CLASS retention, read by nothing at run time. A census of every
+      application on disk and the template's `files/` set the marks: `FROZEN` is earned by use, or by being the
+      plain other half of a used member, said in a comment; framework-only use freezes nothing, since the framework
+      moves with that repo. `Gui` 44 frozen, 45 experimental; `TitleBar` 9 and 11; `Keymap` 6 and 17; `Settings` 17
+      and 1. Twenty-one members only the host and widgets called (draw-needed and owed-frame bookkeeping, the
+      animation clock, the drawn theme, focus state, drag sessions and the like) moved from `Gui` to `Seams`, and
+      `releaseClaim(Node, Shortcut)`, kept only so old bytecode linked, is deleted. `StabilityMarksTest` in each
+      owning module fails on an unmarked public member and on a census table that disagrees with the marks.
+      **Left:** nested public types (`TitleBar.Wordmark`, `Keymap.Bound`) and the other types an application reaches
+      (`Node`, `Theme`) are not marked; and Vexplore, the scheduler, vex-suite-common and the physics demos still call
+      members that left `Gui` earlier, so they build only against an older `vexelray-gui`.
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and for a while left one generated counter-style
