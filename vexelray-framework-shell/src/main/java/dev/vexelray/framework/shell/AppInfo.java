@@ -1,7 +1,6 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.framework.api.Stability;
-import dev.vexelray.os.Icon;
 
 import java.util.Set;
 
@@ -20,12 +19,12 @@ import java.util.Set;
  *                    refused by name with the alternatives listed. A generated wiring fills this in from every
  *                    {@code @Setting} it binds, so it cannot fall out of date with the code that reads them;
  *                    see {@link #settingKeys()} for what that costs a hand-written one
- * @param icon        the mark this application wears, decoded, or {@code null} for the one its wiring names
- *                    ({@code @VexelApp(icon)}), and failing that the framework's. See {@link #icon()} for why
- *                    identity belongs here and not in {@link Appearance}
+ *
+ * <p>The mark is identity too, and is not here: it is named by {@code @VexelApp(icon)}, which the wiring carries
+ * ({@code Wiring.icon()}), and decoded by the framework when there is a window to put it on.
  */
 @Stability(Stability.Level.EXPERIMENTAL)
-public record AppInfo(String name, String title, int width, int height, Set<String> settingKeys, Icon icon) {
+public record AppInfo(String name, String title, int width, int height, Set<String> settingKeys) {
 
     public AppInfo {
         if (name == null || name.isBlank()) {
@@ -36,23 +35,7 @@ public record AppInfo(String name, String title, int width, int height, Set<Stri
 
     /** For an application that declares no settings of its own. */
     public AppInfo(String name, String title, int width, int height) {
-        this(name, title, width, height, Set.of(), null);
-    }
-
-    /** For an application with settings and no mark of its own. */
-    public AppInfo(String name, String title, int width, int height, Set<String> settingKeys) {
-        this(name, title, width, height, settingKeys, null);
-    }
-
-    /**
-     * The same facts, wearing {@code icon}.
-     *
-     * <p>Separate from the constructors because decoding a mark reads resources, and an application that wants
-     * its {@code INFO} to be a constant should not have to do that in a static initialiser it cannot report a
-     * failure from.
-     */
-    public AppInfo withIcon(Icon icon) {
-        return new AppInfo(name, title, width, height, settingKeys, icon);
+        this(name, title, width, height, Set.of());
     }
 
     /**
@@ -74,34 +57,5 @@ public record AppInfo(String name, String title, int width, int height, Set<Stri
     @Override
     public Set<String> settingKeys() {
         return settingKeys;
-    }
-
-    /**
-     * The mark, or {@code null}.
-     *
-     * <p><b>Identity, not appearance</b>, which is why it sits beside the title rather than in
-     * {@link Appearance}. {@code vexelray-gui/docs/automation.md} §7 draws that line: an application
-     * contributes <i>"identity — its title, an icon as identity"</i> — and the framework, which owns the
-     * window, is what puts both on it.
-     *
-     * <p><b>Said twice, deliberately.</b> The framework hands this to
-     * {@code NativePlatform.setApplicationIcon} before the first window exists — the mark of the
-     * <em>process</em>, which is what any window naming none falls back to — and <em>also</em> names it on the
-     * main window's own config. That is redundant for exactly as long as the application is the process, and
-     * the text editor's {@code AppIcon} records why it stops being so:
-     *
-     * <blockquote>Run inside MainFrame it is not: the process is MainFrame, so the fallback is MainFrame's
-     * mark, and a window relying on it would be indistinguishable from the shell wherever windows are
-     * listed.</blockquote>
-     *
-     * <p>Every application on this stack that wears a mark had that paragraph in it. Now the framework does.
-     *
-     * <p><b>Usually {@code null} here</b>, because the usual way to name a mark is {@code @VexelApp(icon)}: a
-     * resource the wiring names and the framework decodes at {@code WINDOW}, when there is somewhere to put it.
-     * This is for a mark built in code. Neither, and the application wears the framework's — see {@code Mark}.
-     */
-    @Override
-    public Icon icon() {
-        return icon;
     }
 }

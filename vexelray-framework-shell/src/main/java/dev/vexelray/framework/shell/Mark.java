@@ -10,13 +10,19 @@ import java.io.InputStream;
 import java.util.Locale;
 
 /**
- * Which mark the application wears, decoded: the one it handed back, else the one it named, else the framework's.
+ * Which mark the application wears, decoded: the one it named ({@code @VexelApp(icon)}), else the framework's.
  *
  * <p><b>Never nothing, unless something failed.</b> An application that names no mark wears {@code new-app.ico}, the
  * template's — the same file a generated project's executable links — rather than the OS default. A window under the
  * OS default is indistinguishable from every other program that forgot, and on Windows the default is not even the
  * executable's own icon: the window class is registered without one. Each failure is reported once and falls to the
  * next, because a mark is cosmetic and must never take a launch down with it.
+ *
+ * <p><b>Said twice, deliberately.</b> The framework hands the mark to {@code NativePlatform.setApplicationIcon}
+ * before the first window exists — the mark of the <em>process</em>, which any window naming none falls back to —
+ * and <em>also</em> names it on the main window's own config. That is redundant for exactly as long as the
+ * application is the process: run inside MainFrame, the process is MainFrame, and a window relying on the fallback
+ * would be indistinguishable from the shell wherever windows are listed.
  *
  * <p>Decoded with {@link Icon#fromIco} and {@link Icon#fromPng}, which read the formats with {@code java.base} alone,
  * so a native image of the application carries no AWT for its icon.
@@ -30,10 +36,7 @@ final class Mark {
     }
 
     /** The mark to wear, or {@code null} if even the framework's could not be read. */
-    static Icon of(Wiring wiring, AppInfo info) {
-        if (info.icon() != null) {
-            return info.icon();
-        }
+    static Icon of(Wiring wiring) {
         String named = wiring.icon();
         if (named != null) {
             Icon icon = load(wiring.getClass(), named, "the application's icon " + named);
@@ -51,12 +54,12 @@ final class Mark {
      *
      * <p>Found by name rather than declared: the variant of {@code pix.ico} is {@code pix-window.ico} beside it, as
      * the suite canvas exports {@code pix-window.svg} beside {@code pix.svg}. An application without one — every
-     * application that is not a suite one, and every mark built in code — wears {@code primary} in every window,
+     * application that is not a suite one — wears {@code primary} in every window,
      * which is not a failure and so is not reported. A variant that is there and cannot be read is.
      */
-    static Icon window(Wiring wiring, AppInfo info, Icon primary) {
+    static Icon window(Wiring wiring, Icon primary) {
         String named = wiring.icon();
-        if (info.icon() != null || named == null) {
+        if (named == null) {
             return primary;
         }
         String variant = windowVariant(named);
@@ -74,12 +77,9 @@ final class Mark {
      *
      * <p>Found by name, like {@link #window}: {@code pix-background.ico} beside {@code pix.ico}. An application that
      * names no mark gets the framework's, {@code new-app-background.ico}, beside its {@code new-app.ico}. One without
-     * a variant, or whose mark is built in code, has none, and its hidden windows keep their mark; {@code null}.
+     * a variant has none, and its hidden windows keep their mark; {@code null}.
      */
-    static Icon background(Wiring wiring, AppInfo info) {
-        if (info.icon() != null) {
-            return null;
-        }
+    static Icon background(Wiring wiring) {
         String named = wiring.icon();
         Class<?> anchor = named != null ? wiring.getClass() : Mark.class;
         String variant = variant(named != null ? named : FRAMEWORK, "-background");
@@ -92,12 +92,12 @@ final class Mark {
     /**
      * The mark as a drawing: {@code pix.sdgb} beside {@code pix.ico}, as the icon plugin's pair goal makes it from the
      * drawing the icon is made from, which the title bar draws sharp at every scale in place of the icon's rasters.
-     * An application that names no mark, or whose mark is built in code or has no drawing beside it, has none:
+     * An application that names no mark, or whose mark has no drawing beside it, has none:
      * {@code null}, not reported. One that is there and does not read is.
      */
-    static ImageSdg drawing(Wiring wiring, AppInfo info) {
+    static ImageSdg drawing(Wiring wiring) {
         String named = wiring.icon();
-        if (info.icon() != null || named == null) {
+        if (named == null) {
             return null;
         }
         String variant = variant(named, "");

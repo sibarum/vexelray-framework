@@ -8,8 +8,8 @@ package dev.vexelray.framework.api;
  * orders, with slightly different failure behaviour; one of them documents having thrown
  * {@code NumberFormatException} out of {@code main} — <i>"a stack trace, before any window, for a typo"</i>.
  *
- * <p>A mode is not a flag. {@code --profile} and {@code --automation} are orthogonal to both of these and stay
- * separate switches on the launch record: profiling a windowed session and profiling a fixed-frame run are both
+ * <p>A mode is not a flag. {@code --automation} and {@code --log} are orthogonal to both of these and stay
+ * separate switches on the launch record: driving a windowed session and driving a fixed-frame run are both
  * meaningful, so they are not alternatives.
  *
  * <h2>There was a third, and it is gone</h2>

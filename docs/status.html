@@ -416,7 +416,7 @@
           <tr>
             <td class="repo">The launch surface</td>
             <td><span class="pill p-part">Close</span></td>
-            <td class="note"><code>FRAMEWORK_KEYS</code> and the dropped-capability reports are settled. <code>--profile</code> is reserved and nothing honours it, and the module behind it has no name yet.</td>
+            <td class="note"><code>FRAMEWORK_KEYS</code> and the dropped-capability reports are settled. <code>--profile</code> was reserved with nothing honouring it, so it is gone until diagnostics are built.</td>
           </tr>
           <tr>
             <td class="repo">The annotations and the processor's semantics</td>
@@ -457,7 +457,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td class="repo">Diagnostics, <code>--profile</code></td><td class="note">A starter and <code>@ConditionalOnType</code>; <code>atchung-probe</code></td><td><span class="pill p-full">Yes</span> <span class="note">the name is undecided</span></td></tr>
+          <tr><td class="repo">Diagnostics</td><td class="note">A starter and <code>@ConditionalOnType</code>; <code>atchung-probe</code></td><td><span class="pill p-full">Yes</span> <span class="note">the name is undecided</span></td></tr>
           <tr><td class="repo">A second automation socket</td><td class="note"><code>Driver.open(shell, gui, controls, offset)</code></td><td><span class="pill p-full">Yes</span></td></tr>
           <tr><td class="repo">Framework SDF vocabulary</td><td class="note">A <code>@Provides</code> and a placed component</td><td><span class="pill p-part">When the component model is final</span></td></tr>
           <tr><td class="repo">Simulation vocabulary</td><td class="note"><code>FrameStage.APP</code> and a placed component</td><td><span class="pill p-part">Partly</span></td></tr>
@@ -828,11 +828,6 @@
       <div class="col gap">
         <h3>Gotchas still open</h3>
         <ul>
-          <li><b>Two reserved keys nothing consumes.</b> <code>--profile</code> parses and no module
-            honours it. The processor evaluates <code>@ConditionalOnType</code> now, so a part can be
-            present or absent by what is on the classpath — but nothing uses that to honour a profile.</li>
-          <li><code>shell.wake(gui::onWork)</code> is <b>redundant</b> — <code>GuiApp</code> already
-            wires every tree it presents — and reads like the line that makes the wake happen.</li>
           <li>A non-default zoom range would <b>disagree across the editor's three windows</b>, because
             two of them also run under a host with no <code>Shell</code> to ask.</li>
         </ul>

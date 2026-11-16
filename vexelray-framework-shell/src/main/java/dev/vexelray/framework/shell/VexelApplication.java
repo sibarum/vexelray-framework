@@ -1,7 +1,6 @@
 package dev.vexelray.framework.shell;
 
 import dev.vexelray.gui.widget.spi.WidgetSeams;
-import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.diag.Diagnostics;
 import dev.vexelray.framework.api.FrameStage;
 import dev.vexelray.framework.api.RunMode;
@@ -91,22 +90,22 @@ public final class VexelApplication {
      * {@code windows} — the main window, and every popup, named window and dialog after it. {@code null} is
      * the platform's own, which is what {@link #run(Wiring, String[])} passes.
      *
-     * <p><b>This exists for one test that cannot otherwise be written.</b> {@code vexelray-gui-harness} runs a
-     * real frame loop against windows that are genuinely created and never shown, in order to ask the one
-     * question a hand-driven frame cannot — <i>"after this click, does a frame arrive on its own?"</i> — and it
-     * takes over window creation to do it, because a window is on screen from the instant the platform makes
-     * it. Without a seam here, the framework's own wake wiring was the part of it no such test could reach:
-     * {@link Shell#wake} against {@code gui::onWork} and {@code krono.kron()::onWork}, and the two
-     * {@link Shell#deadline} calls, are unremarkable to write and catastrophic to omit, and {@code -core}'s
-     * {@code PacingTest} can only prove them as arithmetic. The GUI's own record is that five missing wakes
-     * shipped past a green suite.
+     * <p><b>Package-private: it exists for one test that cannot otherwise be written</b> ({@code WakeSeamsTest}),
+     * and a test seam is not part of what an application sees. That test runs a real frame loop against windows
+     * that are genuinely created and never shown, in order to ask the one question a hand-driven frame cannot —
+     * <i>"after this click, does a frame arrive on its own?"</i> — and it takes over window creation to do it,
+     * because a window is on screen from the instant the platform makes it. Without a seam here, the framework's
+     * own wake wiring was the part of it no such test could reach: {@link Shell#wake} against
+     * {@code krono.kron()::onWork}, and the two {@link Shell#deadline} calls, are unremarkable to write and
+     * catastrophic to omit, and {@code -core}'s {@code PacingTest} can only prove them as arithmetic. The GUI's own
+     * record is that five missing wakes shipped past a green suite.
      *
      * <p>The factory is handed straight to {@code GuiApp}, so its contract is that constructor's: called on the
      * main thread, in creation order, with the fully resolved config, and returning {@code null} is a bug. A
      * factory that adds nothing is an ordinary application, which is why the default is this method with
      * {@code null} rather than a second code path.
      */
-    public static void run(Wiring wiring, String[] args, Function<WindowConfig, NativeWindow> windows) {
+    static void run(Wiring wiring, String[] args, Function<WindowConfig, NativeWindow> windows) {
         AppInfo info = wiring.info();
         // Before the bus exists, let alone anything publishing on it. See Faults for why the framework owns
         // this answer and why it is still a halt.
@@ -362,9 +361,8 @@ public final class VexelApplication {
         KeyBindings keys = KeyBindings.declare(shell);
         // The About window, which the mark on every title bar opens. Last in TREE, so it is declared after every
         // window of the application's, and an application that declared its own "about" keeps it. See About.
-        // The icon it names is where its art pair is found; one it built in code has none.
-        return new OwnWindows(About.declare(shell, info, shell.build(), wiring.getClass(),
-                info.icon() == null ? wiring.icon() : null), keys);
+        // The icon it names is where its art pair is found.
+        return new OwnWindows(About.declare(shell, info, shell.build(), wiring.getClass(), wiring.icon()), keys);
     }
 
     /** The windows the framework declares for itself at the end of {@code TREE}; each null when there is none. */
@@ -386,14 +384,14 @@ public final class VexelApplication {
         // The application's, if the wiring handed one back by TREE; the framework's, on tactroller, if not.
         InputBackend input = shell.openInput();
         // The mark goes on the process before the first window exists, so every window this application opens
-        // is shown wearing it rather than corrected into it a frame later. See AppInfo.icon for why the same
-        // mark is then named on the window's own config as well. The application's if it named one, the
+        // is shown wearing it rather than corrected into it a frame later. See Mark for why the same mark is
+        // then named on the window's own config as well. The application's if it named one, the
         // framework's if not: see Mark.
         installAppId(wiring.appId());
-        Icon mark = Mark.of(wiring, info);
+        Icon mark = Mark.of(wiring);
         installMark(mark);
-        shell.windowMark(Mark.window(wiring, info, mark));
-        installBackgroundMark(Mark.background(wiring, info));
+        shell.windowMark(Mark.window(wiring, mark));
+        installBackgroundMark(Mark.background(wiring));
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
         WindowConfig main = mainWindow(memory, info, appearance, mark);
@@ -479,7 +477,7 @@ public final class VexelApplication {
         }
         if (chrome.drawsOwnFrame()) {
             // The mark's drawing when it has one, sharp at every scale; else the icon's rasters, nearest the scale.
-            dev.vexelray.gui.core.ImageSdg drawing = Mark.drawing(wiring, info);
+            dev.vexelray.gui.core.ImageSdg drawing = Mark.drawing(wiring);
             TitleBar bar = shell.titleBar().controls(app.controls()).instruments(chrome.instruments());
             if (drawing != null) {
                 bar.icon(drawing);
@@ -550,9 +548,9 @@ public final class VexelApplication {
         shell.deadline(() -> krono.kron().sleepTimeout().nanos());
         shell.deadline(memory::nanosUntilSettle);
 
-        // And the wakes, without which the parking below is a hang rather than a saving: a worker's mutation
-        // and a timeline's tick are not OS input, so each has to nudge the message queue.
-        shell.wake(Seams.of(gui)::onWork);
+        // And the clock's wake, without which the parking below is a hang rather than a saving: a timeline's tick is
+        // not OS input, so it has to nudge the message queue. A tree's own wake is GuiApp's: it wires every tree it
+        // presents (wireAllWakes, each iteration), so a second wiring here would only say the same thing again.
         shell.wake(krono.kron()::onWork);
 
         wiring.attach(shell);
@@ -603,7 +601,7 @@ public final class VexelApplication {
         WindowConfig config = memory.config(MAIN, info.title(), info.width(), info.height())
                 .decorations(appearance.decorations());
         // Named on the window as well as on the process. Redundant for exactly as long as this application is
-        // the process; see AppInfo.icon for the arrangement where it stops being.
+        // the process; see Mark for the arrangement where it stops being.
         return mark == null ? config : config.icon(mark);
     }
 

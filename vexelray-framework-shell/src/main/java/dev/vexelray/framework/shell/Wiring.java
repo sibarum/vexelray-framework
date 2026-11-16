@@ -132,7 +132,7 @@ public abstract class Wiring {
      * <p>A name and not an {@link dev.vexelray.os.Icon}, because decoding reads a resource and can fail, and the
      * framework is the party that can report a failure and carry on: it decodes this at {@link Phase#WINDOW}, the
      * first moment a mark has anywhere to go. The generated wiring returns {@code @VexelApp(icon)}, which the
-     * processor has already found on the class path; an {@link AppInfo#icon} handed back directly still wins.
+     * processor has already found on the class path.
      */
     public String icon() {
         return null;

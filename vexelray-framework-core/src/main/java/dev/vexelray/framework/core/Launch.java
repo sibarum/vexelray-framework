@@ -35,9 +35,9 @@ import java.util.TreeSet;
  * </pre>
  *
  * <p>{@code mode} and {@code frames} are the framework's own two questions; everything else is an override,
- * resolved later at the precedence {@code Setting} documents. That includes the two switches the demos
- * hand-rolled — {@code --profile} and {@code --automation} — which are settings like any other and are not
- * given fields of their own here. There is no third category.
+ * resolved later at the precedence {@code Setting} documents. That includes the switch the demos hand-rolled,
+ * {@code --automation}, which is a setting like any other and is not given a field of its own here. There is no
+ * third category.
  *
  * <p><b>There is no {@code --capture}.</b> The framework's one-frame capture mode was removed because it
  * photographed the chrome correctly and the content silently wrongly; see {@link RunMode}.
@@ -53,26 +53,21 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
      * Keys the framework <em>reserves</em>, and so accepts without the application declaring them.
      *
      * <p>{@code automation} asks for the driving socket, and {@code recorder} sizes that socket's flight recorder in
-     * rows (it means nothing without the socket, so it is not counted among the two below); {@code profile} asks for the frame probe; {@code log} sets how
-     * much is logged for this launch ({@code --log=debug}, or {@code off}) and, unlike the other two, <b>is</b> honoured
-     * here: {@code -shell} reads it before anything logs, which is what makes the mode and the level right from the
-     * first record. The first two are off
-     * unless asked for, and both are deliberately settings rather than modes — profiling a windowed session and
-     * profiling a fixed-frame run are both meaningful, so they are not alternatives to anything.
+     * rows (it means nothing without the socket); {@code log} sets how much is logged for this launch
+     * ({@code --log=debug}, or {@code off}) and is honoured by {@code -shell} before anything logs, which is what makes
+     * the mode and the level right from the first record. {@code automation} is off unless asked for, and is
+     * deliberately a setting rather than a mode: driving a windowed session and driving a fixed-frame run are both
+     * meaningful, so it is not an alternative to anything.
      *
-     * <p><b>Reserved is not the same as honoured, and this is the one place in the framework where that gap is
-     * accepted rather than closed.</b> Neither of those two keys is consumed by {@code -core} or {@code -shell}. The socket
-     * is bound by {@code vexelray-framework-automation}'s {@code Driver} — a module of its own, because a
-     * listening socket linked into every native binary is the wrong trade — and the probe is still the
-     * application's own until there is a {@code -diagnostics} to move it into
-     * ({@code text-editor-vexel-demo}'s {@code FpsProbe} reads {@code flag("profile")} to turn it on). So an
-     * application that depends on neither can be given {@code --automation=7654}, have it parse, and have
-     * nothing happen.
+     * <p><b>Reserved is not the same as honoured, and the automation keys are the one place in the framework where
+     * that gap is accepted rather than closed.</b> Neither {@code -core} nor {@code -shell} consumes them. The socket is
+     * bound by {@code vexelray-framework-automation}'s {@code Driver} — a module of its own, because a listening socket
+     * linked into every native binary is the wrong trade — so an application that does not depend on it can be given
+     * {@code --automation=7654}, have it parse, and have nothing happen.
      *
-     * <p>That is the failure this class exists to prevent, kept here on purpose, because the two alternatives
-     * are worse. Refusing the key unless something consumes it would mean asking at runtime whether
-     * {@code Driver} is on the classpath, which is a {@code Class.forName} on the startup path and this
-     * framework does not reflect. Making each application declare the key returns the stack to what it had
+     * <p>That is the failure this class exists to prevent, accepted here because the two alternatives are worse.
+     * Refusing the key unless something consumes it would mean asking at runtime whether {@code Driver} is on the
+     * classpath, which is a {@code Class.forName} on the startup path and this framework does not reflect. Making each application declare the key returns the stack to what it had
      * before — the scaffold read {@code System.getProperty("automation", "off")} in the middle of a factory
      * method — and gives up the one thing reserving a name buys, which is that the same instrument is asked
      * for the same way in every application on the desk.
@@ -82,7 +77,7 @@ public record Launch(RunMode mode, int frames, Map<String, String> overrides, Li
      * question rather than a quiet launch. {@link #usage} lists these separately from the application's own
      * keys in the meantime, so that at least the two categories are not presented as one.
      */
-    public static final Set<String> FRAMEWORK_KEYS = Set.of("profile", "automation", "automation.control",
+    public static final Set<String> FRAMEWORK_KEYS = Set.of("automation", "automation.control",
             "automation.diagnostics", "automation.available", "automation.inspector", "recorder", "log",
             "restart.after", "logic", "replayable");
 

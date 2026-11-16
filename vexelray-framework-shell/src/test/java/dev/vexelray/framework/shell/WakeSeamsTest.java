@@ -31,9 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The framework's own wake wiring, asserted end to end against a real parked loop.
  *
- * <p><b>What could not be tested before this.</b> {@code VexelApplication} registers two wakes and two
- * deadlines on the application's behalf — {@code gui::onWork}, {@code krono.kron()::onWork},
- * {@code kron().sleepTimeout()} and {@code memory::nanosUntilSettle} — and they are the lines
+ * <p><b>What could not be tested before this.</b> {@code VexelApplication} registers a wake and two
+ * deadlines on the application's behalf — {@code krono.kron()::onWork}, {@code kron().sleepTimeout()} and
+ * {@code memory::nanosUntilSettle} — and {@code GuiApp} wires each tree's own wake; they are the lines
  * {@link dev.vexelray.framework.core.WakeSource} describes as <i>"unremarkable to write and catastrophic to
  * omit"</i>. {@code -core}'s {@code PacingTest} proves the arithmetic that combines them and cannot prove that
  * they are connected to anything. Nothing else could: a test that draws its own frames passes whether or not a
@@ -55,14 +55,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <tr><td>{@code wake(krono.kron()::onWork)}</td><td>the idle test — an unwired clock answers {@code ZERO}
  *       to {@code sleepTimeout}, so the loop spins</td></tr>
  *   <tr><td>{@code deadline(memory::nanosUntilSettle)}</td><td>the idle test — it never parks at all</td></tr>
- *   <tr><td>{@code wake(gui::onWork)}</td><td><b>nothing</b>, and the reason is that it is redundant:
- *       {@code GuiApp.wireAllWakes} already does {@code gui.onWork(this::postWake)} for every tree it
- *       presents, re-checked every iteration. See {@code docs/TODO.md}</td></tr>
  *   <tr><td>{@code deadline(() -> kron().sleepTimeout().nanos())}</td><td><b>nothing</b>. Its contribution is
  *       precision rather than liveness — the clock's wake already brings the loop back whenever the timeline
  *       has work, so what this deadline buys is parking <em>until</em> the next moment instead of being
  *       nudged to it. See {@code docs/TODO.md}</td></tr>
  * </table>
+ *
+ * <p>There is no {@code wake(gui::onWork)} in that list: {@code GuiApp.wireAllWakes} wires every tree it presents,
+ * every iteration, so a second wiring in {@code VexelApplication} would be one nothing could catch the deletion of.
+ * The click test here is what holds the tree's wake, wherever it is wired.
  *
  * <p><b>Needs a Vulkan device.</b> This is an integration test in the module that is allowed to have one —
  * {@code -api} and {@code -core} stay JDK-only precisely so the container is testable without a GPU, and this

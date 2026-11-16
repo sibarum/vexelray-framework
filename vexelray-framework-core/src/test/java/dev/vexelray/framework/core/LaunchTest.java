@@ -54,8 +54,15 @@ final class LaunchTest {
 
     @Test
     void aBareFlagIsTheValueTrue() {
-        assertTrue(parse("--profile").flag("profile"));
-        assertFalse(parse().flag("profile"));
+        assertTrue(parse("--replayable").flag("replayable"));
+        assertFalse(parse().flag("replayable"));
+    }
+
+    /** Reserved names nothing honours are not kept (v1.md, what must not remain): {@code --profile} had no consumer. */
+    @Test
+    void profileIsNotAFrameworkFlag() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> parse("--profile"));
+        assertTrue(e.getMessage().contains("--profile"), e.getMessage());
     }
 
     @Test
@@ -73,7 +80,7 @@ final class LaunchTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> parse("--verbse"));
         assertTrue(e.getMessage().contains("--verbse"), e.getMessage());
         assertTrue(e.getMessage().contains("theme"), e.getMessage());
-        assertTrue(e.getMessage().contains("profile"), e.getMessage());
+        assertTrue(e.getMessage().contains("replayable"), e.getMessage());
     }
 
     @Test
@@ -119,7 +126,7 @@ final class LaunchTest {
 
         assertEquals(3, lines.length, Launch.usage("demo", KEYS));
         assertEquals("settings: theme, zoom", lines[1]);
-        assertEquals("framework: automation, automation.available, automation.control, automation.diagnostics, automation.inspector, log, logic, profile, recorder, replayable, restart.after", lines[2]);
+        assertEquals("framework: automation, automation.available, automation.control, automation.diagnostics, automation.inspector, log, logic, recorder, replayable, restart.after", lines[2]);
     }
 
     /** An application with no settings of its own still gets told about the reserved keys, and gets no blank
@@ -129,6 +136,6 @@ final class LaunchTest {
         String[] lines = Launch.usage("demo", Set.of()).split("\\R");
 
         assertEquals(2, lines.length, Launch.usage("demo", Set.of()));
-        assertEquals("framework: automation, automation.available, automation.control, automation.diagnostics, automation.inspector, log, logic, profile, recorder, replayable, restart.after", lines[1]);
+        assertEquals("framework: automation, automation.available, automation.control, automation.diagnostics, automation.inspector, log, logic, recorder, replayable, restart.after", lines[1]);
     }
 }
