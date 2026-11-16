@@ -41,7 +41,9 @@ class FrameworkConcurrencyTest {
             entry(CORE + "Lanes", "the lanes themselves: a thread per component lane, the job pool, the lane groups, "
                     + "and each lane's idle stamp the watchdog reads from outside"),
             entry(CORE + "Timer", "the timer: one scheduler thread whose firings publish (T7.3's list)"),
-            entry(CORE + "Watchdog", "the watchdog: it must stand outside what it watches, on a thread of its own "
+            entry(CORE + "MainThreadBeat", "the watchdog's view of the main thread: written by the frame loop alone, "
+                    + "read from the watchdog's thread, so each field is a single-writer volatile and nothing locks"),
+            entry(CORE + "Watchdog","the watchdog: it must stand outside what it watches, on a thread of its own "
                     + "(ROADMAP §3), and it reads every thread's stack to report a halt"),
             // -automation
             entry("dev.vexelray.framework.automation.Driver", "the automation driver's socket threads (ROADMAP §3)"),
