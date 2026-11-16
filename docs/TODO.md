@@ -278,16 +278,17 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **Why this blocks v1:** which root owns device creation decides what reachability metadata an application inherits, and so the build shape. Nothing to write until that seam moves, but the decision precedes the BOM.
 
-- [ ] **The dialogs are the one tree not on the application's bus** (`vexelray-gui-widget`'s `Modals`, and the
-      framework's `NativeDialogs` over it). What this entry used to be, `Gui`'s static topics capping an application at
-      one tree per bus, is fixed upstream: a tree is named and every topic it uses for itself is named by it (T4.6, held
-      by vexelray-gui's `SharedBusTest`), and every window the framework builds is on `shell.bus()` (`Windows`,
-      `WindowsTest.aClosedWindowsTreeHoldsNothingOfAnotherWindowsWidgets`). `Modals` still builds its one tree with
-      `new Gui()`, on a bus of its own, and its constructor's comment gives the reason that no longer holds (static
-      topics) beside a field comment pointing at an `install(GuiApp, Atchung, Consumer)` that does not exist.
-      **Why this blocks v1:** a dialog is the one part of an application the Inspector and a recorded replay cannot see
-      on the fabric, and moving it is a change to what `Modals.install` takes. Upstream, small; then `NativeDialogs`
-      names the tree (`"modal"`) and passes the bus.
+- [ ] **`Routes` still accepts a widget topic that is not scoped by tree** (upstream, `vexelray-gui-core`). Found
+      2026-11-15 moving the dialogs onto the application's bus (`Modals.install(app, bus, name, look)`, vexelray-gui
+      `a07a5913`; every tree, the dialogs' included, is now on `shell.bus()`). Navigation, the one live leak of the old
+      static-topics freeze (every tree took it into a pumped `BLOCK` mailbox drained only in its own frames), is now
+      judged where it is published (`ModalsSharedBusTest` floods past 65,536 with the dialog tree never framed). What
+      is left is latent: `Routes.Table` subscribes unscoped when `topic.hasScope()` is false, so a closed window's tree
+      would collect such a topic's messages until it next framed. No topic on the stack takes that branch today (the
+      unscoped declarations are `TreeView.ChildrenWanted`, heard by an application's view, a tree's node events,
+      named by the tree, and `Address.NAVIGATE`). **Why this blocks v1:** refusing the branch is what makes the freeze
+      impossible rather than absent, and it changes what a widget library's topic must declare. Small: refuse an
+      unscoped topic where the route table is made, naming `Addressed.edge`/`Addressed.state` as the fix.
 
 - [ ] **What `Shell` hands over is the seventh surface, and it bounds the other six.** `Shell` returns
       `Gui`, `GuiApp`, `KronoGui`, `TitleBar`, `Settings` and `Atchung`, and since October `ComputeQueue`
@@ -508,18 +509,25 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       with defaults); the fonts and `Span` are not.
 
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
-      [v1.md](v1.md#what-must-not-remain). Known candidates so far, each a question and not yet a finding:
-      the prior constructors and `Config` forms the engine refactor kept on purpose; `--profile`, which parses
-      and nothing honours; `shell.wake(gui::onWork)`, which duplicates what `GuiApp` already does; the
-      `VexelApplication.run` overload taking a window factory, which looks like a test seam; `Gui`'s
-      `hasPendingWork` (no caller), `keyRoutes` (no caller) and the `frameOwed` overlap; `Modals`' one-argument
-      `install`, documented as a library default; the stale `sealed ... permits` in vexelray-gui's
-      architecture.md §6; and the *deliberately not bounded yet* handler lane.
+      [v1.md](v1.md#what-must-not-remain). **Swept 2026-11-15, here and in the siblings:**
+      - **This repo:** `--profile` is no longer a framework key (nothing honoured it; diagnostics' switch will be a
+        namespaced key, v1.md's extension table says why); `VexelApplication` no longer wires the main tree's wake,
+        which `GuiApp` does for every tree it presents; the `run` overload taking a window factory is package-private,
+        for `WakeSeamsTest` alone; `AppInfo` carries no icon, since every application names its mark with
+        `@VexelApp(icon)`. The imperative path went earlier (2026-10-01), and 0.1's handler lane with phase 5.
+      - **vexelray-gui** (`a07a5913`): `Gui.hasPendingWork` and `Gui.keyRoutes` are gone, with the `KeyRouted`
+        topic and the `Conduit`/`Provenance` stamping only it read; `Modals.install` is one form, taking the bus, a
+        tree name and a look that may not be null (null used to mean the library's dark default, which a forgotten
+        argument looked exactly like); `architecture.md` no longer calls `Length` or `Mutation` sealed.
+      - **vexelray** (`7be0d6b`): `WindowConfig`'s 7-, 8-, 10- and 11-argument constructors and
+        `SdfComposer.cameraBytes` are gone; so is the frames-in-flight knob (`EngineConfig.framesInFlight`,
+        `MAX_FRAMES_IN_FLIGHT`), whose only legal value was 1, now `WindowedPresenter.FRAMES_IN_FLIGHT`. The
+        colour-only constructors and `GraphicsPipeline.Config`'s short forms stay: colour-only rendering is a
+        permanent case (every GUI window), so their javadoc now says what each is for rather than whom it was kept for.
+      - **tactroller** (`273d115`): `InputFrame`'s five backward-compatible constructors are gone.
 
-      **The imperative path is gone (ruled and done 2026-10-01, [components.md](components.md) rulings 1 and 2):**
-      `@Subscribe` is the one way, `Shell.place`, `Placement`'s constructor, `start` and `subscribe` are package-private,
-      and `Placement.superseded()` is deleted. What is left of the sweep is the list above, and it binds the siblings
-      `Shell` exposes.
+      **Left:** what `Shell` exposes of the siblings is reach rather than legacy, and is the *seventh surface* entry
+      above. Run v1.md's word list (`for now`, `until`, `deliberately not`, `reserved`) again at the freeze pass.
 
 - [ ] **The public surface has not had a freeze pass.** When the rest of this section is done: read every
       public type and ask whether anything would be renamed or restructured today, fix it, then mark what
