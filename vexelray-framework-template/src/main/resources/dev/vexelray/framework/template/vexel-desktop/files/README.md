@@ -248,7 +248,9 @@ ottermate --size 36emx20em shot smallest.png --launch ...                # the m
 ```
 
 The landmarks in `Landmarks.java` are the names a script uses: `await status.file notes.md` waits for a file to be in
-front, and `await path <folder>` for the navigator to be showing one. `ottermate help` lists every verb.
+front, and `await path <folder>` for the navigator to be showing one. Work that shows nothing is waited on as the
+message that says it is done: `hear Written` before the save, then `await heard Written notes.md` (any topic line of
+`ottermate bus graph`). `ottermate help` lists every verb.
 
 ## Logging
 

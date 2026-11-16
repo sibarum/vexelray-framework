@@ -263,6 +263,7 @@ class VexelProcessorTest {
                     public String appId() { return null; }
                     public java.util.List<String> formerNames() { return java.util.List.of(); }
                     public String busGraph() { return null; }
+                    public java.util.List<sibarum.atchung.Topic<?>> topics() { return null; }
                     public Wiring again() { return null; }
                     public boolean computeQueue() { return false; }
                     public java.util.List<String> closeHearers() { return java.util.List.of(); }
@@ -2744,6 +2745,51 @@ class VexelProcessorTest {
         assertEquals(List.of("mailbox app.Editor <default> app.Messages.Open 64 []"), run.phase("config"));
     }
 
+    /**
+     * Beside the graph, the wiring hands over the constant of every channel its {@code topic} lines name, in the same
+     * order: what the automation socket's {@code hear} subscribes to, so a script names a channel by the graph and
+     * nothing reflects to find it. Each is the declared constant itself, kind and key included.
+     */
+    @Test
+    void theWiringHandsOverTheConstantOfEveryChannelTheGraphNames() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, """
+                public final class Messages {
+                    public static final sibarum.atchung.Topic<Open> OPEN = sibarum.atchung.Topic.edge(Open.class);
+                    public record Open(String path) {}
+                    public static final sibarum.atchung.Topic<Shown> SHOWN =
+                            sibarum.atchung.Topic.state(Shown.class, Shown::window);
+                    public record Shown(String window, String text) {}
+                }
+                """, """
+                @Component @Publishes(Messages.Shown.class)
+                public final class Editor { @Subscribe public void open(Messages.Open o) {} }
+                """);
+        assertEquals(List.of(), compiled.errors());
+        Run run = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of());
+        List<String> lines = run.busGraph().lines().filter(l -> l.startsWith("topic ")).toList();
+        assertEquals(List.of("topic app.Messages.Open kind=edge", "topic app.Messages.Shown kind=state"), lines);
+        List<sibarum.atchung.Topic<?>> topics = run.topics();
+        assertEquals(List.of("app.Messages.Open", "app.Messages.Shown"),
+                topics.stream().map(sibarum.atchung.Topic::name).toList());
+        assertEquals(sibarum.atchung.Topic.Kind.STATE, topics.get(1).kind());
+        assertTrue(topics.get(1).keyed(), "the constant itself, so its key goes with it");
+        assertFalse(topics.get(0).keyed());
+    }
+
+    /** A wiring whose graph names no channel hands over none, and says so with an empty list rather than nothing. */
+    @Test
+    void aWiringWithNoChannelsHandsOverAnEmptyList() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """);
+        assertEquals(List.of(), compiled.errors());
+        assertEquals(List.of(), compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).topics());
+    }
+
     /** A class in {@code @Publishes} is a channel like any: one with no declared topic does not compile. */
     @Test
     void publishesNamingAPayloadWithNoTopicIsAnError() {
@@ -4172,6 +4218,12 @@ class VexelProcessorTest {
         /** What the wiring answers {@code Wiring.busGraph}: the declared message graph, as text. */
         String busGraph() throws Exception {
             return (String) wiring.getClass().getSuperclass().getMethod("busGraph").invoke(wiring);
+        }
+
+        /** What the wiring answers {@code Wiring.topics}: the constants of the channels the graph names. */
+        @SuppressWarnings("unchecked")
+        List<sibarum.atchung.Topic<?>> topics() throws Exception {
+            return (List<sibarum.atchung.Topic<?>>) wiring.getClass().getSuperclass().getMethod("topics").invoke(wiring);
         }
 
         String info() throws Exception {

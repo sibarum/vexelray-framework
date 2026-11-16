@@ -69,6 +69,8 @@ public final class Shell {
     private BuildInfo build = BuildInfo.UNKNOWN;
     /** The declared message graph, or null; set beside {@link #build} from the wiring. See {@link Wiring#busGraph}. */
     private String busGraph;
+    /** The constants of the channels {@link #busGraph} names, or null; set beside it. See {@link Wiring#topics}. */
+    private List<sibarum.atchung.Topic<?>> topics;
     /** What main was handed, as the OS holds it; set by {@link VexelApplication} before any phase runs. */
     private List<String> arguments = List.of();
     /**
@@ -209,6 +211,19 @@ public final class Shell {
 
     void busGraph(String busGraph) {
         this.busGraph = busGraph;
+    }
+
+    /**
+     * The constants of the channels the bus graph names, those its wiring can see, or {@code null} when its wiring was
+     * written by hand and declares no graph ({@link Wiring#topics}). What the automation socket's {@code hear} may
+     * subscribe to.
+     */
+    public List<sibarum.atchung.Topic<?>> topics() {
+        return topics;
+    }
+
+    void topics(List<sibarum.atchung.Topic<?>> topics) {
+        this.topics = topics == null ? null : List.copyOf(topics);
     }
 
     void arguments(List<String> arguments) {

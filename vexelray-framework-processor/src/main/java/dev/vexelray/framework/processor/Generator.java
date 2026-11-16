@@ -882,6 +882,21 @@ final class Generator {
             }
         }
         src.append(";\n\n    @Override\n    public String busGraph() {\n        return BUS_GRAPH;\n    }\n");
+        // The channels the graph names, as their constants: what the automation socket's hear subscribes to, so a script
+        // can name a channel only by a topic line above and nothing reflects to find its constant. The same constants the
+        // topic lines read their kind from, and the same visibility test: one the wiring cannot see is left out, and
+        // hear says so when it is named. Always written, an empty list included.
+        src.append("\n    @Override\n    public java.util.List<sibarum.atchung.Topic<?>> topics() {\n"
+                + "        return java.util.List.of(");
+        String topicComma = "";
+        for (TypeMirror payload : text.topics()) {
+            VariableElement constant = channels.topicOf(payload);
+            if (constant != null && visibleFrom(app, constant) && visibleFrom(app, constant.getEnclosingElement())) {
+                src.append(topicComma).append("\n                ").append(Topics.expression(constant));
+                topicComma = ",";
+            }
+        }
+        src.append(");\n    }\n");
         // Another of itself, for a replay to build the components again from (ROADMAP Done means 5).
         src.append("\n    @Override\n    public ").append(Framework.WIRING).append(" again() {\n        return new ")
                 .append(name).append("();\n    }\n");        // A component takes the compute queue, so the device is made with one to lend it (T3.1). Graph has made sure

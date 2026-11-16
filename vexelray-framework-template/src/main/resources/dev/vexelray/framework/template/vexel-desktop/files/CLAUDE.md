@@ -97,7 +97,8 @@ ottermate --script check.txt --launch mvn.cmd compile exec:exec -Dautomation=0
 ```
 
 A script is one command per line: `settle`, `tree`, `click <landmark>`, `type <text>`, `key CTRL+S`,
-`await <landmark> <text>`, `shot <file.png>`. It stops at the first failure. Screenshots come only from `ottermate`.
+`await <landmark> <text>`, `shot <file.png>`; and for work nothing shows, `hear <Message>` before the gesture and
+`await heard <Message> <text>` after it, for a message `ottermate bus graph` lists as a `topic` line. It stops at the first failure. Screenshots come only from `ottermate`.
 Never add a `--capture` flag, a robot or a screen grab to the application.
 
 When a run fails, read `${artifactId}-gui/target/logs/${appName}.log` (`target-linux/logs/` on Linux) before changing code. Under automation it is at trace level.

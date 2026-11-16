@@ -241,10 +241,26 @@ class GeneratedProjectTest {
             driver.ok("key END");
             driver.ok("type added");
             driver.ok("await status.file • todo.txt");
+            // The save is also heard as the message the write job answers with, which nothing shows: the reactive half
+            // of automation (docs/TODO.md, ruled 2026-11-16). Heard before the gesture that causes it, by a name the
+            // bus graph declares; a name it does not is refused at once, naming the close one.
+            String typo = driver.send("hear Writen");
+            assertTrue(typo.startsWith("err no topic 'Writen' in this program's bus graph; did you mean ")
+                    && typo.contains(".core.Messages.Written"), typo);
+            assertTrue(driver.ok("hear Written").startsWith("ok hearing dev.vexelray.acceptance.vexelacceptance.core"
+                    + ".Messages.Written capacity="), "hear names the topic in full");
             driver.ok("rightclick " + refOf(driver, "tab", "todo.txt"));
             driver.ok("click " + refOf(driver, "menuitem", "Save"));
+            String answered = driver.ok("await heard Written todo.txt");
+            assertTrue(answered.startsWith("ok Written[id=") && answered.endsWith("todo.txt, problem=]"),
+                    "the write job's answer, as its record prints itself: " + answered);
+            String after = driver.ok("heard Written");
+            assertTrue(after.startsWith("ok ") && after.contains(" dropped=0") && !after.contains(answered.substring(3)),
+                    "await heard read what it matched, and nothing was dropped: " + after);
             driver.ok("await status.message Saved todo.txt");
             driver.ok("await status.file todo.txt");
+            assertTrue(driver.ok("unhear Written").startsWith(
+                    "ok unheard dev.vexelray.acceptance.vexelacceptance.core.Messages.Written, "));
             String saved = Files.readString(work.resolve("todo.txt"));
             assertTrue(saved.contains("added"), "the save did not reach the disk: " + saved);
 

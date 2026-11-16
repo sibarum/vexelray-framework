@@ -321,6 +321,7 @@ each box a role, a landmark and its click, as the bars above have.
 | A reader of the tree | `node.role("button")` on the node a person would say they pointed at, with its words in it | `tree` lists the role and the name |
 | The keyboard | `gui.focusable(node, true)`, and a claim on Enter (and Space) while focused, sending the click's message | `key TAB` until `tree` shows `focused` on a bar, then `key ENTER` |
 | Waiting for a state | Put the state in an accessible name, as the template's `status.file` does | `await <landmark> <text>` |
+| Waiting for work nothing shows | Nothing: the message that says it is done is already on a declared topic | `hear <Payload>` before the gesture, then `await heard <Payload> <text>` |
 
 A role changes nothing drawn or hit; it is what an agent, a test or a screen reader reads. The renderer draws the
 theme's focus ring round whatever holds focus (`Node.focusRing` overrides it). Hearing `NodeEvent.KEY` on a node

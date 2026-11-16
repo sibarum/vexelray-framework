@@ -133,6 +133,7 @@ public final class VexelApplication {
             throw new IllegalStateException("unreachable: System.exit does not return");
         }
         shell.busGraph(wiring.busGraph());
+        shell.topics(wiring.topics());
         shell.again(wiring.again());
         shell.arguments(java.util.Arrays.asList(argv));
         UncleanExits exits = unclean();
@@ -220,6 +221,7 @@ public final class VexelApplication {
         Shell shell = new Shell(launch, info);
         shell.build(wiring.build());
         shell.busGraph(wiring.busGraph());
+        shell.topics(wiring.topics());
         try {
             toTree(wiring, shell, shell.disposer(), info);
             // Components run here too. A tree built headlessly is still a running application as far as its

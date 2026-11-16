@@ -861,7 +861,10 @@ Each step decides what the next bakes in, as [v1.md](v1.md#how-to-get-there) ord
    generated data (the rest of T4.5), 2026-10-19**, now that something consumes it: the generated wiring's
    `BUS_GRAPH`, in vexelray-inspector's bus-graph text (version 2 since 2026-11-02, `docs/bus-graph.md`), which the
    Inspector draws as its graph. The stated limit stands
-   and is on `@Publishes`: only a *declared* send is in the graph.
+   and is on `@Publishes`: only a *declared* send is in the graph. **Beside it, 2026-11-16, `Wiring.topics()`**: the
+   constant of every channel the graph's `topic` lines name, as the wiring sees it, which the automation socket's
+   `hear` and `await heard` subscribe to. So a script names a channel only by the graph, and no constant is found by
+   reflection.
 3. **The copier** (T2.4). **The check half is done, 2026-10-02** (`Shareable`): a `@Subscribe` payload must be
    deeply immutable, and anything else is refused, naming the first thing that stops it. **The generated copier is
    parked as additive.** It would annotate a record and have the processor emit the copy, so collections and

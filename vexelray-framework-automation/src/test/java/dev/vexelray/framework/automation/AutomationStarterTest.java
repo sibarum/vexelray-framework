@@ -1,6 +1,9 @@
 package dev.vexelray.framework.automation;
 
 import dev.vexelray.framework.processor.VexelProcessor;
+import dev.vexelray.gui.automation.Hearing;
+import dev.vexelray.gui.automation.Timeline;
+import dev.vexelray.gui.automation.Windows;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -85,6 +88,54 @@ final class AutomationStarterTest {
                 """));
         assertEquals(List.of(), compiled.errors());
         assertFalse(compiled.wiring().contains("Driver"), compiled.wiring());
+    }
+
+    /**
+     * The seam {@code hear} rests on, end to end with no window: the generated wiring's graph names the channels and
+     * its {@code topics()} hands over their constants, and a {@link Hearing} over the two, which is what
+     * {@code Driver.sockets} builds, hears a message sent on the application's bus and renders it as its record does.
+     */
+    @Test
+    void theSocketHearsAChannelTheGeneratedGraphNames(@TempDir Path out) throws Exception {
+        Compiled compiled = compile(out, Map.of("app.DemoApp", APP, "app.Messages", """
+                package app;
+                public final class Messages {
+                    public static final sibarum.atchung.Topic<Saved> SAVED = sibarum.atchung.Topic.edge(Saved.class);
+                    public record Saved(String path) {}
+                }
+                """, "app.Saver", """
+                package app;
+                import dev.vexelray.framework.api.*;
+                @Publishes(Messages.Saved.class)
+                public final class Saver {}
+                """));
+        assertEquals(List.of(), compiled.errors());
+        try (java.net.URLClassLoader loader = new java.net.URLClassLoader(
+                new java.net.URL[]{out.resolve("classes").toUri().toURL()}, getClass().getClassLoader())) {
+            var constructor = loader.loadClass("app.DemoAppWiring").getDeclaredConstructor();
+            constructor.setAccessible(true);     // package-private, as main() is its only caller
+            dev.vexelray.framework.shell.Wiring wiring = (dev.vexelray.framework.shell.Wiring) constructor.newInstance();
+            List<sibarum.atchung.Topic<?>> topics = wiring.topics();
+            assertEquals(List.of("app.Messages.Saved"), topics.stream().map(sibarum.atchung.Topic::name).toList());
+
+            sibarum.atchung.Atchung bus = sibarum.atchung.Atchung.create();
+            try (Hearing hearing = new Hearing(bus, wiring.busGraph(), topics)) {
+                Windows windows = new Windows(List::of, Timeline.NONE, null, hearing);
+                assertEquals("ok hearing app.Messages.Saved capacity=" + Hearing.CAPACITY,
+                        windows.command("hear Saved"));
+                publish(bus, topics.getFirst(), loader.loadClass("app.Messages$Saved")
+                        .getDeclaredConstructor(String.class).newInstance("notes.txt"));
+                assertEquals("ok Saved[path=notes.txt]", windows.command("await heard Saved notes"));
+                assertTrue(windows.command("hear Svaed").startsWith("err no topic 'Svaed' in this program's bus graph;"
+                        + " did you mean app.Messages.Saved?"), windows.command("hear Svaed"));
+            }
+            assertEquals(0, bus.subscriberCount(topics.getFirst()), "closing the hearing closes its subscriptions");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> void publish(sibarum.atchung.Atchung bus, sibarum.atchung.Topic<T> topic, Object message) {
+        bus.publish(topic, (T) message);
     }
 
     // --- harness --------------------------------------------------------------------------------------------

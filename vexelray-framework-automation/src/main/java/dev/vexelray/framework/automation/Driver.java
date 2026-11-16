@@ -6,6 +6,7 @@ import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.gui.automation.Capability;
 import dev.vexelray.gui.automation.BusGraph;
 import dev.vexelray.gui.automation.Discovery;
+import dev.vexelray.gui.automation.Hearing;
 import dev.vexelray.gui.automation.Sockets;
 import dev.vexelray.gui.automation.Timeline;
 import dev.vexelray.gui.automation.Windows;
@@ -96,6 +97,11 @@ public final class Driver implements AutoCloseable {
     private final Set<Capability> available;
     /** Built when the launch asks for a socket, because it needs the window. */
     private volatile Sockets sockets;
+    /**
+     * What the sockets' {@code hear} records into, built beside them; {@code null} until then, and for a wiring that
+     * declares no graph. Its subscriptions are the driver's, so {@link #close} tears them down.
+     */
+    private Hearing hearing;
     private boolean closed;
 
     private Driver(Shell shell, Set<Capability> available) {
@@ -277,13 +283,21 @@ public final class Driver implements AutoCloseable {
             // for the logic lane not delivered, so a capture after a request waits for its answer to land (ROADMAP
             // phase 5); before, a tree listed by a job was photographed before the listing arrived.
             KronoGui krono = shell.krono();
-            Windows windows = new Windows(shell.windows()::views, Timeline.of(
+            // The channels a script may hear (hear, await heard): those the graph names, by the constants the wiring
+            // handed over beside it, on the application's bus. The reactive half of automation is the socket's, not a
+            // subscription in the application (docs/TODO.md, ruled 2026-11-16). A hand-written wiring declares neither,
+            // and hear says there is nothing to hear.
+            hearing = shell.busGraph() == null || shell.topics() == null ? null
+                    : new Hearing(shell.bus(), shell.busGraph(), shell.topics());
+            Timeline timeline = Timeline.of(
                     () -> shell.owesNothing() && krono.quiescentAtLastTick(),
                     () -> {
                         List<String> why = new ArrayList<>(shell.owed());
                         why.addAll(krono.whyBusyAtLastTick());
                         return why;
-                    }), counters);
+                    });
+            Windows windows = hearing == null ? new Windows(shell.windows()::views, timeline, counters)
+                    : new Windows(shell.windows()::views, timeline, counters, hearing);
             // What this build is, exactly, before any socket writes its discovery file: the coordinates and commit
             // (plus any uncommitted change) the generated wiring baked in, and the stack's (vexelray-build/README.md).
             Discovery.build(shell.build().facts());
@@ -474,6 +488,11 @@ public final class Driver implements AutoCloseable {
     @Override
     public synchronized void close() {
         closed = true;
+        // Hearing first: it ends every await heard still waiting, so no connection is left in a thirty-second wait on a
+        // bus that is going away, and it closes every subscription the sockets made on the application's bus.
+        if (hearing != null) {
+            hearing.close();
+        }
         if (sockets != null) {
             sockets.close();
         }

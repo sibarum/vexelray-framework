@@ -84,6 +84,16 @@ public abstract class Wiring {
     }
 
     /**
+     * The constants of the channels {@link #busGraph} names in its {@code topic} lines, those the wiring can see: what
+     * the automation socket's {@code hear} subscribes to, so a script names a channel by the graph and nothing reflects
+     * to find its constant. The generated wiring answers a list, possibly empty; {@code null}, the default, is a
+     * hand-written wiring, which declares no graph and so nothing to hear.
+     */
+    public java.util.List<sibarum.atchung.Topic<?>> topics() {
+        return null;
+    }
+
+    /**
      * A fresh wiring of the same application, for a replay to build its components again from
      * ({@link Shell#replay}; ROADMAP <i>Done means</i> 5): a new instance, holding nothing this one built. The
      * generated wiring answers {@code new} of itself; {@code null}, the default, is a hand-written wiring, which a

@@ -318,6 +318,20 @@ ottermate --size 1600x900 --zoom 1.5 shot big.png --launch mvn.cmd compile exec:
 The application writes the picture, so a relative path is taken from the folder it runs in: `out.png` lands in
 `my-app-gui`. Give an absolute path to put it anywhere else.
 
+A script can wait on your application's messages as well as on what it shows. `hear` a topic before doing what
+sends it, then `await heard` the message, matched against its record's `toString`:
+
+```
+hear Written
+key CTRL+S
+await heard Written todo.txt
+```
+
+Only a channel your bus graph declares can be named, by its payload's name or any whole tail of it (`Written`,
+`Messages.Written`), so a misspelling is refused at once with the close names. `heard Written` lists what came and
+has not been read; `unhear` stops. The automation starter wires this from the generated wiring's graph and topic
+constants, so there is nothing to add to an application.
+
 Its guide is [ottermate.md](https://github.com/sibarum/vexelray-gui/blob/master/docs/guides/ottermate.md) in
 `vexelray-gui`. The names a script may rely on are the ones in your project's `Landmarks.java`. The window
 remembers its last size, so a changed default size never shows on a machine that has run the app before: give
