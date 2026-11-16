@@ -409,9 +409,13 @@ on a thread of its own (T1.1), that may block in its read and sends as it goes, 
 (components.md section 11). What writes outside, where a write may wait (a pipe whose reader is not reading), is a
 **destination**: its writes run on its connection's own thread (T1.1), in the order they were sent
 (components.md section 12). A component's delivery never blocks, never sleeps and never waits for a reply. *Restated
-2026-10-30 to add sources, and built the same day; 2026-11-01 to add destinations, and built the same day.* *(held for the `@Job` and `@Source` mechanisms, by `JobsTest`, `SourcesTest` and `VexelProcessorTest`'s job and source cases (components.md sections 10 and 11); and for "nothing else blocks" as far as what an application can reach: `Gui.offload()`, `Gui.async()` and
-`Lanes.offload()` are gone, and no executor is handed to a part (T2.5). Owed: a delivery body that blocks in plain JDK
-code (a file read, a socket) is refused in a ledger's steps by `StepCheck`, and not yet in a `@Subscribe` method)*
+2026-10-30 to add sources, and built the same day; 2026-11-01 to add destinations, and built the same day.* *(held for the `@Job` and `@Source` mechanisms, by `JobsTest`, `SourcesTest` and `VexelProcessorTest`'s job and source cases (components.md sections 10 and 11); and for "nothing else blocks" in application code: `Gui.offload()`, `Gui.async()` and `Lanes.offload()` are
+gone, no executor is handed to a part (T2.5), and a delivery (a `@Subscribe` method of a component or a view, or a
+function a view hands `Gui`'s `hear`, `mailbox` or `batch`) that certainly waits (disk, the network, a sleep, a join,
+a wait, a future, a latch, a queue's take), read through the helpers it certainly runs, is refused by `StepCheck` as a
+ledger's steps are, naming the fix (built 2026-11-16, `VexelProcessorTest`'s delivery cases). What waits only when
+contended (a lock, `synchronized`, a semaphore), a function created in the body, and a call an override may replace
+are let through: the source does not say they block, and a check never refuses safe code)*
 
 ## 6. Lifecycle
 
@@ -484,7 +488,7 @@ topic: a close gate is `CloseRequested` and `CloseAnswer`, a file picker is `Pic
 with the desktop is `Open` and `Opened`, a confirm is `Ask` and `Answer`. *(held for the API, rechecked 2026-11-15:
 `ApiWalkTest` walks every public framework type an application part can be handed and requires that what takes or
 returns a function is exactly its `OWED` list, which is now empty, so a callback added later fails the build. The
-widget library's half is vexelray-gui's walk. Owed: the processor's read of a view's display functions, the second
+widget library's half is vexelray-gui's walk; a view's display functions are read by the processor, the second
 bullet below)*
 *Ruled 2026-10-27, what the rule is about:* **which thread runs the code.** A subscription is not a callback: its
 code runs on the subscriber's own thread, handed an immutable message, and answers by sending. What the rule forbids
@@ -500,8 +504,13 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   are presentation, which T7.4 already puts on the GUI thread, and logic can never pass one because it holds no
   widget. On two conditions: the function's shape takes the item and returns a description, with no `Gui` in hand
   (done: vexelray-gui's `Face`, `(nodes, item) -> Node`, handed a `Nodes`; a label is item to string); and the
-  processor reads each such lambda in a `@View` and refuses I/O, blocking calls and captures of mutable state (owed,
-  with `@View` in phase 4).
+  processor reads each such function and refuses I/O, blocking calls and mutable state no part owns. *(held
+  2026-11-16: `StepCheck` reads every function handed to the widget library, or typed as one of its interfaces such
+  as `Face`, and refuses every effect it lists, a send, and state no part owns: a static field written or not final,
+  a volatile field, the process's own streams (`VexelProcessorTest`'s display-function cases). **What "mutable state"
+  means here, accepted as recommended 2026-11-16:** not the view's own fields. They are the GUI thread's (T7.4), the
+  thread the widget calls the function on, so reading them cannot race, and a face that shows the view's state is
+  what a face is for (the Inspector's `Ui`); what can race is state no part owns, which is what is refused)*
 - **What answers a question the logic owns** (`Reorder`, `Checkable`, a tree action's body and predicates,
   `Button.perform`, `Property`'s bindings) becomes declared data or a request and a reply, as menus (T7.5) and a
   tree's children did. *(held: every case below is done. Done for `Checkable`: a click is `TreeView.TOGGLED` and what is ticked
@@ -675,18 +684,16 @@ The point of the column is that the unenforced rules are a list rather than an i
 | **2 Colour** | T2.1, T2.2, T2.3, T2.4, T2.5, T2.6, T2.7 | | | | | | |
 | **3 Ownership** | T3.1, T3.7, T3.8 | | T3.3 | | T3.4, T3.6 | T3.2, T3.5, T3.9 | |
 | **4 Channels** | T4.1, T4.2, T4.3, T4.5, T4.6, T4.7, T4.8 | | | | | | T4.4 |
-| **5 Completion** | T5.1, T5.3, T5.6, T5.7 | T5.5, T5.8 | | | | T5.4 | T5.2 |
+| **5 Completion** | T5.1, T5.3, T5.6, T5.7, T5.8 | T5.5 | | | | T5.4 | T5.2 |
 | **6 Lifecycle** | T6.1, T6.2, T6.4, T6.5 | T6.6 | | | T6.3 | | |
-| **7 Main thread** | T7.1, T7.3, T7.4, T7.5 | T7.2, T7.6 | | | | | |
+| **7 Main thread** | T7.1, T7.2, T7.3, T7.4, T7.5 | T7.6 | | | | | |
 
 Where a rule is held in part and owed in part, it is counted as owed: what the column answers is whether 0.2 is
-true yet. **Rechecked 2026-11-15: thirty-six of the fifty-one rules are held and five are owed**, each owed entry
+true yet. **Rechecked 2026-11-15: thirty-eight of the fifty-one rules are held and three are owed**, each owed entry
 naming what is left:
 
 - **T5.5**: only the deadline's number, phase 7's to measure.
-- **T5.8**: a `@Subscribe` method that blocks in plain JDK code is not refused, as a ledger's step is.
 - **T6.6**: the name `DeviceQueue`, a transfer kind and one queue per part, each waiting on its first user.
-- **T7.2**: the processor's read of a view's display functions.
 - **T7.6**: the budget that freezes a slow asked half, and a view's told half as declared steps.
 
 At the redesign's first commit, 2026-10-26, ten were held and thirty-one owed. The column is how progress is read:
