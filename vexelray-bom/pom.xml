@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      The VexelRay stack's versions, in one place: every library an application can depend on, at the version this
+      framework was built and tested against. An application imports it and names its dependencies without versions:
+
+        <dependencyManagement>
+            <dependencies>
+                <dependency>
+                    <groupId>dev.vexelray.framework</groupId>
+                    <artifactId>vexelray-bom</artifactId>
+                    <version>...</version>
+                    <type>pom</type>
+                    <scope>import</scope>
+                </dependency>
+            </dependencies>
+        </dependencyManagement>
+
+      Versions only (ruled 2026-11-16). No parent, so that what an import brings is exactly this list and nothing
+      inherited with it, and no parent role either: an application keeps its own parent. It manages the transitive
+      edges too, so an application that names one library and reaches twenty gets the twenty this list says rather
+      than whichever a dependency happened to name.
+
+      What it does not carry, because no BOM can: plugin versions (vexelray-build-maven-plugin and
+      vexelray-gui-icons-maven-plugin are named with a version by the application), and native-image flags and
+      metadata, which travel in each library's own jar under META-INF/native-image/<groupId>/<artifactId>/, so an
+      application that depends on a backend inherits exactly what that backend needs.
+
+      Left out on purpose: demos, benches, the build-time Maven plugins, the test-only architecture guard,
+      ottermate (a tool run by path, never a dependency), and supirvast's vastir-preview, which brings LWJGL.
+
+      Each sibling's version is one property, the version on its develop branch. A sibling that moves its version
+      moves it here too; VexelDesktopTest checks the framework's own entries against this repository's version.
+    -->
+    <groupId>dev.vexelray.framework</groupId>
+    <artifactId>vexelray-bom</artifactId>
+    <version>0.2.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>vexelray-bom</name>
+    <description>
+        The VexelRay stack's versions: import it, and name the stack's libraries without versions.
+    </description>
+
+    <properties>
+        <vexelray.version>0.2.1-SNAPSHOT</vexelray.version>
+        <vexelray-gui.version>0.2.1-SNAPSHOT</vexelray-gui.version>
+        <vexelray-fields.version>0.2.1-SNAPSHOT</vexelray-fields.version>
+        <vexelray-codec.version>0.2.1-SNAPSHOT</vexelray-codec.version>
+        <vexelray-audio.version>0.2.0-SNAPSHOT</vexelray-audio.version>
+        <vex-suite-common.version>0.2.1-SNAPSHOT</vex-suite-common.version>
+        <tactroller.version>1.4-SNAPSHOT</tactroller.version>
+        <atchung.version>1.5-SNAPSHOT</atchung.version>
+        <kronometer.version>1.4-SNAPSHOT</kronometer.version>
+        <supirvast.version>0.2.4-SNAPSHOT</supirvast.version>
+        <dxgi-bridge.version>0.1.4-SNAPSHOT</dxgi-bridge.version>
+        <intrabuf.version>0.1.4-SNAPSHOT</intrabuf.version>
+        <imagelib-wrapper.version>0.1.4-SNAPSHOT</imagelib-wrapper.version>
+        <ffmpeg-wrapper.version>0.1.4-SNAPSHOT</ffmpeg-wrapper.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- ======== vexelray-framework: this repository ======== -->
+            <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-api</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-core</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-shell</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-automation</artifactId><version>${project.version}</version></dependency>
+            <!-- On an annotationProcessorPaths entry with no version, maven-compiler-plugin 3.12 and later takes it from here. -->
+            <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-processor</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-template</artifactId><version>${project.version}</version></dependency>
+
+            <!-- ======== vexelray-gui ======== -->
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-core</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-draw</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-widget</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-krono</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-keymap</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-scroll</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-typeset</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-plot</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-icons</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-file-icons</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-recorder</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-automation</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-automation-window</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-inspector-link</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-nfd</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-nfd-api</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-nfd-windows</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-nfd-linux</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-nfd-macos</artifactId><version>${vexelray-gui.version}</version></dependency>
+            <!-- A real frame loop on windows that are never shown, for a test: test scope wherever it is named. -->
+            <dependency><groupId>dev.vexelray.gui</groupId><artifactId>vexelray-gui-harness</artifactId><version>${vexelray-gui.version}</version></dependency>
+
+            <!-- ======== vexelray: the engine ======== -->
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-core</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-diagnostics</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-trace</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-ir</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-shader</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-shadelets</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-surface</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-text</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-canvas</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-vulkan</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-present-dxgi</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-engine</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-engine-api</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-engine-vulkan-api</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-engine-embedded</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-technique-canvas</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-technique-mesh</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-technique-panel</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-technique-sdf</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-os-api</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-os-windows</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-os-linux</artifactId><version>${vexelray.version}</version></dependency>
+            <dependency><groupId>dev.vexelray</groupId><artifactId>vexelray-os-macos</artifactId><version>${vexelray.version}</version></dependency>
+
+            <!-- ======== vexelray-fields: distance fields, the font and art atlases ======== -->
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-core</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-art</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-atlas</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-convert</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-fractal</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-msdf</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-sdf</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-sdg</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-sdg-format</artifactId><version>${vexelray-fields.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.fields</groupId><artifactId>vexelray-fields-vexel</artifactId><version>${vexelray-fields.version}</version></dependency>
+
+            <!-- ======== vexelray-codec ======== -->
+            <dependency><groupId>dev.vexelray.codec</groupId><artifactId>vexelray-codec-asset</artifactId><version>${vexelray-codec.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.codec</groupId><artifactId>vexelray-codec-audio</artifactId><version>${vexelray-codec.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.codec</groupId><artifactId>vexelray-codec-image</artifactId><version>${vexelray-codec.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.codec</groupId><artifactId>vexelray-codec-mesh</artifactId><version>${vexelray-codec.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.codec</groupId><artifactId>vexelray-codec-record</artifactId><version>${vexelray-codec.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.codec</groupId><artifactId>vexelray-codec-video</artifactId><version>${vexelray-codec.version}</version></dependency>
+
+            <!-- ======== vexelray-audio ======== -->
+            <dependency><groupId>dev.vexelray.audio</groupId><artifactId>vexelray-audio-api</artifactId><version>${vexelray-audio.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.audio</groupId><artifactId>vexelray-audio-windows</artifactId><version>${vexelray-audio.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.audio</groupId><artifactId>vexelray-audio-linux</artifactId><version>${vexelray-audio.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.audio</groupId><artifactId>vexelray-audio-macos</artifactId><version>${vexelray-audio.version}</version></dependency>
+
+            <!-- ======== vex-suite-common: what the suite's applications share ======== -->
+            <dependency><groupId>dev.sibarum</groupId><artifactId>vex-suite-common-git</artifactId><version>${vex-suite-common.version}</version></dependency>
+            <dependency><groupId>dev.sibarum</groupId><artifactId>vex-suite-common-tty</artifactId><version>${vex-suite-common.version}</version></dependency>
+            <dependency><groupId>dev.sibarum</groupId><artifactId>vex-suite-common-pty</artifactId><version>${vex-suite-common.version}</version></dependency>
+            <dependency><groupId>dev.sibarum</groupId><artifactId>vex-suite-common-pty-windows</artifactId><version>${vex-suite-common.version}</version></dependency>
+            <dependency><groupId>dev.sibarum</groupId><artifactId>vex-suite-common-pty-linux</artifactId><version>${vex-suite-common.version}</version></dependency>
+            <dependency><groupId>dev.sibarum</groupId><artifactId>vex-suite-common-update</artifactId><version>${vex-suite-common.version}</version></dependency>
+            <dependency><groupId>dev.sibarum</groupId><artifactId>vex-suite-common-update-windows</artifactId><version>${vex-suite-common.version}</version></dependency>
+
+            <!-- ======== tactroller: input. Every device event flows through it ======== -->
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-api</artifactId><version>${tactroller.version}</version></dependency>
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-atchung</artifactId><version>${tactroller.version}</version></dependency>
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-windows</artifactId><version>${tactroller.version}</version></dependency>
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-linux</artifactId><version>${tactroller.version}</version></dependency>
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-macos</artifactId><version>${tactroller.version}</version></dependency>
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-clipboard</artifactId><version>${tactroller.version}</version></dependency>
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-clipboard-api</artifactId><version>${tactroller.version}</version></dependency>
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-clipboard-windows</artifactId><version>${tactroller.version}</version></dependency>
+            <dependency><groupId>sibarum.tactroller</groupId><artifactId>tactroller-clipboard-linux</artifactId><version>${tactroller.version}</version></dependency>
+
+            <!-- ======== atchung: the bus, the logger, and elektroq ======== -->
+            <dependency><groupId>sibarum.atchung</groupId><artifactId>atchung-core</artifactId><version>${atchung.version}</version></dependency>
+            <dependency><groupId>sibarum.atchung</groupId><artifactId>atchung-probe</artifactId><version>${atchung.version}</version></dependency>
+            <dependency><groupId>sibarum.atchung</groupId><artifactId>atchung-elektroq</artifactId><version>${atchung.version}</version></dependency>
+            <dependency><groupId>sibarum.elektro.queue</groupId><artifactId>elektroq-core</artifactId><version>${atchung.version}</version></dependency>
+            <dependency><groupId>sibarum.elektro.queue</groupId><artifactId>elektroq-codegen</artifactId><version>${atchung.version}</version></dependency>
+            <dependency><groupId>sibarum.elektro.queue</groupId><artifactId>elektroq-netcode</artifactId><version>${atchung.version}</version></dependency>
+            <dependency><groupId>sibarum.elektro.queue</groupId><artifactId>elektroq-transport-local</artifactId><version>${atchung.version}</version></dependency>
+            <dependency><groupId>sibarum.elektro.queue</groupId><artifactId>elektroq-transport-tcp</artifactId><version>${atchung.version}</version></dependency>
+            <dependency><groupId>sibarum.elektro.queue</groupId><artifactId>elektroq-transport-uds</artifactId><version>${atchung.version}</version></dependency>
+
+            <!-- ======== kronometer: timing and animation ======== -->
+            <dependency><groupId>sibarum.kronometer</groupId><artifactId>kronometer-core</artifactId><version>${kronometer.version}</version></dependency>
+            <dependency><groupId>sibarum.kronometer</groupId><artifactId>kronometer-anim</artifactId><version>${kronometer.version}</version></dependency>
+            <dependency><groupId>sibarum.kronometer</groupId><artifactId>kronometer-atchung</artifactId><version>${kronometer.version}</version></dependency>
+
+            <!-- ======== supirvast: Vulkan through Panama, and the shader toolchain ======== -->
+            <dependency><groupId>dev.supirvast</groupId><artifactId>supir</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vast</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir-codegen</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir-ffi</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir-pbr</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir-tools</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir-tools-windows</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir-vulkan</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir-vulkan-windows</artifactId><version>${supirvast.version}</version></dependency>
+            <dependency><groupId>dev.supirvast</groupId><artifactId>vastir-vulkan-linux</artifactId><version>${supirvast.version}</version></dependency>
+
+            <!-- ======== DXGI presentation on Windows ======== -->
+            <dependency><groupId>sibarum.dxgi</groupId><artifactId>dxgi-bridge</artifactId><version>${dxgi-bridge.version}</version></dependency>
+
+            <!-- ======== intrabuf: the binary formats ======== -->
+            <dependency><groupId>sibarum.intrabuf</groupId><artifactId>intrabuf-runtime</artifactId><version>${intrabuf.version}</version></dependency>
+            <dependency><groupId>sibarum.intrabuf</groupId><artifactId>intrabuf-processor</artifactId><version>${intrabuf.version}</version></dependency>
+
+            <!-- ======== image decoding ======== -->
+            <dependency><groupId>sibarum.imagelib</groupId><artifactId>imagelib-wrapper</artifactId><version>${imagelib-wrapper.version}</version></dependency>
+            <dependency><groupId>sibarum.imagelib</groupId><artifactId>imagelib-wrapper-api</artifactId><version>${imagelib-wrapper.version}</version></dependency>
+            <dependency><groupId>sibarum.imagelib</groupId><artifactId>imagelib-wrapper-windows</artifactId><version>${imagelib-wrapper.version}</version></dependency>
+            <!-- The static library and its link arguments, for a native image that links imagelib in (imagelib-wrapper's README). -->
+            <dependency><groupId>sibarum.imagelib</groupId><artifactId>imagelib-wrapper-windows</artifactId><version>${imagelib-wrapper.version}</version><classifier>static</classifier></dependency>
+            <dependency><groupId>sibarum.imagelib</groupId><artifactId>imagelib-wrapper-linux</artifactId><version>${imagelib-wrapper.version}</version></dependency>
+
+            <!-- ======== FFmpeg: video, and recording ======== -->
+            <dependency><groupId>sibarum.ffmpeg</groupId><artifactId>ffmpeg-wrapper</artifactId><version>${ffmpeg-wrapper.version}</version></dependency>
+            <dependency><groupId>sibarum.ffmpeg</groupId><artifactId>ffmpeg-wrapper-api</artifactId><version>${ffmpeg-wrapper.version}</version></dependency>
+            <dependency><groupId>sibarum.ffmpeg</groupId><artifactId>ffmpeg-wrapper-windows</artifactId><version>${ffmpeg-wrapper.version}</version></dependency>
+            <dependency><groupId>sibarum.ffmpeg</groupId><artifactId>ffmpeg-wrapper-linux</artifactId><version>${ffmpeg-wrapper.version}</version></dependency>
+            <dependency><groupId>sibarum.ffmpeg</groupId><artifactId>ffmpeg-wrapper-record</artifactId><version>${ffmpeg-wrapper.version}</version></dependency>
+            <dependency><groupId>sibarum.ffmpeg</groupId><artifactId>ffmpeg-wrapper-record-windows</artifactId><version>${ffmpeg-wrapper.version}</version></dependency>
+            <dependency><groupId>sibarum.ffmpeg</groupId><artifactId>ffmpeg-wrapper-record-linux</artifactId><version>${ffmpeg-wrapper.version}</version></dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

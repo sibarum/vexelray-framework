@@ -194,18 +194,29 @@ public record Template(
      *
      * <p>Declared so the answer to "will this actually run" is looked up rather
      * than hoped for. See {@link Checks#missingArtifacts}.
+     *
+     * <p>{@code packaging} is {@code jar} unless the line said otherwise, as Maven's own
+     * {@code group:artifact:packaging:version} does: a BOM is a {@code pom}, and installed
+     * is then its pom being there, since it has no jar to be missing.
      */
-    public record Need(String group, String artifact, String version) {
+    public record Need(String group, String artifact, String packaging, String version) {
 
-        public String coordinate() { return group + ":" + artifact + ":" + version; }
+        public Need(String group, String artifact, String version) { this(group, artifact, "jar", version); }
+
+        public String coordinate() {
+            return group + ":" + artifact + (packaging.equals("jar") ? "" : ":" + packaging) + ":" + version;
+        }
 
         /** Where this would be in a local Maven repository. */
         public String repoPath() {
             return group.replace('.', '/') + "/" + artifact + "/" + version;
         }
 
-        /** The jar's name inside that folder. */
-        public String jarName() { return artifact + "-" + version + ".jar"; }
+        /** The file inside that folder that says it is installed: the jar, or a pom-only artifact's pom. */
+        public String fileName() { return artifact + "-" + version + "." + packaging; }
+
+        /** Whether the build needs a jar of it, rather than only its pom. */
+        public boolean isJar() { return packaging.equals("jar"); }
     }
 
     public Slot slot(String name) {

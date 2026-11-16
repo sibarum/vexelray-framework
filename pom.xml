@@ -26,6 +26,9 @@
     </issueManagement>
 
     <modules>
+        <!-- The stack's versions, for an application to import: versions only, no parent, so an import brings exactly
+             its list. Native-image flags and metadata are not here; each library's jar carries its own. -->
+        <module>vexelray-bom</module>
         <!-- The vocabulary an application compiles against: @VexelApp, @Component, @Provides, @MainThread,
              @BeforeFrame, @OnMode, @ConditionalOnType. Annotations and nothing else — no runtime, no
              graphics, JDK-only, so the processor can read it without dragging a Vulkan device onto the

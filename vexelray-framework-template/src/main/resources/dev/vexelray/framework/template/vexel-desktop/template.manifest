@@ -122,21 +122,6 @@ slot height
     least     240
     most      8192
 
-# ---- the stack it builds against --------------------------------------------------
-
-slot vexelrayVersion
-    label     vexelray version
-    kind      text
-    required  yes
-    preset    0.2.1-SNAPSHOT
-    help      the version of vexelray, the engine, installed in your local Maven repository
-
-slot tactrollerVersion
-    label     tactroller version
-    kind      text
-    required  yes
-    preset    1.4-SNAPSHOT
-
 # ---- what to include ---------------------------------------------------------------
 
 slot tests
@@ -179,12 +164,16 @@ fill blank  title          title    ${artifactId}
 fill blank  summary        text     A VexelRay desktop application.
 fill blank  icon           text     ${artifactId}
 fill always appName        slug     ${artifactId}
-# The framework's own version, which vexelray-gui and vexelray-codec move with; the engine and the build
-# plugin keep theirs. VexelDesktopTest.theStackIsTheFrameworksOwnVersion holds it to this module's.
-fill always frameworkVersion text     0.2.1-SNAPSHOT
-fill always guiVersion       text     ${frameworkVersion}
-fill always buildVersion     text     ${vexelrayVersion}
-fill always codecVersion     text     ${frameworkVersion}
+# The stack is not asked for: the project imports vexelray-bom at the framework's own version, and the BOM fixes
+# every library's. vexelray-gui and vexelray-codec move with the framework. The rest are here only for what a BOM
+# cannot carry and for the check below that the stack is installed: tactroller's, as the BOM names it, and
+# vexelray-build's, the build plugin's, as this framework builds with it. VexelDesktopTest.theStackIsTheBomsVersion
+# holds each to its source.
+fill always frameworkVersion  text     0.2.1-SNAPSHOT
+fill always guiVersion        text     ${frameworkVersion}
+fill always codecVersion      text     ${frameworkVersion}
+fill always tactrollerVersion text     1.4-SNAPSHOT
+fill always buildVersion      text     0.2.1-SNAPSHOT
 # A new project starts at the version of the stack it was made against: 0.2's projects are 0.2.0-SNAPSHOT.
 fill blank  version          text     ${frameworkVersion}
 fill always junitVersion   text     5.11.4
@@ -266,8 +255,9 @@ file ${artifactId}-gui/src/main/java/${packagePath}/Navigator.java     from Navi
 # text, so nothing is substituted into it): the window wears it from the class
 # path and the executable links it through the .rc, so they are one file. The
 # icon slot names it, so a project that brings its mark keeps its file names. The
-# .svg is its source; the metadata is this program's own, everything else in a
-# native image registers itself.
+# .svg is its source. No reachability metadata and no native-image flag is
+# written: every jar the program depends on carries its own, and the processor
+# registers the icon, so the project has nothing of its own to register.
 
 file ${artifactId}-gui/src/main/rc/${icon}.ico             from new-app.ico
 file ${artifactId}-gui/src/main/rc/${icon}.svg             from new-app.svg
@@ -281,7 +271,6 @@ file ${artifactId}-gui/src/main/rc/${artifactId}.manifest  from app.manifest
 # this copy has: see Scaffold.isBatchFile.
 
 file native-build.cmd
-file ${artifactId}-gui/src/main/resources/META-INF/native-image/${groupId}/${artifactId}/reachability-metadata.json  from reachability-metadata.json
 
 file ${artifactId}-gui/src/test/java/${packagePath}/ViewTest.java          from ViewTest.java          when tests
 file ${artifactId}-gui/src/test/java/${packagePath}/LookTest.java          from LookTest.java          when tests
@@ -326,8 +315,9 @@ part EXAMPLES.md rows                                                           
 # `mvn install` for is the likeliest reason a fresh project does not build. The
 # platform modules are deliberately not here: exactly one of them activates from
 # the host OS, so checking for all three would warn about two that are correctly
-# absent.
+# absent. The BOM is a pom and nothing else, so it is installed when its pom is.
 
+needs dev.vexelray.framework:vexelray-bom:pom:${frameworkVersion}
 needs dev.vexelray.build:vexelray-build-maven-plugin:${buildVersion}
 needs dev.vexelray.framework:vexelray-framework-api:${frameworkVersion}
 needs dev.vexelray.framework:vexelray-framework-core:${frameworkVersion}

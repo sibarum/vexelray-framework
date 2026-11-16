@@ -276,7 +276,7 @@ public final class Checks {
             String group = answers.resolve(need.group());
             String artifact = answers.resolve(need.artifact());
             String version = answers.resolve(need.version());
-            Template.Need resolved = new Template.Need(group, artifact, version);
+            Template.Need resolved = new Template.Need(group, artifact, need.packaging(), version);
             Path folder;
             try {
                 folder = repository.resolve(resolved.repoPath());
@@ -290,9 +290,12 @@ public final class Checks {
             }
             // A folder with a pom and no jar is a half-installed artifact, which
             // fails at compile time rather than at resolve time -- a worse failure
-            // to have to diagnose, so it counts as missing here.
-            if (!Files.isRegularFile(folder.resolve(resolved.jarName()))
-                    && !hasJar(folder, artifact)) {
+            // to have to diagnose, so it counts as missing here. A pom-only one (a
+            // BOM) has no jar to lack, and is installed when its pom is there.
+            boolean there = resolved.isJar()
+                    ? Files.isRegularFile(folder.resolve(resolved.fileName())) || hasJar(folder, artifact)
+                    : Files.isRegularFile(folder.resolve(resolved.fileName()));
+            if (!there) {
                 missing.add(resolved.coordinate());
             }
         }

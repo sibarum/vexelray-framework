@@ -1937,3 +1937,8 @@ drift out of agreement with a driver.
   `reachability-metadata.json`. Aggregating those into the starters, so an application inherits the
   whole stack's metadata by depending on the framework, is the same value Spring Boot delivers by
   shipping hints for its ecosystem. Probably the highest-leverage feature not yet listed.
+  **Ruled 2026-11-16, and done:** not in the starters but in each library's own jar, which GraalVM merges
+  from the class path, so a backend brings exactly what it needs with nothing in between. Every jar that
+  binds a downcall or shares an arena carries its `reachability-metadata.json` and a `native-image.properties`
+  with its FFM flags; versions come from `vexelray-bom`. A generated project writes no metadata and no flag of
+  its own, and was built natively and driven that way.

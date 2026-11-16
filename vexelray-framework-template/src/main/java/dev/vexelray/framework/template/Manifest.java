@@ -1,6 +1,7 @@
 package dev.vexelray.framework.template;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -289,15 +290,20 @@ public final class Manifest {
         return new Tail(source, module, conditions);
     }
 
-    /** {@code needs dev.vexelray.gui:vexelray-gui-widget:${guiVersion}} */
+    /**
+     * {@code needs dev.vexelray.gui:vexelray-gui-widget:${guiVersion}}, or with a packaging between the artifact and
+     * the version, Maven's way: {@code needs dev.vexelray.framework:vexelray-bom:pom:${frameworkVersion}}.
+     */
     private static Template.Need need(String rest, String where, int line) {
         String[] parts = rest.split(":");
-        if (parts.length != 3 || parts[0].isBlank() || parts[1].isBlank() || parts[2].isBlank()) {
-            throw at(where, line, "a needs line is group:artifact:version")
-                    .hint("e.g. needs dev.vexelray:vexelray-surface:${vexelrayVersion}")
+        if ((parts.length != 3 && parts.length != 4) || Arrays.stream(parts).anyMatch(String::isBlank)) {
+            throw at(where, line, "a needs line is group:artifact:version, or group:artifact:packaging:version")
+                    .hint("e.g. needs dev.vexelray:vexelray-surface:${frameworkVersion}")
                     .build();
         }
-        return new Template.Need(parts[0].strip(), parts[1].strip(), parts[2].strip());
+        return parts.length == 3
+                ? new Template.Need(parts[0].strip(), parts[1].strip(), parts[2].strip())
+                : new Template.Need(parts[0].strip(), parts[1].strip(), parts[2].strip(), parts[3].strip());
     }
 
     // ---- a slot, gathered a line at a time ----------------------------------------------

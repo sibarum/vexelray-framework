@@ -47,11 +47,11 @@ class GenerateTest {
         Path repository = Files.createDirectory(temp.resolve("repository"));
         Template template = Catalogue.bundled().get("vexel-desktop");
         Answers answers = Answers.of(Answers.presets(template).values()).filled(template);
-        for (String coordinate : Checks.missingArtifacts(template, answers, repository)) {
-            String[] gav = coordinate.split(":");
-            Path folder = repository.resolve(gav[0].replace('.', '/')).resolve(gav[1]).resolve(gav[2]);
-            Files.createDirectories(folder);
-            Files.writeString(folder.resolve(gav[1] + "-" + gav[2] + ".jar"), "");
+        for (Template.Need need : template.needs()) {
+            Template.Need installed = new Template.Need(answers.resolve(need.group()), answers.resolve(need.artifact()),
+                    need.packaging(), answers.resolve(need.version()));
+            Path folder = Files.createDirectories(repository.resolve(installed.repoPath()));
+            Files.writeString(folder.resolve(installed.fileName()), "");
         }
         Path where = Files.createDirectory(temp.resolve("src"));
         assertEquals(0, Generate.run(new String[] {"--in", where.toString(), "--name", "demo-app"},
