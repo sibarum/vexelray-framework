@@ -127,11 +127,6 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       A default of *exit* on a stall also throws away unsaved work, so the threshold has to be long and the
       policy needs a bounded chance to save first.
 
-- [ ] **The component model's nine rulings were accepted on 2026-10-01 (mostly as recommended), and part of what they ordered is not built.**
-      [components.md](components.md) records them. The imperative path is removed (rulings 1 and 2, done; T1.3 is held). The tree spike is done (ruling 8: zero existing signatures change).
-      The copier's check half is done (2026-10-02: a `@Subscribe` payload must be deeply immutable; the generated
-      copier is parked as additive). Open from them: the capture rule, which needs a decision (see its entry below).
-
 
 - [ ] **One seam carries three of the four differentiators, and it is the one not built.** A
       `@Subscribe` that generates its `Pump` registration in `ATTACH` and its teardown in the
@@ -491,9 +486,9 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
       **Still to do:** the main thread is not watched, on purpose. It legitimately blocks in a modal native
       dialog for as long as a person takes, and a halt fired at someone choosing a filename is worse than the
-      wedge, so it wants a heartbeat that knows a dialog is up, from the frame loop. The processor check that
-      main-thread code sends only on channels that never block is built (T4.7) for declared sends only; see
-      the `@Subscribe` entry. Cancellation tokens on `Lanes.offload()`, and
+      wedge, so it wants a heartbeat that knows a dialog is up, from the frame loop. (The 0.1 check that
+      main-thread code sends only on channels that never block is withdrawn: under the tick no send blocks, so
+      T4.7 holds by construction.) Cancellation tokens on `Lanes.offload()`, and
       the handler and offload pools are not grouped. `Context` has `exit` and `interrupt` and no `restart`.
       Verify the group sweep under native-image, untested. W2 gets the *wedge* button and the assertions that
       the window keeps painting and close exits within the bound.
