@@ -73,6 +73,9 @@ import java.util.Set;
  *       compilation once javac has analyzed it, so the processor asks for {@code *} to be started at all.</li>
  *   <li><b>A view's {@code @Draw}</b>: its shape and its one state field, and its body read as a step's is, with a
  *       frame's rules besides (T7.6).</li>
+ *   <li><b>A delivery</b>, a {@code @Subscribe} method of a component or a view, read by the same reader for what
+ *       certainly blocks: disk, the network, a sleep, a wait (T5.8); and <b>a display function</b> handed to a widget,
+ *       read for effects, sends and shared state (T7.2).</li>
  * </ul>
  *
  * <p>Beside the wiring it writes one thing more, wherever a record asks for it: a {@code @Withers} record's interface

@@ -33,6 +33,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
@@ -50,7 +51,8 @@ import java.util.Set;
 
 /**
  * Reads the body of every step declared on an atchung {@code Ledger.Builder}, and refuses what is certainly wrong in
- * one (vexelray-framework's {@code docs/plans/chains.md}, rule 4 and design F).
+ * one (vexelray-framework's {@code docs/plans/chains.md}, rule 4 and design F); and, with the same reader and the same
+ * tables, a view's asked half, every delivery and every display function, each held to its own rules (below).
  *
  * <p><b>A list of definite wrongs, never a proof.</b> Java cannot express that a step is safe, so a check that asked
  * for proof would refuse correct code, and an escape from a false refusal would be debt by construction. So this
@@ -79,6 +81,37 @@ import java.util.Set;
  * not allocate ({@code new}, an array, a string built, a varargs call), log, touch a {@code Thread} or reach the bus.
  * The same principle holds: an allocation hidden in a library call it cannot read is let through, and a string that
  * javac folds to a constant is not built at all.
+ *
+ * <p><b>A delivery is read for what blocks, and only that</b> ({@code docs/threading.md} T5.8: a component's delivery
+ * never blocks, never sleeps and never waits for a reply). A delivery is a {@code @Subscribe} method of a
+ * {@code @Component} or a {@code @View}, and a function a view hands {@code Gui} ({@code hear}, {@code mailbox},
+ * {@code batch}), which the GUI thread runs as one. It owns its part's state, so nothing it captures is refused; what is
+ * refused is an effect that certainly makes its thread wait ({@link Effect#blocking}): disk, the network, a sleep, a
+ * join, a wait, a future's {@code get}, a latch, a barrier, a queue's {@code take}. What waits only while another thread
+ * holds something (a lock, {@code synchronized}, a semaphore, a bounded queue's {@code put}) is let through, since no
+ * reading of the source says whether it is ever contended; so is what starts a thread or a process without waiting on
+ * it. The error names the delivery and the fix, a {@code @Job}, a {@code @Source} or a {@code @Destination}
+ * ({@code docs/components.md} sections 10 to 12). Three things more are let through, each because the source does not
+ * say what runs:
+ * <ul>
+ *   <li><b>A function in the body</b>, a lambda, a method reference or a class declared there: it may run now, or be
+ *       kept and run later on another thread ({@code new Thread(() -> read(file))} blocks nothing).</li>
+ *   <li><b>A method an override may replace</b>: a helper is followed, through as many calls as its source is here,
+ *       only where the call certainly runs the body read: a static, private or final method, a constructor, or a method
+ *       of a final class, a record or an anonymous class. An interface's method, or a non-final class's, is not.</li>
+ *   <li><b>Code it cannot read</b>, as for a step: a library, a class analyzed earlier.</li>
+ * </ul>
+ *
+ * <p><b>A display function is read for effects, sends and shared state</b> ({@code docs/threading.md} T7.2: a view may
+ * give a widget display functions, which the processor reads, refusing I/O, blocking calls and captures of mutable
+ * state). A display function is a lambda or a method reference handed to the widget library
+ * ({@code dev.vexelray.gui.widget}, not its {@code spi}), or one whose own type is a widget library interface such as
+ * {@code Face}: vexelray-gui's walk holds that every function a widget takes is presentation, run on the GUI thread
+ * whenever the widget asks. Every listed effect is refused, blocking or not; so is a send on the bus
+ * ({@code Sender.send}, an {@code Out}'s, {@code Atchung.publish}); and so is state that is no part's: a static field
+ * written or read when not final, a volatile field, the process's streams. The view's own fields, and the item's, are
+ * its to read, as an asked half reads its part's state (T7.1); a helper is followed as a delivery's is. A function held
+ * in a variable and handed on later, or handed to another library (a plot, a codec), is not read.
  *
  * <p><b>What a step sends is declared</b> ({@code docs/threading.md} T4.5). A part's other sends are its
  * constructor's {@code Sender}s, which the wiring reads; a step sends through its {@code Out}, which no constructor
@@ -135,19 +168,33 @@ final class StepCheck implements TaskListener {
     private static final String INBOX = "sibarum.atchung.Inbox";
     private static final String TOPIC = "sibarum.atchung.Topic";
 
-    /** What an effect is, said in the error so the author sees why it was refused. */
+    /**
+     * What an effect is, said in the error so the author sees why it was refused, and whether it certainly makes its
+     * thread wait, which is all a delivery is held to (T5.8). A step, an asked half and a display function refuse every
+     * kind; a delivery refuses only the blocking ones.
+     */
     private enum Effect {
-        IO("does I/O"),
-        NETWORK("goes to the network"),
-        BLOCKS("blocks its thread"),
-        THREAD("starts work on another thread"),
-        EXIT("ends the process"),
-        PROCESS("starts a process");
+        IO("does I/O", true),
+        NETWORK("goes to the network", true),
+        /** A call whose purpose is to wait for another thread or the clock: a sleep, a join, a future, a latch. */
+        BLOCKS("blocks its thread", true),
+        /**
+         * A lock, a semaphore's permit, a bounded queue's room: it waits only while another thread holds what it asks
+         * for, which no reading of the source can tell, so a delivery is not refused for it.
+         */
+        CONTENDS("waits whenever another thread holds what it asks for", false),
+        /** A notify, a yield: it touches another thread's schedule and never waits itself. */
+        SIGNALS("coordinates with another thread", false),
+        THREAD("starts work on another thread", false),
+        EXIT("ends the process", false),
+        PROCESS("starts a process", false);
 
         final String what;
+        final boolean blocking;
 
-        Effect(String what) {
+        Effect(String what, boolean blocking) {
             this.what = what;
+            this.blocking = blocking;
         }
     }
 
@@ -161,7 +208,21 @@ final class StepCheck implements TaskListener {
 
     /** {@code java.io.File}'s methods that only read the path, not the disk. */
     private static final Set<String> PURE_FILE = Set.of("<init>", "getName", "getPath", "getParent",
-            "getParentFile", "isAbsolute", "toPath", "toString", "equals", "hashCode", "compareTo", "toURI");
+            "getParentFile", "isAbsolute", "getAbsolutePath", "getAbsoluteFile", "toPath", "toString", "equals",
+            "hashCode", "compareTo", "toURI");
+
+    /** The bus's sending methods, by type: what a display function may not call, since it sends nothing. */
+    private static final Map<String, Set<String>> SENDS = Map.of(
+            "sibarum.atchung.Sender", Set.of("send"),
+            OUT, Set.of("send", "result", "resume"),
+            "sibarum.atchung.Atchung", Set.of("publish"));
+
+    /** The type whose methods run what they are handed on the GUI thread, as the caller or in the widget tick. */
+    private static final String GUI = "dev.vexelray.gui.core.Gui";
+
+    /** The widget library, every function handed to which is a display function; and its seam, which is not. */
+    private static final String WIDGETS = "dev.vexelray.gui.widget";
+    private static final String WIDGET_SEAMS = "dev.vexelray.gui.widget.spi";
 
     static {
         all(Effect.IO, "java.io.FileInputStream", "java.io.FileOutputStream", "java.io.FileReader",
@@ -178,19 +239,22 @@ final class StepCheck implements TaskListener {
         some(Effect.BLOCKS, "java.lang.Process", "waitFor");
         some(Effect.THREAD, "java.lang.Thread", "<init>", "start", "ofVirtual", "ofPlatform",
                 "startVirtualThread", "setDaemon", "setPriority", "interrupt", "stop", "suspend", "resume");
-        some(Effect.BLOCKS, "java.lang.Thread", "sleep", "join", "yield", "onSpinWait");
-        some(Effect.BLOCKS, "java.lang.Object", "wait", "notify", "notifyAll");
+        some(Effect.BLOCKS, "java.lang.Thread", "sleep", "join");
+        some(Effect.SIGNALS, "java.lang.Thread", "yield", "onSpinWait");
+        some(Effect.BLOCKS, "java.lang.Object", "wait");
+        some(Effect.SIGNALS, "java.lang.Object", "notify", "notifyAll");
         some(Effect.BLOCKS, "java.util.concurrent.Future", "get");
         some(Effect.BLOCKS, "java.util.concurrent.CompletableFuture", "join");
         some(Effect.THREAD, "java.util.concurrent.CompletableFuture", "runAsync", "supplyAsync");
         some(Effect.BLOCKS, "java.util.concurrent.CountDownLatch", "await");
         some(Effect.BLOCKS, "java.util.concurrent.CyclicBarrier", "await");
-        some(Effect.BLOCKS, "java.util.concurrent.Semaphore", "acquire", "acquireUninterruptibly");
-        some(Effect.BLOCKS, "java.util.concurrent.BlockingQueue", "put", "take");
+        some(Effect.CONTENDS, "java.util.concurrent.Semaphore", "acquire", "acquireUninterruptibly");
+        some(Effect.BLOCKS, "java.util.concurrent.BlockingQueue", "take");
+        some(Effect.CONTENDS, "java.util.concurrent.BlockingQueue", "put");
         some(Effect.BLOCKS, "java.util.concurrent.Exchanger", "exchange");
         some(Effect.BLOCKS, "java.util.concurrent.Phaser", "arriveAndAwaitAdvance", "awaitAdvance",
                 "awaitAdvanceInterruptibly");
-        some(Effect.BLOCKS, "java.util.concurrent.locks.Lock", "lock", "lockInterruptibly", "tryLock");
+        some(Effect.CONTENDS, "java.util.concurrent.locks.Lock", "lock", "lockInterruptibly", "tryLock");
         some(Effect.BLOCKS, "java.util.concurrent.locks.Condition", "await", "awaitNanos", "awaitUninterruptibly",
                 "awaitUntil");
         some(Effect.THREAD, "java.util.concurrent.Executor", "execute");
@@ -223,6 +287,11 @@ final class StepCheck implements TaskListener {
     private TypeElement current;
     /** What the steps of the top-level class being read send, for the converse. */
     private Sent sent;
+    /**
+     * The methods the deliveries of the top-level class being read have reached. Shared between them, since what a
+     * helper does is reported where it does it, once, whichever delivery got there first.
+     */
+    private Set<Element> delivered;
 
     private StepCheck(Trees trees, Types types, Mirrors mirrors, Report report) {
         this.trees = trees;
@@ -255,6 +324,7 @@ final class StepCheck implements TaskListener {
         List<TypeElement> listing = new ArrayList<>();
         listing(current, listing);
         sent = new Sent(!listing.isEmpty());
+        delivered = new HashSet<>();
         try {
             if (path != null) {
                 new Finder(path.getCompilationUnit()).scan(path, null);
@@ -268,6 +338,7 @@ final class StepCheck implements TaskListener {
             analyzed.add(current);
             current = null;
             sent = null;
+            delivered = null;
         }
     }
 
@@ -513,18 +584,113 @@ final class StepCheck implements TaskListener {
             }
         }
 
-        /** A view's {@code @Draw} method: read as a step is, with the frame's rules. Its shape is Declarations'. */
+        /**
+         * A view's {@code @Draw} method: read as a step is, with the frame's rules. Its shape is Declarations'. And a
+         * {@code @Subscribe} method of a component or a view: read for what blocks (T5.8).
+         */
         @Override
         public Void visitMethod(MethodTree tree, Void unused) {
-            if (trees.getElement(getCurrentPath()) instanceof ExecutableElement method && drawn(method)
-                    && method.getModifiers().contains(Modifier.STATIC) && tree.getBody() != null) {
-                Set<Element> seen = new HashSet<>();
-                seen.add(method);
-                new Body(Subject.draw(Mirrors.where(method)), unit, false, seen)
-                        .scan(getCurrentPath(), null);
+            if (trees.getElement(getCurrentPath()) instanceof ExecutableElement method && tree.getBody() != null) {
+                if (drawn(method) && method.getModifiers().contains(Modifier.STATIC)) {
+                    Set<Element> seen = new HashSet<>();
+                    seen.add(method);
+                    new Body(Subject.draw(Mirrors.where(method)), unit, false, seen)
+                            .scan(getCurrentPath(), null);
+                } else if (mirrors.has(method, dev.vexelray.framework.api.Subscribe.class)) {
+                    Element owner = method.getEnclosingElement();
+                    boolean view = mirrors.has(owner, dev.vexelray.framework.api.View.class);
+                    if (view || mirrors.has(owner, dev.vexelray.framework.api.Component.class)) {
+                        delivered.add(method);
+                        new Body(Subject.delivery("@Subscribe " + Mirrors.where(method), view), unit, true, delivered)
+                                .scan(getCurrentPath(), null);
+                    }
+                }
             }
             return super.visitMethod(tree, unused);
         }
+
+        /** A lambda handed to the GUI: a display function, or a view's handler (see {@link #handed}). */
+        @Override
+        public Void visitLambdaExpression(LambdaExpressionTree lambda, Void unused) {
+            Subject handed = handed(getCurrentPath());
+            if (handed != null) {
+                new Body(handed, unit, false, handed.holds().seen(delivered))
+                        .scan(new TreePath(getCurrentPath(), lambda.getBody()), null);
+            }
+            return super.visitLambdaExpression(lambda, unused);
+        }
+
+        /** A method reference handed to the GUI: the method it names is read as a lambda's body would be. */
+        @Override
+        public Void visitMemberReference(MemberReferenceTree ref, Void unused) {
+            Subject handed = handed(getCurrentPath());
+            if (handed != null && trees.getElement(getCurrentPath()) instanceof ExecutableElement target) {
+                Body body = new Body(handed, unit, false, handed.holds().seen(delivered));
+                if (!body.effect(target, ref)) {
+                    follow(handed, target, body.seen);
+                }
+            }
+            return super.visitMemberReference(ref, unused);
+        }
+
+        /**
+         * What a function at {@code at} is read as, or null for one this does not read.
+         *
+         * <ul>
+         *   <li><b>A display function</b> (T7.2): handed to a method or constructor of the widget library
+         *       ({@code dev.vexelray.gui.widget}, not its {@code spi}), or whose own type is one of the widget library's functional
+         *       interfaces ({@code Face}, a {@code Tabs.HeaderSkin}), wherever it is handed. Every function a widget
+         *       an application can reach takes is presentation: vexelray-gui's walk holds that, so the check needs no
+         *       list of them.</li>
+         *   <li><b>A view's handler</b>: handed to {@code Gui}, which takes a function only where it runs it on the GUI
+         *       thread as the caller, {@code hear}, {@code mailbox} and {@code batch} (vexelray-gui's
+         *       {@code GuiSurfaceTest}). It is a delivery as a view's {@code @Subscribe} method is, held to T5.8.</li>
+         * </ul>
+         *
+         * A function held in a variable and handed on later, or handed to any other library, is not read: where and
+         * when it runs is not something the source says.
+         */
+        private Subject handed(TreePath at) {
+            TreePath up = at.getParentPath();
+            Tree parent = up.getLeaf();
+            List<? extends ExpressionTree> arguments = parent instanceof MethodInvocationTree call ? call.getArguments()
+                    : parent instanceof NewClassTree create ? create.getArguments() : List.of();
+            if (arguments.contains(at.getLeaf()) && trees.getElement(up) instanceof ExecutableElement m
+                    && m.getEnclosingElement() instanceof TypeElement owner) {
+                String receiver = m.getKind() == ElementKind.CONSTRUCTOR ? "new " + Mirrors.simple(owner)
+                        : Mirrors.simple(owner) + "." + Mirrors.simple(m);
+                if (owner.getQualifiedName().contentEquals(GUI)) {
+                    return Subject.delivery("the handler handed to " + receiver + " in " + where(at), true);
+                }
+                if (widget(owner)) {
+                    return Subject.display("the display function handed to " + receiver + " in " + where(at));
+                }
+            }
+            if (trees.getTypeMirror(at) instanceof DeclaredType d && d.asElement() instanceof TypeElement function
+                    && widget(function)) {
+                return Subject.display("the " + Mirrors.simple(function) + " in " + where(at));
+            }
+            return null;
+        }
+
+        /** The method, constructor or class whose code {@code at} is in, as an author would look for it. */
+        private String where(TreePath at) {
+            for (TreePath p = at; p != null; p = p.getParentPath()) {
+                if (p.getLeaf() instanceof MethodTree && trees.getElement(p) instanceof ExecutableElement m) {
+                    return m.getKind() == ElementKind.CONSTRUCTOR
+                            ? Mirrors.simple(m.getEnclosingElement()) + "'s constructor" : Mirrors.where(m);
+                }
+                if (p.getLeaf() instanceof ClassTree && trees.getElement(p) instanceof TypeElement t) {
+                    return Mirrors.simple(t);
+                }
+            }
+            return "?";
+        }
+    }
+
+    /** Whether {@code type} is the widget library's, and not its seam. */
+    private static boolean widget(TypeElement type) {
+        return inPackage(type, WIDGETS) && !inPackage(type, WIDGET_SEAMS);
     }
 
     /**
@@ -555,6 +721,9 @@ final class StepCheck implements TaskListener {
      * @return whether it was read, now or before
      */
     private boolean follow(Subject step, ExecutableElement method, Set<Element> seen) {
+        if (step.holds().exact() && overridable(method)) {
+            return false;   // what runs may be an override this cannot see
+        }
         if (!seen.add(method)) {
             return true;
         }
@@ -569,6 +738,20 @@ final class StepCheck implements TaskListener {
         boolean hasThis = !method.getModifiers().contains(Modifier.STATIC);
         new Body(step, path.getCompilationUnit(), hasThis, seen).scan(path, null);
         return true;
+    }
+
+    /**
+     * Whether a call to {@code method} may run another body than its own: an instance method that is not private or
+     * final, in a class that is neither final nor anonymous (a record, and an enum without constant bodies, are final).
+     */
+    private static boolean overridable(ExecutableElement method) {
+        Set<Modifier> m = method.getModifiers();
+        if (method.getKind() != ElementKind.METHOD || m.contains(Modifier.STATIC) || m.contains(Modifier.PRIVATE)
+                || m.contains(Modifier.FINAL)) {
+            return false;
+        }
+        return !(method.getEnclosingElement() instanceof TypeElement owner)
+                || !(owner.getModifiers().contains(Modifier.FINAL) || owner.getNestingKind() == NestingKind.ANONYMOUS);
     }
 
     /** Reads one body: the step's lambda, or a method it reaches. */
@@ -599,7 +782,7 @@ final class StepCheck implements TaskListener {
         @Override
         public Void visitIdentifier(IdentifierTree id, Void unused) {
             if (id.getName().contentEquals("this") || id.getName().contentEquals("super")) {
-                if (!hasThis) {
+                if (!hasThis && step.holds().confined()) {
                     error(step, "uses " + id.getName() + ", so it captures the enclosing object",
                             "declare the step as a static method, or keep what it needs in " + step.state(),
                             id, unit);
@@ -616,7 +799,11 @@ final class StepCheck implements TaskListener {
 
         private void switchOnKind(Element e, Tree at) {
             ElementKind k = e.getKind();
-            if (k == ElementKind.LOCAL_VARIABLE || k == ElementKind.PARAMETER || k == ElementKind.EXCEPTION_PARAMETER
+            if (!step.holds().confined()) {
+                if (k == ElementKind.FIELD) {
+                    field(e, at, true);
+                }
+            } else if (k == ElementKind.LOCAL_VARIABLE || k == ElementKind.PARAMETER || k == ElementKind.EXCEPTION_PARAMETER
                     || k == ElementKind.RESOURCE_VARIABLE || k == ElementKind.BINDING_VARIABLE) {
                 if (!locals.contains(e)) {
                     error(step, "captures '" + e.getSimpleName() + "' from outside it",
@@ -641,13 +828,19 @@ final class StepCheck implements TaskListener {
             return super.visitMemberSelect(select, unused);
         }
 
-        /** A field used: static and written, static and not final, volatile, a process stream, or this's. */
+        /**
+         * A field used: static and written, static and not final, volatile, a process stream, or this's. A delivery is
+         * held to none of these ({@link Holds#shared}), and a display function to all but the last.
+         */
         private void field(Element e, Tree at, boolean bare) {
+            if (!step.holds().shared()) {
+                return;
+            }
             boolean isStatic = e.getModifiers().contains(Modifier.STATIC);
             String name = owner(e) + "." + e.getSimpleName();
             if (e.getModifiers().contains(Modifier.VOLATILE)) {
                 error(step, "uses the volatile field " + name + ", which is state another thread changes",
-                        "keep what the step needs in " + step.state(), at, unit);
+                        "keep what it needs in " + step.state(), at, unit);
                 return;
             }
             if (isStatic) {
@@ -665,7 +858,7 @@ final class StepCheck implements TaskListener {
                 }
                 return;
             }
-            if (bare && !hasThis) {
+            if (bare && !hasThis && step.holds().confined()) {
                 error(step, "uses the field " + e.getSimpleName() + " of the enclosing object, so it captures it",
                         "declare the step as a static method, or keep what it needs in " + step.state(), at, unit);
             }
@@ -683,10 +876,14 @@ final class StepCheck implements TaskListener {
 
         /**
          * A class declared inside the body (anonymous, local, a record) has its own {@code this}: its members are
-         * read with it, and with the body's locals, which it may use as any code in the step may.
+         * read with it, and with the body's locals, which it may use as any code in the step may. A delivery does not
+         * read it ({@link Holds#deferred}).
          */
         @Override
         public Void visitClass(ClassTree type, Void unused) {
+            if (!step.holds().deferred()) {
+                return null;
+            }
             Body inner = new Body(step, unit, true, seen);
             inner.locals.addAll(locals);
             for (Tree member : type.getMembers()) {
@@ -704,10 +901,21 @@ final class StepCheck implements TaskListener {
             return null;
         }
 
+        /**
+         * A lambda in the body. A delivery does not read one ({@link Holds#deferred}): it may run now or be kept and run
+         * later, on another thread, and the source does not say which.
+         */
+        @Override
+        public Void visitLambdaExpression(LambdaExpressionTree lambda, Void unused) {
+            return step.holds().deferred() ? super.visitLambdaExpression(lambda, unused) : null;
+        }
+
         @Override
         public Void visitSynchronized(SynchronizedTree sync, Void unused) {
-            error(step, "takes a lock (synchronized), which can stall its lane",
-                    "a step owns its state and needs no lock; keep shared state in a ledger instead", sync, unit);
+            if (step.holds().confined()) {
+                error(step, "takes a lock (synchronized), which can stall its lane",
+                        "a step owns its state and needs no lock; keep shared state in a ledger instead", sync, unit);
+            }
             return super.visitSynchronized(sync, unused);
         }
 
@@ -715,14 +923,29 @@ final class StepCheck implements TaskListener {
         public Void visitMethodInvocation(MethodInvocationTree call, Void unused) {
             Element e = trees.getElement(getCurrentPath());
             if (e instanceof ExecutableElement m) {
-                if (!step.drawn() && isSend(m)) {
+                if (step.holds().ledger() && isSend(m)) {
                     send(call);
-                } else if (!effect(m, call) && !(step.drawn() && framed(m, call))
-                        && !follow(step, m, seen) && handsOut(call.getArguments())) {
+                } else if (!effect(m, call) && !(step.drawn() && framed(m, call)) && !(step.holds().quiet()
+                        && sends(m, call)) && !follow(step, m, seen) && step.holds().ledger()
+                        && handsOut(call.getArguments())) {
                     sent.unsure();      // an Out handed to code that is not read may send anything
                 }
             }
             return super.visitMethodInvocation(call, unused);
+        }
+
+        /** Refuse a call that sends on the bus, in a body that sends nothing; @return whether it was refused. */
+        private boolean sends(ExecutableElement m, MethodInvocationTree call) {
+            if (!(m.getEnclosingElement() instanceof TypeElement owner)) {
+                return false;
+            }
+            Set<String> sending = SENDS.get(owner.getQualifiedName().toString());
+            if (sending == null || !sending.contains(m.getSimpleName().toString())) {
+                return false;
+            }
+            error(step, "calls " + owner.getSimpleName() + "." + m.getSimpleName() + ", which sends a message",
+                    SILENT, call, unit);
+            return true;
         }
 
         /** {@code out.send(topic, message)}: held to the list of what the step's class publishes (T4.5). */
@@ -758,16 +981,22 @@ final class StepCheck implements TaskListener {
             return false;
         }
 
+        /**
+         * A constructor called: refused if it is an effect, or in an asked half, which allocates nothing. A step's is
+         * not read; a delivery's and a display function's is, when its source is here ({@link Holds#exact}).
+         */
         @Override
         public Void visitNewClass(NewClassTree create, Void unused) {
             Element e = trees.getElement(getCurrentPath());
-            if (!step.drawn() && handsOut(create.getArguments())) {
+            if (step.holds().ledger() && handsOut(create.getArguments())) {
                 sent.unsure();          // a constructor is not read, and this one is handed the Out
             }
-            if (e instanceof ExecutableElement m) {
-                if (!effect(m, create) && step.drawn()) {
+            if (e instanceof ExecutableElement m && !effect(m, create)) {
+                if (step.drawn()) {
                     error(step, "creates a new " + m.getEnclosingElement().getSimpleName() + ", which allocates in every"
                             + " frame", BUILT, create, unit);
+                } else if (step.holds().exact()) {
+                    follow(step, m, seen);
                 }
             }
             return super.visitNewClass(create, unused);
@@ -861,26 +1090,30 @@ final class StepCheck implements TaskListener {
             return false;
         }
 
+        /** A method reference in the body: a function, so a delivery does not read it, as it does not read a lambda. */
         @Override
         public Void visitMemberReference(MemberReferenceTree ref, Void unused) {
+            if (!step.holds().deferred()) {
+                return null;
+            }
             Element e = trees.getElement(getCurrentPath());
             if (e instanceof ExecutableElement m) {
                 effect(m, ref);
-                if (!step.drawn() && (handsOut(List.of(ref.getQualifierExpression())) || takesOut(m))) {
+                if (step.holds().ledger() && (handsOut(List.of(ref.getQualifierExpression())) || takesOut(m))) {
                     sent.unsure();      // a method reference is not read, and this one sends or is handed an Out
                 }
             }
             return super.visitMemberReference(ref, unused);
         }
 
-        /** Refuse {@code m} if it is a listed effect; @return whether it was. */
+        /** Refuse {@code m} if it is a listed effect the body is held to; @return whether it was. */
         private boolean effect(ExecutableElement m, Tree at) {
             if (!(m.getEnclosingElement() instanceof TypeElement owner)) {
                 return false;
             }
             String method = m.getKind() == ElementKind.CONSTRUCTOR ? "<init>" : m.getSimpleName().toString();
             Effect found = effectOf(owner, method);
-            if (found == null) {
+            if (found == null || !step.holds().refuses(found)) {
                 return false;
             }
             String what = m.getKind() == ElementKind.CONSTRUCTOR ? "new " + owner.getSimpleName()
@@ -996,22 +1229,63 @@ final class StepCheck implements TaskListener {
                 unit);
     }
 
+    /** The fix for a send in a display function, which sends nothing. */
+    private static final String SILENT = "send from a delivery; a control in a row is described, nodes.button, and"
+            + " the widget announces its press";
+
     /**
-     * What a body is read as, and so how its errors are worded: a ledger's step, or a view's asked half, which is held
-     * to everything a step is and to the frame's rules besides.
+     * What a body is held to, beside its wording.
+     *
+     * @param ledger   it is a ledger's step, whose {@code out.send} calls are held to {@code @Publishes} (T4.5) and
+     *                 counted for the converse
+     * @param confined it sees only what it is handed: a capture of a local, of {@code this} or of the enclosing
+     *                 object's members is refused, and so is a lock
+     * @param shared   state another thread can see is refused: a static field written or read when not final, a
+     *                 volatile field, the process's own streams
+     * @param blocking only an effect that certainly makes its thread wait is refused ({@link Effect#blocking}); else
+     *                 every listed effect is
+     * @param deferred a lambda, a method reference or a class declared in the body is read as part of it; a delivery
+     *                 leaves them, since one may be kept and run later, elsewhere
+     * @param quiet    a call that sends on the bus is refused ({@link #SENDS})
+     * @param exact    a method is followed only where the call certainly runs its body: not one an override may
+     *                 replace, which a step's reading assumes away and a delivery's must not, since a refusal there
+     *                 would be a guess
+     */
+    private record Holds(boolean ledger, boolean confined, boolean shared, boolean blocking, boolean deferred,
+                         boolean quiet, boolean exact) {
+
+        static final Holds STEP = new Holds(true, true, true, false, true, false, false);
+        static final Holds DRAW = new Holds(false, true, true, false, true, false, false);
+        static final Holds DELIVERY = new Holds(false, false, false, true, false, false, true);
+        static final Holds DISPLAY = new Holds(false, false, true, false, true, true, true);
+
+        boolean refuses(Effect effect) {
+            return !blocking || effect.blocking;
+        }
+
+        /** The methods reached so far: one class's deliveries share theirs, and any other body starts its own. */
+        Set<Element> seen(Set<Element> delivered) {
+            return this == DELIVERY ? delivered : new HashSet<>();
+        }
+    }
+
+    /**
+     * What a body is read as, and so how its errors are worded: a ledger's step; a view's asked half, which is held to
+     * everything a step is and to the frame's rules besides; a delivery, a {@code @Subscribe} method or a function a
+     * view hands {@code Gui} to run as one, held to T5.8 only; or a display function, held to T7.2.
      *
      * @param drawn whether the body runs in every frame, so that allocating, logging, a thread or the bus is refused too
-     * @param sends what its sends are held to: {@link Sends#NONE} for an asked half, which may not send at all
+     * @param sends what its sends are held to: {@link Sends#NONE} for anything but a step
      */
     private record Subject(String name, String rule, String state, String carry, String noEffects, boolean drawn,
-                           Sends sends) {
+                           Sends sends, Holds holds) {
 
         static Subject step(String name, Sends sends) {
             return new Subject("step '" + name + "'",
                     "A step sees only its state, its arguments and its Out (docs/plans/chains.md, design F)",
                     "the ledger's state", "the step's arguments",
                     "a step makes no effects and never waits: send a message to a @Job that does it, and take its "
-                            + "reply in a later step", false, sends);
+                            + "reply in a later step", false, sends, Holds.STEP);
         }
 
         static Subject draw(String where) {
@@ -1020,7 +1294,39 @@ final class StepCheck implements TaskListener {
                             + " in every frame (vexelray-gui docs/plans/frame-contract.md, B)",
                     "the view's state", "the view's state",
                     "an asked half makes no effects and never waits: do it in a @Subscribe method or a @Job, and keep "
-                            + "what it found in the view's state", true, Sends.NONE);
+                            + "what it found in the view's state", true, Sends.NONE, Holds.DRAW);
+        }
+
+        /**
+         * A component's delivery, or a view's, which runs on the GUI thread, in the frame. A view may not take a job
+         * (T7.4), so its fix is to send the request one hears.
+         */
+        static Subject delivery(String where, boolean view) {
+            return view
+                    ? new Subject(where,
+                    "A view's delivery runs on the GUI thread, in the frame, and never blocks, sleeps or waits"
+                            + " (docs/threading.md T5.8, T7.4)",
+                    "the view's state", "the message",
+                    "send the request a @Job hears (docs/components.md section 10), or a @Source's or a"
+                            + " @Destination's if it reads or writes for as long as it is connected (sections 11 and"
+                            + " 12), and show what the reply says when it arrives", false, Sends.NONE, Holds.DELIVERY)
+                    : new Subject(where,
+                    "A component's delivery never blocks, never sleeps and never waits for a reply"
+                            + " (docs/threading.md T5.8)",
+                    "the component's state", "the message",
+                    "make it a @Job (docs/components.md section 10), a @Source if it reads for as long as it is"
+                            + " connected (section 11), or a @Destination if it writes where a write may wait"
+                            + " (section 12), send it a request, and take its reply in a later delivery", false,
+                    Sends.NONE, Holds.DELIVERY);
+        }
+
+        static Subject display(String where) {
+            return new Subject(where,
+                    "A display function is presentation: it takes the item and returns a description, on the GUI"
+                            + " thread, whenever the widget asks (docs/threading.md T7.2)",
+                    "the view's state", "the item",
+                    "a display function makes no effects and never waits: do it in a @Job, and hand the widget what"
+                            + " it found in the item", false, Sends.NONE, Holds.DISPLAY);
         }
     }
 }

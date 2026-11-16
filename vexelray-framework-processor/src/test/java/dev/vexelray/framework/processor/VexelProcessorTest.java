@@ -450,7 +450,36 @@ class VexelProcessorTest {
                 """),
             Map.entry("dev.vexelray.gui.core.Gui", """
                 package dev.vexelray.gui.core;
-                public final class Gui {}
+                public final class Gui {
+                    public <E> Gui hear(Node node, sibarum.atchung.Subscriber<? super E> stage) { return this; }
+                    public void batch(Runnable edits) { edits.run(); }
+                }
+                """),
+            // The widget library's display-function seams, as vexelray-gui's widget module has them (T7.2).
+            Map.entry("dev.vexelray.gui.widget.Nodes", """
+                package dev.vexelray.gui.widget;
+                public final class Nodes {
+                    public dev.vexelray.gui.core.Node text(String text) { return new dev.vexelray.gui.core.Node(text); }
+                }
+                """),
+            Map.entry("dev.vexelray.gui.widget.Face", """
+                package dev.vexelray.gui.widget;
+                @FunctionalInterface
+                public interface Face<T> {
+                    dev.vexelray.gui.core.Node build(Nodes nodes, T item);
+                }
+                """),
+            Map.entry("dev.vexelray.gui.widget.ListView", """
+                package dev.vexelray.gui.widget;
+                public final class ListView<T> {
+                    public ListView(dev.vexelray.gui.core.Gui gui, float rowRem, Face<T> builder) {}
+                }
+                """),
+            Map.entry("dev.vexelray.gui.widget.Select", """
+                package dev.vexelray.gui.widget;
+                public final class Select<T> {
+                    public Select(dev.vexelray.gui.core.Gui gui, java.util.function.Function<T, String> label) {}
+                }
                 """),
             Map.entry("dev.vexelray.gui.core.app.GuiApp", """
                 package dev.vexelray.gui.core.app;
@@ -3790,6 +3819,255 @@ class VexelProcessorTest {
                     long asked(dev.vexelray.gui.core.spi.Asked a) { return 0L; }
                 }
                 """), "@View Spells names dev.vexelray.gui.core.spi");
+    }
+
+    // --- T5.8: a delivery never blocks -------------------------------------------------------------------------
+
+    private static final String OPENED = """
+            public record Opened(String path) {
+                public static final sibarum.atchung.Topic<Opened> TOPIC = sibarum.atchung.Topic.edge(Opened.class);
+            }
+            """;
+
+    /** A component hearing {@code Opened}, whose delivery's body is {@code body}, beside the class members {@code more}. */
+    private static String loader(String body, String more) {
+        return """
+                @Component
+                public final class Loader {
+                    private String text = "";
+                    @Subscribe public void open(Opened m) {
+                        %s
+                    }
+                    %s
+                }
+                """.formatted(body, more);
+    }
+
+    @Test
+    void aComponentsDeliveryThatReadsAFileIsRefused() {
+        onlyError(app(OPENED, loader("""
+                try {
+                    text = java.nio.file.Files.readString(java.nio.file.Path.of(m.path()));
+                } catch (java.io.IOException e) {
+                    text = "";
+                }
+                """, "")), "@Subscribe Loader.open calls Files.readString, which does I/O. A component's delivery never"
+                + " blocks, never sleeps and never waits for a reply (docs/threading.md T5.8): make it a @Job");
+    }
+
+    @Test
+    void aComponentsDeliveryThatSleepsOrWaitsOnAFutureIsRefused() {
+        onlyError(app(OPENED, loader("""
+                try { Thread.sleep(10); } catch (InterruptedException e) { text = ""; }
+                """, "")), "@Subscribe Loader.open calls Thread.sleep, which blocks its thread");
+        onlyError(app(OPENED, loader("""
+                try {
+                    text = java.util.concurrent.CompletableFuture.supplyAsync(() -> "x").get();
+                } catch (Exception e) {
+                    text = "";
+                }
+                """, "")), "@Subscribe Loader.open calls CompletableFuture.get, which blocks its thread");
+    }
+
+    @Test
+    void aDeliveryIsReadThroughItsHelpersToTheCallThatBlocks() {
+        // A private helper, then a final class's method, then a record's constructor: each certainly runs what is read.
+        onlyError(app(OPENED, loader("text = read(m.path());", """
+                private static String read(String path) { return Disk.slurp(path); }
+                """), """
+                public final class Disk {
+                    public static String slurp(String path) { return new Slurped(path).text(); }
+                }
+                """, """
+                public record Slurped(String text) {
+                    public Slurped {
+                        try {
+                            text = java.nio.file.Files.readString(java.nio.file.Path.of(text));
+                        } catch (java.io.IOException e) {
+                            text = "";
+                        }
+                    }
+                }
+                """), "@Subscribe Loader.open calls Files.readString, which does I/O");
+    }
+
+    /**
+     * What it cannot be sure of, it lets through: a call an override may replace, a call through an interface, work
+     * handed to another thread, a lambda that may run later, a lock that may never be contended, a thread started, and a
+     * method a job or a test calls that no delivery reaches.
+     */
+    @Test
+    void aDeliveryIsNotRefusedForWhatTheCheckCannotBeSureBlocks() {
+        // T2.7 keeps a lock and a callback out of a component's fields, but not out of its locals.
+        assertEquals(List.of(), app(OPENED, loader("""
+                java.util.function.Supplier<String> source = () -> slurp("x");
+                text = store.load(m.path()) + source.get();
+                new Thread(() -> slurp(m.path())).start();
+                java.util.Optional.of(m.path()).map(Loader::slurp);
+                synchronized (this) { text = text.trim(); }
+                java.util.concurrent.locks.Lock lock = new java.util.concurrent.locks.ReentrantLock();
+                lock.lock();
+                lock.unlock();
+                java.util.concurrent.Executors.newSingleThreadExecutor().execute(() -> slurp(m.path()));
+                """, """
+                private final Store store = new Store();
+                static String slurp(String path) {
+                    try {
+                        return java.nio.file.Files.readString(java.nio.file.Path.of(path));
+                    } catch (java.io.IOException e) {
+                        return "";
+                    }
+                }
+                """), """
+                public class Store {
+                    public String load(String path) { return path; }
+                }
+                """, """
+                public final class Disk extends Store {
+                    @Override public String load(String path) { return Loader.slurp(path); }
+                }
+                """));
+    }
+
+    @Test
+    void aViewsDeliveryThatTouchesTheDiskIsRefusedWithTheGuiThreadsReason() {
+        onlyError(app(OPENED, """
+                @View
+                public final class Shown {
+                    private boolean there;
+                    public Shown() {}
+                    @Subscribe public void opened(Opened m) {
+                        there = java.nio.file.Files.exists(java.nio.file.Path.of(m.path()));
+                    }
+                }
+                """), "@Subscribe Shown.opened calls Files.exists, which does I/O. A view's delivery runs on the GUI"
+                + " thread, in the frame, and never blocks, sleeps or waits (docs/threading.md T5.8, T7.4): send the"
+                + " request a @Job hears");
+    }
+
+    /** A function a view hands Gui runs on the GUI thread as a delivery, so it is held to T5.8 as one. */
+    @Test
+    void aHandlerAViewHandsTheGuiIsReadAsADelivery() {
+        onlyError(app("""
+                @View
+                public final class Pane {
+                    private int clicks;
+                    public Pane(dev.vexelray.gui.core.Gui gui) {
+                        gui.hear(new dev.vexelray.gui.core.Node("pane"), (Object click) -> {
+                            clicks++;
+                            try { Thread.sleep(5); } catch (InterruptedException e) { clicks = 0; }
+                        });
+                    }
+                }
+                """), "the handler handed to Gui.hear in Pane's constructor calls Thread.sleep, which blocks its"
+                + " thread. A view's delivery runs on the GUI thread");
+        onlyError(app("""
+                @View
+                public final class Pane {
+                    private final dev.vexelray.gui.core.Node node = new dev.vexelray.gui.core.Node("pane");
+                    public Pane(dev.vexelray.gui.core.Gui gui) {
+                        gui.hear(node, this::clicked);
+                    }
+                    private void clicked(Object click) {
+                        try { new java.net.Socket("localhost", 80); } catch (java.io.IOException e) { }
+                    }
+                }
+                """), "the handler handed to Gui.hear in Pane's constructor calls new Socket, which goes to the network");
+    }
+
+    // --- T7.2: a view's display functions --------------------------------------------------------------------
+
+    /** A view and the page it builds, whose list draws each item with {@code face}, beside the members {@code more}. */
+    private static String page(String face, String more) {
+        return """
+                public final class Page {
+                    private String prefix = "";
+                    final dev.vexelray.gui.widget.ListView<String> list;
+                    Page(dev.vexelray.gui.core.Gui gui) {
+                        list = new dev.vexelray.gui.widget.ListView<String>(gui, 2f, %s);
+                    }
+                    %s
+                }
+                """.formatted(face, more);
+    }
+
+    @Test
+    void aDisplayFunctionThatDoesIoIsRefused() {
+        onlyError(app(page("""
+                (nodes, item) -> nodes.text(java.nio.file.Files.isDirectory(java.nio.file.Path.of(item))
+                        ? item + "/" : item)
+                """, "")), "the display function handed to new ListView in Page's constructor calls Files.isDirectory,"
+                + " which does I/O. A display function is presentation: it takes the item and returns a description,"
+                + " on the GUI thread, whenever the widget asks (docs/threading.md T7.2)");
+    }
+
+    @Test
+    void aDisplayFunctionIsReadThroughTheMethodItNames() {
+        onlyError(app(page("Page::row", """
+                private static dev.vexelray.gui.core.Node row(dev.vexelray.gui.widget.Nodes nodes, String item) {
+                    Thread later = new Thread(() -> {});
+                    return nodes.text(item + later.getName());
+                }
+                """)), "the display function handed to new ListView in Page's constructor calls new Thread, which starts"
+                + " work on another thread");
+    }
+
+    @Test
+    void aDisplayFunctionThatSendsIsRefused() {
+        onlyError(app(OPENED, page("""
+                (nodes, item) -> { opened.send(new Opened(item)); return nodes.text(item); }
+                """, "private final sibarum.atchung.Sender<Opened> opened = null;")),
+                "the display function handed to new ListView in Page's constructor calls Sender.send, which sends a"
+                        + " message");
+    }
+
+    @Test
+    void aDisplayFunctionThatReadsStateNoPartOwnsIsRefused() {
+        onlyError(app(page("(nodes, item) -> nodes.text(Page.shown + item)", "static String shown = \"\";")),
+                "the display function handed to new ListView in Page's constructor reads the static field app.Page.shown,"
+                        + " which is not final");
+        onlyError(app("""
+                public final class Labels {
+                    private volatile String suffix = "";
+                    Labels(dev.vexelray.gui.core.Gui gui) {
+                        new dev.vexelray.gui.widget.Select<String>(gui, item -> item + suffix);
+                    }
+                }
+                """), "the display function handed to new Select in Labels's constructor uses the volatile field"
+                + " app.Labels.suffix");
+    }
+
+    /** A Face is a display function wherever it is handed, since it is the widget library's own type. */
+    @Test
+    void aFaceHeldInAVariableIsStillADisplayFunction() {
+        onlyError(app("""
+                public final class Faces {
+                    static final dev.vexelray.gui.widget.Face<String> ROW = (nodes, item) -> {
+                        System.out.println(item);
+                        return nodes.text(item);
+                    };
+                }
+                """), "the Face in Faces uses java.lang.System.out, the process's own stream, which does I/O");
+    }
+
+    /**
+     * What a display function may do: read the view's own state and the item, build, call what it cannot see into or
+     * what an override may replace; and a function handed to anything but a widget is not one.
+     */
+    @Test
+    void aDisplayFunctionMayReadItsViewsStateAndBuild() {
+        assertEquals(List.of(), app(page("""
+                (nodes, item) -> nodes.text(prefix + item + label(item) + names.apply(item) + Page.MARK)
+                """, """
+                static final String MARK = "*";
+                private final java.util.function.Function<String, String> names = s -> s;
+                String label(String item) { return item.isEmpty() ? "?" : item.strip(); }
+                void update(String p) {
+                    prefix = p;
+                    java.util.Optional.of(p).map(s -> { try { return java.nio.file.Files.readString(
+                            java.nio.file.Path.of(s)); } catch (java.io.IOException e) { return ""; } });
+                }
+                """)));
     }
 
     // --- harness --------------------------------------------------------------------------------------------
