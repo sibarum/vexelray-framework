@@ -349,7 +349,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       holding when `Feeds`, `ComputeQueue` and `@Draw` became the narrower types for viewports and compute. A census
       the same day found the remaining takers: `vexelray-codec`'s `Textures` (`picture`, `stream`, `release`, through
       `ImageStarter`), and the rigid and fluid demos' `Session` (viewports and compute, which port onto the narrow
-      types). So the next root is the pictures one, and `GuiApp` goes when the last taker has moved. **The rest is
+      types, step 5 of `vexelray-gui`'s sim plan). No new root is needed for pictures: `Feeds` (a root already) and
+      `Feed.still` make a device picture from any thread, with the GPU-made mip chain `GuiApp.picture` gives, and a
+      tree that names a feed lands and releases it itself (`DeviceImages`), so `Textures` ports onto them and loses
+      its hops through `post` as well. `GuiApp` goes when the last taker has moved. **The rest is
       frozen by marking:** `vexelray-gui` gets a stability marker of its own, every public method of `Gui`,
       `TitleBar`, `Keymap` and `Settings` a view can reach carries it, and a test fails on one that does not.
 
