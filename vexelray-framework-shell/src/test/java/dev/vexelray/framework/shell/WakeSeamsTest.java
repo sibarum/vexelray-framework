@@ -74,13 +74,20 @@ final class WakeSeamsTest {
     /** Long enough to outlast a slow first frame, short enough that a hang is a failed test and not a hung CI. */
     private static final long TIMEOUT_MILLIS = 5_000L;
 
+    /**
+     * How long a window has to reach {@code ATTACH}: not what is under test, and the first test in the JVM pays for a
+     * cold Vulkan instance and device, which on the development machine took 4 to 6 s (measured 2026-11-16), so the
+     * five seconds above failed it about one run in four. A hang still fails, at {@link Frames#BOUND}.
+     */
+    private static final long ATTACH_MILLIS = Frames.BOUND.toMillis();
+
     @Test
     void aClickOnAFrameworkBuiltApplicationProducesAFrameOfItsOwnAccord(@TempDir Path home) throws Exception {
         ProbeWiring wiring = new ProbeWiring();
         Windows windows = new Windows();
 
         try (Run run = Run.start(wiring, windows, home)) {
-            assertTrue(wiring.attached.await(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
+            assertTrue(wiring.attached.await(ATTACH_MILLIS, TimeUnit.MILLISECONDS),
                     "the application never reached ATTACH");
             HarnessWindow window = windows.main();
             assertNotNull(window, "the window factory was never called, so the seam is not connected");
@@ -118,7 +125,7 @@ final class WakeSeamsTest {
         Windows windows = new Windows();
 
         try (Run run = Run.start(wiring, windows, home)) {
-            assertTrue(wiring.attached.await(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
+            assertTrue(wiring.attached.await(ATTACH_MILLIS, TimeUnit.MILLISECONDS),
                     "the application never reached ATTACH");
             run.parkIndefinitely(wiring);
             run.settle(wiring);
