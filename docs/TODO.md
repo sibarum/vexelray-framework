@@ -153,6 +153,19 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       accepted as recommended on 2026-10-01 and are frozen, capacity included ([components.md](components.md),
       ruling 5), because changing 64 later changes whether an application dies under a burst.
 
+      **Ruled 2026-11-16: an extension is a component in a starter, and `@Subscribe` stays on components and
+      views.** A starter's `@Configuration(components = ...)` already brings `@Component` classes compiled in
+      another jar, with their mailboxes, lanes and checks, so elektro-Q or any other extension needs no new seam.
+      Reason: every threading rule (lanes, ownership, T4.4, T4.5's graph, the step and delivery body checks) already
+      holds for a component; a free `@Subscribe` would need each re-derived for something with no owner and no
+      lane, and its cost (one lane and one mailbox, shared by default) is what makes it checkable. **The reactive
+      half of automation is the socket's, not a subscription in the application:** `hear <Payload> [key]` records
+      that topic's messages into a bounded recorder on the driver's own mailbox, and `await heard <Payload> [text]`
+      waits for one; topic names come from `BUS_GRAPH`, so only a channel that exists can be named, and a message
+      is written with its record's `toString`, so nothing reflects. **Not covered, deliberately:** macros as code
+      loaded at run time. That is a plugin loader, a separate question native-image makes hard, and no witness asks
+      for it.
+
 - [ ] **Nothing in the model covers work that outlasts a frame, and the stack already named the
       answer.** `kronometer/docs/architecture.md` §10 specifies it: *"`offload(work)` remains available
       for work that is genuinely unbounded — file I/O, network, image decode — moving it to an ordinary
@@ -330,6 +343,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `windows.main().close()`), so what is left behind the `GuiApp` is the device and nothing else: textures,
       viewports and compute.
 
+      **Ruled 2026-11-16: `GuiApp` leaves the roots once each device use has a narrow root of its own; until then
+      it stays.** Reason: it still offers `post(Runnable)`, the door T7.1 closes, so every part that takes it holds
+      more than the device. The 2026-10-11 reason (a narrower type is the same boundary under another name) stopped
+      holding when `Feeds`, `ComputeQueue` and `@Draw` became the narrower types for viewports and compute. A census
+      the same day found the remaining takers: `vexelray-codec`'s `Textures` (`picture`, `stream`, `release`, through
+      `ImageStarter`), and the rigid and fluid demos' `Session` (viewports and compute, which port onto the narrow
+      types). So the next root is the pictures one, and `GuiApp` goes when the last taker has moved. **The rest is
+      frozen by marking:** `vexelray-gui` gets a stability marker of its own, every public method of `Gui`,
+      `TitleBar`, `Keymap` and `Settings` a view can reach carries it, and a test fails on one that does not.
+
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and for a while left one generated counter-style
       application validating everything. (Since then the template writes a text editor, and VexelRay IDE, the calculator,
@@ -414,6 +437,20 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       project. It is the honest default until the profiles and flags have an upstream home, and it is small,
       because the libraries already carry their own metadata. When they move, the template's pom is the place
       to delete them from, with the five applications.
+
+      **Ruled 2026-11-16: each jar carries its own metadata and its own flags; versions come from a BOM; the
+      second starter is text highlighting.** Each library ships
+      `META-INF/native-image/<groupId>/<artifactId>/reachability-metadata.json`, traced from its own tests or demo,
+      and a `native-image.properties` whose `Args` are the flags that library needs (`-H:+ForeignAPISupport`,
+      `--enable-native-access=ALL-UNNAMED`, `-H:+SharedArenaSupport` where an arena is shared). Reason: GraalVM
+      merges both from every jar on the class path, so an application that depends on a backend inherits exactly
+      what that backend needs and nothing is copied into the application, which is the additivity rule above
+      with no starter in the way. A `vexelray-bom` (versions only, no parent, since an application keeps its own)
+      lives in this repo. The second starter is text highlighting (joni, TM4E and their metadata), because the
+      text editor and the IDE both need it, so the starter shape is tested by a real need rather than an invented
+      one. The template's copied metadata and flags are deleted once the libraries carry theirs. **Where to doubt
+      it:** a path nobody runs (NFD extracting its library) can still fail at run time; tracing each backend's own
+      tests narrows that and does not close it.
 
 - [ ] **The `Window` seam: built, and one choice left.** `memory()`, `app()` and one-off dialogs were each a singleton
       accessor in a world where a window is not, and every one of them had to say *which window*; adding that later
@@ -507,6 +544,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       component later breaks its constructor and every deconstruction pattern; and turning widget literals into
       token reads moves every application's pixels. Shape and density tokens on `Theme` are additive (an interface
       with defaults); the fonts and `Span` are not.
+
+      **Corrected 2026-11-16: the fonts half is largely built.** Families are baked at build time by the msdf
+      plugin, `FontSet` matches faces CSS-style with per-glyph fallback, `@Provides FontSet` replaces the set, and
+      `Span` carries `weight` and `slope`. **Ruled the same day: shape, density and type are `Theme` tokens whose
+      defaults are today's literals.** `Theme` gains `shape()` (corner radii and border width), `density()`
+      (padding and row-height steps) and `type()` (a size scale), each a default method returning a record; every
+      widget literal becomes a token read, including what is repainted on a state change; a theme can be scoped to
+      a subtree; and the standard set gains the math and arrow ranges. Reason: the defaults equal the literals, so
+      no application's pixels move (the gate is pixel identity before and after), and the token records' fields
+      come from FN-14 to FN-17 rather than a design-system wish list, because once named they are frozen.
 
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
       [v1.md](v1.md#what-must-not-remain). **Swept 2026-11-15, here and in the siblings:**
