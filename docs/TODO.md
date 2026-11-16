@@ -607,9 +607,14 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       (`MathGlyphsDrawTest`), so the calculator's FN-3 spelling is no longer needed; the rest of the arrows, `⌫` and
       the check mark need a third face (Noto Sans Math or Symbols 2), not yet added.
 
-      **Left:** the records are being made classes with withers rather than records, so a field added after v1
-      (a heading size) is additive, which is the `Span` lesson; inner corners derived from the outer corner minus the
-      inset between them, so a square theme squares them too; values built from `gui.theme()` at construction
+      **Since `d670aa52`** `Shape`, `Density` and `Type` are final classes with a private constructor, `STANDARD` and
+      a wither per field, not records, so a field added after v1 (a heading size) is additive: the `Span` lesson.
+      **Ruled the same day: a concentric inner corner is derived** (`Length.less`: the outer corner minus the inset
+      between them, floored at zero), because it is a relation rather than a value, so a square theme squares it too.
+      Only the find bar inside a text field is truly concentric, and it now derives its corner, bit-exact. The
+      segment cells, property swatch strips and tree check boxes are not concentric today (deriving them would draw
+      2.8 px, 0.6 px and nothing where 3.2 px is drawn), so they stay named constants until someone decides they
+      should be, which moves pixels; so does the 0.35 rem tile corner. **Left:** values built from `gui.theme()` at construction
       (Relief rungs, ColorPicker chrome) follow the root theme, not a scope; and the third font face.
 
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
