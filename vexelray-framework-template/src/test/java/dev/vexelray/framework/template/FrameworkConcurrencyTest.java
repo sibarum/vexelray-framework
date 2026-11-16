@@ -28,7 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * <p><b>The list is per class</b> (a file's top-level class, its nested ones with it), and every entry says why. An
  * entry whose reason starts {@code VIOLATION} is not infrastructure: it is a known defect, listed so the build stays
- * green while the debt stays in sight, and it comes off when the code is fixed.
+ * green while the debt stays in sight, and it comes off when the code is fixed. There are none today (2026-11-15:
+ * {@code BugReportPrompt} writes on the job lane and hears how it went as a message, so {@code OwnAsks} is the main
+ * thread's alone).
  */
 class FrameworkConcurrencyTest {
 
@@ -70,14 +72,11 @@ class FrameworkConcurrencyTest {
                     + "automation driver reads from its socket thread"),
             entry(SHELL + "Stalls", "the watchdog's liveness policy, beside it; its only use is TimeUnit, for "
                     + "converting units"),
-            // VIOLATION: not one of the model's threads.
-            entry(SHELL + "BugReportPrompt", "VIOLATION: the report is written on a raw thread of its own, which is "
-                    + "none of the model's lanes; blocking work off the main thread belongs on the job lane, and its "
-                    + "outcome should come back as a message"),
-            // VIOLATION: follows from BugReportPrompt's thread.
-            entry(SHELL + "OwnAsks", "VIOLATION: an AtomicLong only because the bug report's writing thread asks "
-                    + "from off the main thread; once that outcome comes back as a message, asks are main-thread "
-                    + "only and a plain long does"));
+            // -shell: test support
+            entry(SHELL + "Frames", "a headless test's frames: what the application's lanes send a Heard is handed "
+                    + "to the test's thread as a frame runs, as a mailbox hands it to a view, and the test's thread "
+                    + "parks between frames until the tree's wake or a Heard's arrival unparks it, so an application's "
+                    + "tests hear and wait with none of the constructs themselves"));
 
     private static final List<Path> ROOTS = List.of(
             Path.of("../vexelray-framework-api/src/main/java"),

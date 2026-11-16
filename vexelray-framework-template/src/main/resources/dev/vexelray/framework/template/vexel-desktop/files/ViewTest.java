@@ -12,6 +12,8 @@ import dev.vexelray.framework.core.CloseRequested;
 import dev.vexelray.framework.core.PickFile;
 import dev.vexelray.framework.core.Picked;
 import dev.vexelray.framework.shell.Dialogs;
+import dev.vexelray.framework.shell.Frames;
+import dev.vexelray.framework.shell.Heard;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
 import dev.vexelray.gui.core.Cuts;
@@ -31,10 +33,8 @@ import sibarum.tactroller.api.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,12 +47,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>{@code VexelApplication.tree} runs the wiring as far as the tree and starts the components, so the editor and the
  * jobs run on their own lanes here, exactly as in the window. The view runs in frames, and there is no loop to run
- * them, so the test runs them while it waits ({@code VexelApplication.frame}): this thread is the GUI thread. No window
- * opens, so the framework never says {@code WindowOpened} for the main one: no session is restored and no settings are
- * written, and this test leaves the user's own settings alone.
+ * them, so this test runs them ({@link Frames}): this thread is the GUI thread. No window opens, so the framework never
+ * says {@code WindowOpened} for the main one: no session is restored and no settings are written, and this test leaves
+ * the user's own settings alone.
  *
- * <p>The test listens on the bus as one more subscriber, which is how it sees what the editor told the view. Every
- * part answers in its own time, so the test waits for what it asked for, running frames, rather than sleeping.
+ * <p>The test hears what the editor told the view as one more listener ({@code frames.hear}), in the frames it runs, on
+ * its own thread. Every part answers in its own time, so the test waits for what it asked for ({@code frames.until}),
+ * which runs frames until it holds and fails saying what never came. So nothing here sleeps, locks or needs a
+ * concurrent list: the test touches no thread.
  */
 class ViewTest {
 
@@ -62,10 +64,15 @@ class ViewTest {
     private Shell shell;
     private ${className}AppWiring wiring;
     private Workspace ws;
-    /** Every caption and status line the editor sent, in order. */
-    private final List<Object> said = new CopyOnWriteArrayList<>();
+    private Frames frames;
+    /** Every caption the editor sent, in order. */
+    private Heard<Caption> captions;
+    /** Every status line the editor sent, in order. */
+    private Heard<Status> statuses;
+    /** Every answer to a close request, the editor's and the framework's own. */
+    private Heard<CloseAnswer> closeAnswers;
     /** How this test answers a question: by default, it fails the test, since nothing should be asked unexpectedly. */
-    private volatile Consumer<Modal> answer = modal -> {
+    private Consumer<Modal> answer = modal -> {
         throw new AssertionError("asked unexpectedly: " + modal.title());
     };
 
@@ -76,8 +83,10 @@ class ViewTest {
         // This test's dialogs in place of the framework's, which would hold every question for a window that never
         // comes. Taken back as late as WINDOW, so handing them over after the tree is built is in time.
         shell.dialogs(new Answering());
-        shell.bus().subscribe(Messages.CAPTION_TOPIC, said::add);
-        shell.bus().subscribe(Messages.STATUS_TOPIC, said::add);
+        frames = VexelApplication.frames(shell);
+        captions = frames.hear(Messages.CAPTION_TOPIC);
+        statuses = frames.hear(Messages.STATUS_TOPIC);
+        closeAnswers = frames.hear(CloseAnswer.TOPIC);
         ws = wiring.ui().workspace();
         cuts = Cuts.watch(shell.gui());
     }
@@ -91,7 +100,10 @@ class ViewTest {
      */
     private Cuts cuts;
 
-    /** Dialogs that answer a question with {@link #answer}, and cancel every file picker. */
+    /**
+     * Dialogs that answer a question with {@link #answer}, and cancel every file picker. Asked in a frame, so on this
+     * thread, like everything else here.
+     */
     private final class Answering implements Dialogs {
 
         @Override
@@ -114,22 +126,6 @@ class ViewTest {
     }
 
     /**
-     * Run frames until {@code test} holds. The view hears only in a frame, and this thread runs them, so it is the GUI
-     * thread here as the loop's is in the window: what the test reads of the view is read where the view writes it.
-     */
-    private void eventually(String what, BooleanSupplier test) throws InterruptedException {
-        long until = System.nanoTime() + 10_000_000_000L;
-        VexelApplication.frame(shell);
-        while (!test.getAsBoolean()) {
-            if (System.nanoTime() > until) {
-                throw new AssertionError("timed out waiting for " + what);
-            }
-            Thread.sleep(5);
-            VexelApplication.frame(shell);
-        }
-    }
-
-    /**
      * Answer every question as pressing the button labelled {@code label} would: send the message the button declares,
      * which a dialog carries as data. Remember what was asked.
      */
@@ -142,31 +138,32 @@ class ViewTest {
         };
     }
 
+    /** Far from the framework's own tickets, which start at 1, so its gate ignores these answers. */
+    private long tickets = 1_000_000;
+
     /**
-     * Ask the editor what the framework asks it when the main window's close button is pressed, and run
-     * {@code proceeded} or {@code cancelled} on the answer, as the framework does with the window's own two. The
-     * request is addressed to the editor, as the framework addresses each part that hears it, in turn.
+     * Ask the editor what the framework asks it when the main window's close button is pressed, and wait for its
+     * answer: whether to go ahead, which the framework would follow by closing the window. The request is addressed to
+     * the editor, as the framework addresses each part that hears it, in turn.
      */
-    private void quit(Runnable proceeded, Runnable cancelled) {
-        long ticket = tickets.incrementAndGet();
-        shell.bus().subscribe(CloseAnswer.TOPIC, a -> {
-            if (a.ticket() == ticket) {
-                (a.proceed() ? proceeded : cancelled).run();
-            }
-        });
+    private CloseAnswer quit() {
+        long ticket = ++tickets;
         shell.bus().publish(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, ticket, Editor.class.getName()));
+        frames.until("the editor to answer the quit", () -> answerTo(ticket) != null);
+        return answerTo(ticket);
     }
 
-    /** Far from the framework's own tickets, which start at 1, so its gate ignores these answers. */
-    private final AtomicInteger tickets = new AtomicInteger(1_000_000);
+    private CloseAnswer answerTo(long ticket) {
+        return closeAnswers.all().stream().filter(a -> a.ticket() == ticket).findFirst().orElse(null);
+    }
 
     private void tell(Intent.Command command) {
         shell.bus().publish(Intent.INTENTS, new Intent(command));
     }
 
-    private Buffer opened(Path file) throws InterruptedException {
+    private Buffer opened(Path file) {
         shell.bus().publish(Messages.OPEN_TOPIC, new Open(file, true));
-        eventually("the file to open", () -> ws.find(file) != null);
+        frames.until("the file to open", () -> ws.find(file) != null);
         return ws.find(file);
     }
 
@@ -193,7 +190,7 @@ class ViewTest {
     void aFileOpensThroughTheEditorAndTheReadingJob() throws Exception {
         Buffer b = opened(Files.writeString(dir.resolve("a.txt"), "hello"));
         assertEquals("hello", b.field.text());
-        eventually("the caption", () -> said.contains(new Caption("a.txt")));
+        frames.untilHeard(captions, new Caption("a.txt"));
     }
 
     @Test
@@ -201,7 +198,7 @@ class ViewTest {
         Buffer b = opened(Files.writeString(dir.resolve("a.txt"), "hello"));
         assertFalse(b.dirty());
         b.field.insert("!");
-        eventually("the editor to say so", () -> said.contains(new Caption("• a.txt")));
+        frames.untilHeard(captions, new Caption("• a.txt"));
     }
 
     @Test
@@ -211,10 +208,10 @@ class ViewTest {
         Buffer b = opened(file);
         b.field.caret(b.field.text().length());
         b.field.insert("three\n");
-        eventually("unsaved", b::dirty);
+        frames.until("unsaved", b::dirty);
         tell(Intent.Command.SAVE_FRONT);
         // Clean the moment the text is taken, written a moment later: wait for the write to say it landed.
-        eventually("the status to say so", () -> said.contains(new Status("Saved crlf.txt", false)));
+        frames.untilHeard(statuses, new Status("Saved crlf.txt", false));
         assertFalse(b.dirty());
         assertEquals("one\r\ntwo\r\nthree\r\n", Files.readString(file));
     }
@@ -225,7 +222,7 @@ class ViewTest {
         opened(a);
         opened(Files.writeString(dir.resolve("b.txt"), "b"));
         shell.bus().publish(Messages.OPEN_TOPIC, new Open(a, true));
-        eventually("a in front", () -> ws.front() != null && ws.front().path.equals(a.toAbsolutePath().normalize()));
+        frames.until("a in front", () -> ws.front() != null && ws.front().path.equals(a.toAbsolutePath().normalize()));
         assertEquals(2, ws.all().size());
     }
 
@@ -233,17 +230,17 @@ class ViewTest {
     void aMarkdownFileIsGivenSpansAndATextFileIsNot() throws Exception {
         Buffer md = opened(Files.writeString(dir.resolve("notes.md"), "# Title\n\nSome *emphasis*."));
         Buffer txt = opened(Files.writeString(dir.resolve("notes.txt"), "# Title\n\nSome *emphasis*."));
-        eventually("the markdown to be marked", () -> !md.field.spans().isEmpty());
+        frames.until("the markdown to be marked", () -> !md.field.spans().isEmpty());
         assertTrue(txt.field.spans().isEmpty());
     }
 
     @Test
-    void thePathBarCreatesAFileThatIsNotThereYet() throws Exception {
+    void thePathBarCreatesAFileThatIsNotThereYet() {
         shell.bus().publish(Messages.GO_TOPIC, new Go(dir.toString()));
-        eventually("the folder", () -> dir.toAbsolutePath().equals(wiring.ui().navigator().folder()));
+        frames.until("the folder", () -> dir.toAbsolutePath().equals(wiring.ui().navigator().folder()));
         shell.bus().publish(Messages.GO_TOPIC, new Go("new.txt"));
         Path created = dir.resolve("new.txt").toAbsolutePath().normalize();
-        eventually("the file to be created and opened", () -> ws.find(created) != null);
+        frames.until("the file to be created and opened", () -> ws.find(created) != null);
         assertTrue(Files.isRegularFile(created));
     }
 
@@ -254,7 +251,7 @@ class ViewTest {
         Files.createDirectory(dir.resolve("sub"));
         shell.bus().publish(Messages.GO_TOPIC, new Go(dir.toString()));
         Navigator nav = wiring.ui().navigator();
-        eventually("a row for the file", () -> nav.hasRow(file));
+        frames.until("a row for the file", () -> nav.hasRow(file));
         assertTrue(nav.isFolder(dir.resolve("sub").toAbsolutePath().normalize()), "the listing said which is a folder");
     }
 
@@ -265,18 +262,18 @@ class ViewTest {
      */
     @Test
     void closingMoreUnsavedTabsThanAMailboxHoldsSavesAndClosesThemAll() throws Exception {
-        List<Buffer> tabs = new java.util.ArrayList<>();
+        List<Buffer> tabs = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             tabs.add(opened(Files.writeString(dir.resolve("f" + i + ".txt"), "")));
         }
         for (Buffer b : tabs) {
             b.field.insert("x");
         }
-        eventually("every tab unsaved", () -> tabs.stream().allMatch(Buffer::dirty));
-        List<String> asked = new CopyOnWriteArrayList<>();
+        frames.until("every tab unsaved", () -> tabs.stream().allMatch(Buffer::dirty));
+        List<String> asked = new ArrayList<>();
         answer = pressing("Save all", asked);
         shell.bus().publish(Messages.CLOSE_TOPIC, new Messages.Close(tabs.stream().map(b -> b.id).toList()));
-        eventually("every tab closed", () -> ws.all().isEmpty());
+        frames.until("every tab closed", () -> ws.all().isEmpty());
         assertEquals(List.of("Unsaved changes"), asked);
         for (int i = 0; i < 100; i++) {
             assertEquals("x", Files.readString(dir.resolve("f" + i + ".txt")));
@@ -288,8 +285,8 @@ class ViewTest {
         Path binary = dir.resolve("blob.bin");
         Files.write(binary, new byte[] {0, 1, 2, 3});
         shell.bus().publish(Messages.OPEN_TOPIC, new Open(binary, true));
-        eventually("the refusal", () -> said.stream().anyMatch(s -> s instanceof Status st && st.alert()
-                && st.message().startsWith("Could not open blob.bin")));
+        frames.until("the refusal", () -> statuses.all().stream()
+                .anyMatch(s -> s.alert() && s.message().startsWith("Could not open blob.bin")));
         assertTrue(ws.all().isEmpty());
     }
 
@@ -297,22 +294,20 @@ class ViewTest {
     void closingAnUnsavedTabAsksAndDontSaveCloses() throws Exception {
         Buffer b = opened(Files.writeString(dir.resolve("a.txt"), "a"));
         b.field.insert("x");
-        eventually("unsaved", b::dirty);
-        List<String> asked = new CopyOnWriteArrayList<>();
+        frames.until("unsaved", b::dirty);
+        List<String> asked = new ArrayList<>();
         answer = pressing("Don't save", asked);
         shell.bus().publish(Tabs.CHOSEN, new Tabs.Chosen(ws.address(), Workspace.CLOSE, ws.all().indexOf(b)));
-        eventually("the tab to close", () -> ws.byId(b.id) == null);
+        frames.until("the tab to close", () -> ws.byId(b.id) == null);
         assertEquals(List.of("Unsaved changes"), asked);
         assertEquals("a", Files.readString(dir.resolve("a.txt")), "Don't save does not save");
     }
 
     @Test
-    void quittingACleanSessionGoesWithoutAsking() throws Exception {
-        List<String> asked = new CopyOnWriteArrayList<>();
+    void quittingACleanSessionGoesWithoutAsking() {
+        List<String> asked = new ArrayList<>();
         answer = pressing("Cancel", asked);
-        AtomicInteger proceeded = new AtomicInteger();
-        quit(proceeded::incrementAndGet, () -> { });
-        eventually("the quit to proceed", () -> proceeded.get() == 1);
+        assertTrue(quit().proceed());
         assertTrue(asked.isEmpty());
     }
 
@@ -320,15 +315,11 @@ class ViewTest {
     void quittingAsksAndCancelKeepsTheWindow() throws Exception {
         Buffer b = opened(Files.writeString(dir.resolve("a.txt"), "a"));
         b.field.insert("x");
-        eventually("unsaved", b::dirty);
-        List<String> asked = new CopyOnWriteArrayList<>();
+        frames.until("unsaved", b::dirty);
+        List<String> asked = new ArrayList<>();
         answer = pressing("Cancel", asked);
-        AtomicInteger proceeded = new AtomicInteger();
-        AtomicInteger cancelled = new AtomicInteger();
-        quit(proceeded::incrementAndGet, cancelled::incrementAndGet);
-        eventually("the quit to be cancelled", () -> cancelled.get() == 1);
+        assertFalse(quit().proceed(), "cancelled");
         assertEquals(List.of("Quit with unsaved changes?"), asked);
-        assertEquals(0, proceeded.get());
     }
 
     @Test
@@ -339,11 +330,9 @@ class ViewTest {
         Buffer second = opened(c);
         first.field.insert("1");
         second.field.insert("2");
-        eventually("both unsaved", () -> first.dirty() && second.dirty());
-        answer = pressing("Save all", new CopyOnWriteArrayList<>());
-        AtomicInteger proceeded = new AtomicInteger();
-        quit(proceeded::incrementAndGet, () -> { });
-        eventually("the quit to proceed", () -> proceeded.get() == 1);
+        frames.until("both unsaved", () -> first.dirty() && second.dirty());
+        answer = pressing("Save all", new ArrayList<>());
+        assertTrue(quit().proceed());
         assertEquals("1a", Files.readString(a));
         assertEquals("2c", Files.readString(c));
     }

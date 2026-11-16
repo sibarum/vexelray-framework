@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import static java.util.Map.entry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -26,16 +25,9 @@ class TemplateConcurrencyTest {
     private static final Path FILES = Path.of("src/main/resources/dev/vexelray/framework/template/vexel-desktop/files");
 
     /** The files that break the rule today, by top-level class (a slot's name stands for the slot). */
-    static final Map<String, String> OWED = Map.ofEntries(
-            // VIOLATION: the generated headless tests.
-            entry("packageName.ViewTest", "VIOLATION: it listens with bus().subscribe, whose callbacks run on the "
-                    + "editor's lane, so it keeps what it heard in a CopyOnWriteArrayList and counts answers in "
-                    + "AtomicIntegers, and it waits with Thread.sleep between frames. Waiting on the framework: a "
-                    + "headless way to hear a topic in the frames the test runs, and to run frames until something "
-                    + "holds, so a test never touches a thread"),
-            // VIOLATION: the same, in the later example's window test.
-            entry("packageName.LaterWindowTest", "VIOLATION: the same as ViewTest: a CopyOnWriteArrayList for what "
-                    + "it heard on another lane, and Thread.sleep between frames"));
+    static final Map<String, String> OWED = Map.of();
+    // Empty since 2026-11-15: ViewTest and LaterWindowTest hear and wait through the framework's Frames, on the test's
+    // own thread, where they kept a CopyOnWriteArrayList, AtomicIntegers, a volatile and Thread.sleep.
 
     @Test
     void aGeneratedApplicationHasNone() {

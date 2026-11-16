@@ -245,6 +245,9 @@ public final class VexelApplication {
      * dispatched, the widgets' and the views' mailboxes are drained, and the tree is laid out at the window's first
      * size. For a headless test, which has no loop: a {@code @View} hears only in a frame, so a test that waits for one
      * to act steps frames while it waits, and the thread calling this is then the GUI thread, as the loop's is.
+     *
+     * <p>A test that waits for something, or listens for what the application sends, wants {@link #frames} instead,
+     * which runs these frames and hears and waits on the test's own thread.
      */
     public static void frame(Shell shell) {
         AppInfo info = shell.info();
@@ -252,6 +255,27 @@ public final class VexelApplication {
         shell.runLogicOnMain();
         dev.vexelray.gui.core.spi.Seams.of(shell.gui())
                 .frame(info.width(), info.height(), dev.vexelray.gui.core.text.TextFaces.standard());
+    }
+
+    /**
+     * <b>The frames of a tree built by {@link #tree}, run by a headless test on its own thread</b>: {@link Frames#step}
+     * runs one, {@link Frames#hear} hears a topic in the frames it runs, and {@link Frames#until} runs them until
+     * something holds, with a bound and a failure that says what never arrived. So a test hears and waits with no
+     * thread, sleep or concurrent collection of its own (T7.3). The thread calling this is the GUI thread of the run
+     * from here on. Closed with the tree.
+     *
+     * {@snippet :
+     * Shell shell = VexelApplication.tree(new MyAppWiring(), new String[0]);
+     * Frames frames = VexelApplication.frames(shell);
+     * Heard<Saved> saved = frames.hear(Messages.SAVED_TOPIC);
+     * shell.bus().publish(Messages.SAVE_TOPIC, new Save(file));
+     * frames.untilHeard(saved, new Saved(file));
+     * }
+     *
+     * <p>One per tree: it listens for the tree's wake, and a tree has one listener.
+     */
+    public static Frames frames(Shell shell) {
+        return new Frames(shell);
     }
 
     private static Launch parseOrExit(String[] args, AppInfo info) {
@@ -658,7 +682,7 @@ public final class VexelApplication {
         BuildInfo build = shell.build();
         String name = About.name(info, build);
         String issues = build.issues().getOrDefault(build.group() + ":" + build.artifact(), "");
-        new BugReportPrompt(shell.ownAsks(), shell.gui(), new BugReportPrompt.Contents(info.name(), name,
+        new BugReportPrompt(shell, new BugReportPrompt.Contents(info.name(), name,
                 About.summary(name, build), issues, config.mode().name(), config.logFile(), exits.ended())).offer();
     }
 

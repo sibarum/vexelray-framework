@@ -330,25 +330,33 @@ also makes it focusable.
 
 **Headless**, in the template's `ViewTest`. `VexelApplication.tree` builds the whole application with no window
 and no GPU, and the generated wiring hands out each view (`wiring.timelineView()`). Tell the view what the planner
-would, by publishing on the bus, and run frames until it has heard:
+would, by publishing on the bus, and run frames until it has heard. The test runs the frames itself, so its thread is
+the GUI thread: `VexelApplication.frames(shell)` hands back the `Frames` that run them, and `frames.until` runs them
+until what the test waits for holds, failing after ten seconds with what never arrived and what the application still
+owes:
 
 ```java
 @Test
-void aBarIsMovedNotRebuilt() throws Exception {
+void aBarIsMovedNotRebuilt() {
     Timeline line = wiring.timelineView().timeline();
     Slot standup = new Slot("standup", "Stand-up", 0.1f, 0.2f);
     shell.bus().publish(Messages.AGENDA_TOPIC, new Agenda(List.of(standup), ""));
-    eventually("the bar", () -> line.bar("standup") != null);
+    frames.until("the bar", () -> line.bar("standup") != null);
     Node first = line.bar("standup");
     Slot moved = new Slot("standup", "Stand-up", 0.3f, 0.4f);
     Slot review = new Slot("review", "Review", 0.5f, 0.7f);
     shell.bus().publish(Messages.AGENDA_TOPIC, new Agenda(List.of(moved, review), "standup"));
-    eventually("the second bar", () -> line.bar("review") != null);
+    frames.until("the second bar", () -> line.bar("review") != null);
     assertSame(first, line.bar("standup"));
     shell.bus().publish(Messages.AGENDA_TOPIC, new Agenda(List.of(), ""));
-    eventually("the bar to go", () -> line.bar("standup") == null);
+    frames.until("the bar to go", () -> line.bar("standup") == null);
 }
 ```
+
+To check what a part sent rather than what a view shows, hear its topic before sending what answers
+(`Heard<Agenda> agendas = frames.hear(Messages.AGENDA_TOPIC)`) and wait for the message itself,
+`frames.untilHeard(agendas, expected)`, which says what came instead when it fails. A `Heard` fills only as frames
+run, on the test's thread, so a test never needs a thread, a sleep or a concurrent list (threading rule T7.3).
 
 `ViewTest`'s cut watch checks the same run for anything that changed on screen in one frame, so a bar rebuilt rather
 than kept fails it. The planner's steps are tested in `-core` with no GUI at all, as `EditorTest` tests the

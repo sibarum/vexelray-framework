@@ -5,13 +5,15 @@ import dev.vexelray.framework.core.PickFile;
 import dev.vexelray.framework.core.Picked;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.os.BackgroundRun;
+import sibarum.atchung.Atchung;
+import sibarum.atchung.Topic;
 import sibarum.probe.Log;
 import sibarum.probe.Mode;
 
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.Set;
 
 /**
  * <b>The last run did not close: offer to save a bug report.</b> Asked once, at the start after a run that crashed, was
@@ -24,8 +26,10 @@ import java.util.function.Consumer;
  *
  * <p>As every framework prompt is: an {@code Ask} through {@link OwnAsks}, so whichever {@link Dialogs} answer this
  * application answer it, then a {@code PickFile} for where to save, each answer heard in the main window's frame. The
- * zip is written on a thread of its own, since it reads megabytes of log and the frame must not wait for a disk; that
- * thread says how it went with a second {@code Ask}.
+ * zip is written by a job on the framework's job lane, since it reads megabytes of log and the frame must not wait for
+ * a disk (T5.8): the place goes to it as a {@link Write}, and how it went comes back as a {@link Written}, heard in the
+ * same frame, which says so with a second {@code Ask}. So everything here but the job is the main thread's, the job
+ * reads only the {@link Contents}, which is a value, and nothing crosses between them but those two messages.
  *
  * <p><b>Not asked when nobody is there.</b> In an automation run, a test, or a run an agent started in the background,
  * a modal would only stand in front of whatever is driving the window; there the run is logged and not asked about.
@@ -44,35 +48,60 @@ final class BugReportPrompt {
 
     static final List<PickFile.Filter> ZIP = List.of(new PickFile.Filter("Zip archive", List.of("zip")));
 
-    /** What the report is made of, gathered when it is saved: everything but the place. */
+    /** What the report is made of, gathered when it is saved: everything but the place. A value, read by the job. */
     record Contents(String app, String name, String about, String issues, String mode, Path logFile,
                     List<UncleanExits.Ended> ended) {
+        Contents {
+            ended = List.copyOf(ended);
+        }
     }
 
-    private final OwnAsks asks;
-    private final Contents contents;
-    /** Where the report is written: a thread of its own in the application, at once in a test. */
-    private final Consumer<Runnable> writer;
+    /**
+     * Write the report to {@code out}: what the prompt asks its job once a place is picked. The framework's own
+     * channel, carrying what only this class reads, so no application declares or hears it.
+     */
+    record Write(String out) {
+        static final Topic<Write> TOPIC = Topic.edge(Write.class);
+    }
 
+    /** How the writing went: {@code failure} is empty when the report is saved at {@code out}. The job's answer. */
+    record Written(String out, String failure) {
+        static final Topic<Written> TOPIC = Topic.edge(Written.class);
+
+        boolean saved() {
+            return failure.isEmpty();
+        }
+    }
+
+    /** Asked once a run, so one write at most is ever on its way; a few in case. */
+    private static final int CAPACITY = 4;
+
+    private final OwnAsks asks;
+    private final Atchung bus;
+    private final Contents contents;
+
+    // The main thread's, from here down: asked at ATTACH, answered in the main window's frame.
     private long offered;
     private long picking;
 
-    /** Heard in {@code main}'s frame, the main window's. Main thread. */
-    BugReportPrompt(OwnAsks asks, Gui main, Contents contents) {
-        this(asks, contents, run -> {
-            Thread t = new Thread(run, "vexel-bug-report");
-            t.setDaemon(true);
-            t.start();
-        });
-        main.mailbox(Answer.TOPIC, this::answered, 4, java.util.Set.of(OwnAsks.FROM));
-        main.mailbox(Picked.TOPIC, this::picked, 4);
+    /** The job on {@code shell}'s job lane, and every answer heard in the main window's frame. Main thread. */
+    BugReportPrompt(Shell shell, Contents contents) {
+        this(shell.ownAsks(), shell.bus(), contents);
+        Jobs.reply(shell, "BugReport.write", Write.TOPIC, w -> write(contents, w), Written.TOPIC);
+        Gui main = shell.gui();
+        main.mailbox(Answer.TOPIC, this::answered, CAPACITY, Set.of(OwnAsks.FROM));
+        main.mailbox(Picked.TOPIC, this::picked, CAPACITY);
+        main.mailbox(Written.TOPIC, this::written, CAPACITY);
     }
 
-    /** With the writing thread supplied, and heard by whoever calls {@link #answered} and {@link #picked}. */
-    BugReportPrompt(OwnAsks asks, Contents contents, Consumer<Runnable> writer) {
+    /**
+     * Asking on {@code asks} and sending the write on {@code bus}, with no job and no frame: heard by whoever calls
+     * {@link #answered}, {@link #picked} and {@link #written}, and written by whoever calls {@link #write}.
+     */
+    BugReportPrompt(OwnAsks asks, Atchung bus, Contents contents) {
         this.asks = asks;
+        this.bus = bus;
         this.contents = contents;
-        this.writer = writer;
     }
 
     /** Whether to ask in a run in {@code mode}, with {@code property} as {@link #PROPERTY} says, or null. */
@@ -118,7 +147,7 @@ final class BugReportPrompt {
         }
     }
 
-    /** Where to save: written there, off the main thread, and said. Cancelled is the end of it. */
+    /** Where to save: handed to the job, which writes it there off the main thread. Cancelled is the end of it. */
     void picked(Picked p) {
         if (p.id() != picking || picking == 0) {
             return;
@@ -130,23 +159,38 @@ final class BugReportPrompt {
         Path out = Path.of(p.path());
         Path target = out.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")
                 ? out : out.resolveSibling(out.getFileName() + ".zip");
-        writer.accept(() -> save(target));
+        bus.publish(Write.TOPIC, new Write(target.toString()));
     }
 
-    /** On the writing thread. */
-    void save(Path out) {
+    /**
+     * The job: write the report {@code contents} makes to where {@code request} says, and say how it went. On the job
+     * lane. It reads nothing of the prompt's but {@code contents}, a value, and it expects its failures, so it answers
+     * them rather than throwing: a throw from a job ends the application ({@link Jobs}).
+     */
+    static Written write(Contents contents, Write request) {
+        Path out = Path.of(request.out());
         List<Path> logs = BugReport.logs(contents.logFile());
         try {
             String readme = BugReport.readme(contents.name(), contents.issues(),
                     logs.stream().map(l -> l.getFileName().toString()).toList());
             String system = BugReport.system(contents.about(), BugReport.machine(contents.mode()), contents.ended());
             BugReport.write(out, readme, system, logs, BugReport.Scrub.current());
-            LOG.info("bug report saved to {}", out);
-            asks.ask("Bug report saved", "Saved to " + out + "." + (contents.issues().isEmpty() ? ""
-                    : "\n\nReports for " + contents.name() + " go to " + contents.issues() + "."), List.of("OK"));
+            return new Written(request.out(), "");
         } catch (java.io.IOException | RuntimeException e) {
-            LOG.warn("bug report not saved to {}: {}", out, e.toString());
-            asks.ask("The bug report was not saved", "It could not be written to " + out + ": " + e.getMessage(),
+            String why = e.getMessage();
+            return new Written(request.out(), why == null || why.isBlank() ? e.toString() : why);
+        }
+    }
+
+    /** The job's answer: logged, and said with a second question. In the main window's frame. */
+    void written(Written w) {
+        if (w.saved()) {
+            LOG.info("bug report saved to {}", w.out());
+            asks.ask("Bug report saved", "Saved to " + w.out() + "." + (contents.issues().isEmpty() ? ""
+                    : "\n\nReports for " + contents.name() + " go to " + contents.issues() + "."), List.of("OK"));
+        } else {
+            LOG.warn("bug report not saved to {}: {}", w.out(), w.failure());
+            asks.ask("The bug report was not saved", "It could not be written to " + w.out() + ": " + w.failure(),
                     List.of("OK"));
         }
     }

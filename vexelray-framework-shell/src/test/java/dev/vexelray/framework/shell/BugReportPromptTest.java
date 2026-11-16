@@ -26,21 +26,26 @@ class BugReportPromptTest {
     private final Atchung bus = Atchung.create();
     private final List<Ask> asked = new ArrayList<>();
     private final List<PickFile> picks = new ArrayList<>();
-    private final List<Runnable> written = new ArrayList<>();
+    /** What was handed to the job: the job itself is {@link BugReportPrompt#write}, run here by hand. */
+    private final List<BugReportPrompt.Write> writes = new ArrayList<>();
     private Path logs;
 
     @BeforeEach
     void listen(@TempDir Path dir) throws Exception {
         bus.subscribe(Ask.TOPIC, asked::add);
         bus.subscribe(PickFile.TOPIC, picks::add);
+        bus.subscribe(BugReportPrompt.Write.TOPIC, writes::add);
         logs = dir;
         Files.writeString(dir.resolve("demo.log"), "the run that crashed\n");
     }
 
+    private BugReportPrompt.Contents contents() {
+        return new BugReportPrompt.Contents("demo", "Demo", "Demo (g:a:1)\n", "", "PACKAGED", logs.resolve("demo.log"),
+                List.of(new UncleanExits.Ended(42, Instant.parse("2026-11-10T09:00:00Z"))));
+    }
+
     private BugReportPrompt prompt() {
-        return new BugReportPrompt(new OwnAsks(bus), new BugReportPrompt.Contents("demo", "Demo", "Demo (g:a:1)\n",
-                "", "PACKAGED", logs.resolve("demo.log"),
-                List.of(new UncleanExits.Ended(42, Instant.parse("2026-11-10T09:00:00Z")))), written::add);
+        return new BugReportPrompt(new OwnAsks(bus), bus, contents());
     }
 
     @Test
@@ -64,11 +69,80 @@ class BugReportPromptTest {
         assertTrue(pick.id() < 0 && pick.id() != asked.getFirst().id());
 
         p.picked(new Picked(pick.id(), to.resolve("report").toString()));   // a name typed without its extension
-        assertEquals(1, written.size(), "handed to the writer, not written on the frame");
+        assertEquals(List.of(new BugReportPrompt.Write(to.resolve("report.zip").toString())), writes,
+                "handed to the job as a message, not written in the frame");
         assertFalse(Files.exists(to.resolve("report.zip")));
-        written.getFirst().run();
+        assertEquals(1, asked.size(), "nothing said before the job answers");
+
+        BugReportPrompt.Written w = BugReportPrompt.write(contents(), writes.getFirst());
+        assertTrue(w.saved(), w.failure());
         assertTrue(Files.isRegularFile(to.resolve("report.zip")));
+        p.written(w);
         assertEquals("Bug report saved", asked.getLast().title());
+    }
+
+    /**
+     * The whole round in a running tree: asked, a place picked, the zip written by the job lane, and how it went heard in
+     * the main window's frame and said. The dialogs answer as a person would, in the frame, on this thread.
+     */
+    @Test
+    void theReportIsWrittenOnTheJobLaneAndSaidInAFrame(@TempDir Path home, @TempDir Path to) {
+        AppInfo demo = new AppInfo("demo", "Demo", 800, 600);
+        System.setProperty(demo.name() + ".home", home.toString());
+        List<String> shown = new ArrayList<>();
+        Dialogs person = new Dialogs() {
+            @Override
+            public void ask(dev.vexelray.gui.widget.Modal modal) {
+                shown.add(modal.title());
+                bus().publish(Answer.TOPIC, (Answer) modal.buttons().getFirst().message());
+            }
+
+            @Override
+            public void pick(PickFile request, sibarum.atchung.Sender<Picked> picked) {
+                picked.send(new Picked(request.id(), to.resolve("report.zip").toString()));
+            }
+        };
+        Shell shell = VexelApplication.tree(new Wiring() {
+            @Override
+            public AppInfo info() {
+                return demo;
+            }
+
+            @Override
+            public void config(Shell shell) {
+                shell.dialogs(person);
+            }
+        }, new String[0]);
+        running = shell;
+        try {
+            Frames frames = VexelApplication.frames(shell);
+            new BugReportPrompt(shell, contents()).offer();
+            frames.until("the report to be said saved", () -> shown.contains("Bug report saved"));
+            assertEquals(List.of("Demo closed unexpectedly", "Bug report saved"), shown);
+            assertTrue(Files.isRegularFile(to.resolve("report.zip")));
+        } finally {
+            shell.disposer().close();
+        }
+    }
+
+    /** The tree the round test runs, for its dialogs to answer on. */
+    private Shell running;
+
+    private Atchung bus() {
+        return running.bus();
+    }
+
+    /** A place that cannot be written is the job's answer, not its throw, which would end the application. */
+    @Test
+    void aReportThatCannotBeWrittenIsSaidSo(@TempDir Path to) throws Exception {
+        Path blocked = Files.writeString(to.resolve("file"), "a file, so nothing can go inside it");
+        BugReportPrompt.Written w = BugReportPrompt.write(contents(),
+                new BugReportPrompt.Write(blocked.resolve("report.zip").toString()));
+        assertFalse(w.saved());
+        BugReportPrompt p = prompt();
+        p.written(w);
+        assertEquals("The bug report was not saved", asked.getLast().title());
+        assertTrue(asked.getLast().message().contains(w.failure()), asked.getLast().message());
     }
 
     @Test
@@ -82,7 +156,7 @@ class BugReportPromptTest {
         q.offer();
         q.answered(new Answer(asked.getLast().id(), 0));
         q.picked(Picked.cancelled(picks.getFirst().id()));
-        assertTrue(written.isEmpty());
+        assertTrue(writes.isEmpty());
     }
 
     @Test
