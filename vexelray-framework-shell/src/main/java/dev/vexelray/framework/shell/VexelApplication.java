@@ -449,13 +449,13 @@ public final class VexelApplication {
         // is the same seam every other window we open goes through -- see Appearance.applyTo, which names this
         // as the case it was written for.
         //
-        // The look and not the bus. The dialogs keep a Gui of their own on a bus of their own, which Modals
-        // makes: that was load-bearing when a Gui's topics were static, and a closed dialog's tree would have filled
-        // with this one's messages. The application's windows share its bus since phase 5 (a tree's own topics are
-        // named by it, and the widgets' shared ones scoped by tree); moving the dialogs onto it is vexelray-gui's.
+        // And the bus: the dialogs' tree is on the application's, under a name of its own (Windows.DIALOGS), as every
+        // window's is, so the Inspector and a recorded run see a dialog like any other tree. A tree's own topics are
+        // named by it, and navigation is judged where it is published, so a hidden dialog tree collects nothing.
         // The look in force when each dialog is built, not the one at install: a person who chose the other look has
         // every later dialog in it too. Read from the shell, which a choice updates (ThemeChoice).
-        Modals modals = disposer.register(Modals.install(app, dialog -> shell.appearance().applyTo(dialog)));
+        Modals modals = disposer.register(Modals.install(app, shell.bus(), Windows.DIALOGS,
+                dialog -> shell.appearance().applyTo(dialog)));
         // And the Dialogs every part was handed, unless the application handed back its own: from here on a
         // question goes to these, after whatever was asked while there was no window to ask it in.
         if (!shell.dialogsDecided()) {

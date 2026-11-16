@@ -285,7 +285,7 @@ public record Appearance(Theme theme, Length minWidth, Length minHeight, Decorat
      * hypothetical: it is exactly the defect {@code Modals} had — a dialog that builds its own {@code Gui},
      * gets {@code Theme.DARK} by default, and drew dark whatever the application said. Invisible in an
      * application whose theme is dark, and glaring in one whose theme is not. That one is fixed, and this is
-     * the method it was fixed with: {@code Modals.install(app, appearance::applyTo)}.
+     * the method it was fixed with: {@code Modals.install(app, bus, name, appearance::applyTo)}.
      *
      * <p><b>The theme and the zoom range; not the minimum size.</b> That line is where it is because
      * {@code Gui.minSize} belongs to one tree: the smallest canvas <em>this tree</em> can be laid out on, and with

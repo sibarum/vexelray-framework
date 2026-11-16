@@ -366,6 +366,15 @@ final class WindowsTest {
                 wiring(Appearance.DEFAULT, s -> s.windows().named("main", "Main", 300, 200)), new String[0]));
     }
 
+    /** The dialogs' tree shares the bus under its own name, so no window may take it. */
+    @Test
+    void theDialogsTreesNameIsTaken() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> VexelApplication.tree(
+                wiring(Appearance.DEFAULT, s -> s.windows().named(Windows.DIALOGS, "Dialogs", 300, 200)),
+                new String[0]));
+        assertTrue(e.getMessage().contains("another name"), e.getMessage());
+    }
+
     @Test
     void aWindowIsDeclaredByTreeBecauseItIsClaimedAtAttach() {
         Shell bare = new Shell(Launch.parse(new String[0], DEMO.name(), Set.of()), DEMO);

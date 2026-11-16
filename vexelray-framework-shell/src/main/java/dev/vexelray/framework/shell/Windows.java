@@ -50,6 +50,12 @@ public final class Windows {
     /** The main window's name, which no other window may take. */
     static final String MAIN = dev.vexelray.framework.core.CloseRequested.MAIN;
 
+    /**
+     * The dialogs' tree's name, which no window may take either: the dialogs share the application's bus, a tree's
+     * name is what its topics are named by, and a bus holds one open tree under a name.
+     */
+    static final String DIALOGS = "dialogs";
+
     private static final Log LOG = Log.of("framework.shell");
 
     private final Shell shell;
@@ -137,6 +143,10 @@ public final class Windows {
         if (window.key().equals(MAIN)) {
             throw new IllegalArgumentException("'" + MAIN + "' is the main window's name; a second window needs "
                     + "one of its own");
+        }
+        if (window.key().equals(DIALOGS)) {
+            throw new IllegalArgumentException("'" + DIALOGS + "' is the name of the framework's dialog tree, on the "
+                    + "same bus as every window; give this window another name");
         }
         for (Window w : declared) {
             if (w.key().equals(window.key())) {

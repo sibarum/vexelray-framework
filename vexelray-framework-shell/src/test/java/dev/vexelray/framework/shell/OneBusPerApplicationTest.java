@@ -25,7 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * <p><b>No GPU.</b> {@link VexelApplication#tree} builds as far as {@code Phase.TREE} — a {@code Gui} and a
  * clock, no device and no window — which is exactly the reach needed to ask what fabric the tree is on. The
  * dialogs cannot be asked from here, because {@code Modals.install} takes a {@code GuiApp} and a dialog is a
- * real OS window; that half is asserted upstream, in {@code vexelray-gui-harness}'s
+ * real OS window. They are installed on {@code shell.bus()} under {@code Windows.DIALOGS}; that a dialog tree on a
+ * shared bus neither takes another tree's messages nor fills while hidden is asserted upstream, in
+ * {@code vexelray-gui-widget}'s {@code ModalsSharedBusTest}, and its look in {@code vexelray-gui-harness}'s
  * {@code DialogsWearTheApplicationsLookTest}.
  */
 final class OneBusPerApplicationTest {

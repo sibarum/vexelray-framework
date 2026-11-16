@@ -16,7 +16,8 @@ import dev.vexelray.gui.core.style.Theme;
  *
  * @param key      the name the window is known by: in the settings file, where its placement and zoom are
  *                 remembered, and on the automation socket, where {@code window <key>} chooses it. Not
- *                 {@code "main"}, which is the main window's
+ *                 {@code "main"}, which is the main window's, nor {@code "dialogs"}, which is the framework's dialog
+ *                 tree's on the same bus
  * @param title    what its caption says
  * @param width    how wide it opens when nothing is remembered, in pixels
  * @param height   how tall, on the same terms
