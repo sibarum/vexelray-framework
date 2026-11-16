@@ -594,6 +594,24 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       no application's pixels move (the gate is pixel identity before and after), and the token records' fields
       come from FN-14 to FN-17 rather than a design-system wish list, because once named they are frozen.
 
+      **Built 2026-11-16** (`vexelray-gui` `50d0ab5c` to `58f646bb`, `docs/reference/theming.md`). About 90 sites in 22
+      widgets and the keymap editor read `Shape` (three corners, a `hairline` that stays 1 dp, a `stroke` that grows
+      with text), `Density` (three paddings, a fixed `inset`, `rowInset`, `row`, `control`) and `Type` (`small`,
+      `body`; every other size is `Type.BODY.times(k)`). A token is a `Length` resolved where the node is laid out,
+      so what a widget repaints on a state change follows a swap too. `Node.theme(UnaryOperator<Theme>)` scopes a
+      subtree, derived from the theme around it so a root swap still reaches it; one map lookup per node when no
+      scope is set, nothing allocated on a repeated ask. The gate, `LookGateTest`, is 32 headless captures and every
+      node's laid-out numbers, recorded before the change and identical after at tolerance zero; all 19 demo chapters
+      also captured identical. `Type` has no heading or display step, because no widget sets one and so there was
+      no literal to reproduce. The standard set already draws `≤ ≥ ≠ ∞ → ← ⇒` through the mono face's fallback
+      (`MathGlyphsDrawTest`), so the calculator's FN-3 spelling is no longer needed; the rest of the arrows, `⌫` and
+      the check mark need a third face (Noto Sans Math or Symbols 2), not yet added.
+
+      **Left:** the records are being made classes with withers rather than records, so a field added after v1
+      (a heading size) is additive, which is the `Span` lesson; inner corners derived from the outer corner minus the
+      inset between them, so a square theme squares them too; values built from `gui.theme()` at construction
+      (Relief rungs, ColorPicker chrome) follow the root theme, not a scope; and the third font face.
+
 - [ ] **A legacy sweep: v1 keeps nothing for backwards compatibility.** The second v1 condition, in
       [v1.md](v1.md#what-must-not-remain). **Swept 2026-11-15, here and in the siblings:**
       - **This repo:** `--profile` is no longer a framework key (nothing honoured it; diagnostics' switch will be a
