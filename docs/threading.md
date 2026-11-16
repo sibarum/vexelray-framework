@@ -300,14 +300,18 @@ the processor's blocking-cycle check are gone. atchung keeps `BLOCK` for `Pump`,
 it publishes on (`Outbox<T>`, working name) as a constructor parameter, and the generated wiring builds it. The raw
 `Atchung` bus is not injectable into an application part, and `@Publishes` goes away because the constructor
 already says it. So the message graph the processor checks is the whole graph: there is no send it cannot see.
-*(built, phase 4: the working name is atchung's own
+*(held: the working name is atchung's own
 `Sender<T>`, so a part is handed what it sends through and no new type. A component's sender is its own inbox's, so
 its sends are ordered by the tick; a view's or a recipe's is an ordinary publish. The bus, `Senders` and any executor
 are refused (`VexelProcessorTest.aSenderIsBuiltOnThePayloadsDeclaredTopic`, `theFrameworksMachineryIsNotHandedToAPart`),
-and the graph the Inspector reads as `BUS_GRAPH` draws each sender as a `publishes` line. **Still owed:** a ledger's
-steps send through their `Out`, which no constructor shows, so a component with a ledger lists those topics in
-`@Publishes`, and nothing yet checks the list against the steps' `out.send` calls; `StepCheck` reads those bodies and
-is where the check belongs)*
+and the graph the Inspector reads as `BUS_GRAPH` draws each sender as a `publishes` line. A ledger's steps send
+through their `Out`, which no constructor shows, so a component with a ledger lists those payloads in `@Publishes`,
+and `StepCheck`, which reads every step's body, holds each `out.send` to that list: a send on a payload not listed is
+a compile error naming the step, the payload and the class to list it on
+(`VexelProcessorTest.aStepsSendOnAChannelItsComponentDoesNotPublishIsAnError`, and on the template's own controller
+`theTemplatesEditorWithoutRecallInItsPublishesIsRefusedAtTheStepThatSendsIt`; built 2026-11-15). A send whose payload
+cannot be named, through a `Topic<E>` in a generic helper, is let through rather than refused; a payload listed that no
+step sends is a warning, said only when the steps are certainly the component's only way to send)*
 
 **T4.6 — Any number of `Gui` trees may share a bus, each under its own name.** A tree is named when it is built
 (`new Gui(bus, "main")`), and every topic it uses for itself is named by it: its mutations, its device input
