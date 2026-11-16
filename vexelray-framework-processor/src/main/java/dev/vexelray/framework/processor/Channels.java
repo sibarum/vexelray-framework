@@ -41,7 +41,10 @@ import java.util.TreeSet;
  *
  * <p><b>A send is declared by construction</b> (ROADMAP fork 5): a part that sends takes a {@code Sender<T>} in its
  * constructor, and the wiring builds it. A ledger's steps send through their {@code Out}, which no constructor shows, so
- * a component with a ledger lists those payloads in {@code @Publishes}.
+ * a component with a ledger lists those payloads in {@code @Publishes}, and {@link StepCheck} holds each step's
+ * {@code out.send} to that list. The graph's {@code sends} lines for a ledger come from the list, so with the check they
+ * carry every send a step makes; the check runs after this has written them, which is why it holds the list to the
+ * bodies rather than adding what it finds.
  *
  * <p><b>What is checked.</b>
  * <ul>

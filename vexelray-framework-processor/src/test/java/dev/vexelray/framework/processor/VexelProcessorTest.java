@@ -2714,6 +2714,223 @@ class VexelProcessorTest {
                 """), "T4.1: @Publishes on Ui lists Loose, and no topic of it is declared");
     }
 
+    // --- T4.5: what a ledger's steps send is declared ------------------------------------------------------------
+
+    /** Three payloads with their topics, and the ledger component the cases below vary. */
+    private static final String PING = """
+            public record Ping(String a) {
+                public static final sibarum.atchung.Topic<Ping> TOPIC = sibarum.atchung.Topic.edge(Ping.class);
+            }
+            """;
+    private static final String PONG = """
+            public record Pong(String a) {
+                public static final sibarum.atchung.Topic<Pong> TOPIC = sibarum.atchung.Topic.edge(Pong.class);
+            }
+            """;
+    private static final String DING = """
+            public record Ding(String a) {
+                public static final sibarum.atchung.Topic<Ding> TOPIC = sibarum.atchung.Topic.edge(Ding.class);
+            }
+            """;
+
+    /** A component on a ledger, declared with {@code annotations}, whose one step runs {@code body} then answers. */
+    private static String counter(String annotations, String params, String body) {
+        return annotations + """
+
+                public final class Counter {
+                    public Counter(sibarum.atchung.Inbox inbox%s) {
+                        sibarum.atchung.Ledger.Builder<String> b = sibarum.atchung.Ledger.of("");
+                        sibarum.atchung.Step<String, Ping> ping = b.step("ping", Counter::ping);
+                        b.on(Ping.TOPIC, ping);
+                        b.build(inbox, "counter", 16);
+                    }
+                    private static String ping(String s, Ping p, sibarum.atchung.Out out) {
+                        %s
+                        return s;
+                    }
+                    private static void tell(sibarum.atchung.Out out, String what) {
+                        out.send(Ding.TOPIC, new Ding(what));
+                    }
+                }
+                """.formatted(params, body);
+    }
+
+    private static List<String> t45Warnings() {
+        return WARNINGS.stream().filter(w -> w.startsWith("T4.5")).toList();
+    }
+
+    @Test
+    void aStepsSendOnAChannelItsComponentDoesNotPublishIsAnError() {
+        onlyError(app(PING, PONG, DING, counter("@Component @Hears(Ping.class) @Publishes(Pong.class)", "",
+                        "out.send(Pong.TOPIC, new Pong(p.a())); out.send(Ding.TOPIC, new Ding(p.a()));")),
+                "T4.5: step 'ping' sends Ding, and Counter does not list it in @Publishes, so the message graph is"
+                        + " missing the send: add Ding.class to @Publishes on Counter");
+    }
+
+    /** A component that lists nothing is held to an empty list: the fix is the same annotation, written. */
+    @Test
+    void aComponentWithNoPublishesAtAllIsToldToListWhatItsStepSends() {
+        onlyError(app(PING, PONG, DING, counter("@Component @Hears(Ping.class)", "",
+                "out.send(Pong.TOPIC, new Pong(p.a()));")), "add Pong.class to @Publishes on Counter");
+    }
+
+    /**
+     * Every send a step makes is declared, so the graph the Inspector draws carries each ledger send as the
+     * component's, and nothing is warned: each payload listed is one a step sends.
+     */
+    @Test
+    void aStepsDeclaredSendsCompileAndAreDrawnInTheGraph() throws Exception {
+        Compiled compiled = build("""
+                @VexelApp(name = "demo", title = "Demo")
+                public final class DemoApp {}
+                """, PING, PONG, DING, counter("@Component @Hears(Ping.class) @Publishes({Pong.class, Ding.class})", "",
+                "out.send(Pong.TOPIC, new Pong(p.a())); tell(out, p.a());"));
+        assertEquals(List.of(), compiled.errors());
+        assertEquals(List.of(), t45Warnings());
+        String graph = compiled.run(dev.vexelray.framework.api.RunMode.WINDOWED, Map.of()).busGraph();
+        assertTrue(graph.contains("sends app.Counter topic=app.Pong"), graph);
+        assertTrue(graph.contains("sends app.Counter topic=app.Ding"), graph);
+    }
+
+    /** A send in a helper the step calls is the step's; a helper two steps reach is reported once. */
+    @Test
+    void aSendInAHelperIsTheStepsAndIsReportedOnce() {
+        String twoSteps = counter("@Component @Hears(Ping.class) @Publishes(Pong.class)", "", "tell(out, p.a());")
+                .replace("b.on(Ping.TOPIC, ping);", "b.on(Ping.TOPIC, ping); b.step(\"again\", Counter::ping);");
+        onlyError(app(PING, PONG, DING, twoSteps), "T4.5: step 'ping' sends Ding");
+    }
+
+    /** {@code @Publishes} on the step's own method is drawn as the component's send, so it declares it. */
+    @Test
+    void publishesOnTheStepsMethodDeclaresItsSend() {
+        String annotated = counter("@Component @Hears(Ping.class)", "", "out.send(Pong.TOPIC, new Pong(p.a()));")
+                .replace("private static String ping(", "@Publishes(Pong.class) private static String ping(");
+        assertEquals(List.of(), app(PING, PONG, DING, annotated));
+    }
+
+    /** A ledger in a class that is no part and lists nothing is a test's or a library's: no graph draws its sends. */
+    @Test
+    void aStepOutsideAnyPartIsNotHeldToAList() {
+        assertEquals(List.of(), app(PING, PONG, """
+                public final class Harness {
+                    static sibarum.atchung.Ledger.Builder<String> steps() {
+                        sibarum.atchung.Ledger.Builder<String> b = sibarum.atchung.Ledger.of("");
+                        b.step("ping", (String s, Ping p, sibarum.atchung.Out out) -> {
+                            out.send(Pong.TOPIC, new Pong(p.a()));
+                            return s;
+                        });
+                        return b;
+                    }
+                }
+                """));
+    }
+
+    /**
+     * A send through a {@code Topic<E>} names no one channel, so it is not refused, and since it could be any of them,
+     * no payload the component lists is said to be unsent either.
+     */
+    @Test
+    void aSendWhosePayloadCannotBeNamedIsLetThrough() {
+        String generic = counter("@Component @Hears(Ping.class) @Publishes({Pong.class, Ding.class})", "",
+                "relay(out, Pong.TOPIC, new Pong(p.a()));").replace("private static void tell(", """
+                private static <E> void relay(sibarum.atchung.Out out, sibarum.atchung.Topic<E> topic, E e) {
+                        out.send(topic, e);
+                    }
+                    private static void tell(""");
+        assertEquals(List.of(), app(PING, PONG, DING, generic));
+        assertEquals(List.of(), t45Warnings());
+    }
+
+    /**
+     * The converse: a payload the component lists that no step sends, when its steps are all it can send with, draws a
+     * send that never happens. A warning, not an error: it misleads a reader and breaks nothing.
+     */
+    @Test
+    void aListedPayloadNoStepSendsIsWarnedOf() {
+        assertEquals(List.of(), app(PING, PONG, DING, counter(
+                "@Component @Hears(Ping.class) @Publishes({Pong.class, Ding.class})", "",
+                "out.send(Pong.TOPIC, new Pong(p.a()));")));
+        assertEquals(List.of("T4.5: @Publishes on Counter lists Ding, and no step of Counter sends it, and nothing"
+                + " else of it can, so the graph draws a send that never happens: take Ding out of @Publishes, or send"
+                + " it from the step that should"), t45Warnings());
+    }
+
+    /** Whatever else could send for the component keeps the converse quiet: it is said only when it is certain. */
+    @Test
+    void theConverseIsNotSaidWhereSomethingElseMaySend() {
+        String unsent = "@Component @Hears(Ping.class) @Publishes({Pong.class, Ding.class})";
+        String sendsPong = "out.send(Pong.TOPIC, new Pong(p.a()));";
+        // A timer publishes on a topic for whoever holds it.
+        assertEquals(List.of(), app(PING, PONG, DING,
+                counter(unsent, ", dev.vexelray.framework.core.Timer timer", sendsPong)));
+        assertEquals(List.of(), t45Warnings());
+        // A sender of the payload sends it.
+        assertEquals(List.of(), app(PING, PONG, DING,
+                counter(unsent, ", sibarum.atchung.Sender<Ding> dings", sendsPong)));
+        assertEquals(List.of(), t45Warnings());
+        // The inbox makes a sender of its own.
+        assertEquals(List.of(), app(PING, PONG, DING, counter(unsent, "", sendsPong)
+                .replace("b.build(inbox, \"counter\", 16);",
+                        "b.build(inbox, \"counter\", 16); inbox.sender(Ding.TOPIC);")));
+        assertEquals(List.of(), t45Warnings());
+        // The Out goes to code that is not read.
+        assertEquals(List.of(), app(PING, PONG, DING, counter(unsent, "",
+                sendsPong + " java.util.function.Consumer<sibarum.atchung.Out> c = o -> {}; c.accept(out);")));
+        assertEquals(List.of(), t45Warnings());
+        // The builder goes where more steps may be declared on it.
+        assertEquals(List.of(), app(PING, PONG, DING, counter(unsent, "", sendsPong)
+                .replace("b.on(Ping.TOPIC, ping);", "b.on(Ping.TOPIC, ping); more(b);")
+                .replace("private static void tell(",
+                        "private static void more(sibarum.atchung.Ledger.Builder<String> b) {}\n"
+                                + "    private static void tell(")));
+        assertEquals(List.of(), t45Warnings());
+    }
+
+    // --- T4.5 on the template's own controller ------------------------------------------------------------------
+
+    /** The template's controller, its messages and its document, as a generated project's {@code -core} has them. */
+    private static Map<String, String> templateCore(java.util.function.UnaryOperator<String> editor)
+            throws IOException {
+        Path files = Path.of("..", "vexelray-framework-template", "src", "main", "resources", "dev", "vexelray",
+                "framework", "template", "vexel-desktop", "files");
+        Map<String, String> sources = new java.util.LinkedHashMap<>();
+        // The two records that carry a widget library's types: this module builds against no widget library.
+        sources.put("app.core.Messages", Files.readString(files.resolve("Messages.java"))
+                .replace("${packageName}", "app").replace("dev.vexelray.gui.core.text.Span", "String")
+                .replace("Markdown.Style style", "String style"));
+        sources.put("app.core.Doc", Files.readString(files.resolve("Doc.java")).replace("${packageName}", "app"));
+        sources.put("app.core.Editor", editor.apply(Files.readString(files.resolve("Editor.java"))
+                .replace("${packageName}", "app")));
+        return sources;
+    }
+
+    private static List<String> compileTemplateCore(java.util.function.UnaryOperator<String> editor)
+            throws IOException {
+        return compile(templateCore(editor), Files.createTempDirectory(temp, "core"), lib, false);
+    }
+
+    /** The template's Editor declares every send its steps make, and lists nothing they do not. */
+    @Test
+    void theTemplatesEditorDeclaresEverySendItsStepsMake() throws IOException {
+        assertEquals(List.of(), compileTemplateCore(s -> s));
+        assertEquals(List.of(), t45Warnings());
+    }
+
+    @Test
+    void theTemplatesEditorWithoutRecallInItsPublishesIsRefusedAtTheStepThatSendsIt() throws IOException {
+        onlyError(compileTemplateCore(s -> s.replace("Recall.class, Remember.class", "Remember.class")),
+                "T4.5: step 'begin' sends Recall, and Editor does not list it in @Publishes");
+    }
+
+    @Test
+    void theTemplatesEditorListingAPayloadNoStepSendsIsWarnedOf() throws IOException {
+        assertEquals(List.of(), compileTemplateCore(s -> s.replace("Recall.class, Remember.class",
+                "Recall.class, Remember.class, Go.class")));
+        assertEquals(1, t45Warnings().size(), t45Warnings().toString());
+        assertTrue(t45Warnings().get(0).startsWith("T4.5: @Publishes on Editor lists Go, and no step"),
+                t45Warnings().toString());
+    }
+
     @Test
     void anApplicationThatDeclaresNoChannelHasAnEmptyGraphRatherThanNone() throws Exception {
         Compiled compiled = build("""

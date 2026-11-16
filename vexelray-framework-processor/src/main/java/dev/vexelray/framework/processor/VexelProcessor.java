@@ -68,7 +68,8 @@ import java.util.Set;
  *       interface when the type is this build's own, a {@code @Setting} whose type has an accessor and whose
  *       default parses, starters that are configurations, and one {@code @VexelApp}.</li>
  *   <li><b>A ledger's steps</b> ({@link StepCheck}): what is certainly wrong in a step's body, a capture, a static
- *       written, a lock, a known effect or wait. Read from bodies rather than declarations, in every class of the
+ *       written, a lock, a known effect or wait, and a send on a payload its component's {@code @Publishes} does not
+ *       list (T4.5). Read from bodies rather than declarations, in every class of the
  *       compilation once javac has analyzed it, so the processor asks for {@code *} to be started at all.</li>
  *   <li><b>A view's {@code @Draw}</b>: its shape and its one state field, and its body read as a step's is, with a
  *       frame's rules besides (T7.6).</li>
