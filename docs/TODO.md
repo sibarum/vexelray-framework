@@ -923,6 +923,18 @@ module behind a seam that already exists. Worth doing, and none of it waits for 
       intention rather than an observation. Now that it does, the comment is the only place on the
       stack that still says the cursor moves.
 
+- [ ] **A technique view is drawn again when nothing it shows changed** (fix belongs in `vexelray-gui-core`,
+      `DeviceImages.takeLandings`; found 2026-11-15 reading it for the 3D viewport). Every frame that draws a node
+      showing a `TechniqueView` records its techniques again, into the next of its three targets, so a cursor blinking
+      or a tooltip fading elsewhere in the window re-renders the whole scene for every frame of that animation: for a
+      fullscreen march or a heavy mesh scene, real GPU work for an identical picture. The window is retained and drawn
+      on demand; the view is not. Everything its picture depends on is already known to the host: its params (`param`
+      returns whether it changed), the slot each binding shows that frame, its size and its clear colour. When none
+      changed, sample the target last drawn instead of recording. This leans on the view's existing contract that *a
+      technique holds no clock and hears no message* (`TechniqueView`'s javadoc), so a technique that animates by itself
+      was never legal; it is after v1 because skipping a draw breaks no application that keeps that contract. Its test:
+      a view beside an animating node is recorded once, then again on a param change, a new slot and a resize.
+
 ### Found by Vexplore
 
 The first application built on the generated template by someone other than its authors: a file explorer
