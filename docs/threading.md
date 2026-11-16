@@ -114,19 +114,19 @@ lane's. The name is load-bearing in the thread dump somebody reaches for when on
 decision, nothing to tune while running. This is the restriction the rest of the model is bought with:
 static assignment is what lets the processor emit thread construction and the component-to-lane mapping
 as generated code, with no scheduler in the binary. *(held, by
-`PlacementTest.anApplicationCannotPlaceAComponentOrAddAMailboxByHand`. A `@Component`'s lane is on its
+`LogicTest.anApplicationCannotMakeAnInboxOrStartTheLaneByHand`. A `@Component`'s lane is on its
 declaration, and the generated wiring places each lane once)*
 
 **T1.4 — Lane threads are platform threads, never virtual.** Not stylistic:
 `jdk.virtualThreadScheduler.parallelism` is a global JVM property and JDK 25 has *"no public per-thread
 scheduler"*, so an application that takes Kronometer's single-carrier flag has no second carrier to give,
 and virtual threads become the documented deadlock rather than merely slower. *(held, by
-`LanesTest.everyThreadIsAPlatformDaemon`. The About intro's `Thread.ofVirtual()` is a virtual thread outside the
-lanes, which T1.1 forbids; phase 5 removes it)*
+`LanesTest.everyThreadIsAPlatformDaemon`. The About intro's virtual thread went with phase 5, and the framework's
+main sources start none)*
 
 **T1.5 — The job lane is bounded, in threads.** A pool that answers a full queue by growing has refused
 backpressure. A full lane makes work wait behind the work already on it. *(held, by
-`LanesTest.theOffloadLaneIsBoundedInThreadsRatherThanGrowing`; the lane is still called offload there)*
+`LanesTest.theJobLaneIsBoundedInThreadsRatherThanGrowing`)*
 
 **T1.6 — One logic lane by default** (ruling 2). Every component that declares no lane runs on the logic lane.
 No two of them ever run at once, so no component needs to think about memory visibility, and a run can be replayed
@@ -187,10 +187,10 @@ is still refused. The copier 0.1 planned is not needed and not built)*
 T2.4 lets cross", and could not enforce it without reading method bodies.* In 0.2 it holds by construction instead:
 no framework or gui API that an application can reach takes a `Runnable`, `Consumer`, `Supplier`, `Function`,
 `Executor` or other functional interface (T7.2), and slow work is a `@Job`, whose request and reply are payloads
-checked as T2.4. *(phases 3 to 5. `@Job` is built. Phase 4: the processor hands no application part the bus, `Senders`, the
-lanes, the frame hooks, the disposer or any `Executor` (`Framework.REFUSED`,
-`VexelProcessorTest.theFrameworksMachineryIsNotHandedToAPart`), and `ApiWalkTest` lists what the `Shell` still
-reaches, owed to phase 5)*
+checked as T2.4. *(held. `@Job` is built; the processor hands no application part the bus, `Senders`, the
+lanes, the `Shell`, the frame hooks, the disposer or any `Executor` (`Framework.REFUSED`,
+`VexelProcessorTest.theFrameworksMachineryIsNotHandedToAPart`), and `ApiWalkTest.OWED` is empty, so no type an
+application part can be handed takes or returns a function. Rechecked 2026-11-15)*
 
 **T2.6 — A provided value that more than one component can reach is shareable, or a framework service.** A
 `@Provides` value injected into two components is shared state unless it is deeply immutable (T2.4). The framework
@@ -250,8 +250,8 @@ see. **Why the address is the tree's and not the application's to make unique:**
 otherwise have to put its window into every name, and the first one that forgot would answer for both. *(held, phase
 3: every widget's callbacks are topics, `Button.PRESSED` to `TreeView.HOVERED`; an application hears one with
 `gui.mailbox(topic, widget.address(), stage)`, and vexelray-gui's `WidgetAddressTest` holds the address. The
-`Runnable` forms that remain (a dialog's or a rail's action, the title bar's mark) sit beside a `Sender` form, as
-`Keymap.Action.on` does, and leave a view's reach with T7.2's walk)*
+`Runnable` forms that remained (a dialog's or a rail's action, the title bar's mark) are the host's, on `WidgetSeams`,
+out of a view's reach (T7.2's walk, step 18))*
 
 **T3.9 — A widget's own interaction state stays in the widget.** A caret, a selection, a hover, a scroll offset and
 the text being typed change inside the widget, on the main thread, with no message. Only what the application must
@@ -284,9 +284,9 @@ keeps its string, since the tree's name is in it by design)*
 
 **T4.2 — An edge is never lost quietly.** An edge mailbox is bounded, and overflowing it ends the application,
 naming the topic, the bound and the subscriber, as `Backpressure.FAIL` does now. A state mailbox cannot overflow:
-it holds one message per key. Loss is never a policy an edge can choose. *(held for 0.1's `FAIL` default; the
-per-topic form is owed with T4.1, and built in the bus: a tick's edge mailbox has no lossy policy to choose, and
-overflowing it runs `Fatal`, `TickTest.anEdgeMailboxThatOverflowsIsAFaultNamingTheTopic`)*
+it holds one message per key. Loss is never a policy an edge can choose. *(held: every component runs on the tick (T4.1), whose edge
+mailbox has no lossy policy to choose, and overflowing it runs `Fatal`,
+`TickTest.anEdgeMailboxThatOverflowsIsAFaultNamingTheTopic`)*
 
 **T4.3 — Each `@Subscribe` gets a mailbox of its own.** *(held, by construction)*
 
@@ -324,7 +324,11 @@ is one open tree's)*
 **T4.7 — Main-thread code never waits on the logic.** *0.1 stated this as "main-thread code sends only on channels
 that never block". Under T4.4 no send blocks, so the narrower rule holds by construction, and what is left is
 wider: the main thread never waits for a tick, a reply or a lock.* In single-thread mode the main thread runs the
-tick itself, which is not waiting on it. *(owed, phases 2 and 5)*
+tick itself, which is not waiting on it. *(held by construction, rechecked 2026-11-15: no send blocks (T4.4), an
+arrival wakes the logic lane with an unpark (`Logic.arrived`), the 0.1 locks in `Window`, `Windows`, `HeldDialogs`,
+`AboutIntro` and `UndoFeedback` are gone, and nothing an application can reach hands back a future to wait on (T7.2).
+The one wait is `Logic.stop`'s bounded join, on the shutdown path (T6.2). Nothing yet checks the frame path for a new
+wait; T7.3's test is where it would be caught)*
 
 **T4.8 — A subscription may filter by key.** The author's "subscribe to any desired event streams with a
 filter": a subscriber to a state topic may name the keys it wants (`@Subscribe(key = ...)`), and the
@@ -339,7 +343,10 @@ bus half by `TickTest.aKeyFilterDeliversOnlyTheKeysItNames`). Filters on anythin
 
 **T5.1 — A result arrives as a message.** Work done anywhere comes back to a component through its mailbox, and
 nowhere else. Into the timeline, it comes through `KronBridge`, which folds a topic into a cell. *0.1 had a second
-door, a queue drained on the main thread in `FrameStage.APP`. It is withdrawn with T7.1.* *(owed, phases 4 and 5)*
+door, a queue drained on the main thread in `FrameStage.APP`. It is withdrawn with T7.1.* *(held, rechecked
+2026-11-15: `APP` is closed to applications (T7.1, `VexelProcessorTest.aFrameHookIsRefused`); a job's, a source's and
+a destination's results are replies on topics (`JobsTest`, `SourcesTest`, `DestinationsTest`); and no type an
+application part can be handed takes a callback or returns a future to complete (`ApiWalkTest`, T7.2))*
 
 **T5.2 — `FrameStage.APP` is for draining.** *Withdrawn.* `APP` is no longer open to applications (T7.1). It
 survives for the framework's own use: single-thread mode runs the logic's tick there (T1.7), which is draining what
@@ -366,7 +373,8 @@ framework schedules each tick and sets its deadline; ticks usually follow the fr
 coincide with a frame being drawn, and a headless run draws none. A delivery is never interrupted. What the
 deadline leaves queued is delivered first in the next tick, in its original order, and a state message carried
 over still folds with any newer write to its key. "The last write within the frame wins" means within the tick.
-*(owed, phase 4 for the deadline policy, which lives beside `Pacing`. The mechanism is built, atchung's
+*(owed only for the number: the deadline policy is built (`Logic`, 8 ms a tick) and the value is phase 7's to
+measure. The mechanism is built, atchung's
 `Tick.run(deadline)`, held by `TickTest.aDeadlineStopsBetweenRoundsAndTheRestComesFirstNextTick`,
 `aStateMessageCarriedOverIsStillReplacedByANewerWrite` and `aMessageFromOutsideWaitsForTheNextTickAndWakesWhoeverRunsIt`)*
 
@@ -397,8 +405,9 @@ on a thread of its own (T1.1), that may block in its read and sends as it goes, 
 (components.md section 11). What writes outside, where a write may wait (a pipe whose reader is not reading), is a
 **destination**: its writes run on its connection's own thread (T1.1), in the order they were sent
 (components.md section 12). A component's delivery never blocks, never sleeps and never waits for a reply. *Restated
-2026-10-30 to add sources, and built the same day; 2026-11-01 to add destinations, and built the same day.* *(held for the `@Job` and `@Source` mechanisms, by `JobsTest`, `SourcesTest` and `VexelProcessorTest`'s job and source cases (components.md sections 10 and 11); owed for "nothing else blocks", phases 3 and 4, which withdraw `Gui.offload()`, `Gui.async()` and
-`Lanes.offload()` from application parts)*
+2026-10-30 to add sources, and built the same day; 2026-11-01 to add destinations, and built the same day.* *(held for the `@Job` and `@Source` mechanisms, by `JobsTest`, `SourcesTest` and `VexelProcessorTest`'s job and source cases (components.md sections 10 and 11); and for "nothing else blocks" as far as what an application can reach: `Gui.offload()`, `Gui.async()` and
+`Lanes.offload()` are gone, and no executor is handed to a part (T2.5). Owed: a delivery body that blocks in plain JDK
+code (a file read, a socket) is refused in a ledger's steps by `StepCheck`, and not yet in a `@Subscribe` method)*
 
 ## 6. Lifecycle
 
@@ -468,10 +477,11 @@ close gate `CloseRequested` and `CloseAnswer`, so `ApiWalkTest` finds none of th
 `-shell` or `vexelray-gui` that an application part can be handed has a parameter or a return of a functional
 interface, `Executor`, `CompletableFuture` or `Future`. A question is a request topic and its answer a reply
 topic: a close gate is `CloseRequested` and `CloseAnswer`, a file picker is `PickFile` and `Picked`, opening a file
-with the desktop is `Open` and `Opened`, a confirm is `Ask` and `Answer`. *(phases 3 to 5. The walk is built, phase 4:
-`ApiWalkTest` walks every public framework type an application part can be handed, and requires that what takes or
-returns a function is exactly its list of what phase 5 owes, so a callback added later fails the build and one removed
-must come off the list. The widget library's half is vexelray-gui's walk)*
+with the desktop is `Open` and `Opened`, a confirm is `Ask` and `Answer`. *(held for the API, rechecked 2026-11-15:
+`ApiWalkTest` walks every public framework type an application part can be handed and requires that what takes or
+returns a function is exactly its `OWED` list, which is now empty, so a callback added later fails the build. The
+widget library's half is vexelray-gui's walk. Owed: the processor's read of a view's display functions, the second
+bullet below)*
 *Ruled 2026-10-27, what the rule is about:* **which thread runs the code.** A subscription is not a callback: its
 code runs on the subscriber's own thread, handed an immutable message, and answers by sending. What the rule forbids
 is code handed to the GUI that the GUI keeps and runs on its own thread, in the frame. So:
@@ -490,7 +500,7 @@ is code handed to the GUI that the GUI keeps and runs on its own thread, in the 
   with `@View` in phase 4).
 - **What answers a question the logic owns** (`Reorder`, `Checkable`, a tree action's body and predicates,
   `Button.perform`, `Property`'s bindings) becomes declared data or a request and a reply, as menus (T7.5) and a
-  tree's children did. *(owed, phase 3. Done for `Checkable`: a click is `TreeView.TOGGLED` and what is ticked
+  tree's children did. *(held: every case below is done. Done for `Checkable`: a click is `TreeView.TOGGLED` and what is ticked
   comes back as `TreeView.MARKS`, held by vexelray-gui's `TreeCheckTest`. Done for `Reorder`: what a drop is offered
   is declared and decided in the frame, a landing is announced (`TreeView.PLACED`, `Deck.PLACED`,
   `ListView.LANDED`) and the application records it in its own history, so `Gui.dropHistory` is gone; held by
@@ -543,9 +553,10 @@ for the value inside the GPU, which then costs nothing. *Built 2026-11-15 (devic
 by vexelray-gui's `DeviceWrittenFeedTest` and `DeviceWrittenWindowTest`. Either way a slot comes free behind a fence
 taken after the frame that last sampled it. It adds no lock, no wait on the GUI thread and no call across: it is
 still one writer, one reader, and a handle in a payload. It is the only new shared memory the device work brings.
-*(owed, phase 5. Held, when built, by a test that reads the shell's and
-core's sources against the list. In 0.1 `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` hold
-locks and volatiles for state the main thread and the handler pool both touched)*
+*(owed. Held, when built, by a test that reads the shell's and core's sources against the list. Rechecked
+2026-11-15: the 0.1 locks in `Window`, `Windows`, `HeldDialogs`, `AboutIntro` and `UndoFeedback` are gone. What such a
+test would still have to judge outside the listed classes is three `volatile` fields written on one thread and read on
+others: `Windows.app`, `Shell.appearance` and `VexelApplication.reported`)*
 
 **T7.4 — A view component is presentation, and it runs on the GUI thread.** *Ruled 2026-10-27, the second exception
 to T7.1 beside drawing; since 2026-10-29 both are T7.6, of which a view's `@Subscribe` methods are the told half.*
@@ -570,7 +581,7 @@ size. *(the GUI tick and the widgets' topics built in phase 3; **the `@View` dec
 `@Subscribe` methods are drained in the widget tick (`Views.mailbox`, over `Gui.mailbox`), it is built no earlier than
 `TREE`, only another view may hold it, and a widget library message it hears is not a crossing, so T2.4 does not check
 it. Held by `VexelProcessorTest`'s view cases and by the template, whose `View` is one and is driven in a real window.
-What a view's declarations send through is `Senders`, interim until fork 5 hands each part its senders)*
+A view is handed a `Sender` per channel it sends on, as every part is (T4.5))*
 
 **T7.5 — What the dispatcher asks, a node declares.** *Ruled 2026-10-27.* Some input is a question the dispatcher
 must answer in the frame it arrives in: what goes on this node's menu, what a drag beginning here carries, whether
@@ -592,10 +603,10 @@ author has ruled out. A function answering in the frame would be a callback (T7.
 is the side channel this model removes. The widget library's own parts (a text
 field's Copy and Paste, a board predicting where its card lands) still answer in code: they are the GUI, not an
 application. Its containers no longer ask the application anything in the frame: a tree, a deck and a list are
-told which drops to offer and announce where one landed (T7.2's walk, step 12). *(owed, phase 3: the
-declarations on `Gui`, and moving the function-valued seams (`onContextMenu`'s source, `onDrop`, `onDragSource`, a
-shortcut's `Runnable`) where only the widget library reaches them, so T7.2's API walk holds for what a view is
-handed)*
+told which drops to offer and announce where one landed (T7.2's walk, step 12). *(held, rechecked 2026-11-15: the
+declarations are on `Gui` (`menu`, `draggable`, the claims), and the function-valued seams (`onContextMenu`'s source,
+`onDrop`, `onDragSource`, a shortcut's `Runnable`) are on vexelray-gui's `spi.Seams`, which an application part may
+not import (`SpiBoundary`, 2026-11-10))*
 
 **T7.6 — A part on the GUI thread is told, and asked, and nothing else.** *Ruled 2026-10-29; the reasons are in
 architecture.md's message model, the design in vexelray-gui's `docs/plans/frame-contract.md`.* Everything that runs
@@ -651,20 +662,28 @@ The point of the column is that the unenforced rules are a list rather than an i
 
 | | held | owed | processor | upstream | open | read | withdrawn |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **1 Lanes** | T1.3, T1.4, T1.5 | T1.1, T1.2, T1.6, T1.7 | | | | | |
-| **2 Colour** | T2.2 | T2.1, T2.3, T2.4, T2.5, T2.6, T2.7 | | | | | |
+| **1 Lanes** | T1.1, T1.2, T1.3, T1.4, T1.5, T1.6, T1.7 | | | | | | |
+| **2 Colour** | T2.1, T2.2, T2.3, T2.4, T2.5, T2.6, T2.7 | | | | | | |
 | **3 Ownership** | T3.1, T3.7, T3.8 | | T3.3 | | T3.4, T3.6 | T3.2, T3.5, T3.9 | |
-| **4 Channels** | T4.3, T4.6 | T4.1, T4.2, T4.5, T4.7, T4.8 | | | | | T4.4 |
-| **5 Completion** | | T5.1, T5.3, T5.5, T5.6, T5.7, T5.8 | | | | T5.4 | T5.2 |
-| **6 Lifecycle** | T6.4 | T6.1, T6.2, T6.5, T6.6 | | | T6.3 | | |
-| **7 Main thread** | | T7.1, T7.2, T7.3, T7.4, T7.5, T7.6 | | | | | |
+| **4 Channels** | T4.1, T4.2, T4.3, T4.6, T4.7, T4.8 | T4.5 | | | | | T4.4 |
+| **5 Completion** | T5.1, T5.3, T5.6, T5.7 | T5.5, T5.8 | | | | T5.4 | T5.2 |
+| **6 Lifecycle** | T6.1, T6.2, T6.4, T6.5 | T6.6 | | | T6.3 | | |
+| **7 Main thread** | T7.1, T7.4, T7.5 | T7.2, T7.3, T7.6 | | | | | |
 
-Where a rule is held for its 0.1 form and owed for its 0.2 form, it is counted as owed: what the column answers is
-whether 0.2 is true yet, and it is not. **Ten of the fifty rules are held and thirty are owed.**
-Phase 2 built the bus half of T4.1, T4.2, T4.8, T5.5, T5.6 and T5.7 in atchung; each says so, and each stays owed
-until the framework runs its components on the tick. That is the honest state of a
-redesign at its first commit, and the column is how its progress is read: each phase in the roadmap moves a known
-set of entries to *held*, in the same commit that makes them true.
+Where a rule is held in part and owed in part, it is counted as owed: what the column answers is whether 0.2 is
+true yet. **Rechecked 2026-11-15: thirty-four of the fifty-one rules are held and seven are owed**, each owed entry
+naming what is left:
+
+- **T4.5**: a ledger's `@Publishes` list is not checked against its steps' `out.send` calls.
+- **T5.5**: only the deadline's number, phase 7's to measure.
+- **T5.8**: a `@Subscribe` method that blocks in plain JDK code is not refused, as a ledger's step is.
+- **T6.6**: the name `DeviceQueue`, a transfer kind and one queue per part, each waiting on its first user.
+- **T7.2**: the processor's read of a view's display functions.
+- **T7.3**: the test that reads the framework's sources against the allowlist.
+- **T7.6**: the budget that freezes a slow asked half, and a view's told half as declared steps.
+
+At the redesign's first commit, 2026-10-26, ten were held and thirty-one owed. The column is how progress is read:
+each change moves a known set of entries to *held*, in the same commit that makes them true.
 
 ## Promoting a rule
 
