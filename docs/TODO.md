@@ -356,7 +356,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       types, step 5 of `vexelray-gui`'s sim plan). No new root is needed for pictures: `Feeds` (a root already) and
       `Feed.still` make a device picture from any thread, with the GPU-made mip chain `GuiApp.picture` gives, and a
       tree that names a feed lands and releases it itself (`DeviceImages`), so `Textures` ports onto them and loses
-      its hops through `post` as well. `GuiApp` goes when the last taker has moved. **The rest is
+      its hops through `post` as well. `GuiApp` goes when the last taker has moved. **Codec moved 2026-11-16**
+      (`vexelray-codec` `ccb0b7c`, with `Node.image(Feed, ImageRegion)` in gui-core): `ImageStarter` is a `@Provides
+      Textures(Gui)` with no binding, and a view holds what its node shows through a `Plate`. **Its cost:** a
+      one-slot device feed keeps its staging mapped for life, so a 1024 px still weighs about 9.3 MB where
+      `GuiApp.picture` left 5.3 MB, and the same budget holds about 57% as many pictures. The fix is a write-once
+      feed that frees its staging once landed (`vexelray`'s `FeedSlots`, gui-core's `Feed`), additive, filed in the
+      codec's TODO. Left behind the `GuiApp`: the sim demos only. **The rest is
       frozen by marking:** `vexelray-gui` gets a stability marker of its own, every public method of `Gui`,
       `TitleBar`, `Keymap` and `Settings` a view can reach carries it, and a test fails on one that does not.
 
