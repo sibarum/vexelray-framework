@@ -944,9 +944,10 @@ folder expanded through its job, a file opened from the navigator.*
 > (`Chosen`, `Placed`) into a record per widget, so every payload names one channel there too, and the template lost
 > its eleven name constants. Only a topic named at run time, a tree's own (T4.6), keeps a string.*
 
-* *Still open from the bullets above: the tick's deadline is the 8 ms placeholder, which phase 7 measures; and the
-  processor's two `@View` checks threading.md T7.2 places with `@View` (no `spi` import in a view, and the body check of
-  a view's display functions) were not built here.*
+* *Still open from the bullets above: the tick's deadline is the 8 ms placeholder, which phase 7 measures. The
+  processor's two `@View` checks threading.md T7.2 places with `@View` were not built here and are built since: no
+  `spi` import in a view (`SpiBoundary`, 2026-11-10) and the body check of a view's display functions (`StepCheck`,
+  2026-11-16).*
 
 ### Phase 5. Shell
 

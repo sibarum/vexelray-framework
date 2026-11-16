@@ -539,6 +539,14 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
 
+- [ ] **The processor can throw `NullPointerException` in `Topics.collect`** (`Topics.java:81`, where
+      `Mirrors.element(...)` returns null). Found 2026-11-16 while censusing the stack for the T5.8 delivery check:
+      compiling a generated project's `-gui` with plain `javac` and the processor, with no widget type named in the
+      sources, gave spurious T2.4 *"Paint is not a type that can be checked"* errors and then the NPE; `mvn compile`
+      of the same project is clean. Probably completion order: a type the processor asks for is not yet resolvable in
+      that javac invocation. **Unverified** beyond that one run. A crash in the processor is the worst diagnostic it
+      can give, so the fix is either to resolve the type robustly or to say which type could not be found and why.
+
 - [ ] **`Relaunch` has only been seen under the JVM** (`-shell`, 2026-10-19). In a native image it restarts the image
       with its arguments and never calls `ManagementFactory`, but the call is still reachable, so build a native
       release and restart it in debug mode once. The JVM path rebuilds the launcher from the input arguments, the
