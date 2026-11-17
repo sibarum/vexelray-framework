@@ -66,14 +66,15 @@ There are three columns of destination:
 | `Phase` | → profile | `CONFIG, MODEL, GUI, TREE, WINDOW, ATTACH, RUN`. This is the GUI lifecycle. Each profile declares its own phases (§2.2). |
 | `FrameHooks`, `Pacing`, `DeadlineSource`, `WakeSource` | G | The frame loop and its pacing. |
 | `WindowCommand`, `WindowOpened`, `WindowClosed`, `WindowFullScreen`, `Modifiers`, `ThemeShifted`, `PickFile`/`Picked`, `Open`/`Opened` | G | Window and desktop messages. |
-| `Ask`/`Answer`, `CloseRequested`/`CloseAnswer` | G for now | A question for a person and a window's close. A server's equivalent is "shutdown requested; components may delay it", which is a generic cousin of `CloseRequested`. That is open question Q5, not part of the first move. |
+| `Ask`/`Answer` | R | A question from the logic to a person, answered by whichever view presents it: a dialog in a window, a prompt over HTTP or a socket. The records carry only an id, text, button labels and the asker's name, so they are MVC messages, not GUI ones. `Shell` answers them with native dialogs today, and that host side stays with the GUI profile. |
+| `CloseRequested`/`CloseAnswer` | G for now | A window's close, asked of each hearer in turn. A server's equivalent is "shutdown requested; components may delay it", which is a generic cousin. That is open question Q5, not part of the first move. |
 
 ### 1.3 `vexelray-framework-shell` (53 types, the runtime half of the wiring)
 
 GUI-free today: `Logic` (the tick), `Crew`, `Inboxes`, `Jobs`, `Sources`, `Destinations`, `Senders`, `Absences`,
 `Faults`, `Heard`, `UncleanExits` and the `Wiring` base class (0 GUI imports each). They move with the runtime
-model. `Inboxes` names `CloseRequested`/`Answer` by type for the close hearers, and that dependency is cut along
-with Q5. `Views` (imports `Gui`), `Shell` (8 GUI imports), `VexelApplication` (12) and the rest are the GUI
+model. `Inboxes` names `Answer` (which moves with it) and `CloseRequested` (which doesn't, until Q5) by type
+for the hearers, and the second dependency is cut along with Q5. `Views` (imports `Gui`), `Shell` (8 GUI imports), `VexelApplication` (12) and the rest are the GUI
 profile's host and stay. `Stalls` and `Closes` have one GUI import each and need a look when M3 reaches them.
 
 ### 1.4 `vexelray-framework-processor` (15 classes, 7.2k lines)
