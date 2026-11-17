@@ -12,13 +12,17 @@ exactly what this processor already provides.
 
 This document plans how to move that model into a repository of its own, **`vexelray-runtime`**. Once it moves,
 `vexelray-framework` becomes *the GUI profile of the runtime*: it supplies the window phases, the frame, the
-shell's values and the GUI-only checks. A server supplies its own lifecycle in the same way.
+shell's values and the GUI-only checks. A process with no window needs no profile of its own. It runs on the
+runtime's headless default, and its lifecycle is its daemons' (§2.4).
 
 **The scope is the runtime model, not just a DI library** (the author, 2026-11-17): *"It's the implementation of
 my runtime model that would apply to any jar or native-image binary."* So the concurrency model, `@MainThread` and
 `@View` move along with the injection. `@View` moves as a generic MVC presentation and `@MainThread` as a fact
-about every process. A new `@Daemon` joins them. What stays here is what only a GUI has: the frame and its
-stages, the window, and the binding that drains views inside a frame.
+about every process. `@Daemon` ([components.md](../components.md) §14, ruled 2026-11-12, not built) is built
+there as a citizen of the runtime, with lifecycle hooks, and that is what a server is made of (the author,
+2026-11-17): *"If we give daemons lifecycle hooks, we can extend them if desired. There should be no clash."*
+What stays here is what only a GUI has: the frame and its stages, the window, and the binding that drains views
+inside a frame.
 
 ---
 
@@ -52,16 +56,16 @@ There are three columns of destination:
 | `@View` | R/split | The concept (presentation shows what the logic decided and reports what a person did, by messages, and decides nothing) works for an HTTP endpoint or a socket. Two details are GUI-specific: `window()`, and the javadoc's *"drained on the GUI thread in each frame's widget tick"*. Both move into the GUI profile's view binding. |
 | `@OnMode` | R | A startup `if` on the mode. The mechanism is generic. |
 | `RunMode` | R/split | Its values, `WINDOWED` and `FRAMES`, are GUI modes. The enum can't stay closed (§3.3). |
-| `@VexelApp` | R/split | `name`, `formerNames` and `starters` are generic. `title`, `width`, `height` and `icon` are a window's. It splits into a generic entry and the GUI profile's entry (§2.4). |
+| `@VexelApp` | R/split | `name`, `formerNames` and `starters` are generic. `title`, `width`, `height` and `icon` are a window's. The generic half becomes the runtime's one entry, for every process, and the window facts move to the GUI (§2.4). |
 | `@Draw` | G | A view's asked half, on every frame. Takes `Frame`/`Drawn`. |
 | `@BeforeFrame`, `FrameStage` | G | Frame hooks. They have been refused since 0.2 and are kept only so the refusal can name what replaces them. |
-| `@Daemon` | R (new) | Does not exist yet. Proposed in §2.4. Its meaning is open question Q1. |
+| `@Daemon` | R (to build) | Ruled in [components.md](../components.md) §14 (2026-11-12, commit `9401cb0`) and not built: a component off the tick, with one thread of its own for the application's life, parked when idle and never shared, talking with the application both ways (it subscribes, sends as it goes, and asks `superseded.now()` mid-delivery). `@Source`/`@Destination` are optimised cases of it, and one class is one kind. It needs atchung's ordered `Pump`, `Superseded`, `Daemons` in the host and named job lanes (`@Job(lane = ...)`), none of which is GUI. It is built in the runtime (M6), and this plan adds lifecycle hooks to it (§2.4). |
 
 ### 1.2 `vexelray-framework-core` (26 types)
 
 | Types | Dest. | Evidence |
 |---|---|---|
-| `Lanes`, `Watchdog`, `Timer`, `Disposer`, `Stalled`, `MainThreadBeat` | R | They import only `-api`'s `Stability`, `atchung` and `probe`. `MainThreadBeat` is the main thread's pulse for the watchdog. Its "parks when nothing is due" is GUI phrasing, but a server's main thread has the same three states. |
+| `Lanes`, `Watchdog`, `Timer`, `Disposer`, `Stalled`, `MainThreadBeat` | R | They import only `-api`'s `Stability`, `atchung` and `probe`. `MainThreadBeat` is the main thread's pulse for the watchdog. Its "parks when nothing is due" is GUI phrasing, but a server's main thread has the same three states. `Timer` is *"a daemon in all but name"* (components.md §14, question 5): whether it becomes one is decided after the first application daemon is built, as that ruling says. |
 | `Launch` | R/split | Parses the generic `args`, but carries `RunMode` and `frames`. |
 | `Phase` | → profile | `CONFIG, MODEL, GUI, TREE, WINDOW, ATTACH, RUN`. This is the GUI lifecycle. Each profile declares its own phases (§2.2). |
 | `FrameHooks`, `Pacing`, `DeadlineSource`, `WakeSource` | G | The frame loop and its pacing. |
@@ -113,18 +117,21 @@ behind the SPI.
 
 The processor today is one environment hard-coded: the roots, the phases, the wiring base class, the extra
 annotations and the extra checks are all GUI. A **profile** is that environment written as data plus a few hooks,
-loaded by the generic processor. `vexelray-framework` ships the GUI profile, and a server ships its own.
+loaded by the generic processor. `vexelray-framework` ships the GUI profile. The runtime has a headless profile
+built in, which is what a process with no window runs on.
 
 The profile lives **on the processor path**, not the runtime path. It is compile-time code like the processor, so
 loading it with `ServiceLoader` from the processor path is fine. The application's binary never sees it, so
 nothing about it reaches native-image. The ban on runtime discovery (`-api`'s package-info: *"Nothing here is
 discovered"*) is about the application's classpath at run time. The processor path is javac's.
 
-**Choosing the profile:** each profile declares its **entry annotation**, and the processor runs the profile
-whose entry annotation the compilation uses. `@VexelApp` selects the GUI profile and `@Daemon` selects the
-daemon profile (§2.4). If a compilation has none (a library or a starter compiled alone), only the generic checks
-run, as `Graph` already allows today (*"A starter compiled on its own is allowed to need things"*). Two entries,
-or an entry whose profile is not on the processor path, is a compile error naming the missing artifact.
+**Choosing the profile:** every process has the same entry, `@VexelApp` (§2.4). The processor path chooses the
+profile. A GUI application's path has `vexelray-framework-processor` on it, which brings the GUI profile. A
+headless process's path has only `vexelray-runtime-processor`, and the built-in headless profile applies. Two
+non-default profiles on one path is a compile error naming both artifacts. A compilation with no `@VexelApp` (a
+library or a starter compiled alone) gets only the generic checks, as `Graph` already allows today (*"A starter
+compiled on its own is allowed to need things"*). A profile-only annotation such as `@Draw`, met under a profile
+that doesn't know it, is a compile error naming the artifact that would.
 
 ### 2.2 What a profile contributes
 
@@ -137,11 +144,8 @@ package dev.vexelray.runtime.spi;
 /** One environment a VexelRay process can run in: its lifecycle, what the host hands out, and its own rules. */
 public interface Profile {
 
-    /** Canonical name of the entry annotation that selects this profile ("dev.vexelray.framework.api.VexelApp"). */
-    String entry();
-
     /** The construction phases, in order. A part is built in the latest phase of anything it takes. */
-    List<String> phases();                       // GUI: config, model, gui, tree, window, attach
+    List<String> phases();                       // GUI: config, model, gui, tree, window, attach; headless: config, run
 
     /** The generated class's base, and the method each phase's construction goes in. */
     String wiringBase();                         // GUI: dev.vexelray.framework.shell.Wiring
@@ -187,41 +191,63 @@ Notes on the shape:
 - **`@MainThread`**: a profile's roots carry `onMain`, as today. The runtime keeps the one-direction rule:
   nothing that isn't main-thread may take a main-thread value, except a view whose binding drains on the main
   thread. Whether application code may *declare* `@MainThread` is a profile flag. The GUI profile keeps refusing
-  it (T7.1). A daemon profile might allow it for, say, a signal handler. That is open question Q2.
+  it (T7.1). Whether the headless profile lets a part claim it is open question Q2.
 - **`@View`**: the runtime owns the rules that make it presentation: decides nothing, takes no job, no inbox, no
   component on another lane, and nothing that isn't a view takes it. The profile's `ViewBinding` owns *when and
   where it runs*. For the GUI that means in each frame's widget tick, from `TREE`, may take the `Gui`, with
-  `window()`. For a server it could mean per request on a lane of its own, from a `listening` phase, and may take
-  the request's channel. `@View.window()` moves into a GUI-profile annotation, or into the binding (Q3).
+  `window()`. On the headless profile it could mean per request, on the thread of the daemon that accepted it, and
+  may take the request's channel. `@View.window()` moves into a GUI-profile annotation, or into the binding (Q3).
 
-### 2.4 Entries: `@VexelApp` and `@Daemon`
+### 2.4 One entry, and daemons with lifecycle hooks
 
-The generic runtime needs an entry with `name`, `formerNames` and `starters`. The window facts (`title`,
-`width`, `height`, `icon`) are the GUI's. The proposal:
+**One entry for every process.** `@VexelApp` keeps its generic members (`name`, `formerNames`, `starters`) and
+moves to the runtime. The window facts (`title`, `width`, `height`, `icon`) move to a GUI annotation on the same
+class, for example `@Window(title = ..., width = ...)` (Q10 for the name). There is no second entry annotation
+for a headless process, because the profile comes from the processor path (§2.1), not from the entry.
 
-- `@VexelApp` stays where it is, as **the GUI profile's entry**. It keeps its window members, and the processor
-  reads its generic members by name.
-- `@Daemon` is **the entry of a process with no window**: the runtime's own headless profile. Its lifecycle is
-  `config → services → run`, with the close in reverse as always. The knowledge engine either uses it or ships a
-  profile of its own that extends it (§5, Q1).
+**A server is daemons.** A process with no window doesn't need a lifecycle of its own declared as a profile. Its
+long-lived parts are `@Daemon`s, each with a thread, a mailbox and a two-way channel, as components.md §14 rules.
+This plan adds **lifecycle hooks** to that ruling, so a daemon can set itself up and wind itself down in order,
+and a project can extend the shape where it needs more:
 
-That reading of `@Daemon` is this plan's guess. The author named it, and nothing in the code defines it yet.
+- **Started:** called once on the daemon's own thread, after the wiring has built every part and before the
+  daemon's first delivery. A storage daemon opens its log here, and a listener binds its port. What it sends from
+  here arrives as from outside, like everything a daemon sends (§14).
+- **Stopping:** called once on its own thread during the ordered shutdown §14 already rules. That happens after the
+  delivery in progress has seen `superseded.now()` answer true, and before the bounded wait ends in an interrupt.
+  A storage daemon flushes here, and a listener stops accepting connections.
+- **Order:** daemons start in the order the wiring built them and stop in reverse, which is the rule
+  `AutoCloseable` parts already follow. A daemon never holds another (T2.3, inherited from components), so the order
+  between two daemons comes from what they take. A listener that takes the `Storage` a provider builds starts after
+  that provider has run. Whether that is enough, or a daemon must also be able to wait for another's *started*
+  (ready) message, is open question Q1.
+- **Shape:** the hooks are declarations the processor reads, in the house style: two method annotations (for
+  example `@Started` and `@Stopping`), each no-argument, void and at most one per daemon, with checks matching a
+  `@Subscribe` method's. "Extend them if desired" means a library may ship an abstract daemon whose hooks do the
+  common part. The project's subclass keeps the hooks, and the processor reads them through the superclass. The
+  names and the subclassing rule are Q1's to settle, and components.md §14 is where they are ruled.
+
+**The concurrency model is the lifecycle.** With hooks, the headless profile needs only `config` and `run`
+phases. Everything that would have been a "storage" or "listening" phase is a daemon starting in order.
 
 ### 2.5 What a server's lifecycle looks like
 
-For the knowledge engine (`architecture.md` §13 deployment modes, §14 modules), a profile could be:
+For the knowledge engine (`architecture.md` §13 deployment modes, §14 modules), on the headless profile:
 
-| Phase | Built here | Roots from the host |
-|---|---|---|
-| `config` | settings, launch, node identity | `Launch`, settings source, `Timer` |
-| `storage` | log, version store, segment files (§9) | data directory, clock (HLC, §6.2) |
-| `services` | txn manager, index registry (§10), auth (§12), planner | the storage roots |
-| `listening` | wire endpoints on elektro-Q (§13), changefeeds; views here are per-request handlers | transport, bound addresses |
-| `run` | nothing is built; components tick, the watchdog watches | |
+| Part | Kind | Started | Stopping |
+|---|---|---|---|
+| settings, launch, node identity | providers, `@Setting` | (built in `config`) | |
+| clock (HLC, §6.2) | daemon, or `Timer` if it becomes one | joins clock sync | |
+| storage: log, version store, segment files (§9) | daemon | opens and replays the log | flushes and closes |
+| txn manager, conflict ranking (§6–7) | component on a declared lane | | |
+| index plugins (§10) | `All<IndexPlugin>` from starters, maintained by a daemon | rebuilds what lags | records watermarks |
+| wire endpoints on elektro-Q (§13), changefeeds | daemon, or `@Source`/`@Destination` per connection | binds | stops accepting, drains |
+| request handling | `@View` on the headless profile's per-request binding (§2.3) | | |
 
-The close runs in reverse: stop listening, drain, flush storage. §10's *"Plugins are registered by explicit code
+The close runs in reverse: stop accepting, drain, flush storage. §10's *"Plugins are registered by explicit code
 at startup (a generated or hand-written registry)"* is `All<IndexPlugin>` provided by starters, so the registry is
-generated, not hand-written.
+generated, not hand-written. The engine needs a profile of its own only if it wants roots the headless host
+doesn't have, and none is in sight.
 
 ---
 
@@ -233,25 +259,24 @@ generated, not hand-written.
 
 | Module | Package | Contents | Depends on |
 |---|---|---|---|
-| `vexelray-runtime-api` | `dev.vexelray.runtime.api` | The vocabulary in §1.1's R rows, plus `@Daemon` | JDK only |
-| `vexelray-runtime-core` | `dev.vexelray.runtime.core` | `Lanes`, the tick (`Logic`, `Crew`, `Inboxes`), `Jobs`, `Sources`, `Destinations`, `Senders`, `Watchdog`, `MainThreadBeat`, `Timer`, `Disposer`, `Launch`, `Absences`, `Faults`, the `Wiring` base | `-api`, `atchung-core`, `atchung-probe` |
+| `vexelray-runtime-api` | `dev.vexelray.runtime.api` | The vocabulary in §1.1's R rows, including `@VexelApp`'s generic half, `@Daemon`, `Superseded` and the lifecycle hooks | JDK only |
+| `vexelray-runtime-core` | `dev.vexelray.runtime.core` | `Lanes` (with named job lanes), the tick (`Logic`, `Crew`, `Inboxes`), `Daemons`, `Jobs`, `Sources`, `Destinations`, `Senders`, `Watchdog`, `MainThreadBeat`, `Timer`, `Disposer`, `Launch`, `Absences`, `Faults`, the `Wiring` base | `-api`, `atchung-core`, `atchung-probe` |
 | `vexelray-runtime-spi` | `dev.vexelray.runtime.spi` | `Profile`, `Root`, `HandBack`, `Check`, `ViewBinding`, … | JDK + `java.compiler` |
-| `vexelray-runtime-processor` | `dev.vexelray.runtime.processor` | The generic processor (§1.4 R rows). Loads profiles with `ServiceLoader` | `-api`, `-spi` |
-| `vexelray-runtime-daemon` | `dev.vexelray.runtime.daemon` | The headless host: `Daemon.run(wiring, args)`, signals → orderly close | `-core` |
-| `vexelray-runtime-daemon-profile` | `dev.vexelray.runtime.daemon.profile` | The `@Daemon` profile (processor path) | `-spi` |
+| `vexelray-runtime-processor` | `dev.vexelray.runtime.processor` | The generic processor (§1.4 R rows) and the built-in headless profile. Loads other profiles with `ServiceLoader` | `-api`, `-spi` |
+| `vexelray-runtime-host` | `dev.vexelray.runtime.host` | The headless host: `Headless.run(wiring, args)`, the main thread's park, signals → orderly close | `-core` |
 | `vexelray-runtime-testing` | `dev.vexelray.runtime.testing` | Compile-a-source-and-read-the-diagnostics harness (today in `VexelProcessorTest`), a golden-wiring assertion and the root-table test base, for profile authors | `-processor`, JUnit |
 | `vexelray-runtime-architecture` | (test only) | Guard: no `dev.vexelray.gui`, `dev.vexelray.engine`, `dev.vexelray.framework` or `tactroller` name in any main class, by constant pool (as `vexelray-gui-architecture` does) | test scope only |
-| `vexelray-runtime-acceptance` | (profile) | A sample daemon built and run, JVM and `-Pnative` | everything above |
+| `vexelray-runtime-acceptance` | (profile) | A sample headless process built and run, JVM and `-Pnative` | everything above |
 
 The `-api`/`-core` split keeps the rule this repo already holds: `-api` stays JDK-only, and `-core` takes the JDK
-and atchung. Splitting the profile from its host (`-daemon` vs `-daemon-profile`) keeps processor-path code out
-of the binary.
+and atchung. The headless profile lives in `-processor`, on the processor path, and its host in `-host`, on the
+runtime path, so no processor-path code reaches the binary.
 
 ### 3.2 What `vexelray-framework` becomes
 
 | Module | After |
 |---|---|
-| `vexelray-framework-api` | `@VexelApp`, `@Draw`, `@BeforeFrame`, `FrameStage`, and the GUI's view annotation if Q3 lands that way |
+| `vexelray-framework-api` | The window facts' annotation (Q10), `@Draw`, `@BeforeFrame`, `FrameStage`, and the GUI's view annotation if Q3 lands that way |
 | `vexelray-framework-core` | The frame loop and window messages (§1.2 G rows) |
 | `vexelray-framework-shell` | `Shell`, `VexelApplication`, `Views`, the GUI host |
 | `vexelray-framework-profile` (new) | The GUI `Profile`: today's `Framework` table, `SpiBoundary`, `TechniqueCalls`, the `@Draw` checks, GUI shareable types |
@@ -330,7 +355,10 @@ Each milestone leaves these green, called **the bar**:
   - The R annotations move to `dev.vexelray.runtime.api` in a `-runtime-api` module. **The processor accepts both
     the old and the new canonical names** for one release (`Mirrors` already matches by canonical name, so this
     is a two-entry table), and an old name is a warning that says what to import instead.
-  - `@VexelApp` keeps its window members, and the processor reads its generic members through the profile's entry.
+  - `@VexelApp`'s generic half moves to the runtime, and its window members to the GUI's own annotation (§2.4).
+    The old `@VexelApp` keeps all of its members for the compatibility release, and the processor reads them
+    from either shape.
+  - The profile comes from the processor path, and the built-in headless profile exists (no host for it yet).
   - `RunMode`/`@OnMode` get §3.3's resolution.
   - `@View` loses `window()` to the GUI side, per Q3.
   - `@MainThread`'s rule moves to the runtime, with the profile flag. The GUI profile still refuses it.
@@ -346,14 +374,19 @@ Each milestone leaves these green, called **the bar**:
 - **Acceptance:** the bar, from a clean `~/.m2` built through `bootstrap.sh`. **Both** native checks pass: the
   framework's, and the new repo's own (M6).
 
-### M6: The daemon profile, and native proof without a window
+### M6: Daemons, the headless host, and native proof without a window
 
-- **Deliverable:** `-daemon`, `-daemon-profile`, `@Daemon`, and `vexelray-runtime-acceptance`: a sample daemon
-  with a component on a declared lane, a job, a source on a loopback socket, a `@Setting`, `All<T>` from two
-  starters, `@OnMode`, and a clean shutdown on a signal.
+- **Deliverable:** `@Daemon` built as components.md §14 rules it, in the runtime: atchung's ordered `Pump` and the
+  per-key question, `Superseded`, `Daemons` in `-core`, named job lanes, the processor's checks and graph node, and
+  `DaemonsTest`. Then the lifecycle hooks (§2.4, once Q1 is ruled), `-host`, and `vexelray-runtime-acceptance`:
+  a sample headless process with two daemons (one opening a file in its started hook and flushing it while
+  stopping, one bound to a loopback socket that takes what the first is built from), a component on a declared
+  lane, a job on a named lane, a `@Setting`, `All<T>` from two starters, `@OnMode`, and a clean shutdown on a
+  signal. The GUI gets daemons from the same build, through `-shell` delegating to `Daemons`. That is what
+  vexelray-gui's `Progress` widget and template-examples A6 were waiting for.
 - **Acceptance:** `mvn -Pnative verify` in `vexelray-runtime` produces a binary with **empty** reachability
-  config. It starts, answers on its socket, logs the watchdog's heartbeat, and closes in reverse order on SIGTERM
-  (and Ctrl+C on Windows), all checked by the test, not by eye. This is the claim the knowledge engine needs,
+  config. It starts its daemons in order, answers on its socket, logs the watchdog's heartbeat, and runs the
+  stopping hooks in reverse order on SIGTERM (and Ctrl+C on Windows), all checked by the test, not by eye. This is the claim the knowledge engine needs,
   proven before it depends on it.
 
 ### M7: Consumers move to the new names
@@ -364,9 +397,9 @@ Each milestone leaves these green, called **the bar**:
 
 ### M8: The knowledge engine adopts it
 
-- **Deliverable:** in `vexelray-knowledge-engine`, a `knowledge-profile` (or `@Daemon` use, per Q1) with §2.5's
-  phases. `knowledge-server` and `knowledge-embedded` are wired by the processor, and the index registry is
-  `All<IndexPlugin>`.
+- **Deliverable:** in `vexelray-knowledge-engine`, `knowledge-server` and `knowledge-embedded` are wired by the
+  processor on the headless profile, with §2.5's daemons and their hooks. The index registry is `All<IndexPlugin>`.
+  No profile of the engine's own.
 - **Acceptance:** the knowledge engine's own M0 native check (its architecture.md §0) is green with the runtime in
   it. An architecture test there shows that only the deployables, not `knowledge-api`/`-storage`/`-txn`, depend on
   `vexelray-runtime-core` (Q4).
@@ -375,12 +408,14 @@ Each milestone leaves these green, called **the bar**:
 
 ## 5. Open questions
 
-- **Q1: What is `@Daemon`?** §2.4 reads it as the headless entry annotation, the sibling of `@VexelApp`, with the
-  runtime shipping a small default profile. Other readings: a *part* kind (a long-lived background service inside
-  any application, between a `@Component` and a `@Source`), or a profile the knowledge engine defines itself. The
-  author's call.
-- **Q2: May application code claim the main thread outside the GUI?** T7.1 refuses it for the GUI. A daemon's
-  main thread has little to do. Is it the watchdog's and the signal handler's, or may a part ask for it?
+- **Q1: Daemon lifecycle hooks.** What `@Daemon` *is* was answered in [components.md](../components.md) §14
+  (ruled 2026-11-12), and this plan builds that. Still open, and to be ruled there: the hooks' names and shape
+  (§2.4 proposes `@Started`/`@Stopping` methods), whether a daemon may extend an abstract daemon from a library
+  and keep its hooks, and whether start order by what each takes is enough, or a daemon may wait for another's
+  *started* message before its own first delivery.
+- **Q2: May application code claim the main thread outside the GUI?** T7.1 refuses it for the GUI. On the
+  headless profile the main thread has little to do. Is it the watchdog's and the signal handler's, or may a part
+  ask for it?
 - **Q3: Where does `@View.window()` go?** It could go into a GUI annotation beside `@View` (for example
   `@InWindow("tools")`), into `@View` as a generic `String place()` that each binding interprets, or away into
   the view binding entirely.
@@ -397,9 +432,12 @@ Each milestone leaves these green, called **the bar**:
   `architecture-proof.md` plans for the GUI), or does the wire stay outside the runtime model?
 - **Q8: `vexelray-framework-native`.** A second checkout of this repo, on branch `native-metadata`. Does its work
   land before M1, so the seam isn't drawn twice?
-- **Q9: How many profiles may one compilation see?** This plan says exactly one entry per compilation. A
-  multi-module application whose `-core` is shared by a GUI and a daemon build (one logic, two hosts) would
-  compile `-core` with no entry and each host module with its own. Confirm that is the intended shape.
+- **Q9: One logic, two hosts.** This plan says one non-default profile per processor path and one `@VexelApp`
+  per compilation. A multi-module application whose `-core` is shared by a GUI build and a headless build would
+  compile `-core` with no entry, and each host module with its own entry and path. Confirm that is the intended
+  shape.
+- **Q10: The window facts' annotation.** What carries `title`, `width`, `height` and `icon` once `@VexelApp` is
+  the runtime's: a GUI `@Window` on the same class (the proposal), or members of the GUI profile's own entry?
 
 ---
 
