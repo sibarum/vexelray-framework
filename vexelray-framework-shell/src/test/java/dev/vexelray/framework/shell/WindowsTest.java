@@ -219,6 +219,28 @@ final class WindowsTest {
     }
 
     @Test
+    void aMainWindowThatStartsHiddenAppearsWhenShown() {
+        Wiring hidden = new Wiring() {
+            @Override
+            public AppInfo info() {
+                return DEMO;
+            }
+
+            @Override
+            public boolean startsHidden() {
+                return true;
+            }
+        };
+        shell = VexelApplication.tree(hidden, new String[0]);
+        Window main = shell.windows().main();
+
+        assertFalse(main.shown(), "a main window declared to start hidden is to be on screen at the claim");
+        shell.bus().publish(WindowCommand.TOPIC, WindowCommand.show("main"));
+        VexelApplication.frame(shell);
+        assertTrue(main.shown(), "a show before the claim is what the claim does");
+    }
+
+    @Test
     void aCloseGoesStraightThroughWhenNothingHearsTheQuestion() {
         Window w = declare(Appearance.DEFAULT, NamedWindow.of("plain", "Plain", 300, 200));
         List<CloseRequested> asked = new ArrayList<>();

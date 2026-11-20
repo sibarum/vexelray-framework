@@ -377,7 +377,8 @@ public final class VexelApplication {
         // The other windows, declared by name from here to the end of TREE. Each one's tree is built when it is
         // declared, beside this one and with no window; the windows themselves are claimed at ATTACH.
         shell.windows(new Windows(shell, new Window(NamedWindow.of(Windows.MAIN, info.title(), info.width(),
-                info.height()), gui, appearance.drawsOwnFrame() ? shell.titleBar() : null, true, shell)));
+                info.height()), gui, appearance.drawsOwnFrame() ? shell.titleBar() : null, !wiring.startsHidden(),
+                shell)));
         wiring.gui(shell);
 
         // ---- TREE: the widgets, the framework's title bar among them. No window needed. -------------------
@@ -420,7 +421,7 @@ public final class VexelApplication {
         installBackgroundMark(Mark.background(wiring));
         // Placement is read before the window exists, so the window is created where it was left rather than
         // appearing and then moving -- and clamped on the way, because the desk may have changed shape.
-        WindowConfig main = mainWindow(memory, info, appearance, mark);
+        WindowConfig main = mainWindow(memory, info, appearance, mark).hidden(wiring.startsHidden());
         // FrameworkShader rather than the core set, so the effects the framework's own widgets ask for are drawn; the
         // one for the application's fonts, whose atlas type decides its text source.
         GuiApp app = disposer.register(new GuiApp(main, windows,
@@ -512,7 +513,12 @@ public final class VexelApplication {
             }
         }
         if (memory.maximized(MAIN)) {
-            app.window().maximize();
+            // Maximizing puts a window on screen, so one created hidden is maximized when it is first shown.
+            if (wiring.startsHidden()) {
+                shell.windows().main().maximizeWhenShown();
+            } else {
+                app.window().maximize();
+            }
         }
         // Watched with its tree, so the UI zoom is remembered too: Ctrl+= is the same kind of decision as
         // dragging the window bigger, and losing it on quit is the same loss.

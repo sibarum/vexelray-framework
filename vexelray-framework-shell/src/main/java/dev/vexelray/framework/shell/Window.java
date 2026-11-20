@@ -73,6 +73,11 @@ public final class Window {
     /** Whether a close was asked for before the claim. Only the main window acts on it: see {@link #claimMain}. */
     private boolean closeAsked;
     /**
+     * Whether the main window, created hidden, is maximized as it is first shown: remembered maximized, and maximizing
+     * would have put it on screen at once ({@code @VexelApp(startsHidden)}).
+     */
+    private boolean maximizeWhenShown;
+    /**
      * Told how the next close goes, once: {@code [proceeded, cancelled]}, or null. Set by {@link #close(Runnable,
      * Runnable)}, taken by the close it asked for.
      */
@@ -349,7 +354,7 @@ public final class Window {
         handle = new Handle() {
             @Override
             public void show() {
-                app.post(() -> app.window().focus());   // focus() unhides and un-minimizes on the way
+                app.post(() -> unhide(app));
             }
 
             @Override
@@ -363,7 +368,7 @@ public final class Window {
                     if (app.window().isVisible()) {
                         app.window().hide();
                     } else {
-                        app.window().focus();
+                        unhide(app);
                     }
                 });
             }
@@ -391,6 +396,26 @@ public final class Window {
             handle.hide();
         } else if (fullScreen != null) {
             handle.fullScreen(fullScreen);
+        }
+    }
+
+    /**
+     * The main window, created hidden and remembered maximized, is maximized as it is first shown rather than at
+     * {@code ATTACH}. Main thread, before the claim.
+     */
+    void maximizeWhenShown() {
+        maximizeWhenShown = true;
+    }
+
+    /** Put the main window in front: maximized first if it is being shown for the first time and was left so. */
+    private void unhide(GuiApp app) {
+        app.window().focus();   // focus() unhides and un-minimizes on the way
+        // After the show, as a window created on screen is maximized after it appears: maximizing first puts it on
+        // screen behind the platform window's back, and the show that follows (SW_SHOWNOACTIVATE in a background
+        // run) then restores it to its normal size.
+        if (maximizeWhenShown) {
+            maximizeWhenShown = false;
+            app.window().maximize();
         }
     }
 

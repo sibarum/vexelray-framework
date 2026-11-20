@@ -74,6 +74,14 @@ public abstract class Wiring {
     }
 
     /**
+     * Whether the main window is created off screen, until a {@code WindowCommand.show("main")}
+     * ({@code @VexelApp(startsHidden)}). False, the default.
+     */
+    public boolean startsHidden() {
+        return false;
+    }
+
+    /**
      * The message graph the application declares, as the bus-graph text (vexelray-inspector {@code docs/bus-graph.md},
      * version 2): its parts and their lanes, every way each hears a topic, what each sends, and each topic's kind. The
      * generated wiring answers a constant, possibly with nothing in it but its header; {@code null}, the default, is a hand-written wiring, which declares no graph at all. The automation

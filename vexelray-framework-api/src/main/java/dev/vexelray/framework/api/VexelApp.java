@@ -64,6 +64,19 @@ public @interface VexelApp {
     int height() default 600;
 
     /**
+     * Whether the main window is created off screen, to appear when something sends it
+     * {@code WindowCommand.show("main")}. False, the default: it appears with the application.
+     *
+     * <p>For an application that opens on another window first, a launcher or a welcome window, and shows its main one
+     * once the person has chosen what it is for. Created hidden rather than hidden once open, because a window that has
+     * been on screen for a frame has been seen and has taken the keyboard. It is real all the same: its tree is built,
+     * its parts hear {@code WindowOpened}, and it is drawn off screen. A main window remembered maximized is maximized
+     * when it is first shown, since maximizing puts a window on screen. Nothing shows it for the application, so one
+     * that never sends the show runs with no main window in sight.
+     */
+    boolean startsHidden() default false;
+
+    /**
      * The application's mark: a classpath resource, an {@code .ico} or a {@code .png}, named as
      * {@code Class.getResource} names one — relative to this class's package, or absolute with a leading {@code /}.
      * Empty, the default, wears the framework's own mark, the one the template's projects start with.

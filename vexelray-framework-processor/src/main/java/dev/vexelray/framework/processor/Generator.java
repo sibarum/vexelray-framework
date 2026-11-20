@@ -940,6 +940,9 @@ final class Generator {
             }
             src.append(");\n    }\n");
         }
+        if (Boolean.TRUE.equals(mirrors.value(vexelApp, "startsHidden"))) {
+            src.append("\n    @Override\n    public boolean startsHidden() {\n        return true;\n    }\n");
+        }
         String icon = mirrors.string(vexelApp, "icon");
         if (!icon.isEmpty()) {
             src.append("\n    @Override\n    public String icon() {\n        return ").append(literal(icon))
