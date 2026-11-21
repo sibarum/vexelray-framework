@@ -42,7 +42,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       text size and rem the root, each caller of the old em having moved to rem first, so nothing moved. The rest
       of the recommendation (U1–U5, U7–U9) is **not yet ruled**.
 
-- [ ] **The container now gives a component a thread and a mailbox; what is left is the colour rule.**
+- [ ] **The container gives a component a thread and a mailbox, and the colour rule is held; what is left is
+      supervision's.**
       `Shell.lanes()` owns the application's threads and the generated wiring puts each `@Component` on one of
       them with its mailboxes, its wake and its drain-then-stop — `Lanes` in `-core` (pure JDK, so the
       container stays testable with no GPU) and `Placement` in `-shell` (a mailbox is atchung's, and that
@@ -56,12 +57,16 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       processor's (2026-10-02). The `upstream` column is
       down to one entry, because T1.2 and T1.5 turned out to be the same change.
 
-      **What is actually left**, and it is the part a runtime object cannot hold: the colour rule's copier
-      and capture halves (T2.4, T2.5 — T2.1–T2.3 are the processor's now, and held), the message-graph
-      checks (§4.1, §4.3–§4.5), and the rest of supervision (§6.3). A lane that has stopped draining is now
-      noticed and named (`Watchdog` and `Lanes.busy`, see *Build the liveness guarantee*), but on a timeout only:
-      `Overrun` surfaced per grouping is still the better signal. Plus the handler lane's bound, which waits on a
-      census of what still blocks on a handler rather than on any one known blocker.
+      **What is actually left** (reconciled 2026-11-16 with [threading.md](threading.md)'s matrix, rechecked
+      2026-11-15). The colour rule is held whole: T2.4 for every payload, with ruling 6's collections and no copier,
+      which is not needed; T2.5 by construction, since slow work is a `@Job` and nothing an application part is handed
+      takes a function. The message-graph checks are held (T4.1, T4.3, T4.5) or withdrawn (T4.4). The handler lane is
+      gone with 0.1, and its bound with it. Two things remain. A lane that has stopped draining is noticed and named
+      (`Watchdog` and `Lanes.busy`, see *Build the liveness guarantee*), but on a timeout only: `Overrun` surfaced per
+      lane is still the better signal ([components.md](components.md), section 6, *a build item*). And depth-first
+      shutdown, T6.3, is open with T3.4: the tree's first reason, supervision, was answered per lane instead, so both
+      are owed a re-argument and expected to move after v1 (and the tree spiked at zero changed signatures, *Spike the
+      extension test* below).
 
       **Ruled 2026-09-28: the component model — multithreaded by default — is a design seam frozen at v1.** Groups, lanes, channels, loss
       classes and supervision are not deferred behind the version number: v1 ships them declared, checked and
@@ -98,9 +103,10 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       full FAIL mailbox halts the process on purpose ([components.md](components.md), ruling 5). **Corrected again
       2026-10-18, and now false of a failure too:** ruled that every failure is either declared and handled or ends
       the application, so a handler that throws halts through the fault policy rather than being logged and drained
-      past (components.md, section 10). What stays true is that a *stall* is named and not killed. **Open:** the stall
-      threshold and where it is set, whether lanes an application names are supervised the same way (the
-      mechanism is per-lane, so probably), and what a report looks like to an application that wants to react.
+      past (components.md, section 10). What stays true is that a *stall* is named and not killed. **Answered, accepted
+      as recommended 2026-10-01** (components.md, section 6): the threshold is `LivenessPolicy`'s, every lane is
+      supervised the same way because the mechanism is per lane, and a report is a `Stalled` on the bus and the
+      `Context` the policy is handed, never an enum return.
 
       **Ruled: the liveness guarantee** ([v1.md](v1.md#the-liveness-guarantee)). A wedged component never
       stops the window responding, the user always being able to close, or the application ending itself. That
@@ -244,10 +250,6 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         `@VexelApp(icon)`, falling back to the framework's mark (architecture.md, *the application's mark*).
         Window memory, the dialogs and pacing cannot, and the README lists them among the defaults. Each wants a
         reason to be replaced before it gets a setter; none has one on the stack yet.
-      - **Additive, but before a BOM.** **A starter is not checked where it is compiled.** `AutomationStarterTest` compiles applications
-        against `AutomationStarter` with the real processor, which covers the one starter there is; the
-        processor is not on `-automation`'s own `annotationProcessorPaths`, so a starter's library-level checks
-        run only when an application names it. Worth wiring when there is a second starter, and before a BOM.
       - **Ruled and built 2026-10-18: a provider returning `null` is passed on and reported once.** The generated
         wiring calls `Absences` (`-shell`), one WARN on `framework.wiring` naming the provider and each part built
         with the null (named in atchung's logging.md). **Why:** `@Provides` already promised it, an application returning null on purpose keeps
@@ -375,8 +377,8 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       `releaseClaim(Node, Shortcut)`, kept only so old bytecode linked, is deleted. `StabilityMarksTest` in each
       owning module fails on an unmarked public member and on a census table that disagrees with the marks.
       **Left:** nested public types (`TitleBar.Wordmark`, `Keymap.Bound`) and the other types an application reaches
-      (`Node`, `Theme`) are not marked; and Vexplore, the scheduler, vex-suite-common and the physics demos still call
-      members that left `Gui` earlier, so they build only against an older `vexelray-gui`.
+      (`Node`, `Theme`) are not marked; and vex-suite-common and the physics demos still call members that left `Gui` earlier, so they build only
+      against an older `vexelray-gui` (Vexplore and the scheduler build and pass against it, checked 2026-11-21).
 
 - [ ] **Witnesses: the abstractions have been drawn from one application shape.** The three ported
       applications were deleted on purpose, which was right, and for a while left one generated counter-style
@@ -492,8 +494,19 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       need, so they belonged nowhere.
 
       **Left:**
-      - The five applications and `vexelray-gui-demo` still carry those copies and pin their own versions: delete
-        the copies, import the BOM. Mainframe's ConPty entries are already in `vex-suite-common-pty-windows` (FN-22).
+      - ~~The five applications and `vexelray-gui-demo` still carry those copies and pin their own versions.~~
+        **Done 2026-11-21:** the calculator (`d154021`), the text editor (`e577dc7`), Vexplore (`a68d0e2`), MainFrame
+        (`38190f2`) and the scheduler (`30290b4`) import the BOM and name no stack version; their metadata files are
+        gone, the launcher's `main` entry included (no native run needed it), except the editor's fonts, wordmark and
+        highlighting entries, which move with the highlighting starter. `mvn dependency:list` resolves identically
+        before and after in every module, and the test counts are unchanged. The calculator, the editor and MainFrame
+        were built native and driven under ottermate (a sum, an edit saved with highlighting drawn, a PowerShell tab
+        running a command) with no registration error. `vexelray-gui-demo` (`871aa4b6`) lost its stale AWT, ImageIO
+        and launcher entries but does **not** import the BOM, because the BOM is built after `vexelray-gui` and that
+        would be the repo's first edge upward, breaking a fresh `bootstrap.sh`; its three last pins are managed in
+        `vexelray-gui`'s root pom instead. MainFrame's FN-22 is resolved upstream. Not native-built: Vexplore, the
+        scheduler and the demo. The text editor and MainFrame keep a `vexelray.version` property for the msdf
+        plugin, which a BOM cannot manage.
       - The text-highlighting starter: joni 2.2.1 with jcodings, TM4E 0.14.0 (RELEASE260), every `tables/*.bin`,
         `ArrayList.clone` and `HashMap.clone`, never TM4E's `Raw*` classes (the jar is signed); no FFM flags.
       - `imagelib-wrapper-windows` registers no DLL resource. Vexplore links imagelib statically to keep 4 MB out
@@ -543,12 +556,19 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
       cycle is an error) changed no existing signature and none of the 67 existing processor tests; `Shell`,
       `Placements`, `Lanes` and the runtime were not touched, since a lane is a string. Not spiked: child-before-
       parent shutdown, which falls out of reverse construction order but was not run, and supervision naming a
-      subtree. The other rows (Linux backend, supervision, second starter) are still to do.
+      subtree. The other rows follow.
 
       **The second window, 2026-10-11: built rather than spiked, 2.** `Windows` landed for real (W1), so the count is
       of the actual change: two existing signatures went, `Shell.memory()` and `Shell.onClose(Consumer<CloseRequest>)`,
       both deliberately and before the freeze, each replaced by a per-window form (`Windows`, `Window.onClose`).
       Everything else was additive: a new root, new types, no recipe signature forced to change.
+
+      **Supervision, 2026-11-15: built rather than spiked, 0.** `e16ca6b` added the row's own example, `restart`, and
+      the main thread's stall: `Context.restart()` and `LivenessPolicy.onMainThreadStall`, `mainThreadStallThreshold`
+      and the `LOGIC_LANE` and `JOB_LANE` constants are default methods and constants, and `MainThreadContext` is a new
+      type, so a policy written before compiles unchanged (counted from that commit's diff of `LivenessPolicy`, 2026-11-16).
+      What it does not test is a richer action than `restart`; the seam taking one is the same context object. Left:
+      the Linux backend and the second starter.
 
 - [ ] **Build the liveness guarantee.** Designed in
       [architecture.md](architecture.md#a-wedged-component-cannot-freeze-the-window), contract in

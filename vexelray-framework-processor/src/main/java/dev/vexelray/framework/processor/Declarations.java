@@ -261,6 +261,12 @@ final class Declarations {
         if (element.getKind() == ElementKind.INTERFACE || !mirrors.owned(element)) {
             return;
         }
+        if (((TypeElement) method.getEnclosingElement()).getQualifiedName().toString().startsWith(Framework.OWN)) {
+            // The framework's own starter, compiled on its own since 2026-11-16 so a starter is checked where it is
+            // compiled. Its types are source in that build and class files in every application's, which is the
+            // case the rule exempts; what it returns moves with the framework, as its taking the shell does (Graph).
+            return;
+        }
         if (element.getKind() == ElementKind.CLASS && !element.getModifiers().contains(Modifier.PUBLIC)) {
             // Package-private: nothing outside the package can hold a call site against it, so a second
             // implementation is always the application's own edit and the rule has nothing to protect. A record

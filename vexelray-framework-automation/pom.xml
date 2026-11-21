@@ -61,4 +61,26 @@
             <artifactId>atchung-probe</artifactId>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- The processor on this module's own compile, so a starter is checked where it is compiled and not only
+                 when an application names it: a library compilation runs the graph and channel checks and warns on a
+                 part no configuration here lists (VexelProcessor.process, the branch with no @VexelApp). The same
+                 path an application writes, so a starter meets the processor the way the BOM ships it. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>dev.vexelray.framework</groupId>
+                            <artifactId>vexelray-framework-processor</artifactId>
+                            <version>${project.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

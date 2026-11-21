@@ -1115,6 +1115,37 @@ class VexelProcessorTest {
                 """), "returns Store, a concrete class of this application's own");
     }
 
+    /**
+     * A starter compiled on its own meets the interface rule, since its types are source there: a library's starter
+     * returning a concrete class is told so where it is written, not by the first application that names it. The
+     * framework's own starters are exempt, as their taking the shell is: what they return moves with the framework.
+     */
+    @Test
+    void aStarterCompiledOnItsOwnMeetsTheInterfaceRuleUnlessItIsTheFrameworks() throws IOException {
+        onlyError(app("""
+                public final class Socket {}
+                """, """
+                @Configuration
+                public final class SocketStarter {
+                    @Provides public Socket socket() { return null; }
+                }
+                """), "returns Socket, a concrete class of this application's own");
+
+        String framework = """
+                package dev.vexelray.framework.spike;
+                import dev.vexelray.framework.api.*;
+                """;
+        List<String> errors = compile(Map.of(
+                "dev.vexelray.framework.spike.Socket", framework + "public final class Socket {}",
+                "dev.vexelray.framework.spike.SocketStarter", framework + """
+                        @Configuration
+                        public final class SocketStarter {
+                            @Provides public Socket socket() { return null; }
+                        }
+                        """), Files.createTempDirectory(temp, "starter"), lib, false);
+        assertEquals(List.of(), errors);
+    }
+
     @Test
     void providingARecordIsTheSmellRatherThanTheException() {
         onlyError(app("""
