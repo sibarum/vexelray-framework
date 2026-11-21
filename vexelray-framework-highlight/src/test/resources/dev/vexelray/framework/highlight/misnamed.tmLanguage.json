@@ -1,0 +1,7 @@
+{
+  "name": "Misnamed",
+  "scopeName": "source.something-else",
+  "patterns": [
+    { "match": "\\bdebit\\b", "name": "keyword.other.misnamed" }
+  ]
+}

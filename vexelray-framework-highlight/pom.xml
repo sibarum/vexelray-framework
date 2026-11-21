@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.vexelray.framework</groupId>
+        <artifactId>vexelray-framework</artifactId>
+        <version>0.2.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>vexelray-framework-highlight</artifactId>
+
+    <description>
+        Syntax highlighting, as a starter: a document's colours as spans, from the bundled TextMate grammars through
+        TM4E's tokenizer, or from a language's own lexer, coloured by the application's table. Carries the grammars and
+        the native-image metadata TM4E and joni need, so an application that names HighlightStarter inherits them.
+    </description>
+
+    <!--
+      What this may build against. The framework's vocabulary (-api) for the starter, and vexelray-gui-core for the
+      values a highlight is made of (Span, Paint, Role), both safe from any thread. Not -shell, and deliberately: the
+      job that colours a document lives in an application's own -core module, which cannot reach -shell, and it is
+      that module which takes Highlighting. A dependency added here is one every such -core module inherits.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-api</artifactId>
+        </dependency>
+        <!-- Span, Paint, Role and Palette, and through it the logger (atchung-probe). -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-core</artifactId>
+        </dependency>
+        <!-- Color, which Colour.of takes. Reached through gui-core, named because it is imported here. -->
+        <dependency>
+            <groupId>dev.vexelray</groupId>
+            <artifactId>vexelray-canvas</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>sibarum.atchung</groupId>
+            <artifactId>atchung-probe</artifactId>
+        </dependency>
+
+        <!-- The TextMate tokenizer: the NetBeans repack of org.eclipse.tm4e.core, which is the only current release on
+             Maven Central, and the three runtime dependencies it uses and does not declare (gson reads a JSON grammar,
+             joni is the Oniguruma regex engine every grammar is written for, snakeyaml-engine reads a YAML one). The
+             jar is signed, which is why the native-image metadata must never register a class of its own; see
+             META-INF/native-image/dev.vexelray.framework/vexelray-framework-highlight/reachability-metadata.json. -->
+        <dependency>
+            <groupId>org.netbeans.external</groupId>
+            <artifactId>org.eclipse.tm4e.core-0.14.0</artifactId>
+            <version>RELEASE260</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jruby.joni</groupId>
+            <artifactId>joni</artifactId>
+            <version>2.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.snakeyaml</groupId>
+            <artifactId>snakeyaml-engine</artifactId>
+            <version>2.7</version>
+        </dependency>
+
+        <!-- HighlightStarterTest compiles applications against the starter with the real processor, and the wiring it
+             generates against the real -shell. Test scope only: -shell is what this module must not reach. -->
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-processor</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-shell</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- The processor on this module's own compile, so the starter is checked where it is compiled and not only
+                 when an application names it, as -automation's is: the same path an application writes. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>dev.vexelray.framework</groupId>
+                            <artifactId>vexelray-framework-processor</artifactId>
+                            <version>${project.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

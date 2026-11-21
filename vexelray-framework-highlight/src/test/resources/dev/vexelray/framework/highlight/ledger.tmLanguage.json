@@ -1,0 +1,9 @@
+{
+  "name": "Ledger",
+  "scopeName": "source.ledger",
+  "patterns": [
+    { "match": "#.*$", "name": "comment.line.number-sign.ledger" },
+    { "match": "\\b(debit|credit)\\b", "name": "keyword.other.ledger" },
+    { "match": "\\b[0-9]+\\b", "name": "constant.numeric.ledger" }
+  ]
+}

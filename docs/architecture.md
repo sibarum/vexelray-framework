@@ -102,6 +102,12 @@ because it depends on `-automation` **and** names the starter: not a `@Condition
 dependency the whole decision, because that is the add-a-jar-get-behaviour arrangement `starters` gives up on
 purpose, and a starter named and missing is a compile error, so the two cannot drift apart silently.
 
+`HighlightStarter` (`-highlight`, 2026-11-21) is the second, and the first an application backs off in parts: it
+provides `Colours` and `Highlighting`, each a `@Default`, and takes the application's languages as `All<Language>`,
+so an application overrides its look, adds a language, or replaces the whole part, each with one provider and each
+checked at compile time. It sits on `-api` and `vexelray-gui-core` and not on `-shell`, because the job that colours a
+document lives in an application's `-core` module, which never reaches `-shell`.
+
 ## What Spring has no answer for
 
 These are the parts that are not a port of anything.
@@ -1875,6 +1881,8 @@ vexelray-framework                    parent (pom)
 ├─ vexelray-framework-shell      the absorbed edge: input, clipboard, memory, loop,
 │                                and the window chrome                              [built]
 ├─ vexelray-framework-automation the driving socket, off unless asked for            [built]
+├─ vexelray-framework-highlight  syntax highlighting as a starter: TM4E, the bundled
+│                                grammars and their metadata; -api and gui-core only  [built]
 ├─ vexelray-framework-template   the project builder, and the acceptance loop's input [built]
 ├─ vexelray-framework-processor  annotation processor: checks, then the generated wiring  [built]
 └─ vexelray-framework-diagnostics  the Actuator analogue: frame budget, bean graph   [planned]

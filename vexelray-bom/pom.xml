@@ -70,6 +70,7 @@
             <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-core</artifactId><version>${project.version}</version></dependency>
             <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-shell</artifactId><version>${project.version}</version></dependency>
             <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-automation</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-highlight</artifactId><version>${project.version}</version></dependency>
             <!-- On an annotationProcessorPaths entry with no version, maven-compiler-plugin 3.12 and later takes it from here. -->
             <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-processor</artifactId><version>${project.version}</version></dependency>
             <dependency><groupId>dev.vexelray.framework</groupId><artifactId>vexelray-framework-template</artifactId><version>${project.version}</version></dependency>

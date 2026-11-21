@@ -212,6 +212,52 @@ already provides one), `Fonts`, `Dialogs` (answer the application's questions yo
 `ClipboardBackend` and `LivenessPolicy` (what happens when a lane hangs). When you provide one, the framework's is
 never created. The rest of the application edge (window memory, pacing, the command line) is not replaceable yet.
 
+### Starters
+
+A starter is a `@Configuration` in a library that the application names in `@VexelApp(starters = ...)`. Two things
+make it part of the build, and both are written down: the dependency in the pom (what links the library into the
+binary) and the name in `starters` (what builds its parts). A starter named but not on the class path is a compile
+error. Its parts are `@Default` providers, so a `@Provides` of the same type in your own `Recipes` takes the place of
+the starter's, the same way the framework's defaults are replaced. Each library carries its own native-image metadata,
+so a starter brings what it needs to the native build and nothing is copied into the project.
+
+| Starter | Module | What it gives you |
+| --- | --- | --- |
+| `AutomationStarter` | `vexelray-framework-automation` | The automation sockets ([step 7](#7-drive-it-and-take-screenshots)) |
+| `HighlightStarter` | `vexelray-framework-highlight` | `Highlighting`: sixteen bundled TextMate grammars, which file is in which language, and a document's colours as spans |
+
+Syntax highlighting shows how you have your say. Depend on `vexelray-framework-highlight` in `-core` (no version: it
+comes from `vexelray-bom`), name `HighlightStarter`, and have the job that colours a document take `Highlighting`:
+
+```java
+@Job
+public final class MarkText {
+    private final Highlighting highlighting;
+
+    public MarkText(Highlighting highlighting) {
+        this.highlighting = highlighting;
+    }
+
+    public Marked run(Mark m) {
+        return new Marked(m.field(), m.version(), highlighting.spans(m.scope(), m.text()));
+    }
+}
+```
+
+Your view calls `highlighting.scopeFor(fileName)` and `nameOf(scope)` to know which language a file is in; these
+take no lock and are fine on the GUI thread. Then you override only what you need, each as a provider:
+
+- **Your colours:** `@Provides Colours colours()` returns your table, `Colours.of(Colour.of("keyword", ...), ...)`, and
+  replaces the standard one. Give each rule a `Role` so the colours follow the light and dark looks.
+- **A language of your own:** `@Provides Language mine()` returns `Language.lexed(scope, name, lexer).extensions("mine")`
+  for a language with its own token scanner, or `Language.grammar(scope, name, Recipes.class, "/grammars/mine.tmLanguage.json")`
+  for one more TextMate grammar from your resources. Every `Language` provided anywhere in the application is added,
+  and its claims win over the bundled ones.
+- **All of it:** `@Provides Highlighting` replaces the starter's part.
+
+The text editor ([text-editor-vexel-demo](https://github.com/sibarum/text-editor-vexel-demo)) uses all of this: its
+colour table is its look, and Pontif is a `Language` with a lexer.
+
 ### Settings
 
 A value from the settings file or the command line is a parameter:

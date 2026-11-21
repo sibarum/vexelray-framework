@@ -1,0 +1,34 @@
+{
+  "comment": [
+    "What highlighting needs in a native image, carried by this jar so an application that names HighlightStarter inherits it",
+    "and writes none of its own (vexelray-framework docs/TODO.md, ruled 2026-11-16: each jar carries its own metadata).",
+    "The bundled grammars, read by name through Class.getResource. A grammar an application adds is its own resource and its",
+    "own metadata.",
+    "Every jcodings tables/*.bin: joni loads a table by name the first time a pattern needs that character class, so a trace",
+    "lists only the tables one run happened to load, and a grammar a run never opened would fail in the next.",
+    "TM4E deep-copies a grammar through ObjectCloner, which finds each Raw* map's and list's clone() by Class.getMethod and,",
+    "when that finds nothing, copies into a plain HashMap or ArrayList, so the grammar is no longer an IRawGrammar.",
+    "Raw* inherit that public clone() from java.util.HashMap and ArrayList, so registering those two methods is enough.",
+    "Never register the Raw* classes themselves: TM4E's jar is signed, and that drags its X509 certificates into the image",
+    "heap, which fails the build.",
+    "No native-image.properties: nothing here binds native code, so there is no flag to carry."
+  ],
+  "reflection": [
+    {
+      "type": "java.util.ArrayList",
+      "methods": [{"name": "clone", "parameterTypes": []}]
+    },
+    {
+      "type": "java.util.HashMap",
+      "methods": [{"name": "clone", "parameterTypes": []}]
+    }
+  ],
+  "resources": [
+    {
+      "glob": "dev/vexelray/framework/highlight/grammars/*.tmLanguage.json"
+    },
+    {
+      "glob": "tables/*.bin"
+    }
+  ]
+}

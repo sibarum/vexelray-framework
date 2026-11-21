@@ -255,6 +255,7 @@ altogether.
 | `-processor` | The compile-time checks and the generated wiring |
 | `-shell` | The application edge itself, and the only module that builds the window and the GPU device |
 | `-automation` | The driving socket and `AutomationStarter` |
+| `-highlight` | Syntax highlighting and `HighlightStarter`: the bundled TextMate grammars, TM4E, and a seam for a language with its own lexer. On `-api` and `vexelray-gui-core`, not `-shell`, so an application's `-core` can take it |
 | `-template` | The project generator and the reference application it writes |
 | `-acceptance` | Generates a project, builds it, runs it and drives it, under `-Pacceptance` |
 
