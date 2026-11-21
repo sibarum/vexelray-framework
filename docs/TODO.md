@@ -507,8 +507,21 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
         `vexelray-gui`'s root pom instead. MainFrame's FN-22 is resolved upstream. Not native-built: Vexplore, the
         scheduler and the demo. The text editor and MainFrame keep a `vexelray.version` property for the msdf
         plugin, which a BOM cannot manage.
-      - The text-highlighting starter: joni 2.2.1 with jcodings, TM4E 0.14.0 (RELEASE260), every `tables/*.bin`,
-        `ArrayList.clone` and `HashMap.clone`, never TM4E's `Raw*` classes (the jar is signed); no FFM flags.
+      - ~~The text-highlighting starter.~~ **Built 2026-11-21** (`8656398`, `vexelray-framework-highlight`): the
+        stack's second starter, and the first whose checks run where it is compiled (the processor is on its own
+        `annotationProcessorPaths`). `HighlightStarter` provides `Colours` (a standard role-based table, every rule
+        held at 4.5:1 on the page in both themes) and `Highlighting` from those colours and `All<Language>`, each a
+        `@Default`, so an application overrides only what it needs. A `Language` is one shape for a bundled grammar,
+        an application's own grammar and a language with its own `Lexer`, so the 16 bundled grammars are not a
+        special case and nor is Pontif, which is now the editor's `Language.lexed` (`text-editor-vexel-demo`
+        `5b3f8ac`). It depends on `-api` and gui-core and not `-shell`, so an application's `-core` takes it; a
+        `@Component` taking `Highlighting` is refused (T2.6: a service with a lock), a job and a view may. It carries
+        its own native metadata (the grammars, `tables/*.bin`, `ArrayList.clone` and `HashMap.clone`, never TM4E's
+        `Raw*`), and the editor built native from it coloured Java, Markdown and Pontif under ottermate with no
+        registration error. Two behaviour changes, both deliberate: a rule matches at a dot boundary, as TextMate's
+        do (`keyword` colours `keyword.control`, not `keywords`); and a grammar that fails to compile is skipped and
+        logged, where the editor's could throw `TMException` past its catch. **Unverified:** an application's own
+        TextMate grammar in a native image (JVM tests only), and the release build.
       - `imagelib-wrapper-windows` registers no DLL resource. Vexplore links imagelib statically to keep 4 MB out
         of the image, so whether the jar registers it is a choice, not a gap.
       - `vexelray-audio-api` shares an arena and carries no flags.
@@ -679,6 +692,13 @@ application already depends on. Ordered as [v1.md](v1.md#how-to-get-there) order
 
 Additive: a constructor parameter with a default, a test, a deletion that changes no behaviour, a new
 module behind a seam that already exists. Worth doing, and none of it waits for the freeze.
+
+- [ ] **`WakeSeamsTest` still misses `ATTACH` under a full build's load** (`-shell`, found 2026-11-21). A cold Vulkan
+      device takes 4 to 6 s on the development machine, so the wait for `ATTACH` was given its own bound
+      (`Frames.BOUND`, 10 s, `1c23b17`) and passed 6 runs of 6 alone. During the highlight starter's first
+      acceptance run both windowed cases missed it again, and passed alone and on a full rerun. Either a window
+      start under load really exceeds 10 s, or something other than the device delays `ATTACH`; the run's log
+      would say which, and neither is known. Not a v1 change: a test's bound and, if it is the second, a finding.
 
 - [ ] **The processor can throw `NullPointerException` in `Topics.collect`** (`Topics.java:81`, where
       `Mirrors.element(...)` returns null). Found 2026-11-16 while censusing the stack for the T5.8 delivery check:
