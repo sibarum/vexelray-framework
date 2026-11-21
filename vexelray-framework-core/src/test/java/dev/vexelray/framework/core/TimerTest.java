@@ -51,6 +51,26 @@ class TimerTest {
         assertEquals(0, count.get());
     }
 
+    /**
+     * Shutdown closes the timer while a component may still be in a delivery that asks it for its next beat, as a
+     * simulation's step asks for the next step: that is accepted and dropped, as a silent timer drops it, and not
+     * thrown back into the lane, where it stopped the application as a fault after it had stopped.
+     */
+    @Test
+    void aClosedTimerDropsWhatItIsAsked() throws Exception {
+        Atchung bus = Atchung.create();
+        AtomicInteger count = new AtomicInteger();
+        bus.subscribe(BEATS, b -> count.incrementAndGet());
+        Timer timer = new Timer(bus);
+        timer.close();
+        Timer.Scheduled once = timer.after(Duration.ofNanos(1), BEATS, new Beat("late"));
+        Timer.Scheduled every = timer.every(Duration.ofMillis(5), BEATS, new Beat("late"));
+        once.cancel();
+        every.cancel();
+        Thread.sleep(30);
+        assertEquals(0, count.get());
+    }
+
     @Test
     void aTimerWaitsSomeTime() {
         try (Timer timer = new Timer(Atchung.create())) {

@@ -8,6 +8,7 @@ import sibarum.probe.Probe;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +77,11 @@ public final class Timer implements AutoCloseable {
         if (thread == null) {
             return Scheduled.NONE;
         }
-        return new Scheduled(thread.schedule(() -> fire(topic, message), delay.toNanos(), TimeUnit.NANOSECONDS));
+        try {
+            return new Scheduled(thread.schedule(() -> fire(topic, message), delay.toNanos(), TimeUnit.NANOSECONDS));
+        } catch (RejectedExecutionException closed) {
+            return Scheduled.NONE;
+        }
     }
 
     /** Publish {@code message} on {@code topic} every {@code period}, the first one period from now, until cancelled. */
@@ -86,8 +91,12 @@ public final class Timer implements AutoCloseable {
             return Scheduled.NONE;
         }
         long nanos = period.toNanos();
-        return new Scheduled(thread.scheduleWithFixedDelay(() -> fire(topic, message), nanos, nanos,
-                TimeUnit.NANOSECONDS));
+        try {
+            return new Scheduled(thread.scheduleWithFixedDelay(() -> fire(topic, message), nanos, nanos,
+                    TimeUnit.NANOSECONDS));
+        } catch (RejectedExecutionException closed) {
+            return Scheduled.NONE;
+        }
     }
 
     /**
@@ -111,7 +120,11 @@ public final class Timer implements AutoCloseable {
         }
     }
 
-    /** Send nothing more. Idempotent. */
+    /**
+     * Send nothing more. Idempotent. What is asked of it after, by a component still in a delivery while shutdown
+     * begins, is accepted and dropped, as a silent timer drops it: thrown back into that lane, it would stop the
+     * application as a fault after it had stopped.
+     */
     @Override
     public void close() {
         if (thread != null) {
